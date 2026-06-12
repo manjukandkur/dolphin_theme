@@ -159,7 +159,11 @@ frappe.provide("dolphin");
   dolphin._chb = dolphin._chb || {};
   dolphin._wsContent = dolphin._wsContent || null;
   function onDolphinWorkspace() {
-    try { return (frappe.get_route_str() || "").toLowerCase() === WS; } catch (e) { return false; }
+    try {
+      var r = frappe.get_route() || [];
+      if ((r[0] || "").toLowerCase() === "workspaces") return (r[1] || "").toLowerCase() === WS;
+      return (frappe.get_route_str() || "").toLowerCase() === WS;
+    } catch (e) { return false; }
   }
   function injectBlock(host, d) {
     if (!host || host.getAttribute("data-di-painted") === "1") return;
