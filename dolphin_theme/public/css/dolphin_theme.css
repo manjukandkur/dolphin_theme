@@ -1,0 +1,113 @@
+/* ============================================================
+   Dolphin International — global desk theme
+   Loaded via app_include_css on EVERY desk page (forms, lists,
+   dashboards, reports, workspace) — no per-render injection,
+   no dependence on the workspace loading first.
+   Navy #0F2540 · Gold #D4A24A (print #B9933E) · Cyan #00ADEF
+   ============================================================ */
+
+/* ---- Left desk sidebar: navy with gold active item ---- */
+.body-sidebar-container .body-sidebar,
+.desk-sidebar,
+.layout-side-section .desk-sidebar {
+  background: #0F2540 !important;
+}
+.body-sidebar .standard-sidebar-item,
+.body-sidebar .sidebar-item-container .item-anchor,
+.desk-sidebar .standard-sidebar-item,
+.desk-sidebar .sidebar-item-label,
+.body-sidebar a,
+.body-sidebar .sidebar-item-label {
+  color: #E8EEF5 !important;
+}
+.body-sidebar .standard-sidebar-item svg,
+.body-sidebar .sidebar-item-icon svg,
+.desk-sidebar .sidebar-item-icon svg {
+  stroke: #E8EEF5 !important;
+  color: #E8EEF5 !important;
+}
+.body-sidebar .standard-sidebar-item:hover,
+.body-sidebar .sidebar-item-container:hover > .item-anchor {
+  background: #1B3A5C !important;
+  border-radius: 8px;
+}
+.body-sidebar .standard-sidebar-item.selected,
+.body-sidebar .sidebar-item-container.selected > .item-anchor,
+.desk-sidebar .standard-sidebar-item.selected {
+  background: #1B3A5C !important;
+  border-left: 3px solid #D4A24A !important;
+  border-radius: 6px;
+}
+.body-sidebar .standard-sidebar-item.selected .sidebar-item-label,
+.body-sidebar .sidebar-item-container.selected .sidebar-item-label {
+  color: #D4A24A !important;
+  font-weight: 600;
+}
+.body-sidebar .standard-sidebar-item.selected svg,
+.body-sidebar .sidebar-item-container.selected svg {
+  stroke: #D4A24A !important;
+}
+.body-sidebar .sidebar-group-title,
+.body-sidebar .standard-sidebar-section .sidebar-item-label {
+  color: #AFC0D4 !important;
+}
+
+/* ---- Form / list tabs — navy text, gold active underline ---- */
+.form-tabs-list .nav-link,
+.form-tabs .nav-link,
+ul.nav-tabs .nav-link {
+  color: #0F2540 !important;
+}
+.form-tabs-list .nav-link.active,
+.form-tabs .nav-link.active,
+ul.nav-tabs .nav-link.active {
+  color: #0F2540 !important;
+  border-bottom: 2px solid #D4A24A !important;
+  font-weight: 600;
+}
+
+/* ---- Primary action buttons (Save / primary) -> gold ---- */
+.page-actions .btn-primary,
+.standard-actions .btn-primary,
+.btn-primary.primary-action {
+  background: #D4A24A !important;
+  border-color: #B9933E !important;
+  color: #0F2540 !important;
+  font-weight: 600;
+}
+.page-actions .btn-primary:hover,
+.btn-primary.primary-action:hover {
+  background: #B9933E !important;
+}
+
+/* ---- Brand toolbar buttons (Home / Edit / Print gold, Back grey) ---- */
+.dolphin-btn-home, .dolphin-btn-edit, .dolphin-btn-print,
+.btn.dolphin-gold {
+  background: #D4A24A !important;
+  border-color: #B9933E !important;
+  color: #0F2540 !important;
+  font-weight: 600 !important;
+}
+.dolphin-btn-back, .btn.dolphin-grey {
+  background: #E5E7EB !important;
+  border-color: #D1D5DB !important;
+  color: #0F2540 !important;
+}
+
+/* ---- Card / widget borders in brand gold ---- */
+.widget, .dashboard-card, .number-card {
+  border: 1px solid #D4A24A !important;
+}
+
+/* ---- Floating "Back to Workspace" button (added by JS) ---- */
+#dolphin-ws-btn {
+  position: fixed; right: 22px; bottom: 22px; z-index: 99999;
+  display: inline-flex; align-items: center; gap: 8px;
+  background: #0F2540; color: #fff; border: 1.5px solid #D4A24A;
+  padding: 10px 16px; border-radius: 999px; cursor: pointer;
+  font-size: 13px; font-weight: 600; letter-spacing: .3px;
+  box-shadow: 0 4px 14px rgba(15,37,64,.35);
+}
+#dolphin-ws-btn:hover { background: #1B3A5C; }
+#dolphin-ws-btn .dolphin-dot { color: #D4A24A; font-size: 15px; }
+
