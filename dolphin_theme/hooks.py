@@ -7,3 +7,4 @@ app_license = "MIT"
 
 # Bundle file built by Frappe's esbuild and included on every desk page.
 app_include_css = "dolphin_theme.bundle.css"
+app_include_js = "dolphin_theme.bundle.js"
