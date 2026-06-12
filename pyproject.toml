@@ -1,0 +1,17 @@
+[project]
+name = "dolphin_theme"
+authors = [
+    { name = "Dolphin International", email = "manjukandkur@gmail.com" }
+]
+description = "Navy/gold desk theme and navigation for Dolphin International ERP"
+requires-python = ">=3.10"
+readme = "README.md"
+dynamic = ["version"]
+dependencies = []
+
+[build-system]
+requires = ["flit_core >=3.4,<4"]
+build-backend = "flit_core.buildapi"
+
+[tool.flit.module]
+name = "dolphin_theme"
