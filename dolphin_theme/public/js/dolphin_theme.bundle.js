@@ -376,6 +376,8 @@ frappe.provide("dolphin");
       frappe.set_route("Form", "Data Import", d.name);
     });
   }
+  // expose a clean single-flow import opener for the workspace Data Import buttons
+  window.dolphinImport = diOpenImport;
 
   function addButtonBar() {
     try {
@@ -413,7 +415,8 @@ frappe.provide("dolphin");
           } catch (e) {}
         });
         var print = mkBtn("⎙ Print", "g", function () { try { cur_frm.print_doc(); } catch (e) {} });
-        [back, home, edit, print, refresh].forEach(function (b) { bar.appendChild(b); });
+        var nw = mkBtn("➕ New", "g", function () { try { frappe.new_doc(curDoctype()); } catch (e) {} });
+        [back, home, edit, nw, print, refresh].forEach(function (b) { bar.appendChild(b); });
       } else if (t === "list") {
         var dt = curDoctype();
         var imp = mkBtn("⤓ Import", "g", function () { diOpenImport(dt); });
@@ -484,6 +487,15 @@ frappe.provide("dolphin");
   /* re-apply on browser back/forward and bfcache restores (fixes theme "vanishing" when navigating back) */
   window.addEventListener("popstate", function () { tickRetries(); });
   window.addEventListener("pageshow", function () { tickRetries(); });
+  /* stop Frappe's Ctrl/Cmd+P doc-print (and its "unsaved changes" warning) on non-form pages like the workspace */
+  document.addEventListener("keydown", function (ev) {
+    try {
+      if ((ev.metaKey || ev.ctrlKey) && (ev.key === "p" || ev.key === "P")) {
+        var r = frappe.get_route() || [];
+        if ((r[0] || "").toLowerCase() !== "form") { ev.stopPropagation(); }
+      }
+    } catch (e) {}
+  }, true);
 
   /* ---------- make EVERY home affordance behave the same (go to Dolphin / confirm-exit) ----------
      Intercepts the breadcrumb home icon + navbar home so they no longer jump to the raw Frappe home. */
