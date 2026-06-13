@@ -53,8 +53,8 @@ frappe.provide("dolphin");
       ".body-sidebar .standard-sidebar-item.selected *," +
       ".standard-sidebar .standard-sidebar-item.selected *{color:#fff!important;fill:#fff!important;}" +
       /* ---- floating left-panel menu ---- */
-      "#dolphin-sidemenu{margin:6px 8px 16px;border:1px solid rgba(15,37,64,.14);border-radius:12px;" +
-      "overflow:hidden;background:#fff;font-family:Georgia,serif;box-shadow:0 2px 10px rgba(15,37,64,.08);}" +
+      "#dolphin-sidemenu{margin:6px 8px 16px;border:1px solid rgba(212,162,74,.35);border-radius:12px;" +
+      "overflow:hidden;background:" + NAVY + ";font-family:Georgia,serif;box-shadow:0 4px 14px rgba(0,0,0,.25);}" +
       "#dolphin-sidemenu .di-sm-top{display:flex;align-items:center;justify-content:space-between;" +
       "background:linear-gradient(135deg," + NAVY + " 0%,#16365c 100%);color:#fff;padding:9px 12px;" +
       "cursor:pointer;font-weight:700;font-size:12.5px;letter-spacing:.4px;}" +
@@ -62,30 +62,30 @@ frappe.provide("dolphin");
       "#dolphin-sidemenu.di-collapsed .di-sm-body{display:none;}" +
       "#dolphin-sidemenu.di-collapsed .di-sm-top .di-sm-chev{transform:rotate(-90deg);}" +
       "#dolphin-sidemenu .di-sm-search{width:calc(100% - 16px);margin:8px;padding:6px 9px;font-size:12px;" +
-      "border:1px solid rgba(15,37,64,.18);border-radius:7px;font-family:inherit;outline:none;}" +
+      "border:1px solid rgba(255,255,255,.18);background:#16365c;color:#fff;border-radius:7px;font-family:inherit;outline:none;}" +
       "#dolphin-sidemenu .di-sm-search:focus{border-color:" + GOLD + ";box-shadow:0 0 0 2px rgba(212,162,74,.2);}" +
       "#dolphin-sidemenu .di-sm-sec{user-select:none;}" +
       "#dolphin-sidemenu .di-sm-sec>.di-sm-h{display:flex;align-items:center;justify-content:space-between;" +
       "cursor:pointer;padding:8px 12px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;" +
-      "color:" + NAVY + ";background:rgba(212,162,74,.18);border-top:1px solid rgba(15,37,64,.06);}" +
-      "#dolphin-sidemenu .di-sm-h:hover{background:rgba(212,162,74,.3);}" +
+      "color:" + GOLD + ";background:rgba(255,255,255,.05);border-top:1px solid rgba(255,255,255,.08);}" +
+      "#dolphin-sidemenu .di-sm-h:hover{background:rgba(255,255,255,.1);}" +
       "#dolphin-sidemenu .di-sm-h .di-sm-count{font-size:9px;background:" + GOLD + ";color:" + NAVY + ";" +
       "border-radius:9px;padding:1px 7px;margin-left:auto;margin-right:7px;font-weight:700;}" +
       "#dolphin-sidemenu .di-sm-h .di-sm-chev{font-size:10px;color:" + GOLD + ";transition:transform .25s;}" +
       "#dolphin-sidemenu .di-sm-sec.di-closed>.di-sm-items{display:none;}" +
       "#dolphin-sidemenu .di-sm-sec.di-closed>.di-sm-h .di-sm-chev{transform:rotate(-90deg);}" +
-      "#dolphin-sidemenu .di-sm-row{display:flex;align-items:stretch;border-top:1px solid rgba(15,37,64,.05);}" +
-      "#dolphin-sidemenu .di-sm-link{flex:1;display:block;padding:7px 6px 7px 20px;font-size:12px;color:#23364d;" +
+      "#dolphin-sidemenu .di-sm-row{display:flex;align-items:stretch;border-top:1px solid rgba(255,255,255,.06);}" +
+      "#dolphin-sidemenu .di-sm-link{flex:1;display:block;padding:7px 6px 7px 20px;font-size:12px;color:#dfe6ef;" +
       "text-decoration:none;cursor:pointer;line-height:1.25;}" +
-      "#dolphin-sidemenu .di-sm-row:hover{background:rgba(15,37,64,.05);}" +
+      "#dolphin-sidemenu .di-sm-row:hover{background:rgba(255,255,255,.08);}" +
       "#dolphin-sidemenu .di-sm-new{flex:0 0 auto;width:0;overflow:hidden;border:none;background:transparent;" +
-      "color:" + NAVY + ";font-size:14px;font-weight:700;cursor:pointer;transition:width .15s;}" +
+      "color:" + GOLD + ";font-size:14px;font-weight:700;cursor:pointer;transition:width .15s;}" +
       "#dolphin-sidemenu .di-sm-row:hover .di-sm-new{width:26px;}" +
       "#dolphin-sidemenu .di-sm-new:hover{background:" + GOLD + ";color:" + NAVY + ";}" +
-      "#dolphin-sidemenu .di-sm-row.di-active{background:" + NAVY + ";border-left:3px solid " + GOLD + ";}" +
+      "#dolphin-sidemenu .di-sm-row.di-active{background:rgba(212,162,74,.22);border-left:3px solid " + GOLD + ";}" +
       "#dolphin-sidemenu .di-sm-row.di-active .di-sm-link{color:#fff;font-weight:700;padding-left:17px;}" +
       "#dolphin-sidemenu .di-sm-row.di-active .di-sm-new{color:" + GOLD + ";}" +
-      "#dolphin-sidemenu .di-sm-empty{padding:10px 12px;font-size:11px;color:#888;font-style:italic;}";
+      "#dolphin-sidemenu .di-sm-empty{padding:10px 12px;font-size:11px;color:#9fb0c4;font-style:italic;}";
     var s = document.createElement("style");
     s.id = "dolphin-theme-js-css";
     s.textContent = css;
@@ -487,6 +487,8 @@ frappe.provide("dolphin");
   /* re-apply on browser back/forward and bfcache restores (fixes theme "vanishing" when navigating back) */
   window.addEventListener("popstate", function () { tickRetries(); });
   window.addEventListener("pageshow", function () { tickRetries(); });
+  /* safety net: always keep the page bar (Back/Home/Edit/New/Print) and side menu present */
+  setInterval(function () { try { addButtonBar(); addSideMenu(); } catch (e) {} }, 2500);
   /* stop Frappe's Ctrl/Cmd+P doc-print (and its "unsaved changes" warning) on non-form pages like the workspace */
   document.addEventListener("keydown", function (ev) {
     try {
