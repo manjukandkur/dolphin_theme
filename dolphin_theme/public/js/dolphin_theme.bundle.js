@@ -52,8 +52,6 @@ frappe.provide("dolphin");
       ".body-sidebar .sidebar-item-container.selected>.standard-sidebar-item *," +
       ".body-sidebar .standard-sidebar-item.selected *," +
       ".standard-sidebar .standard-sidebar-item.selected *{color:#fff!important;fill:#fff!important;}" +
-      /* ---- hide native 'Notification' sidebar entry (single-admin: feed stays empty; bell in navbar still available) ---- */
-      ".body-sidebar .sidebar-notification{display:none!important;}" +
       /* ---- floating left-panel menu ---- */
       "#dolphin-sidemenu{margin:6px 8px 16px;border:1px solid rgba(15,37,64,.14);border-radius:12px;" +
       "overflow:hidden;background:#fff;font-family:Georgia,serif;box-shadow:0 2px 10px rgba(15,37,64,.08);}" +
@@ -483,16 +481,21 @@ frappe.provide("dolphin");
   }
   setTimeout(tick, 900);
   setTimeout(tick, 1800);
+  /* re-apply on browser back/forward and bfcache restores (fixes theme "vanishing" when navigating back) */
+  window.addEventListener("popstate", function () { tickRetries(); });
+  window.addEventListener("pageshow", function () { tickRetries(); });
 
   /* ---------- make EVERY home affordance behave the same (go to Dolphin / confirm-exit) ----------
      Intercepts the breadcrumb home icon + navbar home so they no longer jump to the raw Frappe home. */
   document.addEventListener("click", function (ev) {
     try {
-      var a = ev.target.closest && ev.target.closest('#navbar-breadcrumbs a, .navbar-home, .page-head .breadcrumb a, a.navbar-brand');
+      var a = ev.target.closest && ev.target.closest('.navbar-breadcrumbs a, #navbar-breadcrumbs a, .page-head .title-area a, .navbar-home, .page-head .breadcrumb a, a.navbar-brand');
       if (!a) return;
-      var href = a.getAttribute("href") || "";
+      var href = (a.getAttribute("href") || "").split("?")[0];
+      // detect the breadcrumb home by its icon (this build's home link has no href, just a #icon-home glyph)
+      var iconHome = !!(a.querySelector && a.querySelector('use[href="#icon-home"]'));
       var isHome = href === "/app" || href === "/app/home" || href === "/app/" ||
-        a.classList.contains("navbar-home") || (a.closest && a.closest(".navbar-home"));
+        a.classList.contains("navbar-home") || (a.closest && a.closest(".navbar-home")) || iconHome;
       if (isHome) { ev.preventDefault(); ev.stopPropagation(); goHome(); }
     } catch (e) {}
   }, true);
