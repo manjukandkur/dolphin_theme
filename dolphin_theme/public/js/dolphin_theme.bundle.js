@@ -515,6 +515,16 @@ frappe.provide("dolphin");
   window.addEventListener("pageshow", function () { tickRetries(); });
   /* safety net: always keep the page bar (Back/Home/Edit/New/Print) and side menu present */
   setInterval(function () { try { addButtonBar(); addSideMenu(); } catch (e) {} }, 2500);
+  /* robust attach: re-add the bar the instant the page toolbar (re)renders — fixes the
+     missing Back/Home bar on fast-loading minimal master forms (New Gangman, New Pit, etc.) */
+  try {
+    var __diMoT;
+    var __diMo = new MutationObserver(function () {
+      clearTimeout(__diMoT);
+      __diMoT = setTimeout(function () { try { addButtonBar(); } catch (e) {} }, 50);
+    });
+    __diMo.observe(document.body, { childList: true, subtree: true });
+  } catch (e) {}
   /* stop Frappe's Ctrl/Cmd+P doc-print (and its "unsaved changes" warning) on non-form pages like the workspace */
   document.addEventListener("keydown", function (ev) {
     try {
