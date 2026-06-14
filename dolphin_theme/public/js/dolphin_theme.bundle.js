@@ -348,18 +348,41 @@ frappe.provide("dolphin");
         var i = 0;
         (function next() {
           if (i >= tables.length) return resolve(ef);
-          var opt = tables[i++].options;
-          frappe.model.with_doctype(opt, function () {
-            var cm = frappe.get_meta(opt);
-            ef[opt] = cm.fields.filter(diImportable).map(function (x) { return x.fieldname; });
+          var tbl = tables[i++];
+          frappe.model.with_doctype(tbl.options, function () {
+            var cm = frappe.get_meta(tbl.options);
+            // Frappe's exporter keys child columns by the TABLE FIELDNAME (e.g. "block_rows"),
+            // NOT the child doctype name. Keying by doctype name is silently ignored -> parent-only template.
+            ef[tbl.fieldname] = cm.fields.filter(diImportable).map(function (x) { return x.fieldname; });
             next();
           });
         })();
       });
     });
   }
+  // Doctypes that have a hand-built template WITH Excel dropdowns shipped inside the theme app.
+  // Frappe's native download_template cannot embed data-validation dropdowns, so for these we
+  // serve the prebuilt file from /assets/dolphin_theme/templates/ instead of the native generator.
+  var DI_STATIC_TEMPLATES = {
+    "Quarry Inspection": "Quarry_Inspection_Import_Template.xlsx",
+    "Buyer Inspection": "Buyer_Inspection_Import_Template.xlsx",
+    "Quarry Block": "Quarry_Block_Import_Template.xlsx"
+  };
+  function diDownloadStatic(dt) {
+    var file = DI_STATIC_TEMPLATES[dt];
+    if (!file) return false;
+    var a = document.createElement("a");
+    a.href = "/assets/dolphin_theme/templates/" + file;
+    a.download = file;
+    document.body.appendChild(a); a.click(); a.remove();
+    try { frappe.show_alert({ message: dt + " template (with dropdowns) downloading…", indicator: "green" }); } catch (e) {}
+    return true;
+  }
   function diDownloadTemplate(dt) {
     if (!dt) return;
+    // 1) prefer the prebuilt dropdown template if we ship one for this doctype
+    if (diDownloadStatic(dt)) return;
+    // 2) otherwise fall back to Frappe's native generator (parent + child columns, no dropdowns)
     diBuildExportFields(dt).then(function (ef) {
       var url = "/api/method/frappe.core.doctype.data_import.data_import.download_template?doctype=" +
         encodeURIComponent(dt) + "&export_fields=" + encodeURIComponent(JSON.stringify(ef)) + "&file_type=Excel";
@@ -368,6 +391,8 @@ frappe.provide("dolphin");
       try { frappe.show_alert({ message: "Import template downloading…", indicator: "green" }); } catch (e) {}
     });
   }
+  // expose so any Client Script's Download/Refresh-Template button can route through the same logic
+  window.diDownloadTemplate = diDownloadTemplate;
   function diOpenImport(dt) {
     if (!dt) return;
     frappe.model.with_doctype("Data Import", function () {
@@ -420,7 +445,8 @@ frappe.provide("dolphin");
       } else if (t === "list") {
         var dt = curDoctype();
         var imp = mkBtn("⤓ Import", "g", function () { diOpenImport(dt); });
-        [home, back, imp, refresh].forEach(function (b) { bar.appendChild(b); });
+        var tmpl = mkBtn("📥 Template", "g", function () { diDownloadTemplate(dt); });
+        [home, back, imp, tmpl, refresh].forEach(function (b) { bar.appendChild(b); });
       } else if (t === "print") {
         [home, back].forEach(function (b) { bar.appendChild(b); });
       } else { // report
