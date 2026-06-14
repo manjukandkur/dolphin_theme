@@ -8,57 +8,60 @@
   :root{--navy:#0F2540;--gold:#D4A24A;--blue:#2490ef;--ink:#1c2430;--muted:#5f6b7a;--line:#e4e8ee;--bg:#f4f6f9;--card:#fff;}
   *{box-sizing:border-box;}
   body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--ink);font-size:14px;}
-  a{color:var(--blue);text-decoration:none;}
   .wrap{max-width:1280px;margin:0 auto;padding:18px;}
-  .top{display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:3px solid var(--gold);padding-bottom:12px;margin-bottom:16px;flex-wrap:wrap;}
-  .brand{display:flex;align-items:center;gap:12px;}
-  .logo{width:40px;height:40px;border-radius:9px;background:var(--navy);color:var(--gold);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:18px;}
-  .brand h1{font-size:18px;margin:0;color:var(--navy);font-weight:600;}
-  .brand p{font-size:12px;margin:2px 0 0;color:var(--muted);}
+  .top{display:flex;align-items:center;justify-content:space-between;gap:12px;background:linear-gradient(135deg,#0F2540,#1d3c61);border-radius:16px;padding:16px 22px;margin-bottom:18px;flex-wrap:wrap;box-shadow:0 3px 14px rgba(15,37,64,.22);border-bottom:3px solid var(--gold);}
+  .brand{display:flex;align-items:center;gap:14px;}
+  .brand .logochip{background:#fff;border-radius:11px;padding:6px 9px;display:flex;align-items:center;box-shadow:0 1px 4px rgba(0,0,0,.15);}
+  .brand img{height:38px;width:auto;display:block;}
+  .brand h1{font-size:19px;margin:0;color:#fff;font-weight:600;letter-spacing:.2px;}
+  .brand p{font-size:12px;margin:3px 0 0;color:#c7d4e4;}
   .btn{border:1px solid var(--line);background:#fff;border-radius:8px;padding:7px 13px;font-size:13px;cursor:pointer;color:var(--ink);}
   .btn:hover{background:#f0f3f7;}
-  .btn.blue{background:var(--blue);color:#fff;border-color:var(--blue);}
-  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:12px;}
-  .kpi{background:var(--card);border:1px solid var(--line);border-radius:11px;padding:13px 16px;}
-  .kpi .lab{font-size:12px;color:var(--muted);margin-bottom:5px;}
-  .kpi .lab i{color:var(--gold);}
-  .kpi .val{font-size:25px;font-weight:600;color:var(--navy);}
-  .resultbar{border-left:4px solid var(--gold);background:#fff;border:1px solid var(--line);border-left-width:4px;border-radius:0 9px 9px 0;padding:9px 14px;font-size:13px;color:var(--muted);margin-bottom:16px;}
+  .seghd{display:inline-flex;background:#fff;border:1px solid var(--line);border-radius:999px;overflow:hidden;margin-bottom:14px;box-shadow:0 1px 2px rgba(15,37,64,.05);}
+  .seghd button{border:0;padding:8px 22px;font-size:13px;cursor:pointer;background:#fff;color:var(--muted);font-weight:500;}
+  .seghd button.on{background:var(--navy);color:#fff;}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:12px;}
+  .kpi{background:var(--card);border:1px solid var(--line);border-radius:13px;padding:14px 16px;box-shadow:0 1px 3px rgba(15,37,64,.06);border-top:3px solid var(--gold);}
+  .kpi .lab{font-size:11px;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px;}
+  .kpi .val{font-size:26px;font-weight:700;color:var(--navy);}
+  .resultbar{border-left:4px solid var(--gold);background:#fff;border:1px solid var(--line);border-radius:0 9px 9px 0;padding:9px 14px;font-size:13px;color:var(--muted);margin-bottom:16px;}
   .resultbar b{color:var(--navy);}
-  .panel{background:#fff;border:1px solid var(--line);border-radius:11px;padding:14px 16px;margin-bottom:16px;}
+  .panel{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin-bottom:16px;box-shadow:0 1px 3px rgba(15,37,64,.05);}
+  .panel h3{font-size:13px;margin:0 0 12px;color:var(--navy);font-weight:600;border-left:3px solid var(--gold);padding-left:9px;}
   .frow{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:11px;}
   .frow:last-child{margin-bottom:0;}
-  .flab{font-size:12px;color:var(--muted);min-width:118px;}
+  .flab{font-size:12px;color:var(--muted);min-width:120px;}
   .chip{font-size:12px;padding:4px 11px;border-radius:999px;border:1px solid var(--line);background:#fff;color:var(--muted);cursor:pointer;}
   .chip.on{background:var(--navy);color:#fff;border-color:var(--navy);}
-  input[type=number],input[type=date]{height:32px;border:1px solid var(--line);border-radius:7px;padding:0 8px;font-size:13px;font-family:inherit;}
+  input[type=number],input[type=date],select{height:32px;border:1px solid var(--line);border-radius:7px;padding:0 8px;font-size:13px;font-family:inherit;background:#fff;}
   .seg{display:inline-flex;border:1px solid var(--line);border-radius:999px;overflow:hidden;}
   .seg button{border:0;padding:5px 12px;font-size:12px;cursor:pointer;background:#fff;color:var(--muted);}
   .seg button.on{background:var(--navy);color:#fff;}
-  .charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;margin-bottom:16px;}
-  .chart h3{font-size:13px;margin:0 0 12px;color:var(--navy);font-weight:600;}
+  .charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:16px;margin-bottom:16px;}
   .bar{display:flex;align-items:center;gap:9px;margin-bottom:8px;font-size:12px;}
-  .bar .bl{width:64px;color:var(--muted);text-align:right;flex:none;}
-  .bar .bt{flex:1;background:#eef1f5;border-radius:5px;height:18px;overflow:hidden;}
-  .bar .bf{height:100%;border-radius:5px;}
-  .bar .bv{width:62px;color:var(--ink);font-weight:600;flex:none;}
+  .bar .bl{width:78px;color:var(--muted);text-align:right;flex:none;}
+  .bar .bt{flex:1;background:#eef1f5;border-radius:6px;height:20px;overflow:hidden;}
+  .bar .bf{height:100%;border-radius:6px;transition:width .35s ease;}
+  .bar .bv{width:78px;color:var(--ink);font-weight:600;flex:none;}
   table{width:100%;border-collapse:collapse;font-size:12.5px;}
   th{text-align:left;padding:9px 10px;font-weight:600;color:var(--muted);background:#f7f9fb;border-bottom:1px solid var(--line);cursor:pointer;white-space:nowrap;position:sticky;top:0;}
   td{padding:8px 10px;border-bottom:1px solid #eef1f5;white-space:nowrap;}
   .tag{font-size:11px;padding:2px 8px;border-radius:999px;}
-  .tablewrap{background:#fff;border:1px solid var(--line);border-radius:11px;overflow:auto;max-height:560px;}
+  .tablewrap{background:#fff;border:1px solid var(--line);border-radius:11px;overflow:auto;max-height:520px;}
   .muted{color:var(--muted);font-size:12px;}
-  .center{text-align:center;padding:40px;color:var(--muted);}
-  .seghd{display:inline-flex;border:1px solid var(--line);border-radius:999px;overflow:hidden;margin-bottom:10px;}
-  .seghd button{border:0;padding:7px 16px;font-size:13px;cursor:pointer;background:#fff;color:var(--muted);}
-  .seghd button.on{background:var(--navy);color:#fff;}
+  .center{text-align:center;padding:36px;color:var(--muted);}
+  .sizebox{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;}
+  .sizecard{border:1px solid var(--line);border-radius:9px;padding:10px 12px;}
+  .sizecard .h{font-weight:600;color:var(--navy);margin-bottom:8px;}
+  .sizecard label{font-size:11px;color:var(--muted);display:block;}
+  .sizecard input{width:100%;height:30px;margin-bottom:6px;}
 </style>
 </head>
 <body>
 <div class="wrap">
   <div class="top">
     <div class="brand">
-      <div class="logo">DI</div>
+      <span class="logochip"><img src="/files/dolphin_logo_mono.png" alt="Dolphin International" onerror="this.parentNode.style.display='none'"></span>
       <div><h1>Dolphin International — stock dashboard</h1><p id="sub">Loading live stock…</p></div>
     </div>
     <div style="display:flex;gap:8px;">
@@ -67,39 +70,57 @@
     </div>
   </div>
 
+  <div class="seghd">
+    <button id="tabStock" class="on">Stock</button>
+    <button id="tabReports">Reports (buyer / quarry)</button>
+  </div>
+
   <div id="app"><div class="center">Loading live stock data…</div></div>
 </div>
 
 <script>
 (function(){
   var NAVY="#0F2540", GOLD="#D4A24A", BLUE="#2490ef";
-  var STATUS_COLORS={"In Stock":"#1D9E75","Buyer Marked":"#EF9F27","In Delivery Challan":"#378ADD","At Port":"#7F77DD","At Bannikoppa Station yard":"#D85A30","Shipped":"#888780"};
-  var GRADE_COLORS={"A":"#1D9E75","B":"#378ADD","C":"#EF9F27","D":"#D85A30","B1":"#7F77DD","B2":"#534AB7","Unshaped":"#888780","Unshaped ":"#888780"};
+  var STATUS_COLORS={"In Stock":"#1D9E75","Buyer Marked":"#EF9F27","In Delivery Challan":"#378ADD","At Port":"#7F77DD","At Bannikoppa Station yard":"#D85A30","Shipped":"#888780","Dispatched/Transported":"#D85A30"};
+  var GRADE_COLORS={"A":"#1D9E75","B":"#378ADD","C":"#EF9F27","D":"#D85A30","B1":"#7F77DD","B2":"#534AB7","Unshaped":"#888780"};
+  var SIZE_COLORS={"A":"#1D9E75","B":"#378ADD","C":"#EF9F27","—":"#9aa3ad"};
   function gcol(g){return GRADE_COLORS[g]||"#888780";}
   function scol(s){return STATUS_COLORS[s]||"#888780";}
-  var blocks=[], sel={grade:new Set(),size:new Set(),pit:new Set(),status:new Set()},
-      vol={min:null,max:null}, dims={L:null,W:null,H:null,tol:10}, sizeMode="gte",
-      period={from:null,to:null}, sort={key:"ton",dir:-1};
+  function zcol(z){return SIZE_COLORS[z]||"#9aa3ad";}
   function fmt(n){return (Math.round(n)).toLocaleString();}
-  function uniq(arr){return [...new Set(arr)].filter(function(x){return x!==null&&x!==undefined&&x!=="";});}
+  function uniq(a){return [...new Set(a)].filter(function(x){return x!==null&&x!==undefined&&x!=="";});}
 
-  async function load(){
-    var fields=JSON.stringify(["name","block_number","length_gross","width_gross","height_gross","gross_volume","gross_tonnage","status","pit","granite_quality_grade","granite_size_category","date_produced","gangman"]);
-    var url="/api/method/frappe.client.get_list?doctype=Quarry%20Block&fields="+encodeURIComponent(fields)+"&limit_page_length=0&order_by=block_number%20asc";
-    var r=await fetch(url,{credentials:"include",headers:{"Accept":"application/json"}});
-    if(!r.ok) throw new Error("HTTP "+r.status);
-    var j=await r.json();
-    blocks=(j.message||[]).map(function(b){
-      return {id:b.block_number||b.name, pit:(b.pit==null?"—":String(b.pit)), grade:(b.granite_quality_grade||"—").trim()||"—",
-        size:(b.granite_size_category||"—"), status:b.status||"—", date:b.date_produced||"",
-        L:+b.length_gross||0, W:+b.width_gross||0, H:+b.height_gross||0,
-        vol:+b.gross_volume||0, ton:+b.gross_tonnage||0, gangman:b.gangman||""};
-    });
+  // ----- size rules (A/B/C by min L/W/H), saved locally -----
+  var DEF_RULES={A:{L:300,W:180,H:120},B:{L:250,W:150,H:90},C:{L:0,W:0,H:0}};
+  function loadRules(){try{return JSON.parse(localStorage.getItem("dolphin_size_rules"))||DEF_RULES;}catch(e){return DEF_RULES;}}
+  function saveRules(r){try{localStorage.setItem("dolphin_size_rules",JSON.stringify(r));}catch(e){}}
+  var rules=loadRules();
+  function sizeOf(b){
+    var order=["A","B","C"];
+    for(var i=0;i<order.length;i++){var k=order[i],r=rules[k];
+      if(b.L>=(+r.L||0)&&b.W>=(+r.W||0)&&b.H>=(+r.H||0))return k;}
+    return "—";
   }
 
-  function dimOk(bv,q){ if(q==null)return true; return sizeMode==="gte"?bv>=q:Math.abs(bv-q)<=(dims.tol==null?10:dims.tol); }
-  function filtered(){
-    return blocks.filter(function(b){
+  var blocks=[], blockMap={}, biList=[], qiList=[], biCache={}, qiCache={}, view="stock";
+  var sel={grade:new Set(),size:new Set(),pit:new Set(),status:new Set()},
+      vol={min:null,max:null}, dims={L:null,W:null,H:null,tol:10}, sizeMode="gte",
+      period={from:null,to:null}, sort={key:"ton",dir:-1};
+
+  async function api(path){var r=await fetch(path,{credentials:"include",headers:{"Accept":"application/json"}});if(!r.ok)throw new Error("HTTP "+r.status);return (await r.json()).message;}
+  async function load(){
+    var fields=JSON.stringify(["name","block_number","length_gross","width_gross","height_gross","gross_volume","gross_tonnage","status","pit","granite_quality_grade","date_produced","gangman"]);
+    var m=await api("/api/method/frappe.client.get_list?doctype=Quarry%20Block&fields="+encodeURIComponent(fields)+"&limit_page_length=0&order_by=block_number%20asc");
+    blocks=(m||[]).map(function(b){var o={id:b.block_number||b.name, key:String(b.name), pit:(b.pit==null?"—":String(b.pit)), grade:(b.granite_quality_grade||"—"), status:b.status||"—", date:b.date_produced||"",
+        L:+b.length_gross||0, W:+b.width_gross||0, H:+b.height_gross||0, vol:+b.gross_volume||0, ton:+b.gross_tonnage||0};
+      blockMap[o.key]=o; return o;});
+    biList=await api("/api/method/frappe.client.get_list?doctype=Buyer%20Inspection&fields="+encodeURIComponent(JSON.stringify(["name","report_date","buyer","export_buyer","local_buyer","sale_type"]))+"&limit_page_length=0&order_by=report_date%20desc");
+    qiList=await api("/api/method/frappe.client.get_list?doctype=Quarry%20Inspection&fields="+encodeURIComponent(JSON.stringify(["name","report_date","pit","prepared_by"]))+"&limit_page_length=0&order_by=report_date%20desc");
+  }
+  function eachSized(){blocks.forEach(function(b){b.size=sizeOf(b);});}
+
+  function dimOk(bv,q){if(q==null)return true;return sizeMode==="gte"?bv>=q:Math.abs(bv-q)<=(dims.tol==null?10:dims.tol);}
+  function filtered(){return blocks.filter(function(b){
       if(sel.grade.size&&!sel.grade.has(b.grade))return false;
       if(sel.size.size&&!sel.size.has(b.size))return false;
       if(sel.pit.size&&!sel.pit.has(b.pit))return false;
@@ -109,104 +130,127 @@
       if(!dimOk(b.L,dims.L)||!dimOk(b.W,dims.W)||!dimOk(b.H,dims.H))return false;
       if(period.from&&b.date&&b.date<period.from)return false;
       if(period.to&&b.date&&b.date>period.to)return false;
-      return true;
-    });
-  }
+      return true;});}
 
   function chip(dim,val){var on=sel[dim].has(val);return '<button class="chip'+(on?' on':'')+'" data-dim="'+dim+'" data-val="'+String(val).replace(/"/g,'&quot;')+'">'+val+'</button>';}
-  function barRow(label,count,max,color){var pct=max?Math.round(count/max*100):0;
-    return '<div class="bar"><span class="bl">'+label+'</span><span class="bt"><span class="bf" style="width:'+pct+'%;background:'+color+'"></span></span><span class="bv">'+count+'</span></div>';}
+  function bar(label,count,max,color,pctText){var pct=max?Math.round(count/max*100):0;return '<div class="bar"><span class="bl">'+label+'</span><span class="bt"><span class="bf" style="width:'+pct+'%;background:'+color+'"></span></span><span class="bv">'+(pctText||count)+'</span></div>';}
+  function kpi(l,v){return '<div class="kpi"><div class="lab">'+l+'</div><div class="val">'+v+'</div></div>';}
+  function frow(lab,inner){return '<div class="frow"><span class="flab">'+lab+'</span>'+inner+'</div>';}
 
-  function render(){
+  function renderStock(){
+    eachSized();
     var grades=uniq(blocks.map(function(b){return b.grade;})).sort();
-    var sizes=uniq(blocks.map(function(b){return b.size;})).sort();
+    var sizes=["A","B","C","—"];
     var pits=uniq(blocks.map(function(b){return b.pit;})).sort(function(a,b){return (+a||999)-(+b||999);});
     var statuses=uniq(blocks.map(function(b){return b.status;}));
     var rows=filtered();
     var ton=rows.reduce(function(s,b){return s+b.ton;},0), v=rows.reduce(function(s,b){return s+b.vol;},0);
     var inStock=rows.filter(function(b){return b.status==="In Stock";}).length;
-
     var html='';
-    html+='<div class="kpis">'+
-      kpi("ti","Blocks",fmt(rows.length))+kpi("ti","In stock",fmt(inStock))+
-      kpi("ti","Tonnage (t)",fmt(ton))+kpi("ti","Volume (CBM)",fmt(v))+
-      kpi("ti","Avg vol / block",(rows.length?(v/rows.length).toFixed(1):"0"))+'</div>';
-    var bits=[];if(period.from||period.to)bits.push("period "+(period.from||"…")+" → "+(period.to||"…"));
-    html+='<div class="resultbar"><b>'+fmt(rows.length)+'</b> of '+blocks.length+' blocks match'+(bits.length?" · "+bits.join(" · "):"")+'</div>';
+    html+='<div class="kpis">'+kpi("Blocks",fmt(rows.length))+kpi("In stock",fmt(inStock))+kpi("Tonnage (t)",fmt(ton))+kpi("Volume (CBM)",fmt(v))+kpi("Avg vol / block",(rows.length?(v/rows.length).toFixed(1):"0"))+'</div>';
+    html+='<div class="resultbar"><b>'+fmt(rows.length)+'</b> of '+blocks.length+' blocks match</div>';
+
+    html+='<div class="panel"><h3>Size rules — A / B / C by minimum L × W × H (cm)</h3><div class="sizebox">'+
+      ["A","B","C"].map(function(k){var r=rules[k];return '<div class="sizecard"><div class="h">Size '+k+'</div>'+
+        '<label>Min L</label><input type="number" data-z="'+k+'" data-d="L" value="'+(r.L||0)+'">'+
+        '<label>Min W</label><input type="number" data-z="'+k+'" data-d="W" value="'+(r.W||0)+'">'+
+        '<label>Min H</label><input type="number" data-z="'+k+'" data-d="H" value="'+(r.H||0)+'"></div>';}).join("")+
+      '</div><div style="margin-top:8px"><button class="btn" id="applyRules">Apply size rules</button> <span class="muted">A block takes the largest size whose min L, W and H it all meets.</span></div></div>';
 
     html+='<div class="panel">'+
       frow("Period",'<label class="muted">From</label> <input type="date" id="dFrom"> <label class="muted">To</label> <input type="date" id="dTo">')+
       frow("Gross volume (CBM)",'≥ <input type="number" step="0.1" min="0" id="volMin" style="width:78px"> ≤ <input type="number" step="0.1" min="0" id="volMax" style="width:78px">')+
       frow("Find by size (cm)",'<span class="seg"><button id="mGte" class="'+(sizeMode==="gte"?"on":"")+'">≥ At least</button><button id="mTol" class="'+(sizeMode==="tol"?"on":"")+'">± Around</button></span> '+
         'L <input type="number" id="dL" style="width:60px"> W <input type="number" id="dW" style="width:60px"> H <input type="number" id="dH" style="width:60px"> '+
-        '<span id="tolW" style="'+(sizeMode==="tol"?"":"display:none")+'">± <input type="number" id="dTol" value="10" style="width:54px"> <span class="muted">cm</span></span>')+
-      '</div>';
-
+        '<span id="tolW" style="'+(sizeMode==="tol"?"":"display:none")+'">± <input type="number" id="dTol" value="10" style="width:54px"> <span class="muted">cm</span></span>')+'</div>';
     html+='<div class="panel">'+
       frow("Grade",grades.map(function(g){return chip("grade",g);}).join(""))+
-      frow("Size",sizes.map(function(s){return chip("size",s);}).join(""))+
+      frow("Size (A/B/C)",sizes.map(function(s){return chip("size",s);}).join(""))+
       frow("Pit",pits.map(function(p){return chip("pit",p);}).join(""))+
-      frow("Status",statuses.map(function(s){return chip("status",s);}).join(""))+
-      '</div>';
+      frow("Status",statuses.map(function(s){return chip("status",s);}).join(""))+'</div>';
 
     var gmax=Math.max.apply(null,grades.map(function(g){return rows.filter(function(b){return b.grade===g;}).length;}).concat([1]));
+    var zmax=Math.max.apply(null,sizes.map(function(z){return rows.filter(function(b){return b.size===z;}).length;}).concat([1]));
     var smax=Math.max.apply(null,statuses.map(function(s){return rows.filter(function(b){return b.status===s;}).length;}).concat([1]));
-    var pmax=Math.max.apply(null,pits.map(function(p){return rows.filter(function(b){return b.pit===p;}).length;}).concat([1]));
     html+='<div class="charts">'+
-      '<div class="panel chart"><h3>Blocks by grade</h3>'+grades.map(function(g){return barRow(g,rows.filter(function(b){return b.grade===g;}).length,gmax,gcol(g));}).join("")+'</div>'+
-      '<div class="panel chart"><h3>Blocks by status</h3>'+statuses.map(function(s){return barRow(s.length>14?s.slice(0,13)+"…":s,rows.filter(function(b){return b.status===s;}).length,smax,scol(s));}).join("")+'</div>'+
-      '<div class="panel chart"><h3>Blocks by pit</h3>'+pits.map(function(p){return barRow("Pit "+p,rows.filter(function(b){return b.pit===p;}).length,pmax,BLUE);}).join("")+'</div>'+
-      '</div>';
+      '<div class="panel"><h3>Blocks by size (A/B/C)</h3>'+sizes.map(function(z){return bar("Size "+z,rows.filter(function(b){return b.size===z;}).length,zmax,zcol(z));}).join("")+'</div>'+
+      '<div class="panel"><h3>Blocks by grade</h3>'+grades.map(function(g){return bar(g,rows.filter(function(b){return b.grade===g;}).length,gmax,gcol(g));}).join("")+'</div>'+
+      '<div class="panel"><h3>Blocks by status</h3>'+statuses.map(function(s){return bar(s.length>13?s.slice(0,12)+"…":s,rows.filter(function(b){return b.status===s;}).length,smax,scol(s));}).join("")+'</div>'+'</div>';
 
-    html+='<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:6px;"><div class="muted" id="rc">'+rows.length+' blocks</div><div class="muted">Click a column to sort</div></div>';
+    html+='<div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:6px;"><div class="muted" id="rc">'+rows.length+' blocks</div><div class="muted">Click a column to sort</div></div>';
     html+='<div class="tablewrap"><table><thead id="th"></thead><tbody id="tb"></tbody></table></div>';
-
     document.getElementById("app").innerHTML=html;
-    bindFilters();
-    renderTable(rows);
-    restoreInputs();
+    bindStock();renderTable(rows);restoreInputs();
   }
-
-  function kpi(i,l,v){return '<div class="kpi"><div class="lab">'+l+'</div><div class="val">'+v+'</div></div>';}
-  function frow(lab,inner){return '<div class="frow"><span class="flab">'+lab+'</span>'+inner+'</div>';}
-
-  function restoreInputs(){
-    function set(id,val){var el=document.getElementById(id);if(el&&val!=null)el.value=val;}
-    set("volMin",vol.min);set("volMax",vol.max);set("dL",dims.L);set("dW",dims.W);set("dH",dims.H);set("dTol",dims.tol);
-    set("dFrom",period.from);set("dTo",period.to);
-  }
+  function restoreInputs(){function set(id,v){var el=document.getElementById(id);if(el&&v!=null)el.value=v;}set("volMin",vol.min);set("volMax",vol.max);set("dL",dims.L);set("dW",dims.W);set("dH",dims.H);set("dTol",dims.tol);set("dFrom",period.from);set("dTo",period.to);}
   function num(id){var el=document.getElementById(id);return el&&el.value!==""?+el.value:null;}
-  function bindFilters(){
-    document.querySelectorAll(".chip").forEach(function(b){b.onclick=function(){var d=b.dataset.dim,v=b.dataset.val;sel[d].has(v)?sel[d].delete(v):sel[d].add(v);render();};});
-    ["volMin","volMax","dL","dW","dH","dTol","dFrom","dTo"].forEach(function(id){var el=document.getElementById(id);if(el)el.addEventListener("change",function(){
-      vol.min=num("volMin");vol.max=num("volMax");dims.L=num("dL");dims.W=num("dW");dims.H=num("dH");dims.tol=num("dTol");
-      period.from=(document.getElementById("dFrom")||{}).value||null;period.to=(document.getElementById("dTo")||{}).value||null;render();});});
-    var mg=document.getElementById("mGte"),mt=document.getElementById("mTol");
-    if(mg)mg.onclick=function(){sizeMode="gte";render();};
-    if(mt)mt.onclick=function(){sizeMode="tol";render();};
+  function bindStock(){
+    document.querySelectorAll("#app .chip").forEach(function(b){b.onclick=function(){var d=b.dataset.dim,v=b.dataset.val;sel[d].has(v)?sel[d].delete(v):sel[d].add(v);renderStock();};});
+    ["volMin","volMax","dL","dW","dH","dTol","dFrom","dTo"].forEach(function(id){var el=document.getElementById(id);if(el)el.addEventListener("change",function(){vol.min=num("volMin");vol.max=num("volMax");dims.L=num("dL");dims.W=num("dW");dims.H=num("dH");dims.tol=num("dTol");period.from=(document.getElementById("dFrom")||{}).value||null;period.to=(document.getElementById("dTo")||{}).value||null;renderStock();});});
+    var mg=document.getElementById("mGte"),mt=document.getElementById("mTol");if(mg)mg.onclick=function(){sizeMode="gte";renderStock();};if(mt)mt.onclick=function(){sizeMode="tol";renderStock();};
+    var ap=document.getElementById("applyRules");if(ap)ap.onclick=function(){document.querySelectorAll('.sizecard input').forEach(function(i){rules[i.dataset.z][i.dataset.d]=+i.value||0;});saveRules(rules);renderStock();};
   }
   function renderTable(rows){
     var cols=[["id","Block"],["pit","Pit"],["grade","Grade"],["size","Size"],["dims","L×W×H"],["vol","Vol"],["ton","Tonnage"],["status","Status"],["date","Date"]];
     document.getElementById("th").innerHTML='<tr>'+cols.map(function(c){var ar=sort.key===c[0]?(sort.dir<0?" ▼":" ▲"):"";return '<th data-k="'+c[0]+'">'+c[1]+ar+'</th>';}).join("")+'</tr>';
     var sorted=rows.slice().sort(function(a,b){var k=sort.key;if(k==="dims")k="vol";var x=a[k],y=b[k];if(typeof x==="string"){return x<y?-sort.dir:x>y?sort.dir:0;}return (x-y)*sort.dir;});
     document.getElementById("rc").textContent=rows.length+" blocks";
-    document.getElementById("tb").innerHTML=sorted.slice(0,400).map(function(b){
-      return '<tr><td style="font-weight:600">'+b.id+'</td><td>'+b.pit+'</td><td><span class="tag" style="background:'+gcol(b.grade)+'22;color:'+gcol(b.grade)+'">'+b.grade+'</span></td><td>'+b.size+'</td><td class="muted">'+b.L+'×'+b.W+'×'+b.H+'</td><td>'+b.vol.toFixed(2)+'</td><td style="font-weight:600">'+b.ton.toFixed(2)+'</td><td><span class="tag" style="background:'+scol(b.status)+'22;color:'+scol(b.status)+'">'+b.status+'</span></td><td class="muted">'+(b.date||"")+'</td></tr>';
-    }).join("")||'<tr><td colspan="9" class="center">No blocks match these filters.</td></tr>';
+    document.getElementById("tb").innerHTML=sorted.slice(0,400).map(function(b){return '<tr><td style="font-weight:600">'+b.id+'</td><td>'+b.pit+'</td><td><span class="tag" style="background:'+gcol(b.grade)+'22;color:'+gcol(b.grade)+'">'+b.grade+'</span></td><td><span class="tag" style="background:'+zcol(b.size)+'22;color:'+zcol(b.size)+'">'+b.size+'</span></td><td class="muted">'+b.L+'×'+b.W+'×'+b.H+'</td><td>'+b.vol.toFixed(2)+'</td><td style="font-weight:600">'+b.ton.toFixed(2)+'</td><td><span class="tag" style="background:'+scol(b.status)+'22;color:'+scol(b.status)+'">'+b.status+'</span></td><td class="muted">'+(b.date||"")+'</td></tr>';}).join("")||'<tr><td colspan="9" class="center">No blocks match.</td></tr>';
     document.querySelectorAll("#th th").forEach(function(th){th.onclick=function(){var k=th.dataset.k;if(sort.key===k)sort.dir*=-1;else{sort.key=k;sort.dir=(["grade","size","status","pit","id","date"].indexOf(k)>-1)?1:-1;}renderTable(filtered());};});
   }
 
-  async function boot(){
-    try{
-      await load();
-      document.getElementById("sub").textContent=blocks.length+" blocks · live from ERPNext";
-      render();
-    }catch(e){
-      document.getElementById("app").innerHTML='<div class="center">Could not load stock data ('+e.message+').<br>Open this page while logged into ERPNext.</div>';
-    }
+  // ----- Reports view -----
+  function renderReports(){
+    eachSized();
+    var html='<div class="panel"><h3>Buyer Inspection — what sizes a buyer took</h3>'+
+      '<select id="biSel"><option value="">Select a Buyer Inspection…</option>'+
+      biList.map(function(r){return '<option value="'+r.name+'">'+(r.report_date||"")+' · '+(r.buyer||r.export_buyer||r.local_buyer||"—")+' · '+(r.sale_type||"")+' ('+r.name+')</option>';}).join("")+
+      '</select><div id="biOut" style="margin-top:12px"></div></div>'+
+      '<div class="panel"><h3>Quarry Inspection — sizes &amp; grades produced</h3>'+
+      '<select id="qiSel"><option value="">Select a Quarry Inspection…</option>'+
+      qiList.map(function(r){return '<option value="'+r.name+'">'+(r.report_date||"")+' · pit '+(r.pit||"—")+' ('+r.name+')</option>';}).join("")+
+      '</select><div id="qiOut" style="margin-top:12px"></div></div>';
+    document.getElementById("app").innerHTML=html;
+    document.getElementById("biSel").onchange=function(){if(this.value)showReport("Buyer Inspection",this.value,"biOut");else document.getElementById("biOut").innerHTML="";};
+    document.getElementById("qiSel").onchange=function(){if(this.value)showReport("Quarry Inspection",this.value,"qiOut");else document.getElementById("qiOut").innerHTML="";};
   }
-  document.getElementById("reload").onclick=boot;
-  document.getElementById("reset").onclick=function(){sel={grade:new Set(),size:new Set(),pit:new Set(),status:new Set()};vol={min:null,max:null};dims={L:null,W:null,H:null,tol:10};period={from:null,to:null};sizeMode="gte";sort={key:"ton",dir:-1};render();};
+  function pctBars(title,counts,total,colfn){var keys=Object.keys(counts).filter(function(k){return counts[k]>0;});
+    return '<div style="margin-top:10px"><div class="muted" style="margin-bottom:6px">'+title+'</div>'+keys.map(function(k){var c=counts[k],p=total?Math.round(c/total*100):0;return bar(k,c,total,colfn(k),p+"% ("+c+")");}).join("")+'</div>';}
+  async function showReport(dt,name,outId){
+    var out=document.getElementById(outId);out.innerHTML='<div class="muted">Loading '+name+'…</div>';
+    try{
+      var cache=dt==="Buyer Inspection"?biCache:qiCache, doc=cache[name];
+      if(!doc){doc=await api("/api/method/frappe.client.get?doctype="+encodeURIComponent(dt)+"&name="+encodeURIComponent(name));cache[name]=doc;}
+      var rowsRaw=doc.block_rows||[];
+      var rows=rowsRaw.map(function(r){
+        var L=+r.length_gross||0,W=+r.width_gross||0,H=+r.height_gross||0,vol=+r.gross_volume||0,ton=+r.gross_tonnage||0;
+        var size=sizeOf({L:L,W:W,H:H});
+        var key=String(r.block||r.quarry_block_no||"");
+        var grade=r.granite_quality_grade||(blockMap[key]&&blockMap[key].grade)||"—";
+        return {size:size,grade:grade,vol:vol,ton:ton};});
+      var n=rows.length, totVol=rows.reduce(function(s,b){return s+b.vol;},0), totTon=rows.reduce(function(s,b){return s+b.ton;},0);
+      var sizeC={A:0,B:0,C:0,"—":0}, gradeC={};
+      rows.forEach(function(b){sizeC[b.size]=(sizeC[b.size]||0)+1;gradeC[b.grade]=(gradeC[b.grade]||0)+1;});
+      var who=doc.buyer||doc.export_buyer||doc.local_buyer||("pit "+(doc.pit||"—"));
+      var html='<div class="kpis" style="grid-template-columns:repeat(auto-fit,minmax(130px,1fr))">'+
+        kpi(dt==="Buyer Inspection"?"Buyer":"Pit",who)+kpi("Blocks",n)+kpi("Volume (CBM)",fmt(totVol))+kpi("Tonnage (t)",fmt(totTon))+
+        (doc.sale_type?kpi("Sale type",doc.sale_type):"")+'</div>';
+      html+=pctBars("Sizes taken (A/B/C %)",sizeC,n,zcol);
+      html+=pctBars("Grades (%)",gradeC,n,gcol);
+      out.innerHTML=html;
+    }catch(e){out.innerHTML='<div class="muted">Could not load ('+e.message+').</div>';}
+  }
+
+  function setView(v){view=v;document.getElementById("tabStock").className=v==="stock"?"on":"";document.getElementById("tabReports").className=v==="reports"?"on":"";if(v==="stock")renderStock();else renderReports();}
+  document.getElementById("tabStock").onclick=function(){setView("stock");};
+  document.getElementById("tabReports").onclick=function(){setView("reports");};
+  document.getElementById("reload").onclick=function(){boot();};
+  document.getElementById("reset").onclick=function(){sel={grade:new Set(),size:new Set(),pit:new Set(),status:new Set()};vol={min:null,max:null};dims={L:null,W:null,H:null,tol:10};period={from:null,to:null};sizeMode="gte";sort={key:"ton",dir:-1};renderStock();};
+
+  async function boot(){
+    try{await load();document.getElementById("sub").textContent=blocks.length+" blocks · "+biList.length+" buyer + "+qiList.length+" quarry inspections · live";setView(view);}
+    catch(e){document.getElementById("app").innerHTML='<div class="center">Could not load data ('+e.message+').<br>Open while logged into ERPNext.</div>';}
+  }
   boot();
 })();
 </script>
