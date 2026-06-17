@@ -360,28 +360,29 @@ frappe.provide("dolphin");
       });
     });
   }
-  // Doctypes that have a hand-built template WITH Excel dropdowns shipped inside the theme app.
-  // Frappe's native download_template cannot embed data-validation dropdowns, so for these we
-  // serve the prebuilt file from /assets/dolphin_theme/templates/ instead of the native generator.
-  var DI_STATIC_TEMPLATES = {
-    "Quarry Inspection": "Quarry_Inspection_Import_Template.xlsx",
-    "Buyer Inspection": "Buyer_Inspection_Import_Template.xlsx",
-    "Quarry Block": "Quarry_Block_Import_Template.xlsx"
+  // Doctypes with a LIVE template generator endpoint in the theme app. These build the
+  // .xlsx on download from the current masters (real data-validation dropdowns sourced
+  // from live data + auto-filled PitMap + volume/tonnage formulas), which Frappe's native
+  // download_template cannot do. See dolphin_theme/template_generator.py.
+  var DI_GENERATOR_TEMPLATES = {
+    "Quarry Inspection": "dolphin_theme.template_generator.quarry_inspection_template",
+    "Buyer Inspection": "dolphin_theme.template_generator.buyer_inspection_template",
+    "Quarry Block": "dolphin_theme.template_generator.quarry_block_template"
   };
-  function diDownloadStatic(dt) {
-    var file = DI_STATIC_TEMPLATES[dt];
-    if (!file) return false;
+  function diDownloadGenerated(dt) {
+    var method = DI_GENERATOR_TEMPLATES[dt];
+    if (!method) return false;
     var a = document.createElement("a");
-    a.href = "/assets/dolphin_theme/templates/" + file;
-    a.download = file;
+    a.href = "/api/method/" + method;
+    a.download = dt.replace(/ /g, "_") + "_Import_Template.xlsx";
     document.body.appendChild(a); a.click(); a.remove();
-    try { frappe.show_alert({ message: dt + " template (with dropdowns) downloading…", indicator: "green" }); } catch (e) {}
+    try { frappe.show_alert({ message: dt + " template (live dropdowns) downloading…", indicator: "green" }); } catch (e) {}
     return true;
   }
   function diDownloadTemplate(dt) {
     if (!dt) return;
-    // 1) prefer the prebuilt dropdown template if we ship one for this doctype
-    if (diDownloadStatic(dt)) return;
+    // 1) prefer the live generator endpoint (real dropdowns from current masters) if we ship one
+    if (diDownloadGenerated(dt)) return;
     // 2) otherwise fall back to Frappe's native generator (parent + child columns, no dropdowns)
     diBuildExportFields(dt).then(function (ef) {
       var url = "/api/method/frappe.core.doctype.data_import.data_import.download_template?doctype=" +
