@@ -283,11 +283,20 @@ def quarry_inspection_template():
 # --------------------------------------------------------------------------
 # 3. BUYER INSPECTION  (parent + Block Rows child)
 # --------------------------------------------------------------------------
+def _instock_block_numbers():
+	try:
+		rows = frappe.get_all("Quarry Block", filters={"status": "In Stock"}, fields=["block_number"], order_by="block_number asc", limit_page_length=0)
+		return [str(r.block_number) for r in rows if r.block_number]
+	except Exception:
+		return []
+
+
 @frappe.whitelist()
 def buyer_inspection_template():
 	sale_types = _select_options("Buyer Inspection", "sale_type", fallback=["Export", "Local"])
 	dmg = _names("DMG Tonnage Factor Master")
 	buyer_inspectors = _names("Buyer Inspector")
+	instock = _instock_block_numbers()
 
 	wb = Workbook()
 	ws = wb.active
@@ -314,6 +323,7 @@ def buyer_inspection_template():
 	_apply(ws, _list_dv(lists, 1, "SaleType", sale_types), "C")
 	_apply(ws, _list_dv(lists, 2, "DMG", dmg), "D")
 	_apply(ws, _list_dv(lists, 3, "BuyerInspector", buyer_inspectors), "E")
+	_apply(ws, _list_dv(lists, 4, "InStockBlocks", instock), "F")
 	for col in ("H", "I", "J"):
 		_apply(ws, _whole_dv(), col)
 
