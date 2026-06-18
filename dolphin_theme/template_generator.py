@@ -117,8 +117,13 @@ def _list_dv(ws_lists, col_idx, header, values):
 
 def _whole_dv():
 	return DataValidation(
-		type="whole", operator="greaterThanOrEqual", formula1="1", allow_blank=True
+		type="whole", operator="between", formula1="1", formula2="999", allow_blank=True
 	)
+
+
+def _date_col(ws, letter):
+	for r in range(2, DV_ROWS + 1):
+		ws[letter + str(r)].number_format = "DD-MM-YYYY"
 
 
 def _apply(ws, dv, col_letter):
@@ -199,6 +204,7 @@ def quarry_block_template():
 		"Gross Tonnage",
 	]
 	_write_headers(ws, headers, ref_cols={4, 11, 12, 13})
+	_date_col(ws, "B")
 
 	_apply(ws, _list_dv(lists, 1, "Pit", [p["pit"] for p in pits]), "C")
 	_apply(ws, _list_dv(lists, 2, "Status", statuses), "H")
@@ -251,6 +257,7 @@ def quarry_inspection_template():
 		"Gross Tonnage",
 	]
 	_write_headers(ws, headers, ref_cols={7, 8, 14, 15})
+	_date_col(ws, "B")
 
 	_apply(ws, _list_dv(lists, 1, "Inspector", inspectors), "C")
 	_apply(ws, _list_dv(lists, 2, "Supervisor", supervisors), "D")
@@ -319,6 +326,7 @@ def buyer_inspection_template():
 		"Gross Tonnage",
 	]
 	_write_headers(ws, headers, ref_cols={11, 12})
+	_date_col(ws, "B")
 
 	_apply(ws, _list_dv(lists, 1, "SaleType", sale_types), "C")
 	_apply(ws, _list_dv(lists, 2, "DMG", dmg), "D")
