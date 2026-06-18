@@ -446,8 +446,7 @@ frappe.provide("dolphin");
       } else if (t === "list") {
         var dt = curDoctype();
         var imp = mkBtn("⤓ Import", "g", function () { diOpenImport(dt); });
-        var tmpl = mkBtn("📥 Template", "g", function () { diDownloadTemplate(dt); });
-        [home, back, imp, tmpl, refresh].forEach(function (b) { bar.appendChild(b); });
+        [home, back, imp, refresh].forEach(function (b) { bar.appendChild(b); });
       } else if (t === "print") {
         [home, back].forEach(function (b) { bar.appendChild(b); });
       } else { // report
