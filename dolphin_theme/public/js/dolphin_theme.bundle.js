@@ -85,7 +85,56 @@ frappe.provide("dolphin");
       "#dolphin-sidemenu .di-sm-row.di-active{background:rgba(212,162,74,.22);border-left:3px solid " + GOLD + ";}" +
       "#dolphin-sidemenu .di-sm-row.di-active .di-sm-link{color:#fff;font-weight:700;padding-left:17px;}" +
       "#dolphin-sidemenu .di-sm-row.di-active .di-sm-new{color:" + GOLD + ";}" +
-      "#dolphin-sidemenu .di-sm-empty{padding:10px 12px;font-size:11px;color:#9fb0c4;font-style:italic;}";
+      "#dolphin-sidemenu .di-sm-empty{padding:10px 12px;font-size:11px;color:#9fb0c4;font-style:italic;}" +
+      /* ---- Day31: scrollable menu body (fixes no-scroll bug) ---- */
+      "#dolphin-sidemenu .di-sm-body{max-height:calc(100vh - 230px);overflow-y:auto;overflow-x:hidden;}" +
+      "#dolphin-sidemenu .di-sm-body::-webkit-scrollbar{width:8px;}" +
+      "#dolphin-sidemenu .di-sm-body::-webkit-scrollbar-track{background:transparent;}" +
+      "#dolphin-sidemenu .di-sm-body::-webkit-scrollbar-thumb{background:rgba(212,162,74,.45);border-radius:4px;}" +
+      "#dolphin-sidemenu .di-sm-body::-webkit-scrollbar-thumb:hover{background:" + GOLD + ";}" +
+      /* ---- Day31: nested sub-groups ---- */
+      "#dolphin-sidemenu .di-sm-sub{border-top:1px solid rgba(255,255,255,.05);}" +
+      "#dolphin-sidemenu .di-sm-sub>.di-sm-subh{display:flex;align-items:center;cursor:pointer;" +
+      "padding:6px 12px 6px 22px;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#b9a06a;}" +
+      "#dolphin-sidemenu .di-sm-sub>.di-sm-subh:hover{color:" + GOLD + ";background:rgba(255,255,255,.05);}" +
+      "#dolphin-sidemenu .di-sm-sub>.di-sm-subh .di-sm-count{font-size:8.5px;background:rgba(212,162,74,.5);color:" + NAVY + ";" +
+      "border-radius:9px;padding:1px 6px;margin-left:auto;margin-right:7px;font-weight:700;}" +
+      "#dolphin-sidemenu .di-sm-sub>.di-sm-subh .di-sm-chev{font-size:9px;color:#b9a06a;transition:transform .25s;}" +
+      "#dolphin-sidemenu .di-sm-sub.di-closed>.di-sm-items{display:none;}" +
+      "#dolphin-sidemenu .di-sm-sub.di-closed>.di-sm-subh .di-sm-chev{transform:rotate(-90deg);}" +
+      "#dolphin-sidemenu .di-sm-sub .di-sm-link{padding-left:34px;font-size:11.5px;}" +
+      "#dolphin-sidemenu .di-sm-sub .di-sm-row.di-active .di-sm-link{padding-left:31px;}" +
+      /* ============================================================
+         Day31: persistent navy/gold ACTION BAR (form pages)
+         Theme-drawn bar that harvests Client-Script custom buttons into
+         styled dropdowns so they appear immediately + never vanish.
+         ============================================================ */
+      ".di-actionbar{display:flex;align-items:center;gap:7px;flex-wrap:wrap;background:" + NAVY + ";" +
+      "border:1px solid " + GOLD + ";border-radius:9px;padding:5px 9px;margin-right:8px;vertical-align:middle;" +
+      "font-family:Georgia,serif;box-shadow:0 2px 8px rgba(0,0,0,.2);}" +
+      ".di-actionbar .di-ab-chip{display:inline-flex;align-items:center;justify-content:center;min-width:30px;height:30px;" +
+      "padding:0 9px;border-radius:7px;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.06);" +
+      "color:#fff;font-size:14px;cursor:pointer;line-height:1;}" +
+      ".di-actionbar .di-ab-chip:hover{background:" + GOLD + ";color:" + NAVY + ";border-color:" + GOLD + ";}" +
+      ".di-actionbar .di-ab-title{color:#fff;font-weight:700;font-size:12.5px;margin:0 4px;white-space:nowrap;" +
+      "overflow:hidden;text-overflow:ellipsis;max-width:240px;}" +
+      ".di-ab-dd{position:relative;display:inline-block;}" +
+      ".di-ab-btn{display:inline-flex;align-items:center;gap:5px;height:30px;padding:0 12px;border-radius:7px;" +
+      "font-size:12px;font-weight:700;cursor:pointer;border:none;white-space:nowrap;line-height:1;font-family:inherit;}" +
+      ".di-ab-btn.di-ab-white{background:#fff;color:" + NAVY + ";border:1px solid " + GOLD + ";}" +
+      ".di-ab-btn.di-ab-white:hover{background:#f4ecd9;}" +
+      ".di-ab-btn.di-ab-gold{background:" + GOLD + ";color:" + NAVY + ";}" +
+      ".di-ab-btn.di-ab-gold:hover{background:#B9933E;}" +
+      ".di-ab-btn[disabled]{opacity:.4;cursor:default;}" +
+      ".di-ab-menu{position:absolute;right:0;top:calc(100% + 4px);min-width:210px;background:" + NAVY + ";" +
+      "border:1px solid " + GOLD + ";border-radius:9px;box-shadow:0 8px 22px rgba(0,0,0,.35);padding:5px;z-index:1060;display:none;}" +
+      ".di-ab-dd.di-open .di-ab-menu{display:block;}" +
+      ".di-ab-menu .di-ab-item{display:block;width:100%;text-align:left;background:transparent;border:none;color:#dfe6ef;" +
+      "font-size:12.5px;padding:8px 12px;border-radius:6px;cursor:pointer;font-family:inherit;white-space:nowrap;}" +
+      ".di-ab-menu .di-ab-item:hover{background:rgba(212,162,74,.22);color:#fff;}" +
+      ".di-ab-menu .di-ab-empty{color:#9fb0c4;font-style:italic;font-size:11.5px;padding:7px 12px;white-space:nowrap;}" +
+      /* hide native custom-action buttons we have re-presented in the bar */
+      ".di-ab-harvested{display:none !important;}";
     var s = document.createElement("style");
     s.id = "dolphin-theme-js-css";
     s.textContent = css;
@@ -190,17 +239,19 @@ frappe.provide("dolphin");
       ["Local Blocks Inspector", "Local Blocks Inspector"] ] },
     { title: "Shipping Documents", roles: ROLE_BANGALORE, items: [
       ["Shipping Document", "Shipping Document"] ] },
-    { title: "Quarry Masters", items: [
-      ["Pit", "Pit"], ["Gangman", "Gangman"], ["Granite Grade", "Granite Grade"],
-      ["Granite Size Category", "Granite Size Category"], ["Allowance", "Allowance"],
-      ["Specific Gravity", "DMG Tonnage Factor Master"] ] },
-    { title: "People & Parties", items: [
-      ["Local Consignee", "Local Consignee"], ["Export Consignee", "Export Consignee"],
-      ["Inspector", "Inspector"] ] },
-    { title: "Logistics Masters", items: [
-      ["Indian Port", "Indian Port"], ["Vehicle", "Vehicle"], ["Driver", "Driver"],
-      ["Indian State", "Indian State"], ["Foreign Port", "Foreign Port"],
-      ["Vessel", "Vessel"], ["Shipping Agent", "Shipping Agent"] ] }
+    { title: "Masters", subgroups: [
+      { title: "Quarry", items: [
+        ["Pit", "Pit"], ["Gangman", "Gangman"], ["Granite Grade", "Granite Grade"],
+        ["Granite Size Category", "Granite Size Category"], ["Grade Size Rule", "Grade Size Rule"],
+        ["Allowance", "Allowance"], ["Specific Gravity", "DMG Tonnage Factor Master"] ] },
+      { title: "People & Parties", items: [
+        ["Local Consignee", "Local Consignee"], ["Export Consignee", "Export Consignee"],
+        ["Inspector", "Inspector"] ] },
+      { title: "Logistics", items: [
+        ["Indian Port", "Indian Port"], ["Vehicle", "Vehicle"], ["Driver", "Driver"],
+        ["Indian State", "Indian State"], ["Foreign Port", "Foreign Port"],
+        ["Vessel", "Vessel"], ["Shipping Agent", "Shipping Agent"] ] }
+    ] }
   ];
   function currentMenuDoctype() {
     try {
@@ -231,6 +282,15 @@ frappe.provide("dolphin");
           var show = !q || (row.getAttribute("data-label") || "").toLowerCase().indexOf(q) > -1;
           row.style.display = show ? "" : "none";
           if (show) any = true;
+        });
+        // nested sub-groups: open + show those with matches, hide empty ones while searching
+        s.querySelectorAll(".di-sm-sub").forEach(function (sub) {
+          var subAny = false;
+          sub.querySelectorAll(".di-sm-row").forEach(function (row) {
+            if (row.style.display !== "none") subAny = true;
+          });
+          if (q) { sub.style.display = subAny ? "" : "none"; sub.classList.remove("di-closed"); }
+          else { sub.style.display = ""; }
         });
         // when searching, force-open sections that have matches; hide empty ones
         if (q) { s.style.display = any ? "" : "none"; s.classList.remove("di-closed"); }
@@ -265,55 +325,94 @@ frappe.provide("dolphin");
       search.oninput = function () { filterSideMenu(search.value); };
       body.appendChild(search);
 
+      // build one navigable row (link + quick "new") for a [label, doctype, roles?] item
+      function makeRow(it) {
+        var label = it[0], dt = it[1];
+        var row = document.createElement("div");
+        row.className = "di-sm-row";
+        row.setAttribute("data-dt", dt);
+        row.setAttribute("data-label", label);
+
+        var a = document.createElement("a");
+        a.className = "di-sm-link";
+        a.textContent = label;
+        a.setAttribute("href", "/app/" + frappe.router.slug(dt));
+        a.onclick = function (ev) {
+          ev.preventDefault();
+          try { frappe.set_route("List", dt); } catch (e) { window.location = "/app/" + frappe.router.slug(dt); }
+        };
+        row.appendChild(a);
+
+        var nw = document.createElement("button");
+        nw.className = "di-sm-new";
+        nw.type = "button";
+        nw.textContent = "+";
+        nw.title = "New " + label;
+        nw.onclick = function (ev) {
+          ev.preventDefault(); ev.stopPropagation();
+          try { frappe.new_doc(dt); } catch (e) { window.location = "/app/" + frappe.router.slug(dt) + "/new"; }
+        };
+        row.appendChild(nw);
+        return row;
+      }
+      function visibleItems(items) { return (items || []).filter(function (it) { return hasAnyRole(it[2]); }); }
+
       SECTIONS.forEach(function (sec, si) {
         if (!hasAnyRole(sec.roles)) return; // Day30: section-level role gate
-        var visItems = sec.items.filter(function (it) { return hasAnyRole(it[2]); });
-        if (!visItems.length) return; // nothing visible for this user
+        var secKey = "di_sm_sec_" + si;
+
+        // normalise: a section either has flat .items or nested .subgroups
+        var subgroups = sec.subgroups
+          ? sec.subgroups.map(function (g) { return { title: g.title, items: visibleItems(g.items), roles: g.roles }; })
+                         .filter(function (g) { return hasAnyRole(g.roles) && g.items.length; })
+          : null;
+        var flatItems = sec.subgroups ? null : visibleItems(sec.items);
+        var total = subgroups
+          ? subgroups.reduce(function (n, g) { return n + g.items.length; }, 0)
+          : flatItems.length;
+        if (!total) return; // nothing visible for this user
+
         var s = document.createElement("div");
         s.className = "di-sm-sec";
-        var secKey = "di_sm_sec_" + si;
         if (lsGet(secKey, "open") === "closed") s.classList.add("di-closed");
         var h = document.createElement("div");
         h.className = "di-sm-h";
-        h.innerHTML = "<span>" + sec.title + "</span><span class='di-sm-count'>" + visItems.length +
+        h.innerHTML = "<span>" + sec.title + "</span><span class='di-sm-count'>" + total +
           "</span><span class='di-sm-chev'>▾</span>";
         h.onclick = function () {
           s.classList.toggle("di-closed");
           lsSet(secKey, s.classList.contains("di-closed") ? "closed" : "open");
         };
         s.appendChild(h);
+
         var box = document.createElement("div");
         box.className = "di-sm-items";
-        visItems.forEach(function (it) {
-          var label = it[0], dt = it[1];
-          var row = document.createElement("div");
-          row.className = "di-sm-row";
-          row.setAttribute("data-dt", dt);
-          row.setAttribute("data-label", label);
 
-          var a = document.createElement("a");
-          a.className = "di-sm-link";
-          a.textContent = label;
-          a.setAttribute("href", "/app/" + frappe.router.slug(dt));
-          a.onclick = function (ev) {
-            ev.preventDefault();
-            try { frappe.set_route("List", dt); } catch (e) { window.location = "/app/" + frappe.router.slug(dt); }
-          };
-          row.appendChild(a);
+        if (subgroups) {
+          subgroups.forEach(function (g, gi) {
+            var sub = document.createElement("div");
+            sub.className = "di-sm-sub";
+            var subKey = secKey + "_sub_" + gi;
+            if (lsGet(subKey, "open") === "closed") sub.classList.add("di-closed");
+            var sh = document.createElement("div");
+            sh.className = "di-sm-subh";
+            sh.innerHTML = "<span>" + g.title + "</span><span class='di-sm-count'>" + g.items.length +
+              "</span><span class='di-sm-chev'>▾</span>";
+            sh.onclick = function () {
+              sub.classList.toggle("di-closed");
+              lsSet(subKey, sub.classList.contains("di-closed") ? "closed" : "open");
+            };
+            sub.appendChild(sh);
+            var sbox = document.createElement("div");
+            sbox.className = "di-sm-items";
+            g.items.forEach(function (it) { sbox.appendChild(makeRow(it)); });
+            sub.appendChild(sbox);
+            box.appendChild(sub);
+          });
+        } else {
+          flatItems.forEach(function (it) { box.appendChild(makeRow(it)); });
+        }
 
-          var nw = document.createElement("button");
-          nw.className = "di-sm-new";
-          nw.type = "button";
-          nw.textContent = "+";
-          nw.title = "New " + label;
-          nw.onclick = function (ev) {
-            ev.preventDefault(); ev.stopPropagation();
-            try { frappe.new_doc(dt); } catch (e) { window.location = "/app/" + frappe.router.slug(dt) + "/new"; }
-          };
-          row.appendChild(nw);
-
-          box.appendChild(row);
-        });
         s.appendChild(box);
         body.appendChild(s);
       });
@@ -428,12 +527,117 @@ frappe.provide("dolphin");
   // expose a clean single-flow import opener for the workspace Data Import buttons
   window.dolphinImport = diOpenImport;
 
+  /* ============================================================
+     Day31: persistent navy/gold ACTION BAR (form pages)
+     Drawn by the theme layer (always-on) and re-populated every tick
+     by HARVESTING the Client-Script custom buttons already in the
+     page header into styled dropdowns. This fixes "buttons only on
+     hard refresh" + vanishing, and declutters the per-form button row.
+     Native buttons are only hidden AFTER they are re-presented, so a
+     harvest failure can never lose access to an action.
+     ============================================================ */
+  function abForward(el) { try { el.click(); } catch (e) {} }
+  function abCloseMenus() {
+    document.querySelectorAll(".di-ab-dd.di-open").forEach(function (d) { d.classList.remove("di-open"); });
+  }
+  function abMakeDropdown(label, kind, key) {
+    var dd = document.createElement("span"); dd.className = "di-ab-dd"; dd.setAttribute("data-di-dd", key);
+    var btn = document.createElement("button"); btn.type = "button";
+    btn.className = "di-ab-btn " + (kind === "white" ? "di-ab-white" : "di-ab-gold");
+    btn.innerHTML = label + " <span style='font-size:10px'>▾</span>";
+    btn.onclick = function (ev) {
+      ev.stopPropagation();
+      var open = dd.classList.contains("di-open");
+      abCloseMenus();
+      if (!open) dd.classList.add("di-open");
+    };
+    var menu = document.createElement("div"); menu.className = "di-ab-menu";
+    dd.appendChild(btn); dd.appendChild(menu);
+    return dd;
+  }
+  function abItem(label, fn) {
+    var b = document.createElement("button"); b.type = "button"; b.className = "di-ab-item"; b.textContent = label;
+    b.onclick = function (ev) { ev.stopPropagation(); abCloseMenus(); try { fn(); } catch (e) {} };
+    return b;
+  }
+  function abHarvest(head) {
+    var items = [];
+    head.querySelectorAll(".custom-actions .btn").forEach(function (b) {
+      if (b.closest(".di-actionbar")) return;
+      if (b.closest(".inner-group-button")) return;       // group toggles handled below
+      if (b.classList.contains("dropdown-toggle")) return;
+      var lbl = (b.textContent || "").trim();
+      if (!lbl) return;
+      items.push({ label: lbl, group: "", el: b });
+    });
+    head.querySelectorAll(".inner-group-button").forEach(function (g) {
+      if (g.closest(".di-actionbar")) return;
+      var tg = g.querySelector(":scope > button, :scope > .btn");
+      var gl = ((tg && tg.textContent) || "").trim();
+      g.querySelectorAll(".dropdown-item").forEach(function (it) {
+        var lbl = (it.textContent || "").trim();
+        if (!lbl) return;
+        items.push({ label: lbl, group: gl, el: it, groupEl: g });
+      });
+    });
+    return items;
+  }
+  function abIsAddBlocks(it) {
+    var s = ((it.group || "") + " " + (it.label || "")).toLowerCase();
+    return /add/.test(s) && /(block|marked|from qi|by number)/.test(s);
+  }
+  function buildActionBar(head) {
+    var frm = window.cur_frm; if (!frm) return;
+    var bar = head.querySelector(".di-actionbar");
+    if (!bar) {
+      bar = document.createElement("span");
+      bar.className = "di-navbar-group di-actionbar";
+      var back = document.createElement("button"); back.type = "button"; back.className = "di-ab-chip"; back.title = "Back"; back.innerHTML = "‹";
+      back.onclick = function () { window.history.back(); };
+      var home = document.createElement("button"); home.type = "button"; home.className = "di-ab-chip"; home.title = "Dolphin Home"; home.innerHTML = "⌂";
+      home.onclick = function () { goHome(); };
+      var title = document.createElement("span"); title.className = "di-ab-title"; title.setAttribute("data-di-abtitle", "1");
+      var addDD = abMakeDropdown("Add Blocks", "white", "add");
+      var actDD = abMakeDropdown("Actions", "gold", "act");
+      var save = document.createElement("button"); save.type = "button"; save.className = "di-ab-btn di-ab-gold"; save.textContent = "Save";
+      save.onclick = function () { try { frm.save(); } catch (e) {} };
+      bar.appendChild(back); bar.appendChild(home); bar.appendChild(title);
+      bar.appendChild(addDD); bar.appendChild(actDD); bar.appendChild(save);
+      head.insertBefore(bar, head.firstChild);
+    }
+    var t = bar.querySelector("[data-di-abtitle]");
+    if (t) { try { t.textContent = (frm.doc && frm.doc.__islocal) ? ("New " + frm.doctype) : ((frm.doc && frm.doc.name) || frm.doctype); } catch (e) { t.textContent = frm.doctype; } }
+
+    var addMenu = bar.querySelector("[data-di-dd='add'] .di-ab-menu");
+    var actMenu = bar.querySelector("[data-di-dd='act'] .di-ab-menu");
+    if (!addMenu || !actMenu) return;
+    addMenu.innerHTML = ""; actMenu.innerHTML = "";
+
+    abHarvest(head).forEach(function (it) {
+      var mi = abItem(it.label, (function (el) { return function () { abForward(el); }; })(it.el));
+      if (abIsAddBlocks(it)) addMenu.appendChild(mi); else actMenu.appendChild(mi);
+      (it.groupEl || it.el).classList.add("di-ab-harvested"); // hide native only after re-presenting
+    });
+    // always-available actions
+    actMenu.appendChild(abItem("⎙ Print", function () { try { frm.print_doc(); } catch (e) {} }));
+    actMenu.appendChild(abItem("⟳ Refresh", function () { try { frm.reload_doc(); } catch (e) {} }));
+    actMenu.appendChild(abItem("➕ New " + frm.doctype, function () { try { frappe.new_doc(frm.doctype); } catch (e) {} }));
+
+    var addBtn = bar.querySelector("[data-di-dd='add'] .di-ab-btn");
+    if (!addMenu.querySelector(".di-ab-item")) {
+      var e1 = document.createElement("div"); e1.className = "di-ab-empty"; e1.textContent = "No block actions here";
+      addMenu.appendChild(e1);
+      if (addBtn) addBtn.setAttribute("disabled", "disabled");
+    } else if (addBtn) { addBtn.removeAttribute("disabled"); }
+  }
+
   function addButtonBar() {
     try {
       var t = pageType();
       if (t === "other") return;
       var head = document.querySelector(".page-head .page-actions") || document.querySelector(".page-actions");
       if (!head) return;
+      if (t === "form") { buildActionBar(head); return; } // Day31: forms use the persistent action bar
       // avoid duplicates: one bar per current page-actions
       if (head.querySelector(".di-navbar-group")) return;
       var bar = document.createElement("span");
@@ -554,6 +758,11 @@ frappe.provide("dolphin");
   /* re-apply on browser back/forward and bfcache restores (fixes theme "vanishing" when navigating back) */
   window.addEventListener("popstate", function () { tickRetries(); });
   window.addEventListener("pageshow", function () { tickRetries(); });
+  /* close action-bar dropdowns on outside click / Escape */
+  document.addEventListener("click", function (ev) {
+    try { if (!ev.target.closest || !ev.target.closest(".di-ab-dd")) abCloseMenus(); } catch (e) {}
+  }, true);
+  document.addEventListener("keydown", function (ev) { if (ev.key === "Escape") { try { abCloseMenus(); } catch (e) {} } });
   /* safety net: always keep the page bar (Back/Home/Edit/New/Print) and side menu present */
   setInterval(function () { try { addButtonBar(); addSideMenu(); } catch (e) {} }, 2500);
   /* robust attach: re-add the bar the instant the page toolbar (re)renders — fixes the
