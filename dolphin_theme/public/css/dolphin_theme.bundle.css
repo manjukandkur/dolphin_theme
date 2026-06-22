@@ -2,6 +2,11 @@
 /* Navy #0F2540  Gold #D4A24A  print #B9933E  Cyan #00ADEF */
 
 /* ---- Left desk sidebar: navy with gold active item ---- */
+/* ---- Day30: hide native Frappe workspace nav (duplicate of the Dolphin Menu).
+   #dolphin-sidemenu is the single nav; the native .body-sidebar-top list
+   (Quarry Block / Quarry Inspection / …) was rendering as a second copy. ---- */
+.body-sidebar .body-sidebar-top { display: none !important; }
+
 .body-sidebar-container .body-sidebar,
 .desk-sidebar,
 .layout-side-section .desk-sidebar {
