@@ -16,6 +16,9 @@ frappe.provide("dolphin");
 (function () {
   var WS = "dolphin";
   var NAVY = "#0F2540", GOLD = "#D4A24A";
+  /* Day31: lighter slate-blue for large background surfaces (sidebar/bars/dropdowns) — better
+     visibility than the very dark navy. NAVY stays as the dark ink for text on gold/white. */
+  var BARBG = "#24507E", BARBG2 = "#2E5E92";
   var BLUE = "#2490ef", BLUE_D = "#1579d0"; // action-button colour (user preference: all blue)
 
   /* ---------- styles ---------- */
@@ -112,10 +115,10 @@ frappe.provide("dolphin");
       ".di-actionbar{display:flex;align-items:center;gap:7px;flex-wrap:wrap;background:" + NAVY + ";" +
       "border:1px solid " + GOLD + ";border-radius:9px;padding:5px 9px;margin-right:8px;vertical-align:middle;" +
       "font-family:Georgia,serif;box-shadow:0 2px 8px rgba(0,0,0,.2);}" +
-      ".di-actionbar .di-ab-chip{display:inline-flex;align-items:center;justify-content:center;min-width:30px;height:30px;" +
-      "padding:0 9px;border-radius:7px;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.06);" +
-      "color:#fff;font-size:14px;cursor:pointer;line-height:1;}" +
-      ".di-actionbar .di-ab-chip:hover{background:" + GOLD + ";color:" + NAVY + ";border-color:" + GOLD + ";}" +
+      ".di-actionbar .di-ab-chip{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;" +
+      "border-radius:7px;border:1.5px solid " + GOLD + ";background:transparent;color:" + GOLD + ";" +
+      "font-size:16px;cursor:pointer;line-height:1;}" +
+      ".di-actionbar .di-ab-chip:hover{background:" + GOLD + ";color:" + NAVY + ";}" +
       ".di-actionbar .di-ab-title{color:#fff;font-weight:700;font-size:12.5px;margin:0 4px;white-space:nowrap;" +
       "overflow:hidden;text-overflow:ellipsis;max-width:240px;}" +
       ".di-ab-dd{position:relative;display:inline-block;}" +
@@ -592,10 +595,8 @@ frappe.provide("dolphin");
     if (!bar) {
       bar = document.createElement("span");
       bar.className = "di-navbar-group di-actionbar";
-      var back = document.createElement("button"); back.type = "button"; back.className = "di-ab-chip"; back.title = "Back"; back.innerHTML = "‹";
-      back.onclick = function () { window.history.back(); };
-      var home = document.createElement("button"); home.type = "button"; home.className = "di-ab-chip"; home.title = "Dolphin Home"; home.innerHTML = "⌂";
-      home.onclick = function () { goHome(); };
+      var back = abChip("‹", "Back", function () { window.history.back(); });
+      var home = abChip("⌂", "Home", function () { goHome(); });
       var title = document.createElement("span"); title.className = "di-ab-title"; title.setAttribute("data-di-abtitle", "1");
       var addDD = abMakeDropdown("Add Blocks", "white", "add");
       var actDD = abMakeDropdown("Actions", "gold", "act");
@@ -623,21 +624,74 @@ frappe.provide("dolphin");
     actMenu.appendChild(abItem("⟳ Refresh", function () { try { frm.reload_doc(); } catch (e) {} }));
     actMenu.appendChild(abItem("➕ New " + frm.doctype, function () { try { frappe.new_doc(frm.doctype); } catch (e) {} }));
 
-    var addBtn = bar.querySelector("[data-di-dd='add'] .di-ab-btn");
-    if (!addMenu.querySelector(".di-ab-item")) {
-      var e1 = document.createElement("div"); e1.className = "di-ab-empty"; e1.textContent = "No block actions here";
-      addMenu.appendChild(e1);
-      if (addBtn) addBtn.setAttribute("disabled", "disabled");
-    } else if (addBtn) { addBtn.removeAttribute("disabled"); }
+    // hide the whole "Add Blocks" dropdown on forms that have no block actions (e.g. Quarry Block)
+    var addDD = bar.querySelector("[data-di-dd='add']");
+    if (addDD) addDD.style.display = addMenu.querySelector(".di-ab-item") ? "" : "none";
+  }
+
+  function abChip(glyph, label, fn) {
+    var b = document.createElement("button"); b.type = "button"; b.className = "di-ab-chip";
+    b.title = label; b.innerHTML = glyph; b.onclick = fn; return b;
+  }
+  /* Day31: list-view action bar — keeps Add (native primary) / Import / Refresh visible,
+     harvests the rest of the Client-Script list buttons into a navy Actions dropdown. */
+  function buildListBar(head) {
+    var bar = head.querySelector(".di-actionbar");
+    if (!bar) {
+      bar = document.createElement("span");
+      bar.className = "di-navbar-group di-actionbar";
+      var back = abChip("‹", "Back", function () { window.history.back(); });
+      var home = abChip("⌂", "Dolphin Home", function () { goHome(); });
+      var title = document.createElement("span"); title.className = "di-ab-title"; title.setAttribute("data-di-abtitle", "1");
+      var imp = document.createElement("button"); imp.type = "button"; imp.className = "di-ab-btn di-ab-white"; imp.textContent = "⤓ Import";
+      imp.onclick = function () { try { diOpenImport(curDoctype()); } catch (e) {} };
+      var actDD = abMakeDropdown("Actions", "gold", "act");
+      var refresh = document.createElement("button"); refresh.type = "button"; refresh.className = "di-ab-btn di-ab-white"; refresh.textContent = "⟳ Refresh";
+      refresh.onclick = function () { try { if (window.cur_list) cur_list.refresh(); else location.reload(); } catch (e) { location.reload(); } };
+      bar.appendChild(back); bar.appendChild(home); bar.appendChild(title);
+      bar.appendChild(imp); bar.appendChild(actDD); bar.appendChild(refresh);
+      head.insertBefore(bar, head.firstChild);
+    }
+    var t = bar.querySelector("[data-di-abtitle]");
+    if (t) { try { t.textContent = (window.cur_list && cur_list.doctype) || curDoctype() || "List"; } catch (e) {} }
+    var actMenu = bar.querySelector("[data-di-dd='act'] .di-ab-menu");
+    if (!actMenu) return;
+    actMenu.innerHTML = "";
+    abHarvest(head).forEach(function (it) {
+      var mi = abItem(it.label, (function (el) { return function () { abForward(el); }; })(it.el));
+      actMenu.appendChild(mi);
+      (it.groupEl || it.el).classList.add("di-ab-harvested");
+    });
+    if (!actMenu.querySelector(".di-ab-item")) {
+      var e = document.createElement("div"); e.className = "di-ab-empty"; e.textContent = "No extra actions"; actMenu.appendChild(e);
+    }
+  }
+
+  /* Day31 persistence fix: insert into the ACTIVE page's action area, not a stale/hidden
+     cached page. Frappe keeps previous route pages in the DOM (display:none); a global
+     querySelector(".page-actions") often matched a hidden one, so the bar "only appeared
+     on hard refresh". Prefer cur_frm/cur_list's own page wrapper. */
+  function activePageActions() {
+    try {
+      var pg = (window.cur_frm && cur_frm.page) || (window.cur_list && cur_list.page) || (window.cur_page && cur_page.page);
+      if (pg) {
+        if (pg.page_actions && pg.page_actions.length) return pg.page_actions[0];
+        if (pg.wrapper) { var h = $(pg.wrapper).find(".page-actions")[0]; if (h) return h; }
+      }
+    } catch (e) {}
+    var all = document.querySelectorAll(".page-actions");
+    for (var i = 0; i < all.length; i++) { if (all[i].offsetParent !== null) return all[i]; } // first visible
+    return all[0] || null;
   }
 
   function addButtonBar() {
     try {
       var t = pageType();
       if (t === "other") return;
-      var head = document.querySelector(".page-head .page-actions") || document.querySelector(".page-actions");
+      var head = activePageActions();
       if (!head) return;
       if (t === "form") { buildActionBar(head); return; } // Day31: forms use the persistent action bar
+      if (t === "list") { buildListBar(head); return; }   // Day31: lists use the navy Actions-dropdown bar
       // avoid duplicates: one bar per current page-actions
       if (head.querySelector(".di-navbar-group")) return;
       var bar = document.createElement("span");
@@ -764,7 +818,7 @@ frappe.provide("dolphin");
   }, true);
   document.addEventListener("keydown", function (ev) { if (ev.key === "Escape") { try { abCloseMenus(); } catch (e) {} } });
   /* safety net: always keep the page bar (Back/Home/Edit/New/Print) and side menu present */
-  setInterval(function () { try { addButtonBar(); addSideMenu(); } catch (e) {} }, 2500);
+  setInterval(function () { try { addButtonBar(); addSideMenu(); } catch (e) {} }, 1000);
   /* robust attach: re-add the bar the instant the page toolbar (re)renders — fixes the
      missing Back/Home bar on fast-loading minimal master forms (New Gangman, New Pit, etc.) */
   try {
