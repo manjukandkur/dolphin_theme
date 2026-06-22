@@ -60,7 +60,7 @@ frappe.provide("dolphin");
       "overflow:hidden;background:" + NAVY + ";font-family:Georgia,serif;box-shadow:0 4px 14px rgba(0,0,0,.25);}" +
       "#dolphin-sidemenu .di-sm-top{display:flex;align-items:center;justify-content:space-between;" +
       "background:linear-gradient(135deg," + NAVY + " 0%,#16365c 100%);color:#fff;padding:9px 12px;" +
-      "cursor:pointer;font-weight:700;font-size:12.5px;letter-spacing:.4px;}" +
+      "cursor:pointer;font-weight:700;font-size:13.5px;letter-spacing:.4px;}" +
       "#dolphin-sidemenu .di-sm-top .di-sm-chev{transition:transform .25s;color:" + GOLD + ";}" +
       "#dolphin-sidemenu.di-collapsed .di-sm-body{display:none;}" +
       "#dolphin-sidemenu.di-collapsed .di-sm-top .di-sm-chev{transform:rotate(-90deg);}" +
@@ -69,7 +69,7 @@ frappe.provide("dolphin");
       "#dolphin-sidemenu .di-sm-search:focus{border-color:" + GOLD + ";box-shadow:0 0 0 2px rgba(212,162,74,.2);}" +
       "#dolphin-sidemenu .di-sm-sec{user-select:none;}" +
       "#dolphin-sidemenu .di-sm-sec>.di-sm-h{display:flex;align-items:center;justify-content:space-between;" +
-      "cursor:pointer;padding:8px 12px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;" +
+      "cursor:pointer;padding:8px 12px;font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;" +
       "color:" + GOLD + ";background:rgba(255,255,255,.05);border-top:1px solid rgba(255,255,255,.08);}" +
       "#dolphin-sidemenu .di-sm-h:hover{background:rgba(255,255,255,.1);}" +
       "#dolphin-sidemenu .di-sm-h .di-sm-count{font-size:9px;background:" + GOLD + ";color:" + NAVY + ";" +
@@ -78,7 +78,7 @@ frappe.provide("dolphin");
       "#dolphin-sidemenu .di-sm-sec.di-closed>.di-sm-items{display:none;}" +
       "#dolphin-sidemenu .di-sm-sec.di-closed>.di-sm-h .di-sm-chev{transform:rotate(-90deg);}" +
       "#dolphin-sidemenu .di-sm-row{display:flex;align-items:stretch;border-top:1px solid rgba(255,255,255,.06);}" +
-      "#dolphin-sidemenu .di-sm-link{flex:1;display:block;padding:7px 6px 7px 20px;font-size:12px;color:#dfe6ef;" +
+      "#dolphin-sidemenu .di-sm-link{flex:1;display:block;padding:8px 6px 8px 20px;font-size:13.5px;color:#dfe6ef;" +
       "text-decoration:none;cursor:pointer;line-height:1.25;}" +
       "#dolphin-sidemenu .di-sm-row:hover{background:rgba(255,255,255,.08);}" +
       "#dolphin-sidemenu .di-sm-new{flex:0 0 auto;width:0;overflow:hidden;border:none;background:transparent;" +
@@ -98,14 +98,14 @@ frappe.provide("dolphin");
       /* ---- Day31: nested sub-groups ---- */
       "#dolphin-sidemenu .di-sm-sub{border-top:1px solid rgba(255,255,255,.05);}" +
       "#dolphin-sidemenu .di-sm-sub>.di-sm-subh{display:flex;align-items:center;cursor:pointer;" +
-      "padding:6px 12px 6px 22px;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#b9a06a;}" +
+      "padding:6px 12px 6px 22px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#b9a06a;}" +
       "#dolphin-sidemenu .di-sm-sub>.di-sm-subh:hover{color:" + GOLD + ";background:rgba(255,255,255,.05);}" +
       "#dolphin-sidemenu .di-sm-sub>.di-sm-subh .di-sm-count{font-size:8.5px;background:rgba(212,162,74,.5);color:" + NAVY + ";" +
       "border-radius:9px;padding:1px 6px;margin-left:auto;margin-right:7px;font-weight:700;}" +
       "#dolphin-sidemenu .di-sm-sub>.di-sm-subh .di-sm-chev{font-size:9px;color:#b9a06a;transition:transform .25s;}" +
       "#dolphin-sidemenu .di-sm-sub.di-closed>.di-sm-items{display:none;}" +
       "#dolphin-sidemenu .di-sm-sub.di-closed>.di-sm-subh .di-sm-chev{transform:rotate(-90deg);}" +
-      "#dolphin-sidemenu .di-sm-sub .di-sm-link{padding-left:34px;font-size:11.5px;}" +
+      "#dolphin-sidemenu .di-sm-sub .di-sm-link{padding-left:34px;font-size:12.5px;}" +
       "#dolphin-sidemenu .di-sm-sub .di-sm-row.di-active .di-sm-link{padding-left:31px;}" +
       /* ============================================================
          Day31: persistent navy/gold ACTION BAR (form pages)
@@ -115,9 +115,11 @@ frappe.provide("dolphin");
       ".di-actionbar{display:flex;align-items:center;gap:7px;flex-wrap:wrap;background:" + NAVY + ";" +
       "border:1px solid " + GOLD + ";border-radius:9px;padding:5px 9px;margin-right:8px;vertical-align:middle;" +
       "font-family:Georgia,serif;box-shadow:0 2px 8px rgba(0,0,0,.2);}" +
-      ".di-actionbar .di-ab-chip{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;" +
+      ".di-actionbar .di-ab-chip{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 13px;" +
       "border-radius:7px;border:1.5px solid " + GOLD + ";background:transparent;color:" + GOLD + ";" +
-      "font-size:16px;cursor:pointer;line-height:1;}" +
+      "font-size:13px;font-weight:500;cursor:pointer;line-height:1;font-family:inherit;}" +
+      ".di-actionbar .di-ab-chip .di-gl{font-size:16px;line-height:1;}" +
+      ".di-actionbar .di-ab-chip .di-gl-home{font-size:20px;}" +
       ".di-actionbar .di-ab-chip:hover{background:" + GOLD + ";color:" + NAVY + ";}" +
       ".di-actionbar .di-ab-title{color:#fff;font-weight:700;font-size:12.5px;margin:0 4px;white-space:nowrap;" +
       "overflow:hidden;text-overflow:ellipsis;max-width:240px;}" +
@@ -136,6 +138,9 @@ frappe.provide("dolphin");
       "font-size:12.5px;padding:8px 12px;border-radius:6px;cursor:pointer;font-family:inherit;white-space:nowrap;}" +
       ".di-ab-menu .di-ab-item:hover{background:rgba(212,162,74,.22);color:#fff;}" +
       ".di-ab-menu .di-ab-empty{color:#9fb0c4;font-style:italic;font-size:11.5px;padding:7px 12px;white-space:nowrap;}" +
+      /* Day31: sidebar horizontal resize grip (right edge) */
+      ".body-sidebar .di-sb-resizer{position:absolute;top:0;right:0;width:7px;height:100%;cursor:ew-resize;z-index:6;}" +
+      ".body-sidebar .di-sb-resizer:hover,.body-sidebar .di-sb-resizer.di-drag{background:rgba(212,162,74,.55);}" +
       /* hide native custom-action buttons we have re-presented in the bar */
       ".di-ab-harvested{display:none !important;}";
     var s = document.createElement("style");
@@ -631,7 +636,10 @@ frappe.provide("dolphin");
 
   function abChip(glyph, label, fn) {
     var b = document.createElement("button"); b.type = "button"; b.className = "di-ab-chip";
-    b.title = label; b.innerHTML = glyph; b.onclick = fn; return b;
+    b.title = label;
+    var glcls = (label === "Home") ? "di-gl di-gl-home" : "di-gl";
+    b.innerHTML = "<span class='" + glcls + "'>" + glyph + "</span> " + label;
+    b.onclick = fn; return b;
   }
   /* Day31: list-view action bar — keeps Add (native primary) / Import / Refresh visible,
      harvests the rest of the Client-Script list buttons into a navy Actions dropdown. */
@@ -673,26 +681,57 @@ frappe.provide("dolphin");
      on hard refresh". Prefer cur_frm/cur_list's own page wrapper. */
   function activePageActions() {
     try {
-      var pg = (window.cur_frm && cur_frm.page) || (window.cur_list && cur_list.page) || (window.cur_page && cur_page.page);
-      if (pg) {
-        if (pg.page_actions && pg.page_actions.length) return pg.page_actions[0];
-        if (pg.wrapper) { var h = $(pg.wrapper).find(".page-actions")[0]; if (h) return h; }
+      var cands = [];
+      if (window.cur_frm && cur_frm.page) cands.push(cur_frm.page);
+      if (window.cur_list && cur_list.page) cands.push(cur_list.page);
+      if (window.cur_page && cur_page.page) cands.push(cur_page.page);
+      for (var i = 0; i < cands.length; i++) {
+        var pg = cands[i];
+        var pa = (pg.page_actions && pg.page_actions.length) ? pg.page_actions[0]
+               : (pg.wrapper ? $(pg.wrapper).find(".page-actions")[0] : null);
+        if (pa && pa.offsetParent !== null) return pa; // only if actually visible (not a stale hidden page)
       }
     } catch (e) {}
     var all = document.querySelectorAll(".page-actions");
-    for (var i = 0; i < all.length; i++) { if (all[i].offsetParent !== null) return all[i]; } // first visible
+    for (var j = 0; j < all.length; j++) { if (all[j].offsetParent !== null) return all[j]; } // first visible
     return all[0] || null;
+  }
+
+  /* Day31: minimal Back/Home bar for custom desk pages (e.g. Stock Dashboard) which are
+     neither form/list/report — previously these had no bar at all. */
+  function buildPageBar(head) {
+    var bar = head.querySelector(".di-actionbar");
+    if (!bar) {
+      bar = document.createElement("span");
+      bar.className = "di-navbar-group di-actionbar";
+      var back = abChip("‹", "Back", function () { window.history.back(); });
+      var home = abChip("⌂", "Home", function () { goHome(); });
+      var title = document.createElement("span"); title.className = "di-ab-title"; title.setAttribute("data-di-abtitle", "1");
+      bar.appendChild(back); bar.appendChild(home); bar.appendChild(title);
+      head.insertBefore(bar, head.firstChild);
+    }
+    var t = bar.querySelector("[data-di-abtitle]");
+    if (t) {
+      var ttlEl = document.querySelector(".page-head .title-area .title-text, .page-head .title-text");
+      t.textContent = ttlEl ? ttlEl.textContent.trim().slice(0, 40) : (((frappe.get_route() || [])[0]) || "").replace(/-/g, " ");
+    }
   }
 
   function addButtonBar() {
     try {
       var t = pageType();
-      if (t === "other") return;
       var head = activePageActions();
       if (!head) return;
       if (t === "form") { buildActionBar(head); return; } // Day31: forms use the persistent action bar
       if (t === "list") { buildListBar(head); return; }   // Day31: lists use the navy Actions-dropdown bar
-      // avoid duplicates: one bar per current page-actions
+      if (t === "other") {
+        // custom desk pages (Stock Dashboard, etc.) get a minimal Back/Home bar; skip the workspace (home)
+        try { if (onDolphinWorkspace()) return; } catch (e) {}
+        var r0 = (((frappe.get_route() || [])[0]) || "").toLowerCase();
+        if (r0 === "" || r0 === "workspaces") return;
+        buildPageBar(head); return;
+      }
+      // report / print: keep the existing simple navy bar
       if (head.querySelector(".di-navbar-group")) return;
       var bar = document.createElement("span");
       bar.className = "di-navbar di-navbar-group";
@@ -798,8 +837,51 @@ frappe.provide("dolphin");
   }
 
   /* ---------- tick with retries (pages render async after route change) ---------- */
+  /* Day31: horizontal drag-to-resize for the left sidebar (right-edge grip, width persisted). */
+  var __diSbDrag = false;
+  function diApplySidebarW(w) {
+    try {
+      var cont = document.querySelector(".body-sidebar-container");
+      var sb = document.querySelector(".body-sidebar");
+      if (cont) { cont.style.width = w + "px"; cont.style.minWidth = w + "px"; cont.style.maxWidth = w + "px"; }
+      if (sb) { sb.style.width = w + "px"; }
+    } catch (e) {}
+  }
+  function addSidebarResizer() {
+    try {
+      var sb = document.querySelector(".body-sidebar");
+      var cont = document.querySelector(".body-sidebar-container");
+      if (!sb || !cont) return;
+      var saved = parseInt(lsGet("di_sidebar_w", "") || "0", 10);
+      // keep the chosen width across SPA navigations (Frappe re-renders can reset it); skip while dragging or collapsed
+      if (saved && !__diSbDrag && sb.classList.contains("expanded")) diApplySidebarW(saved);
+      if (sb.querySelector(".di-sb-resizer")) return; // grip already added
+      var h = document.createElement("div");
+      h.className = "di-sb-resizer";
+      h.title = "Drag to widen the menu";
+      sb.appendChild(h);
+      h.addEventListener("mousedown", function (e) {
+        __diSbDrag = true; h.classList.add("di-drag");
+        document.body.style.userSelect = "none"; document.body.style.cursor = "ew-resize";
+        e.preventDefault();
+      });
+      document.addEventListener("mousemove", function (e) {
+        if (!__diSbDrag) return;
+        var left = cont.getBoundingClientRect().left;
+        var w = Math.max(180, Math.min(520, Math.round(e.clientX - left)));
+        diApplySidebarW(w);
+      });
+      document.addEventListener("mouseup", function () {
+        if (!__diSbDrag) return;
+        __diSbDrag = false; h.classList.remove("di-drag");
+        document.body.style.userSelect = ""; document.body.style.cursor = "";
+        try { lsSet("di_sidebar_w", String(Math.round(cont.getBoundingClientRect().width))); } catch (e) {}
+      });
+    } catch (e) {}
+  }
+
   function tick() {
-    prefetchNewMeta(); addStyles(); addFab(); brandIt(); addSideMenu(); maybeRedirect(); addButtonBar(); paintCustomBlocks();
+    prefetchNewMeta(); addStyles(); addFab(); brandIt(); addSideMenu(); addSidebarResizer(); maybeRedirect(); addButtonBar(); paintCustomBlocks();
   }
   function tickRetries() { [0, 350, 800, 1500, 2500].forEach(function (t) { setTimeout(tick, t); }); }
 
