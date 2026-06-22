@@ -165,15 +165,35 @@ frappe.provide("dolphin");
   }
 
   /* ---------- floating left-panel menu (mirrors workspace sections) ---------- */
+  /* Day30 role gating:
+     - Sales Lot = owner's working section -> management only. Operators (ilkal/quarry)
+       carry Dolphin Admin/Sales/Super Admin/Entry but NOT System Manager, so System
+       Manager is the clean distinguisher between owner/day-user and operators.
+     - Local Sale + Shipping = Bangalore tier (di@ has only Dolphin Bangalore). */
+  var ROLE_OWNER = ["System Manager", "Administrator", "Dolphin Owner"];
+  var ROLE_BANGALORE = ["System Manager", "Administrator", "Dolphin Bangalore", "Dolphin Owner"];
+  function hasAnyRole(list) {
+    try {
+      if (!list || !list.length) return true;
+      var ur = frappe.user_roles || [];
+      return list.some(function (r) { return ur.indexOf(r) > -1; });
+    } catch (e) { return true; }
+  }
+
   var SECTIONS = [
     { title: "Operations", items: [
       ["Quarry Block", "Quarry Block"], ["Quarry Inspection", "Quarry Inspection"],
       ["Buyer Inspection", "Buyer Inspection"], ["Delivery Challan", "Delivery Challan"],
-      ["Sales Lot", "Sales Lot"] ] },
+      ["Sales Lot", "Sales Lot", ROLE_OWNER] ] },
+    { title: "Local Sale", roles: ROLE_BANGALORE, items: [
+      ["Local Tax Invoice", "Local Tax Invoice"],
+      ["Local Blocks Inspector", "Local Blocks Inspector"] ] },
+    { title: "Shipping Documents", roles: ROLE_BANGALORE, items: [
+      ["Shipping Document", "Shipping Document"] ] },
     { title: "Quarry Masters", items: [
       ["Pit", "Pit"], ["Gangman", "Gangman"], ["Granite Grade", "Granite Grade"],
       ["Granite Size Category", "Granite Size Category"], ["Allowance", "Allowance"],
-      ["DMG Tonnage Factor", "DMG Tonnage Factor Master"] ] },
+      ["Specific Gravity", "DMG Tonnage Factor Master"] ] },
     { title: "People & Parties", items: [
       ["Local Consignee", "Local Consignee"], ["Export Consignee", "Export Consignee"],
       ["Inspector", "Inspector"] ] },
@@ -246,13 +266,16 @@ frappe.provide("dolphin");
       body.appendChild(search);
 
       SECTIONS.forEach(function (sec, si) {
+        if (!hasAnyRole(sec.roles)) return; // Day30: section-level role gate
+        var visItems = sec.items.filter(function (it) { return hasAnyRole(it[2]); });
+        if (!visItems.length) return; // nothing visible for this user
         var s = document.createElement("div");
         s.className = "di-sm-sec";
         var secKey = "di_sm_sec_" + si;
         if (lsGet(secKey, "open") === "closed") s.classList.add("di-closed");
         var h = document.createElement("div");
         h.className = "di-sm-h";
-        h.innerHTML = "<span>" + sec.title + "</span><span class='di-sm-count'>" + sec.items.length +
+        h.innerHTML = "<span>" + sec.title + "</span><span class='di-sm-count'>" + visItems.length +
           "</span><span class='di-sm-chev'>▾</span>";
         h.onclick = function () {
           s.classList.toggle("di-closed");
@@ -261,7 +284,7 @@ frappe.provide("dolphin");
         s.appendChild(h);
         var box = document.createElement("div");
         box.className = "di-sm-items";
-        sec.items.forEach(function (it) {
+        visItems.forEach(function (it) {
           var label = it[0], dt = it[1];
           var row = document.createElement("div");
           row.className = "di-sm-row";
@@ -498,9 +521,27 @@ frappe.provide("dolphin");
     });
   }
 
+  /* ---------- Day30: stale-boot mitigation for newly-added doctypes ----------
+     The themed SPA caches a stale boot, so doctypes added after that boot
+     (Local Tax Invoice / Shipping Document / Local Blocks Inspector) don't
+     render until a hard refresh. Proactively pull their meta on the route so
+     the list/form view can paint without forcing a reload. Best-effort. */
+  var NEW_DOCTYPES = ["Local Tax Invoice", "Shipping Document", "Local Blocks Inspector"];
+  function prefetchNewMeta() {
+    try {
+      var r = frappe.get_route() || [];
+      var v = (r[0] || "").toLowerCase();
+      if ((v === "list" || v === "form") && r[1] && NEW_DOCTYPES.indexOf(r[1]) > -1) {
+        var have = false;
+        try { have = !!(frappe.get_meta && frappe.get_meta(r[1])); } catch (e) {}
+        if (!have) { try { frappe.model.with_doctype(r[1], function () {}, true); } catch (e) {} }
+      }
+    } catch (e) {}
+  }
+
   /* ---------- tick with retries (pages render async after route change) ---------- */
   function tick() {
-    addStyles(); addFab(); brandIt(); addSideMenu(); maybeRedirect(); addButtonBar(); paintCustomBlocks();
+    prefetchNewMeta(); addStyles(); addFab(); brandIt(); addSideMenu(); maybeRedirect(); addButtonBar(); paintCustomBlocks();
   }
   function tickRetries() { [0, 350, 800, 1500, 2500].forEach(function (t) { setTimeout(tick, t); }); }
 
