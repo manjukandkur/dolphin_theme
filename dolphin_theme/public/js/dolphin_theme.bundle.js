@@ -247,7 +247,7 @@ frappe.provide("dolphin");
       ["Local Blocks Inspector", "Local Blocks Inspector"] ] },
     { title: "Shipping Documents", roles: ROLE_BANGALORE, items: [
       ["Shipping Document", "Shipping Document"] ] },
-    { title: "Masters", subgroups: [
+    { title: "Sales & Exports", roles: ROLE_BANGALORE, items: [ ["Port Arrival", "Port Arrival"], ["Blocks At Port", "Blocks At Port", null, "report"] ] }, { title: "Masters", subgroups: [
       { title: "Quarry", items: [
         ["Pit", "Pit"], ["Gangman", "Gangman"], ["Granite Grade", "Granite Grade"],
         ["Granite Size Category", "Granite Size Category"], ["Grade Size Rule", "Grade Size Rule"],
@@ -335,7 +335,7 @@ frappe.provide("dolphin");
 
       // build one navigable row (link + quick "new") for a [label, doctype, roles?] item
       function makeRow(it) {
-        var label = it[0], dt = it[1];
+        var label = it[0], dt = it[1], kind = it[3];
         var row = document.createElement("div");
         row.className = "di-sm-row";
         row.setAttribute("data-dt", dt);
@@ -344,7 +344,7 @@ frappe.provide("dolphin");
         var a = document.createElement("a");
         a.className = "di-sm-link";
         a.textContent = label;
-        a.setAttribute("href", "/app/" + frappe.router.slug(dt));
+        if (kind === "report") { a.setAttribute("href", "/app/query-report/" + encodeURIComponent(dt)); a.onclick = function (ev) { ev.preventDefault(); try { frappe.set_route("query-report", dt); } catch (e) { window.location = "/app/query-report/" + encodeURIComponent(dt); } }; row.appendChild(a); return row; } a.setAttribute("href", "/app/" + frappe.router.slug(dt));
         a.onclick = function (ev) {
           ev.preventDefault();
           try { frappe.set_route("List", dt); } catch (e) { window.location = "/app/" + frappe.router.slug(dt); }
