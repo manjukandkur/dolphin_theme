@@ -1,0 +1,237 @@
+{% raw %}
+<style>
+.web-footer,footer,.footer,.breadcrumb-container,.page-header{display:none!important}
+#mvapp{--navy:#17233f;--navy2:#1f2c4d;--gold:#c79a3b;--ink:#1f2a44;--bg:#f4f5f7;--card:#fff;--line:#e5e7eb;--muted:#6b7280;--muted2:#9aa0aa;--red:#c0392b;--redbg:#fbeaea;--redline:#f1c9c6;--green:#1f7a4d;--greenbg:#e7f4ec;--amber:#9a6b12;--amberbg:#fbf1da;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--ink);font-size:14px;line-height:1.5;max-width:1100px;margin:0 auto;padding:10px 4px 40px}
+#mvapp *{box-sizing:border-box}
+#mvapp .header{background:var(--navy);color:#fff;border-radius:14px;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+#mvapp .ttl{font-size:19px;font-weight:600;margin:0}
+#mvapp .sub{font-size:12px;color:#aeb8cf;margin:2px 0 0}
+#mvapp .brand{display:flex;align-items:center;gap:12px}
+#mvapp .logo{width:40px;height:40px;border-radius:8px;background:var(--gold);color:var(--navy);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:18px}
+#mvapp .controls{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;margin:16px 0 6px}
+#mvapp .ctl{display:flex;flex-direction:column;gap:4px}
+#mvapp .ctl label{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+#mvapp .ctl input,#mvapp .ctl select{height:36px;border:1px solid var(--line);border-radius:8px;padding:0 10px;font-size:14px;background:#fff;color:var(--ink);min-width:120px}
+#mvapp .ctl input:focus,#mvapp .ctl select:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 3px rgba(199,154,59,.18)}
+#mvapp .searchrow{display:flex;gap:8px;align-items:flex-end}
+#mvapp .btn{height:36px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink);padding:0 14px;cursor:pointer;font-size:13px;font-weight:500}
+#mvapp .btn:hover{background:#f7f7f9}
+#mvapp .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:14px 0}
+#mvapp .tile{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+#mvapp .tile .k{font-size:12px;color:var(--muted)}
+#mvapp .tile .v{font-size:24px;font-weight:600;margin-top:3px}
+#mvapp .v.red{color:var(--red)}#mvapp .v.green{color:var(--green)}#mvapp .v.amber{color:var(--amber)}
+#mvapp .chips{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 14px;align-items:center}
+#mvapp .chip{border:1px solid var(--line);background:#fff;border-radius:999px;padding:6px 13px;font-size:13px;cursor:pointer;color:var(--ink)}
+#mvapp .chip.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+#mvapp .note{font-size:12px;color:var(--muted)}
+#mvapp .cards{display:flex;flex-direction:column;gap:10px}
+#mvapp .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+#mvapp .card.flag{border-color:var(--redline);background:#fffafa}
+#mvapp .card.rev{opacity:.6}
+#mvapp .crow{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+#mvapp .bno{font-size:16px;font-weight:600}
+#mvapp .pill{font-size:11px;padding:3px 9px;border-radius:999px;font-weight:600;display:inline-flex;align-items:center;gap:5px}
+#mvapp .pill.red{background:var(--redbg);color:var(--red)}
+#mvapp .pill.green{background:var(--greenbg);color:var(--green)}
+#mvapp .pill.amber{background:var(--amberbg);color:var(--amber)}
+#mvapp .pill.grey{background:#eef0f3;color:var(--muted)}
+#mvapp .status{font-size:11px;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:3px 9px}
+#mvapp .cmp{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+#mvapp .box{background:#f7f8fa;border-radius:8px;padding:8px 11px}
+#mvapp .box .lbl{font-size:11px;color:var(--muted2)}
+#mvapp .box .val{font-size:14px;margin-top:2px}
+#mvapp .deltas{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px;align-items:center}
+#mvapp .d{font-size:12px;padding:2px 8px;border-radius:6px;background:#f1f2f4;color:var(--muted)}
+#mvapp .d.bad{background:var(--redbg);color:var(--red);font-weight:600}
+#mvapp .right{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+#mvapp .linkbtn{font-size:12px;color:var(--navy);background:none;border:none;cursor:pointer;text-decoration:underline;padding:0}
+#mvapp .empty{background:var(--card);border:1px dashed var(--line);border-radius:12px;padding:26px;text-align:center;color:var(--muted)}
+#mvapp .legend{font-size:11px;color:var(--muted);margin-top:14px;display:flex;gap:14px;flex-wrap:wrap}
+</style>
+<div id="mvapp">
+  <div class="header">
+    <div class="brand">
+      <div class="logo">D</div>
+      <div><p class="ttl">Measurement variations</p>
+      <p class="sub" id="subline">buyer gross vs latest quarry gross — live</p></div>
+    </div>
+    <button class="btn" onclick="mvReload()">&#8635; Reload</button>
+  </div>
+  <div class="controls">
+    <div class="ctl"><label>By inspection</label><select id="biSel" onchange="onBI()"></select></div>
+    <div class="ctl"><label>Consignee</label><select id="consSel" onchange="onFilter()"></select></div>
+    <div class="ctl"><label>From date</label><input id="dFrom" type="date" onchange="onFilter()"></div>
+    <div class="ctl"><label>To date</label><input id="dTo" type="date" onchange="onFilter()"></div>
+    <div class="ctl"><label>Search block no.</label>
+      <div class="searchrow">
+        <input id="blkSearch" placeholder="e.g. 1235" onkeydown="if(event.key==='Enter')onSearch()">
+        <button class="btn" onclick="onSearch()">Search</button>
+        <button class="btn" onclick="clearSearch()" title="clear">&times;</button>
+      </div></div>
+    <div class="ctl"><label>Side tolerance (cm)</label><input id="tolCm" type="number" min="0" step="1" value="0" onchange="render()"></div>
+    <div class="ctl"><label>Volume tolerance (%)</label><input id="tolVol" type="number" min="0" step="0.5" value="0" onchange="render()"></div>
+    <div class="ctl"><label>Tonnage factor</label><input id="sg" type="number" min="0" step="0.05" value="2.8" onchange="render()"></div>
+  </div>
+  <div class="tiles" id="tiles"></div>
+  <div class="chips" id="chips">
+    <span class="chip on" data-f="flagged" onclick="setFilter('flagged')">Only flagged</span>
+    <span class="chip" data-f="all" onclick="setFilter('all')">All blocks</span>
+    <span class="chip" data-f="recut" onclick="setFilter('recut')">Recut after</span>
+    <span class="chip" data-f="edge" onclick="setFilter('edge')">Edge cases</span>
+    <span class="chip" data-f="reviewed" onclick="setFilter('reviewed')">Reviewed</span>
+    <span class="chip" data-f="sort" onclick="toggleSort()" id="sortChip">&#8597; Sort: biggest &Delta;vol</span>
+  </div>
+  <div class="cards" id="cards"><div class="empty">Loading live data…</div></div>
+  <div class="legend">
+    <span>flagged = side &Delta; &gt; tolerance OR volume &Delta;% &gt; tolerance</span>
+    <span>recut after = quarry edited after the inspection (difference may be authentic)</span>
+    <span>tonnage &Delta; = volume &Delta; &times; tonnage factor</span>
+  </div>
+</div>
+<script>
+var MV={rows:[],bi:null,search:null,filter:"flagged",sort:false};
+var ALL_BIS=[];
+function num(id){return parseFloat(document.getElementById(id).value)||0;}
+function r2(n){return Math.round(n*100)/100;}
+function csrf(){return (window.frappe&&frappe.csrf_token)||(document.querySelector('meta[name=csrf_token]')||{}).content||"";}
+function api(u){return fetch(u,{headers:{Accept:'application/json'}}).then(function(r){if(!r.ok)throw r.status;return r.json();});}
+function qenc(o){return encodeURIComponent(JSON.stringify(o));}
+function consigneeOf(b){return b.export_buyer||b.local_buyer||'';}
+
+function enrich(row){
+  var sg=num('sg'),tolCm=num('tolCm'),tolVol=num('tolVol');
+  var hasQ=!!row.q&&(row.q[0]||row.q[1]||row.q[2]);
+  var hasB=!!row.b&&(row.b[0]||row.b[1]||row.b[2]);
+  var o=Object.assign({},row,{hasQ:hasQ,hasB:hasB});
+  if(!hasQ){o.edge="no quarry match";o.flagged=false;return o;}
+  if(!hasB){o.edge="no buyer measurement";o.flagged=false;return o;}
+  o.dL=row.b[0]-row.q[0];o.dW=row.b[1]-row.q[1];o.dH=row.b[2]-row.q[2];
+  o.maxSide=Math.max(Math.abs(o.dL),Math.abs(o.dW),Math.abs(o.dH));
+  o.dVolPct=row.qVol?r2((row.bVol-row.qVol)/row.qVol*100):0;
+  o.dTon=r2((row.bVol-row.qVol)*sg);
+  o.flagged=(o.maxSide>tolCm)||(Math.abs(o.dVolPct)>tolVol);
+  o.recut=row.quarryModified&&row.reportDate&&(row.quarryModified>row.reportDate);
+  o.dir=row.bVol<row.qVol?"under":(row.bVol>row.qVol?"over":"match");
+  return o;
+}
+function render(){
+  var rows=MV.rows.map(enrich);
+  var flagged=rows.filter(function(r){return r.flagged;});
+  var within=rows.filter(function(r){return !r.flagged&&!r.edge;});
+  var edges=rows.filter(function(r){return r.edge;});
+  var tonRisk=r2(flagged.reduce(function(s,r){return s+Math.abs(r.dTon||0);},0));
+  document.getElementById('tiles').innerHTML=
+    tile("Blocks",rows.length,"")+tile("Flagged",flagged.length,"red")+
+    tile("Within tolerance",within.length,"green")+tile("Edge cases",edges.length,edges.length?"amber":"")+
+    tile("Tonnage at risk",tonRisk+" t","red");
+  var show=rows;
+  if(MV.filter==="flagged")show=flagged;
+  else if(MV.filter==="recut")show=rows.filter(function(r){return r.recut;});
+  else if(MV.filter==="edge")show=edges;
+  else if(MV.filter==="reviewed")show=rows.filter(function(r){return r.reviewed;});
+  if(MV.sort)show=show.slice().sort(function(a,b){return Math.abs(b.dVolPct||0)-Math.abs(a.dVolPct||0);});
+  var host=document.getElementById('cards');
+  host.innerHTML=show.length?show.map(cardHtml).join(""):'<div class="empty">No blocks match this filter.</div>';
+}
+function tile(k,v,c){return '<div class="tile"><div class="k">'+k+'</div><div class="v '+c+'">'+v+'</div></div>';}
+function cardHtml(r){
+  if(r.edge){
+    var amber=r.edge==="no quarry match";
+    return '<div class="card"><div class="crow"><div class="bno">Block '+r.blockNo+' <span class="status">'+(r.status||"")+'</span></div><span class="pill '+(amber?'amber':'grey')+'">'+r.edge+'</span></div><div class="note" style="margin-top:8px">'+(amber?"This block number isn't in the quarry register — renumbered, removed, or a typo.":"Buyer didn't record a measurement for this block.")+'</div></div>';
+  }
+  var badCm=function(d){return Math.abs(d)>num('tolCm')?' bad':'';};
+  var badV=Math.abs(r.dVolPct)>num('tolVol')?' bad':'';
+  var dcells='<span class="d'+badCm(r.dL)+'">&Delta; '+(r.dL>0?'+':'')+r.dL+' cm</span><span class="d'+badCm(r.dW)+'">&Delta; '+(r.dW>0?'+':'')+r.dW+' cm</span><span class="d'+badCm(r.dH)+'">&Delta; '+(r.dH>0?'+':'')+r.dH+' cm</span><span class="d'+badV+'">&Delta; vol '+(r.dVolPct>0?'+':'')+r.dVolPct+'%</span>';
+  var flagPill=r.flagged?'<span class="pill red">&#9873; flagged</span>':'<span class="pill green">&#10003; ok</span>';
+  var recut=r.recut?'<span class="pill amber" title="quarry edited after the inspection">&#8635; recut after</span>':'';
+  var dir=r.flagged?'<span class="note">buyer '+r.dir+' &middot; &Delta; '+(r.dTon>0?'+':'')+r.dTon+' t</span>':'';
+  var rev='<button class="linkbtn" onclick="toggleRev(this,\''+r.rowName+'\','+(r.reviewed?0:1)+')">'+(r.reviewed?'reviewed &#10003; (undo)':'mark reviewed')+'</button>';
+  return '<div class="card '+(r.flagged?'flag':'')+' '+(r.reviewed?'rev':'')+'"><div class="crow"><div class="bno">Block '+r.blockNo+' <span class="status">'+(r.status||"")+'</span></div><div class="right">'+recut+flagPill+(r.rowName?rev:'')+'</div></div><div class="cmp"><div class="box"><div class="lbl">Quarry gross (latest)'+(r.recut?' &middot; edited '+r.quarryModified:'')+'</div><div class="val">'+r.q.join('&times;')+' &middot; '+r.qVol+' m&sup3;</div></div><div class="box"><div class="lbl">Buyer gross'+(r.reportDate?' &middot; '+r.reportDate:'')+' &middot; '+r.biName+(r.cons?' &middot; '+r.cons:'')+'</div><div class="val">'+r.b.join('&times;')+' &middot; '+r.bVol+' m&sup3;</div></div></div><div class="deltas">'+dcells+dir+'</div></div>';
+}
+function toggleRev(btn,rowName,val){
+  if(!rowName)return; btn.disabled=true;
+  fetch('/api/method/frappe.client.set_value',{method:'POST',headers:{'Content-Type':'application/json','X-Frappe-CSRF-Token':csrf(),'Accept':'application/json'},body:JSON.stringify({doctype:'Buyer Inspection Block',name:rowName,fieldname:'variance_reviewed',value:val})})
+  .then(function(r){if(!r.ok)throw 0;var t=MV.rows.filter(function(x){return x.rowName===rowName;})[0];if(t)t.reviewed=!!val;render();})
+  .catch(function(){btn.disabled=false;btn.textContent='could not save';});
+}
+function setFilter(f){MV.filter=f;var cs=document.querySelectorAll('#mvapp .chip[data-f]');for(var i=0;i<cs.length;i++){if(cs[i].dataset.f!=='sort')cs[i].classList.toggle('on',cs[i].dataset.f===f);}render();}
+function toggleSort(){MV.sort=!MV.sort;document.getElementById('sortChip').classList.toggle('on',MV.sort);render();}
+function onBI(){var v=document.getElementById('biSel').value;if(!v)return;MV.search=null;document.getElementById('blkSearch').value="";document.getElementById('consSel').selectedIndex=0;document.getElementById('dFrom').value="";document.getElementById('dTo').value="";document.getElementById('subline').textContent='buyer gross vs latest quarry gross — live';loadBI(v);}
+function onFilter(){document.getElementById('biSel').selectedIndex=-1;MV.search=null;document.getElementById('blkSearch').value="";loadFiltered();}
+function clearSearch(){MV.search=null;document.getElementById('blkSearch').value="";var v=document.getElementById('biSel').value;if(v)loadBI(v);else loadFiltered();}
+function onSearch(){var v=document.getElementById('blkSearch').value.trim();if(!v)return;MV.search=v;searchBlock(v);}
+function mvReload(){if(MV.search)searchBlock(MV.search);else if(document.getElementById('biSel').value)loadBI(document.getElementById('biSel').value);else loadFiltered();}
+
+function mapRow(d,r,qb){qb=qb||{};
+  return {biName:d.name,reportDate:d.report_date,cons:consigneeOf(d),blockNo:r.block_no||r.block_number_input||r.block,
+    rowName:r.name,reviewed:!!r.variance_reviewed,status:qb.status||"",
+    quarryModified:(qb.modified||"").slice(0,10),
+    q:qb.length_gross?[qb.length_gross,qb.width_gross,qb.height_gross]:null,qVol:qb.gross_volume||0,
+    b:[r.length_gross,r.width_gross,r.height_gross],bVol:r.gross_volume||0};
+}
+function fetchQuarry(ids){
+  if(!ids.length)return Promise.resolve({});
+  return api('/api/resource/Quarry Block?filters='+qenc([["name","in",ids]])+'&fields='+qenc(["name","status","length_gross","width_gross","height_gross","gross_volume","modified"])+'&limit_page_length=0')
+   .then(function(q){var m={};(q.data||[]).forEach(function(b){m[b.name]=b;});return m;});
+}
+function loadBI(name){
+  MV.bi=name;document.getElementById('cards').innerHTML='<div class="empty">Loading '+name+'…</div>';
+  api('/api/resource/Buyer Inspection/'+encodeURIComponent(name)).then(function(j){
+    var d=j.data;var ids=[];(d.block_rows||[]).forEach(function(r){if(r.block&&ids.indexOf(r.block)<0)ids.push(r.block);});
+    fetchQuarry(ids).then(function(qmap){MV.rows=(d.block_rows||[]).map(function(r){return mapRow(d,r,qmap[r.block]);});render();});
+  }).catch(function(e){document.getElementById('cards').innerHTML='<div class="empty">Could not load '+name+' ('+e+'). You may not have access to this inspection.</div>';});
+}
+function loadFiltered(){
+  var cons=document.getElementById('consSel').value;
+  var from=document.getElementById('dFrom').value, to=document.getElementById('dTo').value;
+  var match=ALL_BIS.filter(function(b){
+    var okC=cons==='All consignees'||(cons==='(no consignee)'?!consigneeOf(b):consigneeOf(b)===cons);
+    var okF=!from||(b.report_date&&b.report_date>=from);
+    var okT=!to||(b.report_date&&b.report_date<=to);
+    return okC&&okF&&okT;
+  });
+  MV.bi=null;
+  if(!match.length){MV.rows=[];render();document.getElementById('cards').innerHTML='<div class="empty">No inspections match this consignee / date range.</div>';document.getElementById('subline').textContent='no matching inspections';return;}
+  var capped=match.slice(0,40);
+  document.getElementById('cards').innerHTML='<div class="empty">Loading '+capped.length+' inspection(s)…</div>';
+  Promise.all(capped.map(function(b){return api('/api/resource/Buyer Inspection/'+encodeURIComponent(b.name)).then(function(j){return j.data;}).catch(function(){return null;});})).then(function(docs){
+    docs=docs.filter(Boolean);
+    var pairs=[],ids=[];
+    docs.forEach(function(d){(d.block_rows||[]).forEach(function(r){if(r.block&&ids.indexOf(r.block)<0)ids.push(r.block);pairs.push([d,r]);});});
+    fetchQuarry(ids).then(function(qmap){
+      MV.rows=pairs.map(function(p){return mapRow(p[0],p[1],qmap[p[1].block]);});
+      MV.filter='flagged';setFilter('flagged');render();
+      document.getElementById('subline').textContent=(cons==='All consignees'?'all consignees':cons)+(from||to?' · '+(from||'…')+' to '+(to||'…'):'')+' · '+capped.length+' inspection(s) · '+MV.rows.length+' blocks'+(match.length>40?' (first 40)':'');
+    });
+  });
+}
+function boot(){
+  api('/api/resource/Buyer Inspection?fields='+qenc(["name","report_date","sale_type","export_buyer","local_buyer"])+'&order_by=report_date desc&limit_page_length=0').then(function(j){
+    ALL_BIS=(j.data||[]);
+    var names=ALL_BIS.map(function(d){return d.name;});
+    document.getElementById('biSel').innerHTML=names.map(function(n){return '<option>'+n+'</option>';}).join("");
+    var cons=[];ALL_BIS.forEach(function(b){var c=consigneeOf(b);if(c&&cons.indexOf(c)<0)cons.push(c);});cons.sort();
+    document.getElementById('consSel').innerHTML='<option>All consignees</option>'+cons.map(function(c){return '<option>'+c+'</option>';}).join("")+'<option>(no consignee)</option>';
+    if(names.length)loadBI(names[0]);else document.getElementById('cards').innerHTML='<div class="empty">No buyer inspections found (or no access).</div>';
+  }).catch(function(e){document.getElementById('cards').innerHTML='<div class="empty">Could not load inspections ('+e+').</div>';});
+}
+function searchBlock(numStr){
+  document.getElementById('cards').innerHTML='<div class="empty">Searching block '+numStr+'…</div>';
+  api('/api/resource/Quarry Block?filters='+qenc([["block_number","=",numStr]])+'&fields='+qenc(["name","block_number","buyer_inspection","status","length_gross","width_gross","height_gross","gross_volume","modified"])+'&limit_page_length=1')
+  .then(function(q){
+    var qb=(q.data||[])[0];
+    if(!qb){MV.rows=[];render();document.getElementById('cards').innerHTML='<div class="empty">No quarry block found with number '+numStr+'.</div>';return;}
+    var qrow={blockNo:numStr,status:qb.status,quarryModified:(qb.modified||"").slice(0,10),q:[qb.length_gross,qb.width_gross,qb.height_gross],qVol:qb.gross_volume};
+    if(!qb.buyer_inspection){MV.rows=[Object.assign({},qrow,{biName:"—",reportDate:"",rowName:null,reviewed:false,b:null,bVol:0,edge:"no buyer measurement"})];MV.filter="all";setFilter("all");render();return;}
+    api('/api/resource/Buyer Inspection/'+encodeURIComponent(qb.buyer_inspection)).then(function(b){
+      var d=b.data;var row=(d.block_rows||[]).filter(function(x){return String(x.block)===String(qb.name);})[0];
+      if(!row){MV.rows=[Object.assign({},qrow,{biName:qb.buyer_inspection,reportDate:d.report_date,rowName:null,reviewed:false,b:null,bVol:0,edge:"no buyer measurement"})];MV.filter="all";setFilter("all");render();return;}
+      MV.rows=[Object.assign({},qrow,{biName:d.name,reportDate:d.report_date,rowName:row.name,reviewed:!!row.variance_reviewed,b:[row.length_gross,row.width_gross,row.height_gross],bVol:row.gross_volume||0})];
+      MV.filter="all";setFilter("all");render();
+    }).catch(function(e){document.getElementById('cards').innerHTML='<div class="empty">Search failed ('+e+').</div>';});
+  }).catch(function(e){document.getElementById('cards').innerHTML='<div class="empty">Search failed ('+e+').</div>';});
+}
+boot();
+</script>
+{% endraw %}
