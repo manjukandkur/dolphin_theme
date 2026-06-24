@@ -241,6 +241,7 @@ frappe.provide("dolphin");
     { title: "Operations", items: [
       ["Quarry Block", "Quarry Block"], ["Quarry Inspection", "Quarry Inspection"],
       ["Buyer Inspection", "Buyer Inspection"], ["Delivery Challan", "Delivery Challan"],
+      ["Measurement Variations", "/measurement-variations", null, "url"],
       ["Sales Lot", "Sales Lot", ROLE_OWNER] ] },
     { title: "Local Sale", roles: ROLE_BANGALORE, items: [
       ["Local Tax Invoice", "Local Tax Invoice"],
@@ -344,7 +345,9 @@ frappe.provide("dolphin");
         var a = document.createElement("a");
         a.className = "di-sm-link";
         a.textContent = label;
-        if (kind === "report") { a.setAttribute("href", "/app/query-report/" + encodeURIComponent(dt)); a.onclick = function (ev) { ev.preventDefault(); try { frappe.set_route("query-report", dt); } catch (e) { window.location = "/app/query-report/" + encodeURIComponent(dt); } }; row.appendChild(a); return row; } a.setAttribute("href", "/app/" + frappe.router.slug(dt));
+        if (kind === "report") { a.setAttribute("href", "/app/query-report/" + encodeURIComponent(dt)); a.onclick = function (ev) { ev.preventDefault(); try { frappe.set_route("query-report", dt); } catch (e) { window.location = "/app/query-report/" + encodeURIComponent(dt); } }; row.appendChild(a); return row; }
+        if (kind === "url") { a.setAttribute("href", dt); a.onclick = function (ev) { ev.preventDefault(); window.location.href = dt; }; a.innerHTML = "<svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px;margin-right:7px\"><path d=\"M17 3l4 4l-14 14l-4 -4z\"/><path d=\"M16 7l-1.5 -1.5\"/><path d=\"M13 10l-1.5 -1.5\"/><path d=\"M10 13l-1.5 -1.5\"/><path d=\"M7 16l-1.5 -1.5\"/></svg> " + label; row.appendChild(a); return row; }
+        a.setAttribute("href", "/app/" + frappe.router.slug(dt));
         a.onclick = function (ev) {
           ev.preventDefault();
           try { frappe.set_route("List", dt); } catch (e) { window.location = "/app/" + frappe.router.slug(dt); }
