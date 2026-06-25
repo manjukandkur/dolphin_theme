@@ -1,0 +1,182 @@
+{% raw %}
+<style>
+.web-footer,footer,.footer,.breadcrumb-container,.page-header{display:none!important}
+#darr{--navy:#0F2540;--gold:#D4A24A;--blue:#2490ef;--ink:#1f2a44;--line:#e5e7eb;--muted:#6b7280;--red:#c0392b;--redbg:#fceaea;--green:#1f7a4d;--greenbg:#e7f5ee;--amber:#9a6b12;--amberbg:#fbf1da;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--ink);font-size:14px;line-height:1.5;max-width:880px;margin:0 auto;padding:10px 14px 70px}
+#darr *{box-sizing:border-box}
+#darr .header{background:var(--navy);color:#fff;border-radius:14px;padding:15px 20px;display:flex;align-items:center;gap:13px;margin-bottom:8px}
+#darr .logo{width:38px;height:38px;border-radius:50%;background:#0a1a2e;border:1.5px solid var(--gold);color:#00ADEF;display:flex;align-items:center;justify-content:center;font-weight:700}
+#darr .ttl{font-size:18px;margin:0;font-weight:600}
+#darr .sub{font-size:12px;color:#aeb8cf;margin:2px 0 0}
+#darr .rule{height:3px;background:var(--gold);border-radius:2px;margin-bottom:14px}
+#darr .machine{font-size:12px;color:var(--muted);margin:0 2px 14px;display:flex;align-items:center;gap:6px}
+#darr .machine b{color:var(--navy)}
+#darr .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}
+#darr .card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px}
+#darr .card .nm{font-weight:600;color:var(--navy)}
+#darr .chip{font-size:11px;padding:2px 8px;border-radius:7px;background:#eef1f4;color:#516074}
+#darr .row{display:flex;align-items:center;gap:8px}
+#darr .btn{border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink);padding:6px 12px;font-size:13px;font-weight:600;cursor:pointer}
+#darr .btn.blue{background:var(--blue);color:#fff;border-color:var(--blue)}
+#darr .btn.navy{background:var(--navy);color:#fff;border-color:var(--navy)}
+#darr .btn.gold{background:var(--gold);color:var(--navy);border-color:var(--gold)}
+#darr .btn:hover{filter:brightness(.96)}
+#darr .badge{font-size:11px;padding:3px 9px;border-radius:7px}
+#darr .b-ok{background:var(--greenbg);color:var(--green)}
+#darr .b-red{background:var(--redbg);color:var(--red)}
+#darr .b-amber{background:var(--amberbg);color:var(--amber)}
+#darr .chain{display:flex;gap:7px;flex-wrap:wrap;margin:12px 0}
+#darr .chain .seg{background:var(--navy);color:#fff;font-size:12px;padding:6px 11px;border-radius:8px;display:inline-flex;align-items:center;gap:6px}
+#darr .chain .seg.arr{background:var(--gold);color:#3a2c0e;font-weight:600}
+#darr .chain .eye{border:none;background:none;color:var(--gold);cursor:pointer;padding:0}
+#darr .peek{background:#fff;border:1px solid var(--gold);border-radius:8px;padding:11px 13px;font-size:13px;color:var(--muted);margin-bottom:12px}
+#darr .blk{background:#fff;border:1px solid var(--line);border-radius:10px;padding:11px 13px;margin-bottom:8px}
+#darr .blk.f-red{border-color:#efc9c4}
+#darr .blk.f-amber{border-color:#f0dcae}
+#darr .blk.f-ok{border-color:#cfe8da}
+#darr .dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+#darr .acts{display:flex;gap:7px;flex-wrap:wrap;margin-top:9px}
+#darr .stamp{margin-top:8px;font-size:12px;color:var(--green)}
+#darr textarea{width:100%;min-height:48px;border:1px solid var(--line);border-radius:8px;padding:8px;font-size:13px;margin-top:8px}
+#darr .gate{display:flex;align-items:center;gap:11px;border-radius:10px;padding:12px 15px;margin-top:14px}
+#darr .gate.lock{background:var(--navy);color:#e8d3a6}
+#darr .gate.ok{background:#1a4d3a;color:#cdeede}
+#darr .muted{color:var(--muted)}
+#darr .back{cursor:pointer;color:var(--blue);font-size:13px;font-weight:600;margin-bottom:10px;display:inline-block}
+</style>
+
+<div id="darr">
+  <div class="header">
+    <div class="logo">D</div>
+    <div><p class="ttl">Arrivals Reconciliation</p><p class="sub">Dolphin International &middot; cross-checks port arrivals against delivery challans</p></div>
+  </div>
+  <div class="rule"></div>
+  <div class="machine" id="machine">This computer: <b id="mach-name">checking&hellip;</b></div>
+
+  <div id="board"></div>
+  <div id="detail" style="display:none"></div>
+</div>
+
+<script>
+(function(){
+  var MACH_KEY='dolphin_device';
+  function $(id){return document.getElementById(id);}
+  function csrf(){return (window.frappe&&frappe.csrf_token)||(document.querySelector('meta[name=csrf_token]')||{}).content||"";}
+  function machine(){try{return localStorage.getItem(MACH_KEY)||"";}catch(e){return "";}}
+  function api(method,args,post){
+    var opt={headers:{'Accept':'application/json'}};
+    var url='/api/method/'+method;
+    if(post){opt.method='POST';opt.headers['Content-Type']='application/json';opt.headers['X-Frappe-CSRF-Token']=csrf();opt.body=JSON.stringify(args||{});}
+    else{var qs=Object.keys(args||{}).map(function(k){return encodeURIComponent(k)+'='+encodeURIComponent(typeof args[k]==='object'?JSON.stringify(args[k]):args[k]);}).join('&');if(qs)url+='?'+qs;}
+    return fetch(url,opt).then(function(r){return r.json();}).then(function(j){return j.message;});
+  }
+  function esc(s){return (s==null?'':String(s)).replace(/[&<>]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c];});}
+
+  var mn=machine();
+  $('mach-name').textContent = mn || 'not named yet — tag it from Dolphin Data Tools';
+
+  function loadBoard(){
+    $('detail').style.display='none';
+    var b=$('board');b.style.display='';b.innerHTML='<p class="muted">Loading arrivals&hellip;</p>';
+    api('frappe.client.get_list',{doctype:'Port Arrival',fields:JSON.stringify(['name','shipper','mark','arrival_date','total_blocks']),order_by:'arrival_date desc',limit_page_length:0})
+    .then(function(rows){
+      if(!rows||!rows.length){b.innerHTML='<p class="muted">No arrivals yet.</p>';return;}
+      var h='<div class="grid">';
+      rows.forEach(function(r){
+        h+='<div class="card"><div class="row" style="justify-content:space-between"><span class="nm">'+esc(r.shipper||r.name)+'</span><span class="chip">'+esc(r.mark||'')+'</span></div>'
+         +'<div class="muted" style="font-size:12px;margin:6px 0 10px">'+esc(r.arrival_date||'')+' &middot; '+(r.total_blocks||0)+' blocks &middot; '+esc(r.name)+'</div>'
+         +'<button class="btn navy" onclick="DARR.open(\''+esc(r.name)+'\')">Open &amp; reconcile</button></div>';
+      });
+      h+='</div>';b.innerHTML=h;
+    });
+  }
+
+  function statusMeta(s){
+    if(s==='Matched')return {c:'f-ok',d:'#1f7a4d',b:'b-ok',t:'Matched'};
+    if(s==='Resolved')return {c:'f-ok',d:'#1f7a4d',b:'b-ok',t:'Resolved'};
+    if(s==='Dimension mismatch')return {c:'f-amber',d:'#9a6b12',b:'b-amber',t:'Dimension mismatch'};
+    if(s==='Awaiting')return {c:'f-amber',d:'#9a6b12',b:'b-amber',t:'Awaiting'};
+    return {c:'f-red',d:'#c0392b',b:'b-red',t:s||'Flagged'};
+  }
+
+  function open(name){
+    $('board').style.display='none';
+    var d=$('detail');d.style.display='';d.innerHTML='<p class="muted">Reconciling '+esc(name)+'&hellip;</p>';
+    api('dolphin_theme.api_arrivals.reconcile_arrival',{name:name})
+    .then(function(res){
+      return api('frappe.client.get',{doctype:'Port Arrival',name:name}).then(function(doc){render(doc,res);});
+    });
+  }
+
+  function render(doc,res){
+    var flags=res?res.flags:0, awaiting=(res&&res.awaiting)||[];
+    var blocks=doc.blocks||[];
+    var dcs={}; blocks.forEach(function(b){if(b.matched_dc)dcs[b.matched_dc]=1;});
+    var h='<span class="back" onclick="DARR.board()">&larr; All arrivals</span>';
+    h+='<div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:8px"><div class="nm" style="font-size:16px">'+esc(doc.shipper||doc.name)+' &middot; '+esc(doc.mark||'')+'</div>'
+      +'<span class="badge '+(flags?'b-red':'b-ok')+'">'+(flags?flags+' flag'+(flags>1?'s':'')+' open':'all matched')+'</span></div>';
+    // chain
+    h+='<div class="chain">';
+    Object.keys(dcs).forEach(function(dc){h+='<span class="seg">'+esc(dc)+' <button class="eye" title="Peek challan" onclick="DARR.peekDC(\''+esc(dc)+'\')">&#128065;</button></span>';});
+    if(doc.source_file)h+='<span class="seg" style="background:#1a4d3a">xls <a class="eye" style="color:#6ee0b0" href="'+esc(doc.source_file)+'" target="_blank">&#128065;</a></span>';
+    h+='<span class="seg arr">&#9875; '+esc(doc.name)+'</span></div>';
+    h+='<div id="peek"></div>';
+    // blocks
+    blocks.forEach(function(b){
+      var m=statusMeta(b.recon_status);
+      var resolved=!!b.resolution_type;
+      h+='<div class="blk '+m.c+'" id="blk-'+b.name+'"><div class="row" style="flex-wrap:wrap;gap:8px">'
+        +'<span class="dot" style="background:'+m.d+'"></span><b style="color:var(--navy)">'+esc(b.block_no||'(blank)')+'</b>';
+      if(b.recon_status==='Dimension mismatch')h+='<span class="muted">L'+(b.length||0)+' W'+(b.width||0)+' H'+(b.height||0)+' vs challan '+esc(b.matched_dc)+'</span>';
+      else if(b.recon_status==='Typo - not in DC'&&b.suggested_block)h+='<span class="muted">not on any DC &middot; nearest <b>'+esc(b.suggested_block)+'</b></span>';
+      else if(b.matched_dc)h+='<span class="muted">on '+esc(b.matched_dc)+'</span>';
+      h+='<span class="badge '+m.b+'" style="margin-left:auto">'+esc(m.t)+'</span></div>';
+      if(resolved){
+        h+='<div class="stamp">&#10003; '+esc(b.resolution_type)+(b.resolution_note?' &middot; '+esc(b.resolution_note):'')+' &middot; '+esc(b.resolved_machine||'')+' &middot; '+esc(b.resolved_by||'')+'</div>';
+      } else if(b.recon_status&&b.recon_status!=='Matched'){
+        h+='<div class="acts">';
+        if(b.suggested_block)h+='<button class="btn blue" onclick="DARR.resolve(\''+doc.name+'\',\''+b.name+'\',\'Use challan\',{block_no:\''+esc(b.suggested_block)+'\'})">Correct to '+esc(b.suggested_block)+'</button>';
+        if(b.recon_status==='Dimension mismatch')h+='<button class="btn blue" onclick="DARR.resolve(\''+doc.name+'\',\''+b.name+'\',\'Use challan\')">Use challan dims</button>';
+        h+='<button class="btn" onclick="DARR.resolve(\''+doc.name+'\',\''+b.name+'\',\'Keep port\')">Keep port</button>';
+        h+='<button class="btn" onclick="DARR.resolve(\''+doc.name+'\',\''+b.name+'\',\'Fixed source\')">Our mistake &mdash; fix source</button>';
+        h+='<button class="btn gold" onclick="DARR.accept(\''+doc.name+'\',\''+b.name+'\')">Accept as-is</button>';
+        h+='</div><div id="reason-'+b.name+'"></div>';
+      }
+      h+='</div>';
+    });
+    if(awaiting.length)h+='<div class="blk f-amber"><span class="dot" style="background:#9a6b12"></span> <b>Awaiting:</b> <span class="muted">'+esc(awaiting.join(', '))+' on a challan but not yet arrived</span></div>';
+    // gate
+    if(flags>0)h+='<div class="gate lock">&#128274; Resolve '+flags+' flag'+(flags>1?'s':'')+' to finalise invoice &amp; packing list</div>';
+    else h+='<div class="gate ok">&#10003; Verified &mdash; ready to generate invoice &amp; packing list</div>';
+    $('detail').innerHTML=h;
+    DARR._cur=doc.name;
+  }
+
+  function peekDC(dc){
+    var p=$('peek');p.innerHTML='<div class="peek">Loading '+esc(dc)+'&hellip;</div>';
+    api('frappe.client.get',{doctype:'Delivery Challan',name:dc}).then(function(d){
+      var rows=(d.dc_block_rows||[]).map(function(r){return esc(r.block)+' ('+r.length_gross+'×'+r.width_gross+'×'+r.height_gross+')';}).join(' &middot; ');
+      p.innerHTML='<div class="peek"><b style="color:var(--navy)">'+esc(dc)+'</b> &middot; '+esc(d.dc_date||'')+' &middot; source of truth<br>'+rows+'</div>';
+    });
+  }
+
+  function resolve(arrival,row,type,updates){
+    api('dolphin_theme.api_arrivals.resolve_flag',{arrival:arrival,row_name:row,resolution_type:type,updates:updates?JSON.stringify(updates):null,machine:machine()},true)
+    .then(function(){open(arrival);});
+  }
+  function accept(arrival,row){
+    var box=$('reason-'+row);
+    box.innerHTML='<textarea id="rt-'+row+'" placeholder="Reason (required) — e.g. block re-trimmed at port, 103 is correct"></textarea>'
+      +'<div class="acts"><button class="btn gold" onclick="DARR.confirmAccept(\''+arrival+'\',\''+row+'\')">Confirm accept</button></div>';
+  }
+  function confirmAccept(arrival,row){
+    var v=($('rt-'+row)||{}).value||'';
+    if(!v.trim()){$('rt-'+row).style.borderColor='#c0392b';return;}
+    api('dolphin_theme.api_arrivals.resolve_flag',{arrival:arrival,row_name:row,resolution_type:'Accepted as-is',note:v,machine:machine()},true)
+    .then(function(){open(arrival);});
+  }
+
+  window.DARR={open:open,board:loadBoard,peekDC:peekDC,resolve:resolve,accept:accept,confirmAccept:confirmAccept};
+  loadBoard();
+})();
+</script>
+{% endraw %}
