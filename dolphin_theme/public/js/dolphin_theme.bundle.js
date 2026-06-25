@@ -245,6 +245,7 @@ frappe.provide("dolphin");
       ["Sales Lot", "Sales Lot", ROLE_OWNER] ] },
     { title: "Local Sale", roles: ROLE_BANGALORE, items: [
       ["Local Tax Invoice", "Local Tax Invoice"],
+      ["Arrivals Reconciliation", "/dolphin-arrivals", null, "url", "anchor"],
       ["Local Blocks Inspector", "Local Blocks Inspector"] ] },
     { title: "Shipping Documents", roles: ROLE_BANGALORE, items: [
       ["Shipping Document", "Shipping Document"] ] },
@@ -346,7 +347,7 @@ frappe.provide("dolphin");
         a.className = "di-sm-link";
         a.textContent = label;
         if (kind === "report") { a.setAttribute("href", "/app/query-report/" + encodeURIComponent(dt)); a.onclick = function (ev) { ev.preventDefault(); try { frappe.set_route("query-report", dt); } catch (e) { window.location = "/app/query-report/" + encodeURIComponent(dt); } }; row.appendChild(a); return row; }
-        if (kind === "url") { a.setAttribute("href", dt); a.onclick = function (ev) { ev.preventDefault(); window.location.href = dt; }; a.innerHTML = "<svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px;margin-right:7px\"><path d=\"M17 3l4 4l-14 14l-4 -4z\"/><path d=\"M16 7l-1.5 -1.5\"/><path d=\"M13 10l-1.5 -1.5\"/><path d=\"M10 13l-1.5 -1.5\"/><path d=\"M7 16l-1.5 -1.5\"/></svg> " + label; row.appendChild(a); return row; }
+        if (kind === "url") { a.setAttribute("href", dt); a.onclick = function (ev) { ev.preventDefault(); window.location.href = dt; }; var ic = { anchor: "<circle cx=\"12\" cy=\"5\" r=\"2\"/><path d=\"M12 7v14\"/><path d=\"M5 12H3a9 9 0 0 0 18 0h-2\"/>", pencil: "<path d=\"M17 3l4 4l-14 14l-4 -4z\"/><path d=\"M16 7l-1.5 -1.5\"/><path d=\"M13 10l-1.5 -1.5\"/><path d=\"M10 13l-1.5 -1.5\"/><path d=\"M7 16l-1.5 -1.5\"/>" }; var pp = ic[it[4]] || ic.pencil; a.innerHTML = "<svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px;margin-right:7px\">" + pp + "</svg> " + label; row.appendChild(a); return row; }
         a.setAttribute("href", "/app/" + frappe.router.slug(dt));
         a.onclick = function (ev) {
           ev.preventDefault();
