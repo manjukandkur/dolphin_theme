@@ -17,6 +17,15 @@ def _within_tol(dispatched, arrived):
     return abs(d - a) <= tol
 
 
+def _weights(b):
+    """Per-block (CBM, M.Tonnes, Kgs) per the shipping-document convention:
+    M.T = CBM x specific gravity; Kgs = M.T x 1000."""
+    cbm = flt(b.cbm) or round(flt(b.length) * flt(b.width) * flt(b.height) / 1e6, 3)
+    factor = flt(b.get("avg_factor")) or 2.6
+    mt = round(cbm * factor, 3)
+    return round(cbm, 3), mt, cint(round(mt * 1000))
+
+
 def _edit_distance(a, b):
     m, n = len(a), len(b)
     dp = list(range(n + 1))
@@ -170,6 +179,49 @@ def count_open_flags():
 
 
 @frappe.whitelist()
+def full_view():
+    """One flat, colour-codeable sheet: every block across every arrival with its
+    measurement, CBM/MT/Kgs, matched challan, live reconciliation status and resolver,
+    plus the reverse-check list of blocks dispatched but not yet arrived."""
+    idx = _dispatched_index()
+    awaiting_keys = set(idx.keys())
+    rows = []
+    arrivals = frappe.get_all(
+        "Port Arrival",
+        fields=["name", "mark", "shipper", "arrival_date"],
+        order_by="arrival_date desc",
+    )
+    for a in arrivals:
+        pa = frappe.get_doc("Port Arrival", a.name)
+        _classify(pa)
+        for b in pa.blocks:
+            bno = str(b.block_no or "").strip()
+            awaiting_keys.discard(bno)
+            cbm, mt, kgs = _weights(b)
+            status = "Resolved" if b.resolution_type else (b.recon_status or "")
+            rows.append({
+                "arrival": a.name,
+                "mark": a.mark or "",
+                "block_no": b.block_no or "",
+                "length": cint(b.length),
+                "width": cint(b.width),
+                "height": cint(b.height),
+                "cbm": cbm,
+                "mt": mt,
+                "kgs": kgs,
+                "matched_dc": b.matched_dc or "",
+                "status": status,
+                "raw_status": b.recon_status or "",
+                "suggested_block": b.suggested_block or "",
+                "resolution_type": b.resolution_type or "",
+                "resolved_by": b.resolved_by or "",
+                "resolved_machine": b.resolved_machine or "",
+            })
+    awaiting = [{"block_no": k, "matched_dc": idx[k].dc} for k in sorted(awaiting_keys)]
+    return {"rows": rows, "awaiting": awaiting}
+
+
+@frappe.whitelist()
 def generate_shipping_from_arrival(arrival):
     """Create a draft Shipping Document from a VERIFIED Port Arrival.
     Gated: refuses while any reconciliation flag is still open. Excludes
@@ -207,8 +259,8 @@ def generate_shipping_from_arrival(arrival):
     for b in pa.blocks:
         if b.resolution_type == "Removed (duplicate)":
             continue
-        vol = flt(b.cbm) or round(flt(b.length) * flt(b.width) * flt(b.height) / 1e6, 3)
-        mt = flt(b.net_wt)
+        cbm, mt, kgs = _weights(b)
+        vol = cbm
         row = sd.append("blocks", {})
         row.block = b.quarry_block
         row.block_no = b.block_no
@@ -217,7 +269,7 @@ def generate_shipping_from_arrival(arrival):
         row.height = cint(b.height)
         row.net_volume = vol
         row.net_tonnage = mt
-        row.net_kgs = cint(round(mt * 1000))
+        row.net_kgs = kgs
         total_cbm += vol
         total_mt += mt
 
