@@ -153,9 +153,12 @@ frappe.provide("dolphin");
   function userExited() { try { return sessionStorage.getItem("dolphin_exited") === "1"; } catch (e) { return false; } }
   function maybeRedirect() {
     try {
-      if (userExited()) return; // user chose to exit — don't trap them back in the workspace
       var r = frappe.get_route() || [];
       var first = (r[0] || "").toLowerCase();
+      // branch users hitting the hidden ERPNext "home" workspace get "Page home not found" -> rescue to Dolphin
+      var isSysMgr = (frappe.user_roles || []).indexOf("System Manager") > -1;
+      if (first === "home" && !isSysMgr) { if ((frappe.get_route_str() || "") !== WS) frappe.set_route(WS); return; }
+      if (userExited()) return; // user chose to exit — don't trap them back in the workspace
       if (first === "" || first === "desktop" || first === "workspaces") {
         if ((frappe.get_route_str() || "") !== WS) frappe.set_route(WS);
       }
