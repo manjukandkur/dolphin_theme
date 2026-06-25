@@ -884,8 +884,31 @@ frappe.provide("dolphin");
     } catch (e) {}
   }
 
+  /* Day38: desk banner reminding of open arrival-reconciliation flags (throttled ~4h). */
+  function arrivalsBanner() {
+    try {
+      if (document.getElementById("di-arr-banner")) return;
+      var last = parseInt(lsGet("di_arr_banner_ts", "0"), 10) || 0;
+      if (Date.now() - last < 4 * 3600 * 1000) return;
+      if (!window.frappe || !frappe.call) return;
+      frappe.call({ method: "dolphin_theme.api_arrivals.count_open_flags", callback: function (r) {
+        var n = (r && r.message) || 0;
+        lsSet("di_arr_banner_ts", String(Date.now()));
+        if (!n || document.getElementById("di-arr-banner")) return;
+        var bar = document.createElement("div");
+        bar.id = "di-arr-banner";
+        bar.style.cssText = "position:relative;background:#0F2540;color:#e8d3a6;padding:9px 16px;font-size:13px;display:flex;align-items:center;gap:10px;border-bottom:2px solid #D4A24A;z-index:1000";
+        bar.innerHTML = "<span>⚓ " + n + " arrival block" + (n > 1 ? "s have" : " has") + " an open reconciliation flag.</span>" +
+          "<a href=\"/dolphin-arrivals\" style=\"color:#fff;font-weight:600;text-decoration:underline\">Review now →</a>" +
+          "<button aria-label=\"Dismiss\" style=\"margin-left:auto;background:transparent;border:none;color:#aebfd0;cursor:pointer;font-size:16px\">×</button>";
+        bar.querySelector("a").onclick = function (e) { e.preventDefault(); window.location.href = "/dolphin-arrivals"; };
+        bar.querySelector("button").onclick = function () { bar.remove(); };
+        document.body.insertBefore(bar, document.body.firstChild);
+      } });
+    } catch (e) {}
+  }
   function tick() {
-    prefetchNewMeta(); addStyles(); addFab(); brandIt(); addSideMenu(); addSidebarResizer(); maybeRedirect(); addButtonBar(); paintCustomBlocks();
+    prefetchNewMeta(); addStyles(); addFab(); brandIt(); addSideMenu(); addSidebarResizer(); maybeRedirect(); addButtonBar(); paintCustomBlocks(); arrivalsBanner();
   }
   function tickRetries() { [0, 350, 800, 1500, 2500].forEach(function (t) { setTimeout(tick, t); }); }
 
