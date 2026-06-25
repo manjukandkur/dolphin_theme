@@ -890,6 +890,7 @@ frappe.provide("dolphin");
   /* Day38: desk banner reminding of open arrival-reconciliation flags (throttled ~4h). */
   function arrivalsBanner() {
     try {
+      if (!hasAnyRole(ROLE_BANGALORE)) return; // arrivals = Bangalore/export tier only (not Quarry/Ilkal)
       if (document.getElementById("di-arr-banner")) return;
       var last = parseInt(lsGet("di_arr_banner_ts", "0"), 10) || 0;
       if (Date.now() - last < 4 * 3600 * 1000) return;
