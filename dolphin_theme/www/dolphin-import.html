@@ -1,0 +1,110 @@
+{% raw %}
+<style>
+.web-footer,footer,.footer,.breadcrumb-container,.page-header{display:none!important}
+#diapp{--navy:#0F2540;--gold:#D4A24A;--blue:#2490ef;--ink:#1f2a44;--line:#e5e7eb;--muted:#6b7280;--red:#c0392b;--green:#1f7a4d;--amber:#9a6b12;--amberbg:#fbf1da;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--ink);font-size:14px;line-height:1.5;max-width:780px;margin:0 auto;padding:10px 14px 60px}
+#diapp *{box-sizing:border-box}
+#diapp .header{background:var(--navy);color:#fff;border-radius:14px;padding:16px 20px;display:flex;align-items:center;gap:12px;margin-bottom:16px}
+#diapp .logo{width:38px;height:38px;border-radius:8px;background:var(--gold);color:var(--navy);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:17px}
+#diapp .ttl{font-size:18px;font-weight:600;margin:0}
+#diapp .sub{font-size:12px;color:#aeb8cf;margin:2px 0 0}
+#diapp .card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin-bottom:16px}
+#diapp h3{margin:0 0 4px;font-size:15px;color:var(--navy)}
+#diapp .note{font-size:12px;color:var(--muted);margin:0 0 12px}
+#diapp .btn{display:inline-block;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink);padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;text-decoration:none;margin:0 8px 8px 0}
+#diapp .btn.gold{background:var(--gold);color:var(--navy);border-color:var(--gold)}
+#diapp .btn.blue{background:var(--blue);color:#fff;border-color:var(--blue)}
+#diapp .btn:hover{filter:brightness(.96)}
+#diapp .file{display:block;margin:6px 0 10px;font-size:13px}
+#diapp select,#diapp input[type=text]{height:34px;border:1px solid var(--line);border-radius:8px;padding:0 9px;font-size:13px;min-width:260px}
+#diapp .mode{display:block;font-size:12px;color:#374151;margin:4px 0 12px}
+#diapp .out{font-size:13px;margin-top:10px}
+#diapp .out ul{margin:4px 0 0;padding-left:18px}
+#diapp .ok{color:var(--green)} #diapp .err{color:var(--red)}
+#diapp .set{font-size:14px}
+#diapp .flag{background:var(--amberbg);color:var(--amber);border-radius:8px;padding:8px 11px;font-size:12px;margin-top:8px}
+</style>
+
+<div id="diapp">
+  <div class="header">
+    <div class="logo">D</div>
+    <div><p class="ttl">Dolphin Data Tools</p><p class="sub">Set up this computer &middot; import data &mdash; works for everyone, no special permissions</p></div>
+  </div>
+
+  <div class="card" id="machine-card">
+    <h3>This computer</h3>
+    <div id="machine-body" class="note">Loading&hellip;</div>
+  </div>
+
+  <div class="card">
+    <h3>Import Quarry Blocks</h3>
+    <p class="note">Download the template, fill it in, then upload it here. Always run a <b>Dry run</b> first to check before importing.</p>
+    <a class="btn gold" href="/api/method/dolphin_theme.template_generator.quarry_block_template">&#8595; Download template</a>
+    <input id="qb-file" type="file" accept=".xlsx" class="file">
+    <label class="mode"><input type="checkbox" id="qb-upsert" checked> Update blocks that already exist (uncheck = create new only)</label>
+    <button id="qb-dry" class="btn" type="button">Dry run (check first)</button>
+    <button id="qb-go" class="btn blue" type="button">Import</button>
+    <div id="qb-out" class="out"></div>
+  </div>
+
+  <div class="card">
+    <h3>Inspection templates</h3>
+    <p class="note">Inspection upload is being added next &mdash; for now download here and enter via the forms.</p>
+    <a class="btn gold" href="/api/method/dolphin_theme.template_generator.quarry_inspection_template">&#8595; Quarry Inspection</a>
+    <a class="btn gold" href="/api/method/dolphin_theme.template_generator.buyer_inspection_template">&#8595; Buyer Inspection</a>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY='dolphin_device';
+  function $(id){return document.getElementById(id);}
+  function csrf(){return (window.frappe&&frappe.csrf_token)||(document.querySelector('meta[name=csrf_token]')||{}).content||"";}
+  function getDev(){try{return JSON.parse(localStorage.getItem(KEY)||'{}');}catch(e){return {};}}
+  function uuid(){return 'dev-'+Math.random().toString(36).slice(2)+Date.now().toString(36);}
+
+  // ---- machine naming ----
+  function renderMachine(){
+    var d=getDev(), b=$('machine-body');
+    if(d.name){
+      b.innerHTML='&#128421; This computer is tagged as <b>'+d.name+'</b> &nbsp;<button class="btn" id="m-change" type="button">Change</button>';
+      $('m-change').onclick=function(){ if(confirm('Re-name this computer?')){localStorage.removeItem(KEY);renderMachine();} };
+      return;
+    }
+    b.innerHTML='Pick who uses this computer &mdash; set once per PC; it is then stamped on every edit made from here.<br><br><select id="m-sel"><option value="">Select&hellip;</option></select> <button class="btn blue" id="m-save" type="button">Save</button><div id="m-msg" class="err" style="margin-top:6px"></div><div class="flag">Until this is set, edits from this computer show as &ldquo;un-named device&rdquo;.</div>';
+    fetch('/api/method/dolphin_theme.api.get_machines',{headers:{Accept:'application/json'}}).then(function(r){return r.json();}).then(function(j){
+      var sel=$('m-sel'); (j.message||[]).forEach(function(m){var o=document.createElement('option');o.value=m.label;o.textContent=(m.branch||'')+' — '+m.label;sel.appendChild(o);});
+    });
+    $('m-save').onclick=function(){
+      var sel=$('m-sel'); if(!sel.value){$('m-msg').textContent='Choose a name first.';return;}
+      var ex=getDev(); localStorage.setItem(KEY, JSON.stringify({id: ex.id||uuid(), name: sel.value})); renderMachine();
+    };
+  }
+
+  // ---- import ----
+  function runImport(dry){
+    var f=$('qb-file'), out=$('qb-out');
+    if(!f.files.length){out.innerHTML='<span class="err">Choose a filled template first.</span>';return;}
+    out.innerHTML='Working&hellip;';
+    var rd=new FileReader();
+    rd.onload=function(){
+      fetch('/api/method/dolphin_theme.api.bulk_import_quarry_blocks',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','X-Frappe-CSRF-Token':csrf(),'Accept':'application/json'},
+        body:JSON.stringify({file_content:rd.result,dry_run:dry?1:0,mode:$('qb-upsert').checked?'upsert':'create'})
+      }).then(function(r){return r.json();}).then(function(j){
+        var m=j.message||{};
+        var html='<div><b>'+(dry?'Dry run':'Import done')+'</b> &mdash; total '+(m.total||0)+', created '+(m.created||0)+', updated '+(m.updated||0)+', skipped '+(m.skipped||0)+'.</div>';
+        if(m.errors&&m.errors.length){html+='<div class="err" style="margin-top:6px">Issues ('+m.errors.length+'):</div><ul>'+m.errors.slice(0,50).map(function(e){return '<li>row '+e.row+' ('+(e.block_number||'')+'): '+e.message+'</li>';}).join('')+'</ul>';}
+        else if(dry){html+='<div class="ok" style="margin-top:4px">Looks clean &mdash; click Import to apply.</div>';}
+        else{html+='<div class="ok" style="margin-top:4px">Done.</div>';}
+        out.innerHTML=html;
+      }).catch(function(e){out.innerHTML='<span class="err">Failed: '+e+'</span>';});
+    };
+    rd.readAsDataURL(f.files[0]);
+  }
+  $('qb-dry').onclick=function(){runImport(true);};
+  $('qb-go').onclick=function(){runImport(false);};
+  renderMachine();
+})();
+</script>
+{% endraw %}
