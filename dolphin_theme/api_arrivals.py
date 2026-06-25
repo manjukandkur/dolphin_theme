@@ -157,6 +157,19 @@ def get_token():
 
 
 @frappe.whitelist()
+def count_open_flags():
+    """Count unresolved reconciliation flags across all arrivals (desk banner)."""
+    r = frappe.db.sql(
+        """
+        SELECT COUNT(*) FROM `tabPort Arrival Block`
+        WHERE recon_status IN ('Typo - not in DC', 'Dimension mismatch', 'Duplicate')
+          AND IFNULL(resolution_type, '') = ''
+        """
+    )
+    return int(r[0][0]) if r and r[0] else 0
+
+
+@frappe.whitelist()
 def parse_check(arrival):
     """Did the consolidated xls parse cleanly? Compares row count + summed totals
     (file vs imported). file_rows/file_cbm/file_net are stored on the parent at parse."""
