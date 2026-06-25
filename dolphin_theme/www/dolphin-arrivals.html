@@ -158,7 +158,8 @@
     if(awaiting.length)h+='<div class="blk f-amber"><span class="dot" style="background:#9a6b12"></span> <b>Awaiting:</b> <span class="muted">'+esc(awaiting.join(', '))+' on a challan but not yet arrived</span></div>';
     // gate
     if(flags>0)h+='<div class="gate lock">&#128274; Resolve '+flags+' flag'+(flags>1?'s':'')+' to finalise invoice &amp; packing list</div>';
-    else h+='<div class="gate ok">&#10003; Verified &mdash; ready to generate invoice &amp; packing list</div>';
+    else h+='<div class="gate ok">&#10003; Verified &mdash; ready to generate invoice &amp; packing list</div>'
+      +'<div class="acts" style="margin-top:10px"><button class="btn gold" onclick="DARR.genShip(\''+doc.name+'\')">&#9875; Generate Shipping Document &rarr;</button></div>';
     $('detail').innerHTML=h;
     DARR._cur=doc.name;
   }
@@ -187,7 +188,12 @@
     .then(function(){open(arrival);});
   }
 
-  window.DARR={open:open,board:loadBoard,peekDC:peekDC,resolve:resolve,accept:accept,confirmAccept:confirmAccept};
+  function genShip(arrival){
+    if(!window.confirm('Create a Shipping Document from this verified arrival?')) return;
+    api('dolphin_theme.api_arrivals.generate_shipping_from_arrival',{arrival:arrival},true)
+    .then(function(name){ if(name){ window.location.href='/app/shipping-document/'+encodeURIComponent(name); } else { loadBoard(); } });
+  }
+  window.DARR={open:open,board:loadBoard,peekDC:peekDC,resolve:resolve,accept:accept,confirmAccept:confirmAccept,genShip:genShip};
   // fetch a CSRF token for this session (GET needs none) so POSTs are authorised
   fetch('/api/method/dolphin_theme.api_arrivals.get_token',{headers:{Accept:'application/json'}})
     .then(function(r){return r.json();})
