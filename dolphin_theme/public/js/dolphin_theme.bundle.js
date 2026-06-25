@@ -68,6 +68,8 @@ frappe.provide("dolphin");
       "border:1px solid rgba(255,255,255,.18);background:#16365c;color:#fff;border-radius:7px;font-family:inherit;outline:none;}" +
       "#dolphin-sidemenu .di-sm-search:focus{border-color:" + GOLD + ";box-shadow:0 0 0 2px rgba(212,162,74,.2);}" +
       "#dolphin-sidemenu .di-sm-sec{user-select:none;}" +
+      "#dolphin-sidemenu .di-sm-shaded{background:rgba(212,162,74,.12);border-left:2px solid " + GOLD + ";border-radius:6px;margin:4px 4px;}" +
+      "#dolphin-sidemenu .di-sm-shaded>.di-sm-h>span:first-child{color:" + GOLD + ";}" +
       "#dolphin-sidemenu .di-sm-sec>.di-sm-h{display:flex;align-items:center;justify-content:space-between;" +
       "cursor:pointer;padding:8px 12px;font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;" +
       "color:" + GOLD + ";background:rgba(255,255,255,.05);border-top:1px solid rgba(255,255,255,.08);}" +
@@ -232,6 +234,7 @@ frappe.provide("dolphin");
      - Local Sale + Shipping = Bangalore tier (di@ has only Dolphin Bangalore). */
   var ROLE_OWNER = ["System Manager", "Administrator", "Dolphin Owner"];
   var ROLE_BANGALORE = ["System Manager", "Administrator", "Dolphin Bangalore", "Dolphin Owner"];
+  var ROLE_SHIPPING = ["System Manager", "Administrator", "Dolphin Bangalore"];
   function hasAnyRole(list) {
     try {
       if (!list || !list.length) return true;
@@ -240,6 +243,15 @@ frappe.provide("dolphin");
     } catch (e) { return true; }
   }
 
+  function diIcon(n) {
+    var P = {
+      anchor: '<circle cx="12" cy="5" r="2"/><path d="M12 7v14"/><path d="M5 12H3a9 9 0 0 0 18 0h-2"/>',
+      ship: '<path d="M2 20a6 6 0 0 0 3 -2 4 4 0 0 0 6 0 4 4 0 0 0 6 0 6 6 0 0 0 3 2"/><path d="M4 18l-1 -7h18l-1 7"/><path d="M12 3v8"/><path d="M8 6h8"/>',
+      stack: '<path d="M12 3l9 5 -9 5 -9 -5z"/><path d="M3 13l9 5 9 -5"/>',
+      file: '<path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M5 3h9l5 5v11a2 2 0 0 1 -2 2H5a2 2 0 0 1 -2 -2V5a2 2 0 0 1 2 -2z"/>'
+    };
+    return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:7px">' + (P[n] || P.file) + '</svg>';
+  }
   var SECTIONS = [
     { title: "Operations", items: [
       ["Quarry Block", "Quarry Block"], ["Quarry Inspection", "Quarry Inspection"],
@@ -250,9 +262,11 @@ frappe.provide("dolphin");
       ["Local Tax Invoice", "Local Tax Invoice"],
       ["Arrivals Reconciliation", "/dolphin-arrivals", null, "url", "anchor"],
       ["Local Blocks Inspector", "Local Blocks Inspector"] ] },
-    { title: "Shipping Documents", roles: ROLE_BANGALORE, items: [
-      ["Shipping Document", "Shipping Document"] ] },
-    { title: "Sales & Exports", roles: ROLE_BANGALORE, items: [ ["Port Arrival", "Port Arrival"], ["Blocks At Port", "Blocks At Port", null, "report"] ] }, { title: "Masters", subgroups: [
+    { title: "Shipping Documents", roles: ROLE_SHIPPING, shaded: true, items: [
+      ["Port Arrival", "Port Arrival", null, null, "anchor"],
+      ["Blocks At Port", "Blocks At Port", null, "report", "stack"],
+      ["Shipping Document", "Shipping Document", null, null, "ship"] ] },
+    { title: "Masters", subgroups: [
       { title: "Quarry", items: [
         ["Pit", "Pit"], ["Gangman", "Gangman"], ["Granite Grade", "Granite Grade"],
         ["Granite Size Category", "Granite Size Category"], ["Grade Size Rule", "Grade Size Rule"],
@@ -349,6 +363,7 @@ frappe.provide("dolphin");
         var a = document.createElement("a");
         a.className = "di-sm-link";
         a.textContent = label;
+        if (it[4] && kind !== "url") { a.innerHTML = diIcon(it[4]) + label; }
         if (kind === "report") { a.setAttribute("href", "/app/query-report/" + encodeURIComponent(dt)); a.onclick = function (ev) { ev.preventDefault(); try { frappe.set_route("query-report", dt); } catch (e) { window.location = "/app/query-report/" + encodeURIComponent(dt); } }; row.appendChild(a); return row; }
         if (kind === "url") { a.setAttribute("href", dt); a.onclick = function (ev) { ev.preventDefault(); window.location.href = dt; }; var ic = { anchor: "<circle cx=\"12\" cy=\"5\" r=\"2\"/><path d=\"M12 7v14\"/><path d=\"M5 12H3a9 9 0 0 0 18 0h-2\"/>", pencil: "<path d=\"M17 3l4 4l-14 14l-4 -4z\"/><path d=\"M16 7l-1.5 -1.5\"/><path d=\"M13 10l-1.5 -1.5\"/><path d=\"M10 13l-1.5 -1.5\"/><path d=\"M7 16l-1.5 -1.5\"/>" }; var pp = ic[it[4]] || ic.pencil; a.innerHTML = "<svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px;margin-right:7px\">" + pp + "</svg> " + label; row.appendChild(a); return row; }
         a.setAttribute("href", "/app/" + frappe.router.slug(dt));
@@ -389,10 +404,11 @@ frappe.provide("dolphin");
 
         var s = document.createElement("div");
         s.className = "di-sm-sec";
+        if (sec.shaded) s.classList.add("di-sm-shaded");
         if (lsGet(secKey, "open") === "closed") s.classList.add("di-closed");
         var h = document.createElement("div");
         h.className = "di-sm-h";
-        h.innerHTML = "<span>" + sec.title + "</span><span class='di-sm-count'>" + total +
+        h.innerHTML = "<span>" + sec.title + (sec.shaded ? " \ud83d\udd12" : "") + "</span><span class='di-sm-count'>" + total +
           "</span><span class='di-sm-chev'>▾</span>";
         h.onclick = function () {
           s.classList.toggle("di-closed");
