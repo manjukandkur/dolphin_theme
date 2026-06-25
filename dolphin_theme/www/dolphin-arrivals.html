@@ -101,7 +101,7 @@
   function open(name){
     $('board').style.display='none';
     var d=$('detail');d.style.display='';d.innerHTML='<p class="muted">Reconciling '+esc(name)+'&hellip;</p>';
-    api('dolphin_theme.api_arrivals.reconcile_arrival',{name:name})
+    api('dolphin_theme.api_arrivals.reconcile_arrival',{name:name},true)
     .then(function(res){
       return api('frappe.client.get',{doctype:'Port Arrival',name:name}).then(function(doc){render(doc,res);});
     });
