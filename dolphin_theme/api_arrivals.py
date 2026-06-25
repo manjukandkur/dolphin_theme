@@ -116,7 +116,12 @@ def reconcile_arrival(name):
     """Run the cross-check on a Port Arrival and persist the per-row verdicts."""
     pa = frappe.get_doc("Port Arrival", name)
     res = _classify(pa)
-    pa.save(ignore_permissions=True)
+    for row in pa.blocks:
+        frappe.db.set_value("Port Arrival Block", row.name, {
+            "recon_status": row.recon_status,
+            "matched_dc": row.matched_dc,
+            "suggested_block": row.suggested_block,
+        }, update_modified=False)
     return res
 
 
