@@ -54,10 +54,11 @@
     <div><p class="ttl">Arrivals Reconciliation</p><p class="sub">Dolphin International &middot; cross-checks port arrivals against delivery challans</p></div>
   </div>
   <div class="rule"></div>
-  <div class="machine" id="machine">This computer: <b id="mach-name">checking&hellip;</b></div>
+  <div class="machine" id="machine">This computer: <b id="mach-name">checking&hellip;</b> <button class="btn navy" style="margin-left:8px;padding:4px 11px" onclick="DARR.full()">&#8862; Full view (all blocks)</button></div>
 
   <div id="board"></div>
   <div id="detail" style="display:none"></div>
+  <div id="fullview" style="display:none"></div>
 </div>
 
 <script>
@@ -193,7 +194,62 @@
     api('dolphin_theme.api_arrivals.generate_shipping_from_arrival',{arrival:arrival},true)
     .then(function(name){ if(name){ window.location.href='/app/shipping-document/'+encodeURIComponent(name); } else { loadBoard(); } });
   }
-  window.DARR={open:open,board:loadBoard,peekDC:peekDC,resolve:resolve,accept:accept,confirmAccept:confirmAccept,genShip:genShip};
+  var FV={rows:[],awaiting:[],fMark:'',fStatus:''};
+  function full(){
+    $('board').style.display='none'; $('detail').style.display='none';
+    var fv=$('fullview'); fv.style.display=''; fv.innerHTML='<p class="muted">Loading full view&hellip;</p>';
+    api('dolphin_theme.api_arrivals.full_view',{}).then(function(res){ FV.rows=(res&&res.rows)||[]; FV.awaiting=(res&&res.awaiting)||[]; FV.fMark=''; FV.fStatus=''; renderFull(); });
+  }
+  function fvColor(s){
+    if(s==='Matched') return ['#1f7a4d','#e7f5ee','#f3faf6'];
+    if(s==='Resolved') return ['#0f6e56','#e1f5ee','#f1faf6'];
+    if(s==='Dimension mismatch') return ['#9a6b12','#fbf1da','#fdfaf2'];
+    if(s==='Typo - not in DC') return ['#c0392b','#fceaea','#fdf3f3'];
+    if(s==='Duplicate') return ['#a33b1d','#faece7','#fdf5f1'];
+    return ['#7a6a3a','#f1ede0','#faf8f1'];
+  }
+  function fvLabel(r){
+    if(r.status==='Typo - not in DC') return r.suggested_block? ('Typo → '+esc(r.suggested_block)) : 'Not in any DC';
+    if(r.status==='Resolved') return esc(r.resolution_type||'Resolved');
+    return esc(r.status||'');
+  }
+  function renderFull(){
+    var marks={}, statuses={}, tC=0,tM=0,tK=0,flags=0;
+    FV.rows.forEach(function(r){ if(r.mark)marks[r.mark]=1; if(r.status)statuses[r.status]=1; tC+=r.cbm; tM+=r.mt; tK+=r.kgs; if(['Typo - not in DC','Dimension mismatch','Duplicate'].indexOf(r.status)>-1)flags++; });
+    var rows=FV.rows.filter(function(r){ return (!FV.fMark||r.mark===FV.fMark) && (!FV.fStatus||r.status===FV.fStatus); });
+    var h='<span class="back" onclick="DARR.board()">&larr; Board view</span>';
+    h+='<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:6px 0 10px">';
+    h+='<select onchange="DARR.fvSet(\'mark\',this.value)" style="font-size:12px"><option value="">Consignee / Mark: All</option>'+Object.keys(marks).sort().map(function(m){return '<option'+(FV.fMark===m?' selected':'')+'>'+esc(m)+'</option>';}).join('')+'</select>';
+    h+='<select onchange="DARR.fvSet(\'status\',this.value)" style="font-size:12px"><option value="">Status: All</option>'+Object.keys(statuses).sort().map(function(s){return '<option'+(FV.fStatus===s?' selected':'')+'>'+esc(s)+'</option>';}).join('')+'</select>';
+    h+='<span style="margin-left:auto;display:flex;gap:6px"><button class="btn" onclick="DARR.fvCsv()">&#8595; Excel / CSV</button><button class="btn gold" onclick="window.print()">&#9113; Print / PDF</button></span></div>';
+    h+='<div style="overflow-x:auto"><table style="border-collapse:collapse;font-size:11.5px;min-width:880px;width:100%">';
+    h+='<thead><tr style="background:#0F2540;color:#fff;text-align:left">'+['Arrival','Block','Mark','L × W × H','CBM','M.T','Kgs','Challan','Status','Resolved by'].map(function(c){return '<th style="padding:6px 8px">'+c+'</th>';}).join('')+'</tr></thead><tbody>';
+    rows.forEach(function(r){
+      var c=fvColor(r.status);
+      h+='<tr style="border-left:4px solid '+c[0]+';background:'+c[2]+'">'
+        +'<td style="padding:5px 8px">'+esc(r.arrival)+'</td><td style="padding:5px 8px"><b>'+esc(r.block_no)+'</b></td><td style="padding:5px 8px">'+esc(r.mark)+'</td>'
+        +'<td style="padding:5px 8px">'+r.length+'×'+r.width+'×'+r.height+'</td>'
+        +'<td style="padding:5px 8px;text-align:right">'+(r.cbm||0).toFixed(3)+'</td><td style="padding:5px 8px;text-align:right">'+(r.mt||0).toFixed(3)+'</td><td style="padding:5px 8px;text-align:right">'+(r.kgs||0).toLocaleString()+'</td>'
+        +'<td style="padding:5px 8px">'+(esc(r.matched_dc)||'<span style="color:#c0392b">none</span>')+'</td>'
+        +'<td style="padding:5px 8px"><span style="background:'+c[1]+';color:'+c[0]+';padding:2px 7px;border-radius:5px">'+fvLabel(r)+'</span></td>'
+        +'<td style="padding:5px 8px;color:#555">'+(esc(r.resolved_machine)||'<span style="color:#888">&mdash;</span>')+'</td></tr>';
+    });
+    FV.awaiting.forEach(function(a){
+      h+='<tr style="border-left:4px solid #7a6a3a;background:#faf8f1"><td style="padding:5px 8px">&mdash;</td><td style="padding:5px 8px"><b>'+esc(a.block_no)+'</b></td><td colspan="5" style="padding:5px 8px;color:#888">on challan, not yet arrived</td><td style="padding:5px 8px">'+esc(a.matched_dc)+'</td><td style="padding:5px 8px"><span style="background:#f1ede0;color:#7a6a3a;padding:2px 7px;border-radius:5px">Awaiting</span></td><td></td></tr>';
+    });
+    h+='</tbody><tfoot><tr style="background:#f2efe6;font-weight:500;border-top:2px solid #0F2540"><td colspan="4" style="padding:6px 8px">TOTALS &mdash; '+FV.rows.length+' blocks, '+FV.awaiting.length+' awaiting</td><td style="padding:6px 8px;text-align:right">'+tC.toFixed(2)+'</td><td style="padding:6px 8px;text-align:right">'+tM.toFixed(2)+'</td><td style="padding:6px 8px;text-align:right">'+Math.round(tK).toLocaleString()+'</td><td colspan="3" style="padding:6px 8px;color:#c0392b">'+flags+' to resolve</td></tr></tfoot></table></div>';
+    $('fullview').innerHTML=h;
+  }
+  function fvSet(k,v){ if(k==='mark')FV.fMark=v; else FV.fStatus=v; renderFull(); }
+  function fvCsv(){
+    var lines=[['Arrival','Block','Mark','L','W','H','CBM','MT','Kgs','Challan','Status','ResolvedBy'].join(',')];
+    function q(x){return '"'+String(x==null?'':x).replace(/"/g,'""')+'"';}
+    FV.rows.forEach(function(r){ lines.push([r.arrival,r.block_no,r.mark,r.length,r.width,r.height,r.cbm,r.mt,r.kgs,r.matched_dc,r.status,r.resolved_machine].map(q).join(',')); });
+    FV.awaiting.forEach(function(a){ lines.push(['',a.block_no,'','','','','','','',a.matched_dc,'Awaiting',''].map(q).join(',')); });
+    var b=new Blob([lines.join('\n')],{type:'text/csv'}); var u=URL.createObjectURL(b); var a=document.createElement('a'); a.href=u; a.download='arrivals_full_view.csv'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(u);
+  }
+  function fvBoard(){ $('fullview').style.display='none'; loadBoard(); }
+  window.DARR={open:open,board:fvBoard,peekDC:peekDC,resolve:resolve,accept:accept,confirmAccept:confirmAccept,genShip:genShip,full:full,fvSet:fvSet,fvCsv:fvCsv};
   // fetch a CSRF token for this session (GET needs none) so POSTs are authorised
   fetch('/api/method/dolphin_theme.api_arrivals.get_token',{headers:{Accept:'application/json'}})
     .then(function(r){return r.json();})
