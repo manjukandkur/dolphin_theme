@@ -1,3 +1,4 @@
+<script>window.__csrf = "{{ csrf_token or '' }}";</script>
 {% raw %}
 <style>
 .web-footer,footer,.footer,.breadcrumb-container,.page-header{display:none!important}
@@ -60,7 +61,7 @@
 (function(){
   var MACH_KEY='dolphin_device';
   function $(id){return document.getElementById(id);}
-  function csrf(){return (window.frappe&&frappe.csrf_token)||(document.querySelector('meta[name=csrf_token]')||{}).content||"";}
+  function csrf(){return window.__csrf||(window.frappe&&frappe.csrf_token)||(document.querySelector('meta[name=csrf_token]')||{}).content||"";}
   function machine(){try{return localStorage.getItem(MACH_KEY)||"";}catch(e){return "";}}
   function api(method,args,post){
     var opt={headers:{'Accept':'application/json'}};
