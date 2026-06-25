@@ -150,6 +150,13 @@ def resolve_flag(arrival, row_name, resolution_type, updates=None, note=None, ma
 
 
 @frappe.whitelist()
+def get_token():
+    """Return the current session's CSRF token via a GET call (no CSRF needed),
+    so the www page can authorise its POSTs even when served from page cache."""
+    return frappe.sessions.get_csrf_token()
+
+
+@frappe.whitelist()
 def parse_check(arrival):
     """Did the consolidated xls parse cleanly? Compares row count + summed totals
     (file vs imported). file_rows/file_cbm/file_net are stored on the parent at parse."""
