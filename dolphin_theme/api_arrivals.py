@@ -170,6 +170,67 @@ def count_open_flags():
 
 
 @frappe.whitelist()
+def generate_shipping_from_arrival(arrival):
+    """Create a draft Shipping Document from a VERIFIED Port Arrival.
+    Gated: refuses while any reconciliation flag is still open. Excludes
+    blocks removed as duplicates. User completes consignee + rate after."""
+    pa = frappe.get_doc("Port Arrival", arrival)
+    _classify(pa)
+    flagged = [
+        b for b in pa.blocks
+        if b.recon_status in ("Typo - not in DC", "Dimension mismatch", "Duplicate")
+        and not b.resolution_type
+    ]
+    if flagged:
+        frappe.throw(
+            "Resolve all {0} open flag(s) before generating the shipping document.".format(len(flagged))
+        )
+
+    sd = frappe.new_doc("Shipping Document")
+    sd.shipment_date = frappe.utils.today()
+    if sd.meta.has_field("source_arrival"):
+        sd.source_arrival = pa.name
+    sd.shipping_mark = pa.get("mark")
+    sd.marks_nos = pa.get("mark")
+    sd.voyage_no = pa.get("vessel")           # Port Arrival.vessel is free text
+    sd.bl_no = pa.get("booking_no")
+    sd.goods_description = "Granite - Roughly Trimmed Blocks"
+    sd.currency = "USD"
+    sd.tax_treatment = "Export under LUT (No GST)"
+    sd.rate_basis = "Per Kg"
+    sd.country_of_origin = "INDIA"
+    sd.pre_carriage_by = "ROAD"
+    sd.terms_of_delivery = "F.O.B."
+
+    total_cbm = 0.0
+    total_mt = 0.0
+    for b in pa.blocks:
+        if b.resolution_type == "Removed (duplicate)":
+            continue
+        vol = flt(b.cbm) or round(flt(b.length) * flt(b.width) * flt(b.height) / 1e6, 3)
+        mt = flt(b.net_wt)
+        row = sd.append("blocks", {})
+        row.block = b.quarry_block
+        row.block_no = b.block_no
+        row.length = cint(b.length)
+        row.width = cint(b.width)
+        row.height = cint(b.height)
+        row.net_volume = vol
+        row.net_tonnage = mt
+        row.net_kgs = cint(round(mt * 1000))
+        total_cbm += vol
+        total_mt += mt
+
+    sd.block_count = len(sd.blocks)
+    sd.total_cbm = round(total_cbm, 2)
+    sd.total_net_tonnage = round(total_mt, 3)
+    sd.total_net_kgs = cint(round(total_mt * 1000))
+    sd.flags.ignore_mandatory = True
+    sd.insert(ignore_permissions=True)
+    return sd.name
+
+
+@frappe.whitelist()
 def parse_check(arrival):
     """Did the consolidated xls parse cleanly? Compares row count + summed totals
     (file vs imported). file_rows/file_cbm/file_net are stored on the parent at parse."""
