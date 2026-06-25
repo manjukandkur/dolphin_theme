@@ -177,7 +177,11 @@
   }
 
   window.DARR={open:open,board:loadBoard,peekDC:peekDC,resolve:resolve,accept:accept,confirmAccept:confirmAccept};
-  loadBoard();
+  // fetch a CSRF token for this session (GET needs none) so POSTs are authorised
+  fetch('/api/method/dolphin_theme.api_arrivals.get_token',{headers:{Accept:'application/json'}})
+    .then(function(r){return r.json();})
+    .then(function(j){ if(j&&j.message) window.__csrf=j.message; })
+    .then(loadBoard, loadBoard);
 })();
 </script>
 {% endraw %}
