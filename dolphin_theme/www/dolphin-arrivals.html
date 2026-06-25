@@ -12,6 +12,9 @@
 #darr .machine{font-size:12px;color:var(--muted);margin:0 2px 14px;display:flex;align-items:center;gap:6px}
 #darr .machine b{color:var(--navy)}
 #darr .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}
+#darr .lane{margin-bottom:18px}
+#darr .lane-h{display:flex;align-items:center;gap:10px;margin:0 2px 8px;padding-bottom:6px;border-bottom:2px solid var(--gold)}
+#darr .lane-mark{font-weight:600;color:var(--navy);font-size:15px}
 #darr .card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px}
 #darr .card .nm{font-weight:600;color:var(--navy)}
 #darr .chip{font-size:11px;padding:2px 8px;border-radius:7px;background:#eef1f4;color:#516074}
@@ -81,13 +84,20 @@
     api('frappe.client.get_list',{doctype:'Port Arrival',fields:JSON.stringify(['name','shipper','mark','arrival_date','total_blocks']),order_by:'arrival_date desc',limit_page_length:0})
     .then(function(rows){
       if(!rows||!rows.length){b.innerHTML='<p class="muted">No arrivals yet.</p>';return;}
-      var h='<div class="grid">';
-      rows.forEach(function(r){
-        h+='<div class="card"><div class="row" style="justify-content:space-between"><span class="nm">'+esc(r.shipper||r.name)+'</span><span class="chip">'+esc(r.mark||'')+'</span></div>'
-         +'<div class="muted" style="font-size:12px;margin:6px 0 10px">'+esc(r.arrival_date||'')+' &middot; '+(r.total_blocks||0)+' blocks &middot; '+esc(r.name)+'</div>'
-         +'<button class="btn navy" onclick="DARR.open(\''+esc(r.name)+'\')">Open &amp; reconcile</button></div>';
+      var lanes={};
+      rows.forEach(function(r){var k=(r.mark||'Unmarked'); (lanes[k]=lanes[k]||[]).push(r);});
+      var h='';
+      Object.keys(lanes).sort().forEach(function(mk){
+        var arr=lanes[mk];
+        h+='<div class="lane"><div class="lane-h"><span class="lane-mark">'+esc(mk)+'</span><span class="muted" style="font-size:12px">'+arr.length+' arrival'+(arr.length>1?'s':'')+'</span></div><div class="grid">';
+        arr.forEach(function(r){
+          h+='<div class="card"><div class="row" style="justify-content:space-between"><span class="nm">'+esc(r.shipper||r.name)+'</span><span class="chip">'+esc(r.mark||'')+'</span></div>'
+           +'<div class="muted" style="font-size:12px;margin:6px 0 10px">'+esc(r.arrival_date||'')+' &middot; '+(r.total_blocks||0)+' blocks &middot; '+esc(r.name)+'</div>'
+           +'<button class="btn navy" onclick="DARR.open(\''+esc(r.name)+'\')">Open &amp; reconcile</button></div>';
+        });
+        h+='</div></div>';
       });
-      h+='</div>';b.innerHTML=h;
+      b.innerHTML=h;
     });
   }
 
@@ -137,6 +147,7 @@
         h+='<div class="acts">';
         if(b.suggested_block)h+='<button class="btn blue" onclick="DARR.resolve(\''+doc.name+'\',\''+b.name+'\',\'Use challan\',{block_no:\''+esc(b.suggested_block)+'\'})">Correct to '+esc(b.suggested_block)+'</button>';
         if(b.recon_status==='Dimension mismatch')h+='<button class="btn blue" onclick="DARR.resolve(\''+doc.name+'\',\''+b.name+'\',\'Use challan\')">Use challan dims</button>';
+        if(b.recon_status==='Duplicate')h+='<button class="btn blue" onclick="DARR.resolve(\''+doc.name+'\',\''+b.name+'\',\'Removed (duplicate)\')">Remove (duplicate)</button>';
         h+='<button class="btn" onclick="DARR.resolve(\''+doc.name+'\',\''+b.name+'\',\'Keep port\')">Keep port</button>';
         h+='<button class="btn" onclick="DARR.resolve(\''+doc.name+'\',\''+b.name+'\',\'Fixed source\')">Our mistake &mdash; fix source</button>';
         h+='<button class="btn gold" onclick="DARR.accept(\''+doc.name+'\',\''+b.name+'\')">Accept as-is</button>';
