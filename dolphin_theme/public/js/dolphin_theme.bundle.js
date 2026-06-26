@@ -903,8 +903,12 @@ frappe.provide("dolphin");
     } catch (e) {}
   }
 
-  /* Day38: desk banner reminding of open arrival-reconciliation flags (throttled ~4h). */
+  /* Day38 banner DISABLED on the desk (user request 27 Jun 2026): it injected itself at
+     the very top of every desk page and read like an error popup. The open-flag count now
+     lives ONLY on the /dolphin-arrivals page (per-arrival "flags open" badges + the
+     full-view "X to resolve" total). To re-enable on the desk, delete the early return. */
   function arrivalsBanner() {
+    return; // desk-wide banner removed; counts are shown on the Arrivals page itself
     try {
       if (!hasAnyRole(ROLE_BANGALORE)) return; // arrivals = Bangalore/export tier only (not Quarry/Ilkal)
       if (document.getElementById("di-arr-banner")) return;
