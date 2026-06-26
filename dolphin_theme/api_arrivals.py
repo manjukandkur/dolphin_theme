@@ -320,6 +320,10 @@ def upsert_arrival(rows, source_file=None, current=None, meta=None):
       {"action": "ambiguous", "parents": [...],  -> blocks span >1 existing arrival;
        "overlap": {parent: n, ...}}                  no automatic merge -- caller warns
                                                     and lets the user resolve.
+      {"action": "partial", "name": <arrival>,   -> the parse shares blocks with one
+       "would_drop": [...]}                          arrival but is missing some of its
+                                                    blocks; replacing would lose data,
+                                                    so caller warns instead of writing.
     """
     data = json.loads(rows) if isinstance(rows, str) else (rows or [])
     nums = [str(r.get("block_no") or "").strip() for r in data]
@@ -353,9 +357,27 @@ def upsert_arrival(rows, source_file=None, current=None, meta=None):
             "overlap": {p: len(s) for p, s in overlap.items()},
         }
 
-    # exactly one existing arrival -> UPSERT: rebuild its blocks from this parse
+    # exactly one existing arrival -> candidate for UPSERT
     target = next(iter(overlap))
     pa = frappe.get_doc("Port Arrival", target)
+
+    # Safety: only rebuild the target's blocks when this parse would NOT drop any
+    # block already on it -- i.e. the parse is the same arrival or a superset. If the
+    # incoming file is missing blocks the target already has, replacing would lose
+    # data (a different shipment that merely shares a block number), so warn instead.
+    target_blocks = {
+        str(b.block_no or "").strip() for b in pa.blocks if str(b.block_no or "").strip()
+    }
+    parsed_set = set(nums)
+    if not target_blocks.issubset(parsed_set):
+        return {
+            "action": "partial",
+            "name": target,
+            "would_drop": sorted(target_blocks - parsed_set),
+            "overlap": len(overlap[target]),
+        }
+
+    # safe to upsert: rebuild its blocks from this parse
     child_fields = {df.fieldname for df in frappe.get_meta("Port Arrival Block").fields}
     pa.set("blocks", [])
     for r in data:
@@ -374,6 +396,14 @@ def upsert_arrival(rows, source_file=None, current=None, meta=None):
             pa.set(f, m.get(f))
     if source_file:
         pa.set("source_file", source_file)
+
+    # keep the parent summary fields in sync (normally client-computed on the form)
+    if pa.meta.has_field("total_blocks"):
+        pa.total_blocks = len(pa.blocks)
+    if pa.meta.has_field("total_cbm"):
+        pa.total_cbm = round(sum(flt(b.cbm) for b in pa.blocks), 2)
+    if pa.meta.has_field("total_net_wt"):
+        pa.total_net_wt = round(sum(flt(b.net_wt) for b in pa.blocks), 2)
 
     # recompute the per-row reconciliation verdicts on the merged set
     try:
