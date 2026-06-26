@@ -298,3 +298,94 @@ def parse_check(arrival):
         "file_rows": file_rows,
         "matches": file_rows in (0, imported),
     }
+
+
+@frappe.whitelist()
+def upsert_arrival(rows, source_file=None, current=None, meta=None):
+    """Dedupe arrivals at parse time (P1, the real point-2 fix).
+
+    `rows` is the JSON block list the form parsed from the xls (same fieldnames the
+    Blocks child table uses). If these block numbers already live on ANOTHER Port
+    Arrival, fold them into that record instead of letting a duplicate arrival be
+    created -- upsert = update-or-insert, so the same arrival coming in again updates
+    the one record rather than spawning PORT-ARR-0004, 0005, ... with the same blocks.
+
+    Returns one of:
+      {"action": "none"}                         -> no overlap; caller fills `current`
+                                                    record as before (today's flow).
+      {"action": "updated", "name": <arrival>,   -> exactly one existing arrival held
+       "overlap": n, "total": m}                    these blocks; it was updated in
+                                                    place. Caller routes to it and
+                                                    drops the just-created draft.
+      {"action": "ambiguous", "parents": [...],  -> blocks span >1 existing arrival;
+       "overlap": {parent: n, ...}}                  no automatic merge -- caller warns
+                                                    and lets the user resolve.
+    """
+    data = json.loads(rows) if isinstance(rows, str) else (rows or [])
+    nums = [str(r.get("block_no") or "").strip() for r in data]
+    nums = [n for n in nums if n]
+    if not nums:
+        return {"action": "none"}
+
+    cur = current or ""
+    if cur.startswith("new-"):
+        cur = ""
+
+    # which OTHER Port Arrivals already hold any of these block numbers?
+    existing = frappe.get_all(
+        "Port Arrival Block",
+        filters={"block_no": ["in", nums], "parenttype": "Port Arrival"},
+        fields=["parent", "block_no"],
+    )
+    overlap = {}
+    for e in existing:
+        if e.parent == cur:
+            continue
+        overlap.setdefault(e.parent, set()).add(str(e.block_no).strip())
+
+    if not overlap:
+        return {"action": "none"}
+
+    if len(overlap) > 1:
+        return {
+            "action": "ambiguous",
+            "parents": list(overlap.keys()),
+            "overlap": {p: len(s) for p, s in overlap.items()},
+        }
+
+    # exactly one existing arrival -> UPSERT: rebuild its blocks from this parse
+    target = next(iter(overlap))
+    pa = frappe.get_doc("Port Arrival", target)
+    child_fields = {df.fieldname for df in frappe.get_meta("Port Arrival Block").fields}
+    pa.set("blocks", [])
+    for r in data:
+        if not str(r.get("block_no") or "").strip():
+            continue
+        child = pa.append("blocks", {})
+        for k, v in r.items():
+            if k in child_fields:
+                child.set(k, v)
+
+    # refresh parent header from this parse where supplied
+    m = json.loads(meta) if isinstance(meta, str) else (meta or {})
+    for f in ("shipper", "mark", "arrival_date", "port", "vessel",
+              "booking_no", "email_subject"):
+        if m.get(f) not in (None, ""):
+            pa.set(f, m.get(f))
+    if source_file:
+        pa.set("source_file", source_file)
+
+    # recompute the per-row reconciliation verdicts on the merged set
+    try:
+        _classify(pa)
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), "Dolphin upsert reclassify")
+
+    pa.flags.ignore_mandatory = True
+    pa.save(ignore_permissions=True)
+    return {
+        "action": "updated",
+        "name": target,
+        "overlap": len(overlap[target]),
+        "total": len(nums),
+    }
