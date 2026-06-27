@@ -233,24 +233,46 @@
     h+='<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:6px 0 10px">';
     h+='<select onchange="DARR.fvSet(\'mark\',this.value)" style="font-size:12px"><option value="">Consignee / Mark: All</option>'+Object.keys(marks).sort().map(function(m){return '<option'+(FV.fMark===m?' selected':'')+'>'+esc(m)+'</option>';}).join('')+'</select>';
     h+='<select onchange="DARR.fvSet(\'status\',this.value)" style="font-size:12px"><option value="">Status: All</option>'+Object.keys(statuses).sort().map(function(s){return '<option'+(FV.fStatus===s?' selected':'')+'>'+esc(s)+'</option>';}).join('')+'</select>';
-    h+='<span style="margin-left:auto;display:flex;gap:6px"><button class="btn" onclick="DARR.fvCsv()">&#8595; Excel / CSV</button><button class="btn gold" onclick="window.print()">&#9113; Print / PDF</button></span></div>';
+    h+='<span style="margin-left:auto;display:flex;gap:6px;align-items:center"><button class="btn navy" id="pushlot" onclick="DARR.pushLot()" disabled>&#128230; Push <span id="lotn">0</span> &rarr; Shipment Lot</button><button class="btn" onclick="DARR.fvCsv()">&#8595; Excel / CSV</button><button class="btn gold" onclick="window.print()">&#9113; Print</button></span></div>';
+    h+='<div style="font-size:11px;color:#6b7280;margin:-2px 0 8px"><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:#E6F1FB;border:1px solid #185fa5;vertical-align:-1px"></span> DC dispatched &nbsp; <span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:#FAECE7;border:1px solid #B5612F;vertical-align:-1px"></span> Port arrived &mdash; tick matched blocks to build the lot</div>';
     h+='<div class="dolphin-sheet-wrap"><table class="dolphin-sheet">';
-    h+='<thead><tr style="background:#0F2540;color:#fff;text-align:left">'+['Arrival','Block','Mark','L × W × H','CBM','M.T','Kgs','Challan','Status','Resolved by'].map(function(c){return '<th style="padding:6px 8px">'+c+'</th>';}).join('')+'</tr></thead><tbody>';
-    rows.forEach(function(r){
+    h+='<thead><tr style="background:#0F2540;color:#fff;text-align:left"><th style="padding:6px 8px"></th>'+['Arrival','Block','Mark','L × W × H','CBM','M.T','Kgs','Challan','Status','Resolved by'].map(function(c){return '<th style="padding:6px 8px">'+c+'</th>';}).join('')+'</tr></thead><tbody>';
+    FV._disp=rows;
+    rows.forEach(function(r,i){
       var c=fvColor(r.status);
+      var atport=(r.status==='Matched'||r.status==='Resolved');
+      var matched=(r.dc_l>0);
+      var dims=matched
+        ? '<div style="color:#185fa5">DC '+r.dc_l+'×'+r.dc_w+'×'+r.dc_h+'</div><div style="color:#B5612F">Port '+r.length+'×'+r.width+'×'+r.height+'</div>'
+        : '<span style="color:#B5612F">'+r.length+'×'+r.width+'×'+r.height+'</span>';
+      var cbmcell=matched
+        ? '<div style="color:#185fa5">'+(r.dc_cbm||0).toFixed(3)+'</div><div style="color:#B5612F">'+(r.cbm||0).toFixed(3)+'</div>'
+        : (r.cbm||0).toFixed(3);
       h+='<tr style="border-left:4px solid '+c[0]+';background:'+c[2]+'">'
+        +'<td style="padding:5px 8px;text-align:center">'+(atport?'<input type="checkbox" class="lotpick" data-i="'+i+'" onchange="DARR.lotCount()">':'')+'</td>'
         +'<td style="padding:5px 8px">'+esc(r.arrival)+'</td><td style="padding:5px 8px"><b>'+esc(r.block_no)+'</b></td><td style="padding:5px 8px">'+esc(r.mark)+'</td>'
-        +'<td style="padding:5px 8px">'+r.length+'×'+r.width+'×'+r.height+'</td>'
-        +'<td style="padding:5px 8px;text-align:right">'+(r.cbm||0).toFixed(3)+'</td><td style="padding:5px 8px;text-align:right">'+(r.mt||0).toFixed(3)+'</td><td style="padding:5px 8px;text-align:right">'+(r.kgs||0).toLocaleString()+'</td>'
+        +'<td style="padding:5px 8px">'+dims+'</td>'
+        +'<td style="padding:5px 8px;text-align:right">'+cbmcell+'</td><td style="padding:5px 8px;text-align:right">'+(r.mt||0).toFixed(3)+'</td><td style="padding:5px 8px;text-align:right">'+(r.kgs||0).toLocaleString()+'</td>'
         +'<td style="padding:5px 8px">'+(esc(r.matched_dc)||'<span style="color:#c0392b">none</span>')+'</td>'
         +'<td style="padding:5px 8px"><span class="dverdict '+({"Matched":"match","Resolved":"pending","Dimension mismatch":"attn","Typo - not in DC":"missing","Duplicate":"missing"}[r.status]||"pending")+'">'+fvLabel(r)+'</span></td>'
         +'<td style="padding:5px 8px;color:#555">'+(esc(r.resolved_machine)||'<span style="color:#888">&mdash;</span>')+'</td></tr>';
     });
     FV.awaiting.forEach(function(a){
-      h+='<tr style="border-left:4px solid #7a6a3a;background:#faf8f1"><td style="padding:5px 8px">&mdash;</td><td style="padding:5px 8px"><b>'+esc(a.block_no)+'</b></td><td colspan="5" style="padding:5px 8px;color:#888">on challan, not yet arrived</td><td style="padding:5px 8px">'+esc(a.matched_dc)+'</td><td style="padding:5px 8px"><span class="dverdict pending">Awaiting</span></td><td></td></tr>';
+      h+='<tr style="border-left:4px solid #7a6a3a;background:#faf8f1"><td></td><td style="padding:5px 8px">&mdash;</td><td style="padding:5px 8px"><b>'+esc(a.block_no)+'</b></td><td colspan="5" style="padding:5px 8px;color:#888">on challan, not yet arrived</td><td style="padding:5px 8px">'+esc(a.matched_dc)+'</td><td style="padding:5px 8px"><span class="dverdict pending">Awaiting</span></td><td></td></tr>';
     });
-    h+='</tbody><tfoot><tr style="background:#f2efe6;font-weight:500;border-top:2px solid #0F2540"><td colspan="4" style="padding:6px 8px">TOTALS &mdash; '+FV.rows.length+' blocks, '+FV.awaiting.length+' awaiting</td><td style="padding:6px 8px;text-align:right">'+tC.toFixed(2)+'</td><td style="padding:6px 8px;text-align:right">'+tM.toFixed(2)+'</td><td style="padding:6px 8px;text-align:right">'+Math.round(tK).toLocaleString()+'</td><td colspan="3" style="padding:6px 8px;color:#c0392b">'+flags+' to resolve</td></tr></tfoot></table></div>';
+    h+='</tbody><tfoot><tr style="background:#f2efe6;font-weight:500;border-top:2px solid #0F2540"><td colspan="5" style="padding:6px 8px">TOTALS &mdash; '+FV.rows.length+' blocks, '+FV.awaiting.length+' awaiting</td><td style="padding:6px 8px;text-align:right">'+tC.toFixed(2)+'</td><td style="padding:6px 8px;text-align:right">'+tM.toFixed(2)+'</td><td style="padding:6px 8px;text-align:right">'+Math.round(tK).toLocaleString()+'</td><td colspan="3" style="padding:6px 8px;color:#c0392b">'+flags+' to resolve</td></tr></tfoot></table></div>';
     $('fullview').innerHTML=h;
+  }
+  function lotCount(){ var n=document.querySelectorAll('.lotpick:checked').length; var el=$('lotn'); if(el)el.textContent=n; var b=$('pushlot'); if(b)b.disabled=(n===0); }
+  function pushLot(){
+    var picks=[].slice.call(document.querySelectorAll('.lotpick:checked'));
+    if(!picks.length) return;
+    var sel=picks.map(function(c){ return (FV._disp||[])[parseInt(c.getAttribute('data-i'),10)]; }).filter(Boolean);
+    if(!sel.length) return;
+    var mark=(sel[0]&&sel[0].mark)||'';
+    if(!confirm('Build a Shipment Lot from '+sel.length+' selected block'+(sel.length>1?'s':'')+'?')) return;
+    api('dolphin_theme.api_arrivals.create_shipment_lot',{rows:JSON.stringify(sel),mark:mark},true)
+      .then(function(name){ if(name){ try{ (window.top||window).location.href='/app/shipment-lot/'+encodeURIComponent(name); }catch(e){ window.location.href='/app/shipment-lot/'+encodeURIComponent(name); } } });
   }
   function fvSet(k,v){ if(k==='mark')FV.fMark=v; else FV.fStatus=v; renderFull(); }
   function fvCsv(){
@@ -261,7 +283,7 @@
     var b=new Blob([lines.join('\n')],{type:'text/csv'}); var u=URL.createObjectURL(b); var a=document.createElement('a'); a.href=u; a.download='arrivals_full_view.csv'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(u);
   }
   function fvBoard(){ $('fullview').style.display='none'; loadBoard(); }
-  window.DARR={open:open,board:fvBoard,peekDC:peekDC,resolve:resolve,accept:accept,confirmAccept:confirmAccept,genShip:genShip,full:full,fvSet:fvSet,fvCsv:fvCsv};
+  window.DARR={open:open,board:fvBoard,peekDC:peekDC,resolve:resolve,accept:accept,confirmAccept:confirmAccept,genShip:genShip,full:full,fvSet:fvSet,fvCsv:fvCsv,lotCount:lotCount,pushLot:pushLot};
   // fetch a CSRF token for this session (GET needs none) so POSTs are authorised
   fetch('/api/method/dolphin_theme.api_arrivals.get_token',{headers:{Accept:'application/json'}})
     .then(function(r){return r.json();})
