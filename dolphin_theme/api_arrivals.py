@@ -131,7 +131,25 @@ def reconcile_arrival(name):
             "matched_dc": row.matched_dc,
             "suggested_block": row.suggested_block,
         }, update_modified=False)
+    _mark_at_port(pa)
     return res
+
+
+def _mark_at_port(pa):
+    """A block confirmed arrived (Matched, or a non-duplicate resolution) is physically
+    AT THE PORT -> flip its Quarry Block status to 'At Port' so it shows in the
+    Blocks-At-Port report and the Shipping Document picker. Gated: only flips a block
+    number that is a real Quarry Block, and never downgrades Shipped/Sold."""
+    for row in pa.blocks:
+        bno = str(row.block_no or "").strip()
+        arrived = (row.recon_status == "Matched") or (
+            row.resolution_type and row.resolution_type != "Removed (duplicate)"
+        )
+        if not (arrived and bno) or not frappe.db.exists("Quarry Block", bno):
+            continue
+        cur = frappe.db.get_value("Quarry Block", bno, "status")
+        if cur not in ("At Port", "Shipped", "Sold"):
+            frappe.db.set_value("Quarry Block", bno, "status", "At Port", update_modified=False)
 
 
 @frappe.whitelist()
