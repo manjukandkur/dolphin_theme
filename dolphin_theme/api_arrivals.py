@@ -217,16 +217,22 @@ def full_view():
             awaiting_keys.discard(bno)
             cbm, mt, kgs = _weights(b)
             status = "Resolved" if b.resolution_type else (b.recon_status or "")
+            dcrow = idx.get(bno)
             rows.append({
                 "arrival": a.name,
                 "mark": a.mark or "",
                 "block_no": b.block_no or "",
+                "quarry_block": (dcrow.block if dcrow else ""),
                 "length": cint(b.length),
                 "width": cint(b.width),
                 "height": cint(b.height),
                 "cbm": cbm,
                 "mt": mt,
                 "kgs": kgs,
+                "dc_l": (cint(dcrow.l) if dcrow else 0),
+                "dc_w": (cint(dcrow.w) if dcrow else 0),
+                "dc_h": (cint(dcrow.h) if dcrow else 0),
+                "dc_cbm": (round(flt(dcrow.vol), 3) if dcrow else 0),
                 "matched_dc": b.matched_dc or "",
                 "status": status,
                 "raw_status": b.recon_status or "",
@@ -437,3 +443,47 @@ def upsert_arrival(rows, source_file=None, current=None, meta=None):
         "overlap": len(overlap[target]),
         "total": len(nums),
     }
+
+
+@frappe.whitelist()
+def create_shipment_lot(consignee=None, rows=None, mark=None, vessel=None):
+    """Build a Shipment Lot (the final lot) from at-port blocks selected on the
+    reconciliation sheet. `rows` is the JSON list of selected full_view rows."""
+    data = json.loads(rows) if isinstance(rows, str) else (rows or [])
+    if not data:
+        frappe.throw("Select at least one at-port block to build a Shipment Lot.")
+    lot = frappe.new_doc("Shipment Lot")
+    lot.shipment_date = frappe.utils.today()
+    if consignee:
+        lot.export_consignee = consignee
+    if mark:
+        lot.shipping_mark = mark
+    if vessel:
+        lot.vessel = vessel
+    lot.status = "Ready"
+    arrivals, tc, tt = set(), 0.0, 0.0
+    for r in data:
+        ch = lot.append("blocks", {})
+        ch.block = r.get("quarry_block") or None
+        ch.block_no = r.get("block_no")
+        ch.length = cint(r.get("length"))
+        ch.width = cint(r.get("width"))
+        ch.height = cint(r.get("height"))
+        ch.cbm = flt(r.get("cbm"))
+        ch.net_tonnage = flt(r.get("mt"))
+        ch.net_kgs = cint(r.get("kgs"))
+        ch.grade = r.get("grade") or ""
+        ch.source_dc = r.get("matched_dc") or ""
+        ch.source_arrival = r.get("arrival") or ""
+        if r.get("arrival"):
+            arrivals.add(r.get("arrival"))
+        tc += flt(r.get("cbm"))
+        tt += flt(r.get("mt"))
+    lot.block_count = len(lot.blocks)
+    lot.total_cbm = round(tc, 2)
+    lot.total_net_tonnage = round(tt, 3)
+    lot.total_net_kgs = cint(round(tt * 1000))
+    lot.source_arrivals = ", ".join(sorted(arrivals))
+    lot.flags.ignore_mandatory = True
+    lot.insert(ignore_permissions=True)
+    return lot.name
