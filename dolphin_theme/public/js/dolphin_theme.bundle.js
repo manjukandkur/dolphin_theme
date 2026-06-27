@@ -235,6 +235,9 @@ frappe.provide("dolphin");
   var ROLE_OWNER = ["System Manager", "Administrator", "Dolphin Owner"];
   var ROLE_BANGALORE = ["System Manager", "Administrator", "Dolphin Bangalore", "Dolphin Owner"];
   var ROLE_SHIPPING = ["System Manager", "Administrator", "Dolphin Bangalore"];
+  /* Arrivals tier: Bangalore/Admin PLUS Ilkal — Ilkal sees Port Arrival + Blocks At Port
+     (so they can view/resolve arrivals) but NOT Shipping Document (gated below). */
+  var ROLE_ARRIVALS = ["System Manager", "Administrator", "Dolphin Bangalore", "Dolphin Ilkal"];
   function hasAnyRole(list) {
     try {
       if (!list || !list.length) return true;
@@ -262,10 +265,10 @@ frappe.provide("dolphin");
       ["Local Tax Invoice", "Local Tax Invoice"],
       ["Arrivals Reconciliation", "/dolphin-arrivals", null, "url", "anchor"],
       ["Local Blocks Inspector", "Local Blocks Inspector"] ] },
-    { title: "Shipping Documents", roles: ROLE_SHIPPING, shaded: true, items: [
+    { title: "Shipping Documents", roles: ROLE_ARRIVALS, shaded: true, items: [
       ["Port Arrival", "Port Arrival", null, null, "anchor"],
       ["Blocks At Port", "Blocks At Port", null, "report", "stack"],
-      ["Shipping Document", "Shipping Document", null, null, "ship"] ] },
+      ["Shipping Document", "Shipping Document", ROLE_SHIPPING, null, "ship"] ] },
     { title: "Masters", subgroups: [
       { title: "Quarry", items: [
         ["Pit", "Pit"], ["Gangman", "Gangman"], ["Granite Grade", "Granite Grade"],
