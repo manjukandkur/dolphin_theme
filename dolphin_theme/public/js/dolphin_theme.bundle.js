@@ -263,7 +263,7 @@ frappe.provide("dolphin");
       ["Sales Lot", "Sales Lot", ROLE_OWNER] ] },
     { title: "Local Sale", roles: ROLE_BANGALORE, items: [
       ["Local Tax Invoice", "Local Tax Invoice"],
-      ["Arrivals Reconciliation", "/dolphin-arrivals", null, "url", "anchor"],
+      ["Arrivals Reconciliation", "/app/dolphin-reconcile", null, "url", "anchor"],
       ["Local Blocks Inspector", "Local Blocks Inspector"] ] },
     { title: "Shipping Documents", roles: ROLE_ARRIVALS, shaded: true, items: [
       ["Port Arrival", "Port Arrival", null, null, "anchor"],
