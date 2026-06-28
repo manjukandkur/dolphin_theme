@@ -413,25 +413,33 @@ def buyer_inspection_template():
 
 	# Block column = pick a CURRENT in-stock block NUMBER (searchable dropdown).
 	# Picking it auto-fills Source QI (ref) and L/W/H (editable) via BlockMap.
+	# Columns: A Report No, B Report Date, C Sale Type, D Specific Gravity (report factor),
+	# E Buyer Inspector, F Block Number (pick), G Block (resolved name -> imports),
+	# H Export No, I L, J W, K H, L Specific Gravity from pit (reference),
+	# M Gross Volume, N Gross Tonnage.
 	headers = [
 		"Report No",
 		"Report Date",
 		"Sale Type",
-		"DMG Tonnage Factor",
+		"Specific Gravity",
 		"Buyer Inspector (Buyer Inspector)",
+		"Block Number (pick - do not import)",
 		"Block (Block Rows)",
 		"Export No (Block Rows)",
 		"L (Block Rows)",
 		"W (Block Rows)",
 		"H (Block Rows)",
-		"Specific Gravity (from pit)",
+		"Specific Gravity (from pit) (ref)",
 		"Gross Volume",
 		"Gross Tonnage",
 	]
-	# columns: F=Block, G=Export No, H=L, I=W, J=H, K=SG, L=Gross Vol, M=Gross Tonnage
-	# grey/ref columns: Specific Gravity (11), Gross Volume (12), Gross Tonnage (13)
-	_write_headers(ws, headers, ref_cols={11, 12, 13})
+	# grey/ref columns: Block resolved (7), per-pit SG (12), Gross Volume (13), Gross Tonnage (14)
+	_write_headers(ws, headers, ref_cols={7, 12, 13, 14})
 	_date_col(ws, "B")
+	try:
+		ws["B2"] = frappe.utils.getdate(frappe.utils.nowdate())
+	except Exception:
+		pass
 
 	_apply(ws, _list_dv(lists, 1, "SaleType", sale_types), "C")
 	_apply(ws, _list_dv(lists, 2, "DMG", dmg), "D")
@@ -439,15 +447,15 @@ def buyer_inspection_template():
 	_apply(ws, _list_dv(lists, 4, "InStockBlocks", [b["block_number"] for b in blocks]), "F")
 
 	for r in range(2, FORMULA_ROWS + 2):
-		# L / W / H auto-fill from the block's stock dims; user may type over them.
-		ws["H{0}".format(r)] = '=IFERROR(VLOOKUP($F{0}&"",BlockMap!$A:$F,3,FALSE),"")'.format(r)
-		ws["I{0}".format(r)] = '=IFERROR(VLOOKUP($F{0}&"",BlockMap!$A:$F,4,FALSE),"")'.format(r)
-		ws["J{0}".format(r)] = '=IFERROR(VLOOKUP($F{0}&"",BlockMap!$A:$F,5,FALSE),"")'.format(r)
-		# Specific gravity pulled from the block's own pit.
-		ws["K{0}".format(r)] = '=IFERROR(VLOOKUP($F{0}&"",BlockMap!$A:$F,6,FALSE),"")'.format(r)
-		# Gross Volume; Gross Tonnage = volume x the block's pit SG (IFERROR keeps blank rows clean).
-		ws["L{0}".format(r)] = '=IFERROR(IF(AND(H{0}>0,I{0}>0,J{0}>0),ROUND(H{0}*I{0}*J{0}/1000000,4),""),"")'.format(r)
-		ws["M{0}".format(r)] = '=IFERROR(IF(AND(L{0}<>"",K{0}<>""),ROUND(L{0}*K{0},2),""),"")'.format(r)
+		# Pick a block NUMBER in F; the importable Block (its name), dims and pit SG resolve here.
+		ws["G{0}".format(r)] = '=IFERROR(VLOOKUP($F{0}&"",BlockMap!$A:$F,2,FALSE),"")'.format(r)
+		ws["I{0}".format(r)] = '=IFERROR(VLOOKUP($F{0}&"",BlockMap!$A:$F,3,FALSE),"")'.format(r)
+		ws["J{0}".format(r)] = '=IFERROR(VLOOKUP($F{0}&"",BlockMap!$A:$F,4,FALSE),"")'.format(r)
+		ws["K{0}".format(r)] = '=IFERROR(VLOOKUP($F{0}&"",BlockMap!$A:$F,5,FALSE),"")'.format(r)
+		ws["L{0}".format(r)] = '=IFERROR(VLOOKUP($F{0}&"",BlockMap!$A:$F,6,FALSE),"")'.format(r)
+		ws["M{0}".format(r)] = '=IFERROR(IF(AND(I{0}>0,J{0}>0,K{0}>0),ROUND(I{0}*J{0}*K{0}/1000000,4),""),"")'.format(r)
+		# Gross Tonnage uses the report-level Specific Gravity (D2).
+		ws["N{0}".format(r)] = '=IFERROR(IF(M{0}<>"",ROUND(M{0}*VALUE($D$2),2),""),"")'.format(r)
 
 	_blockmap(wb, blocks)
 	_readme(
