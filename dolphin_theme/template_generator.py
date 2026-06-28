@@ -108,11 +108,20 @@ def _instock_blocks():
 				"width_gross",
 				"height_gross",
 				"source_quarry_inspection",
+				"pit",
 			],
 			limit_page_length=0,
 		)
 	except Exception:
 		rows = []
+
+	# pit -> specific gravity, so each block's tonnage uses its own pit's SG
+	pit_sg = {}
+	try:
+		for p in frappe.get_all("Pit", fields=["name", "specific_gravity"], limit_page_length=0):
+			pit_sg[str(p.name)] = p.get("specific_gravity") or 2.6
+	except Exception:
+		pit_sg = {}
 
 	def sort_key(r):
 		try:
@@ -132,6 +141,7 @@ def _instock_blocks():
 				"w": r.get("width_gross") or "",
 				"h": r.get("height_gross") or "",
 				"qi": r.get("source_quarry_inspection") or "",
+				"sg": pit_sg.get(str(r.get("pit")), 2.6),
 			}
 		)
 	return out
@@ -194,11 +204,11 @@ def _pitmap(wb, pits):
 
 
 def _blockmap(wb, blocks):
-	"""Hidden sheet: block_number -> name, L, W, H, Source QI (for VLOOKUP autofill)."""
+	"""Hidden sheet: block_number -> name, L, W, H, SG(from pit) for VLOOKUP autofill."""
 	ws = wb.create_sheet("BlockMap")
-	ws.append(["Block Number", "Block Name", "L", "W", "H", "Source QI"])
+	ws.append(["Block Number", "Block Name", "L", "W", "H", "SG"])
 	for b in blocks:
-		ws.append([b["block_number"], b["name"], b["l"], b["w"], b["h"], b["qi"]])
+		ws.append([b["block_number"], b["name"], b["l"], b["w"], b["h"], b["sg"]])
 	ws.sheet_state = "hidden"
 	return ws
 
@@ -375,16 +385,17 @@ def buyer_inspection_template():
 		"DMG Tonnage Factor",
 		"Buyer Inspector (Buyer Inspector)",
 		"Block (Block Rows)",
-		"Source QI (ref - do not import)",
 		"Export No (Block Rows)",
 		"L (Block Rows)",
 		"W (Block Rows)",
 		"H (Block Rows)",
+		"Specific Gravity (from pit)",
 		"Gross Volume",
 		"Gross Tonnage",
 	]
-	# grey/ref columns: Source QI (7), Gross Volume (12), Gross Tonnage (13)
-	_write_headers(ws, headers, ref_cols={7, 12, 13})
+	# columns: F=Block, G=Export No, H=L, I=W, J=H, K=SG, L=Gross Vol, M=Gross Tonnage
+	# grey/ref columns: Specific Gravity (11), Gross Volume (12), Gross Tonnage (13)
+	_write_headers(ws, headers, ref_cols={11, 12, 13})
 	_date_col(ws, "B")
 
 	_apply(ws, _list_dv(lists, 1, "SaleType", sale_types), "C")
@@ -393,15 +404,15 @@ def buyer_inspection_template():
 	_apply(ws, _list_dv(lists, 4, "InStockBlocks", [b["block_number"] for b in blocks]), "F")
 
 	for r in range(2, FORMULA_ROWS + 2):
-		# Source QI reference (column G) -- shows which QI the block came from.
-		ws["G{0}".format(r)] = '=IFERROR(VLOOKUP($F{0}&"",BlockMap!$A:$F,6,FALSE),"")'.format(r)
 		# L / W / H auto-fill from the block's stock dims; user may type over them.
-		ws["I{0}".format(r)] = '=IFERROR(VLOOKUP($F{0}&"",BlockMap!$A:$F,3,FALSE),"")'.format(r)
-		ws["J{0}".format(r)] = '=IFERROR(VLOOKUP($F{0}&"",BlockMap!$A:$F,4,FALSE),"")'.format(r)
-		ws["K{0}".format(r)] = '=IFERROR(VLOOKUP($F{0}&"",BlockMap!$A:$F,5,FALSE),"")'.format(r)
-		# Gross Volume / Tonnage.
-		ws["L{0}".format(r)] = '=IF(AND(I{0}>0,J{0}>0,K{0}>0),ROUND(I{0}*J{0}*K{0}/1000000,4),"")'.format(r)
-		ws["M{0}".format(r)] = '=IF(L{0}<>"",ROUND(L{0}*VALUE($D$2),2),"")'.format(r)
+		ws["H{0}".format(r)] = '=IFERROR(VLOOKUP($F{0}&"",BlockMap!$A:$F,3,FALSE),"")'.format(r)
+		ws["I{0}".format(r)] = '=IFERROR(VLOOKUP($F{0}&"",BlockMap!$A:$F,4,FALSE),"")'.format(r)
+		ws["J{0}".format(r)] = '=IFERROR(VLOOKUP($F{0}&"",BlockMap!$A:$F,5,FALSE),"")'.format(r)
+		# Specific gravity pulled from the block's own pit.
+		ws["K{0}".format(r)] = '=IFERROR(VLOOKUP($F{0}&"",BlockMap!$A:$F,6,FALSE),"")'.format(r)
+		# Gross Volume; Gross Tonnage = volume x the block's pit SG (IFERROR keeps blank rows clean).
+		ws["L{0}".format(r)] = '=IFERROR(IF(AND(H{0}>0,I{0}>0,J{0}>0),ROUND(H{0}*I{0}*J{0}/1000000,4),""),"")'.format(r)
+		ws["M{0}".format(r)] = '=IFERROR(IF(AND(L{0}<>"",K{0}<>""),ROUND(L{0}*K{0},2),""),"")'.format(r)
 
 	_blockmap(wb, blocks)
 	_readme(
@@ -411,11 +422,10 @@ def buyer_inspection_template():
 			"Report No is OPTIONAL - leave blank and the server auto-numbers the report.",
 			"Fill Report Date, Sale Type, DMG Tonnage Factor and Buyer Inspector ONLY on the FIRST row.",
 			"'Block (Block Rows)' is a dropdown of CURRENT in-stock block NUMBERS - pick or type to search.",
-			"When you pick a block, 'Source QI' shows its inspection and L/W/H pre-fill from stock.",
+			"When you pick a block, L/W/H and Specific Gravity pre-fill from stock (SG comes from the block's pit).",
 			"L/W/H are editable - type over them to record the buyer's re-measurement.",
-			"The 'Source QI (ref - do not import)' column is for checking only; leave it unmapped on import.",
 			"Leave parent columns blank on rows 2..n to group all blocks into ONE report.",
-			"Gross Volume and Gross Tonnage fill in automatically.",
+			"Gross Volume fills automatically; Gross Tonnage = volume x the block's pit Specific Gravity.",
 		],
 	)
 	_send(wb, "Dolphin_BuyerInspection_Template.xlsx")
