@@ -26,9 +26,14 @@ import io
 
 import frappe
 from openpyxl import Workbook
+from openpyxl.comments import Comment
+from openpyxl.formatting.rule import FormulaRule
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.datavalidation import DataValidation
+
+# Light red used to flag a missing mandatory cell right in the sheet.
+REQ_FILL = PatternFill("solid", fgColor="FFFFC7CE")
 
 # How many rows to pre-arm with formulas / dropdowns.
 FORMULA_ROWS = 300
@@ -339,6 +344,26 @@ def quarry_inspection_template():
 	except Exception:
 		pass
 
+	# --- Mandatory-field guidance shown right inside the sheet ---------------
+	# Header notes (hover) marking which fields are required and which are one-time.
+	ws["B1"].comment = Comment("REQUIRED. Report Date - fill ONCE on the first row only.", "Dolphin")
+	ws["C1"].comment = Comment("REQUIRED. Inspector - fill ONCE on the first row only.", "Dolphin")
+	ws["D1"].comment = Comment("Optional. Supervisor - fill once on the first row only.", "Dolphin")
+	ws["E1"].comment = Comment("REQUIRED for every block row.", "Dolphin")
+	for col in ("I", "J", "K"):
+		ws[col + "1"].comment = Comment("REQUIRED for every block row (L / W / H).", "Dolphin")
+	# Red highlight when a required cell is missing.
+	last = FORMULA_ROWS + 1
+	ws.conditional_formatting.add("C2", FormulaRule(formula=['$C$2=""'], fill=REQ_FILL))
+	ws.conditional_formatting.add(
+		"E2:E{0}".format(last),
+		FormulaRule(formula=['AND(OR(I2<>"",J2<>"",K2<>""),E2="")'], fill=REQ_FILL),
+	)
+	ws.conditional_formatting.add(
+		"I2:K{0}".format(last),
+		FormulaRule(formula=['AND($E2<>"",I2="")'], fill=REQ_FILL),
+	)
+
 	_apply(ws, _list_dv(lists, 1, "Inspector", inspectors), "C")
 	_apply(ws, _list_dv(lists, 2, "Supervisor", supervisors), "D")
 	_apply(ws, _list_dv(lists, 3, "Pit", [p["pit"] for p in pits]), "F")
@@ -357,11 +382,14 @@ def quarry_inspection_template():
 		wb,
 		"Quarry Inspection - Import Template",
 		[
+			"MANDATORY - fill ONCE on the FIRST data row only: Report Date, Inspector.",
+			"MANDATORY for EVERY block row: Quarry Block No, L, W, H.",
+			"Missing required cells turn RED automatically; headers have a 'Required' note (hover over them).",
 			"Report No is OPTIONAL - leave blank and the server auto-numbers the report.",
-			"Fill Report Date, Inspector, Supervisor and Remarks ONLY on the FIRST row of each report.",
-			"Every column ending in '(Block Rows)' repeats per block.",
-			"To put many blocks in ONE report, leave the parent columns blank on rows 2..n.",
-			"Gangman, DMG factor, Gross Volume and Gross Tonnage fill in automatically.",
+			"Report Date is pre-filled with today - change it if needed (first row only).",
+			"Supervisor is optional; fill once on the first row.",
+			"Every column ending in '(Block Rows)' repeats per block; leave the parent columns blank on rows 2..n to group blocks into ONE report.",
+			"Gangman, DMG factor, Gross Vol and Gross Tonnage fill in automatically.",
 		],
 	)
 	_send(wb, "Dolphin_QuarryInspection_Template.xlsx")
