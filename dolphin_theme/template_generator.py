@@ -326,11 +326,18 @@ def quarry_inspection_template():
 		"H (Block Rows)",
 		"Grade (Block Rows)",
 		"Remarks",
-		"Gross Volume",
-		"Gross Tonnage",
+		"Gross Vol (Block Rows)",
+		"Gross Tonnage (Block Rows)",
 	]
 	_write_headers(ws, headers, ref_cols={7, 8, 14, 15})
 	_date_col(ws, "B")
+	# Pre-fill the first row's Report Date so the importer always has a parent anchor.
+	# A blank Report Date on the first row makes the Inspector/Supervisor multiselect
+	# import crash ('NoneType' has no attribute 'get'); this prevents that.
+	try:
+		ws["B2"] = frappe.utils.getdate(frappe.utils.nowdate())
+	except Exception:
+		pass
 
 	_apply(ws, _list_dv(lists, 1, "Inspector", inspectors), "C")
 	_apply(ws, _list_dv(lists, 2, "Supervisor", supervisors), "D")
