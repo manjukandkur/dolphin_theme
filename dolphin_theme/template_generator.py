@@ -404,16 +404,14 @@ def buyer_inspection_template():
 	dmg = _names("DMG Tonnage Factor Master")
 	buyer_inspectors = _names("Buyer Inspector")
 	sizes = _names("Granite Size Category")
-	# Consignee dropdown shows COMPANY NAMES; the resolver hook converts the
-	# chosen name to the consignee code on import.
+	# Consignee: show COMPANY NAMES; a hidden column resolves to the code via ConsigneeMap.
 	try:
-		consignees = [
-			(c.get("company_name") or c.get("name"))
-			for c in frappe.get_all("Export Consignee", fields=["name", "company_name"], limit_page_length=0)
-		]
-		consignees = [c for c in consignees if c]
+		_crows = frappe.get_all("Export Consignee", fields=["name", "company_name"], limit_page_length=0)
 	except Exception:
-		consignees = []
+		_crows = []
+	consignee_pairs = [((c.get("company_name") or c.get("name")), c.get("name")) for c in _crows]
+	consignee_pairs = [p for p in consignee_pairs if p[0]]
+	consignee_names = [p[0] for p in consignee_pairs]
 	blocks = _instock_blocks()
 
 	wb = Workbook()
@@ -426,6 +424,7 @@ def buyer_inspection_template():
 		"Report No",
 		"Report Date",
 		"Sale Type",
+		"Consignee",
 		"Export Consignee (Buyer)",
 		"dmg_tonnage_factor",
 		"Buyer Inspector (Buyer Inspector)",
@@ -437,23 +436,31 @@ def buyer_inspection_template():
 		"Specific Gravity (Block Rows)",
 		"Size (Block Rows)",
 	]
-	_write_headers(ws, headers, ref_cols={9, 10, 11, 12})
+	_write_headers(ws, headers, ref_cols={5, 10, 11, 12, 13})
 	_date_col(ws, "B")
+	ws.column_dimensions["E"].hidden = True
 
 	_apply(ws, _list_dv(lists, 1, "SaleType", sale_types), "C")
-	_apply(ws, _list_dv(lists, 2, "Consignee", consignees), "D")
-	_apply(ws, _list_dv(lists, 3, "DMG", dmg), "E")
-	_apply(ws, _list_dv(lists, 4, "BuyerInspector", buyer_inspectors), "F")
-	_apply(ws, _list_dv(lists, 5, "InStockBlocks", [b["block_number"] for b in blocks]), "G")
-	_apply(ws, _list_dv(lists, 6, "Size", sizes), "M")
-	for col in ("I", "J", "K"):
+	_apply(ws, _list_dv(lists, 2, "Consignee", consignee_names), "D")
+	_apply(ws, _list_dv(lists, 3, "DMG", dmg), "F")
+	_apply(ws, _list_dv(lists, 4, "BuyerInspector", buyer_inspectors), "G")
+	_apply(ws, _list_dv(lists, 5, "InStockBlocks", [b["block_number"] for b in blocks]), "H")
+	_apply(ws, _list_dv(lists, 6, "Size", sizes), "N")
+	for col in ("J", "K", "L"):
 		_apply(ws, _whole_dv(), col)
 
 	for r in range(2, FORMULA_ROWS + 2):
-		ws["I{0}".format(r)] = '=IFERROR(VLOOKUP($G{0}&"",BlockMap!$A:$F,3,FALSE),"")'.format(r)
-		ws["J{0}".format(r)] = '=IFERROR(VLOOKUP($G{0}&"",BlockMap!$A:$F,4,FALSE),"")'.format(r)
-		ws["K{0}".format(r)] = '=IFERROR(VLOOKUP($G{0}&"",BlockMap!$A:$F,5,FALSE),"")'.format(r)
-		ws["L{0}".format(r)] = '=IFERROR(VLOOKUP($G{0}&"",BlockMap!$A:$F,6,FALSE),"")'.format(r)
+		ws["E{0}".format(r)] = '=IFERROR(VLOOKUP($D{0}&"",ConsigneeMap!$A:$B,2,FALSE),"")'.format(r)
+		ws["J{0}".format(r)] = '=IFERROR(VLOOKUP($H{0}&"",BlockMap!$A:$F,3,FALSE),"")'.format(r)
+		ws["K{0}".format(r)] = '=IFERROR(VLOOKUP($H{0}&"",BlockMap!$A:$F,4,FALSE),"")'.format(r)
+		ws["L{0}".format(r)] = '=IFERROR(VLOOKUP($H{0}&"",BlockMap!$A:$F,5,FALSE),"")'.format(r)
+		ws["M{0}".format(r)] = '=IFERROR(VLOOKUP($H{0}&"",BlockMap!$A:$F,6,FALSE),"")'.format(r)
+
+	cmap = wb.create_sheet("ConsigneeMap")
+	cmap.append(["Company", "Code"])
+	for company, code in consignee_pairs:
+		cmap.append([company, code])
+	cmap.sheet_state = "hidden"
 
 	_blockmap(wb, blocks)
 	_readme(
@@ -461,8 +468,8 @@ def buyer_inspection_template():
 		"Buyer Inspection - Import Template",
 		[
 			"Report No is OPTIONAL - leave blank and the server auto-numbers the report.",
-			"Fill Report Date, Sale Type, Export Consignee (Buyer), Specific Gravity and Buyer Inspector ONLY on the FIRST row.",
-			"Export Consignee (Buyer) is a dropdown of consignee COMPANY NAMES - pick one.",
+			"Fill Report Date, Sale Type, Consignee, Specific Gravity and Buyer Inspector ONLY on the FIRST row.",
+			"Consignee is a dropdown of consignee COMPANY NAMES - pick one (a hidden column fills the code).",
 			"Block Number is a dropdown of CURRENT in-stock block numbers - pick or type to search.",
 			"L/W/H and Specific Gravity pre-fill from stock; L/W/H are editable to override.",
 			"Size: leave blank to use the block stock size, or pick A/B/C to override.",
