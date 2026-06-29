@@ -6,9 +6,9 @@
      - Home-icon / empty-route redirect to the Dolphin workspace
      - Floating "Workspace" button
      - A consistent navy/gold button bar:
-         forms   -> Back · Home · Edit · Print · Refresh
-         lists   -> Home · Back · Import · Refresh
-         reports -> Home · Back · Print · Refresh
+         forms   -> Back Â· Home Â· Edit Â· Print Â· Refresh
+         lists   -> Home Â· Back Â· Import Â· Refresh
+         reports -> Home Â· Back Â· Print Â· Refresh
      - Custom HTML Block render shim (paints workspace banner +
        section bars + import panel, which Frappe skips in view mode)
    ============================================================ */
@@ -16,7 +16,7 @@ frappe.provide("dolphin");
 (function () {
   var WS = "dolphin";
   var NAVY = "#0F2540", GOLD = "#D4A24A";
-  /* Day31: lighter slate-blue for large background surfaces (sidebar/bars/dropdowns) — better
+  /* Day31: lighter slate-blue for large background surfaces (sidebar/bars/dropdowns) â better
      visibility than the very dark navy. NAVY stays as the dark ink for text on gold/white. */
   var BARBG = "#24507E", BARBG2 = "#2E5E92";
   var BLUE = "#2490ef", BLUE_D = "#1579d0"; // action-button colour (user preference: all blue)
@@ -160,7 +160,7 @@ frappe.provide("dolphin");
       // branch users hitting the hidden ERPNext "home" workspace get "Page home not found" -> rescue to Dolphin
       var isSysMgr = (frappe.user_roles || []).indexOf("System Manager") > -1;
       if (first === "home" && !isSysMgr) { if ((frappe.get_route_str() || "") !== WS) frappe.set_route(WS); return; }
-      if (userExited()) return; // user chose to exit — don't trap them back in the workspace
+      if (userExited()) return; // user chose to exit â don't trap them back in the workspace
       if (first === "" || first === "desktop" || first === "workspaces") {
         if ((frappe.get_route_str() || "") !== WS) frappe.set_route(WS);
       }
@@ -179,7 +179,7 @@ frappe.provide("dolphin");
     var d = new frappe.ui.Dialog({
       title: "Exit Dolphin",
       indicator: "orange",
-      primary_action_label: "⌂ ERPNext Home",
+      primary_action_label: "â ERPNext Home",
       primary_action: function () {
         try { sessionStorage.setItem("dolphin_exited", "1"); } catch (e) {}
         d.hide();
@@ -235,7 +235,7 @@ frappe.provide("dolphin");
   var ROLE_OWNER = ["System Manager", "Administrator", "Dolphin Owner"];
   var ROLE_BANGALORE = ["System Manager", "Administrator", "Dolphin Bangalore", "Dolphin Owner"];
   var ROLE_SHIPPING = ["System Manager", "Administrator", "Dolphin Bangalore"];
-  /* Arrivals tier: Bangalore/Admin PLUS Ilkal — Ilkal sees Port Arrival + Blocks At Port
+  /* Arrivals tier: Bangalore/Admin PLUS Ilkal â Ilkal sees Port Arrival + Blocks At Port
      (so they can view/resolve arrivals) but NOT Shipping Document (gated below). */
   var ROLE_ARRIVALS = ["System Manager", "Administrator", "Dolphin Bangalore", "Dolphin Ilkal"];
   function hasAnyRole(list) {
@@ -338,7 +338,7 @@ frappe.provide("dolphin");
 
       var top = document.createElement("div");
       top.className = "di-sm-top";
-      top.innerHTML = "<span>☰ Dolphin Menu</span><span class='di-sm-chev'>▾</span>";
+      top.innerHTML = "<span>â° Dolphin Menu</span><span class='di-sm-chev'>â¾</span>";
       top.onclick = function () {
         root.classList.toggle("di-collapsed");
         lsSet("di_sm_collapsed", root.classList.contains("di-collapsed") ? "1" : "0");
@@ -351,7 +351,7 @@ frappe.provide("dolphin");
       var search = document.createElement("input");
       search.className = "di-sm-search";
       search.type = "text";
-      search.placeholder = "🔍  Filter menu…";
+      search.placeholder = "ð  Filter menuâ¦";
       search.oninput = function () { filterSideMenu(search.value); };
       body.appendChild(search);
 
@@ -412,7 +412,7 @@ frappe.provide("dolphin");
         var h = document.createElement("div");
         h.className = "di-sm-h";
         h.innerHTML = "<span>" + sec.title + (sec.shaded ? " \ud83d\udd12" : "") + "</span><span class='di-sm-count'>" + total +
-          "</span><span class='di-sm-chev'>▾</span>";
+          "</span><span class='di-sm-chev'>â¾</span>";
         h.onclick = function () {
           s.classList.toggle("di-closed");
           lsSet(secKey, s.classList.contains("di-closed") ? "closed" : "open");
@@ -431,7 +431,7 @@ frappe.provide("dolphin");
             var sh = document.createElement("div");
             sh.className = "di-sm-subh";
             sh.innerHTML = "<span>" + g.title + "</span><span class='di-sm-count'>" + g.items.length +
-              "</span><span class='di-sm-chev'>▾</span>";
+              "</span><span class='di-sm-chev'>â¾</span>";
             sh.onclick = function () {
               sub.classList.toggle("di-closed");
               lsSet(subKey, sub.classList.contains("di-closed") ? "closed" : "open");
@@ -481,9 +481,17 @@ frappe.provide("dolphin");
   }
   function curDoctype() {
     try {
+      var r = frappe.get_route() || [];
+      var v = r[0];
+      if (v === "List" || v === "Tree" || v === "Report" || v === "Dashboard") {
+        return (window.cur_list && cur_list.doctype) || r[1] || "";
+      }
+      if (v === "Form") {
+        return (window.cur_frm && cur_frm.doctype) || r[1] || "";
+      }
       if (window.cur_frm && cur_frm.doctype) return cur_frm.doctype;
       if (window.cur_list && cur_list.doctype) return cur_list.doctype;
-      var r = frappe.get_route() || []; return r[1] || "";
+      return r[1] || "";
     } catch (e) { return ""; }
   }
   /* ---------- import + native template helpers (reused by list bar) ---------- */
@@ -532,7 +540,7 @@ frappe.provide("dolphin");
     a.href = "/api/method/" + method;
     a.download = dt.replace(/ /g, "_") + "_Import_Template.xlsx";
     document.body.appendChild(a); a.click(); a.remove();
-    try { frappe.show_alert({ message: dt + " template (live dropdowns) downloading…", indicator: "green" }); } catch (e) {}
+    try { frappe.show_alert({ message: dt + " template (live dropdowns) downloadingâ¦", indicator: "green" }); } catch (e) {}
     return true;
   }
   function diDownloadTemplate(dt) {
@@ -545,7 +553,7 @@ frappe.provide("dolphin");
         encodeURIComponent(dt) + "&export_fields=" + encodeURIComponent(JSON.stringify(ef)) + "&file_type=Excel";
       var a = document.createElement("a"); a.href = url; a.download = dt.replace(/ /g, "_") + "_Import_Template.xlsx";
       document.body.appendChild(a); a.click(); a.remove();
-      try { frappe.show_alert({ message: "Import template downloading…", indicator: "green" }); } catch (e) {}
+      try { frappe.show_alert({ message: "Import template downloadingâ¦", indicator: "green" }); } catch (e) {}
     });
   }
   // expose so any Client Script's Download/Refresh-Template button can route through the same logic
@@ -578,7 +586,7 @@ frappe.provide("dolphin");
     var dd = document.createElement("span"); dd.className = "di-ab-dd"; dd.setAttribute("data-di-dd", key);
     var btn = document.createElement("button"); btn.type = "button";
     btn.className = "di-ab-btn " + (kind === "white" ? "di-ab-white" : "di-ab-gold");
-    btn.innerHTML = label + " <span style='font-size:10px'>▾</span>";
+    btn.innerHTML = label + " <span style='font-size:10px'>â¾</span>";
     btn.onclick = function (ev) {
       ev.stopPropagation();
       var open = dd.classList.contains("di-open");
@@ -626,8 +634,8 @@ frappe.provide("dolphin");
     if (!bar) {
       bar = document.createElement("span");
       bar.className = "di-navbar-group di-actionbar";
-      var back = abChip("‹", "Back", function () { window.history.back(); });
-      var home = abChip("⌂", "Home", function () { goHome(); });
+      var back = abChip("â¹", "Back", function () { window.history.back(); });
+      var home = abChip("â", "Home", function () { goHome(); });
       var title = document.createElement("span"); title.className = "di-ab-title"; title.setAttribute("data-di-abtitle", "1");
       var addDD = abMakeDropdown("Add Blocks", "white", "add");
       var actDD = abMakeDropdown("Actions", "gold", "act");
@@ -651,9 +659,9 @@ frappe.provide("dolphin");
       (it.groupEl || it.el).classList.add("di-ab-harvested"); // hide native only after re-presenting
     });
     // always-available actions
-    actMenu.appendChild(abItem("⎙ Print", function () { try { frm.print_doc(); } catch (e) {} }));
-    actMenu.appendChild(abItem("⟳ Refresh", function () { try { frm.reload_doc(); } catch (e) {} }));
-    actMenu.appendChild(abItem("➕ New " + frm.doctype, function () { try { frappe.new_doc(frm.doctype); } catch (e) {} }));
+    actMenu.appendChild(abItem("â Print", function () { try { frm.print_doc(); } catch (e) {} }));
+    actMenu.appendChild(abItem("â³ Refresh", function () { try { frm.reload_doc(); } catch (e) {} }));
+    actMenu.appendChild(abItem("â New " + frm.doctype, function () { try { frappe.new_doc(frm.doctype); } catch (e) {} }));
 
     // hide the whole "Add Blocks" dropdown on forms that have no block actions (e.g. Quarry Block)
     var addDD = bar.querySelector("[data-di-dd='add']");
@@ -667,20 +675,20 @@ frappe.provide("dolphin");
     b.innerHTML = "<span class='" + glcls + "'>" + glyph + "</span> " + label;
     b.onclick = fn; return b;
   }
-  /* Day31: list-view action bar — keeps Add (native primary) / Import / Refresh visible,
+  /* Day31: list-view action bar â keeps Add (native primary) / Import / Refresh visible,
      harvests the rest of the Client-Script list buttons into a navy Actions dropdown. */
   function buildListBar(head) {
     var bar = head.querySelector(".di-actionbar");
     if (!bar) {
       bar = document.createElement("span");
       bar.className = "di-navbar-group di-actionbar";
-      var back = abChip("‹", "Back", function () { window.history.back(); });
-      var home = abChip("⌂", "Dolphin Home", function () { goHome(); });
+      var back = abChip("â¹", "Back", function () { window.history.back(); });
+      var home = abChip("â", "Dolphin Home", function () { goHome(); });
       var title = document.createElement("span"); title.className = "di-ab-title"; title.setAttribute("data-di-abtitle", "1");
-      var imp = document.createElement("button"); imp.type = "button"; imp.className = "di-ab-btn di-ab-white"; imp.textContent = "⤓ Import";
+      var imp = document.createElement("button"); imp.type = "button"; imp.className = "di-ab-btn di-ab-white"; imp.textContent = "â¤ Import";
       imp.onclick = function () { try { diOpenImport(curDoctype()); } catch (e) {} };
       var actDD = abMakeDropdown("Actions", "gold", "act");
-      var refresh = document.createElement("button"); refresh.type = "button"; refresh.className = "di-ab-btn di-ab-white"; refresh.textContent = "⟳ Refresh";
+      var refresh = document.createElement("button"); refresh.type = "button"; refresh.className = "di-ab-btn di-ab-white"; refresh.textContent = "â³ Refresh";
       refresh.onclick = function () { try { if (window.cur_list) cur_list.refresh(); else location.reload(); } catch (e) { location.reload(); } };
       bar.appendChild(back); bar.appendChild(home); bar.appendChild(title);
       bar.appendChild(imp); bar.appendChild(actDD); bar.appendChild(refresh);
@@ -724,14 +732,14 @@ frappe.provide("dolphin");
   }
 
   /* Day31: minimal Back/Home bar for custom desk pages (e.g. Stock Dashboard) which are
-     neither form/list/report — previously these had no bar at all. */
+     neither form/list/report â previously these had no bar at all. */
   function buildPageBar(head) {
     var bar = head.querySelector(".di-actionbar");
     if (!bar) {
       bar = document.createElement("span");
       bar.className = "di-navbar-group di-actionbar";
-      var back = abChip("‹", "Back", function () { window.history.back(); });
-      var home = abChip("⌂", "Home", function () { goHome(); });
+      var back = abChip("â¹", "Back", function () { window.history.back(); });
+      var home = abChip("â", "Home", function () { goHome(); });
       var title = document.createElement("span"); title.className = "di-ab-title"; title.setAttribute("data-di-abtitle", "1");
       bar.appendChild(back); bar.appendChild(home); bar.appendChild(title);
       head.insertBefore(bar, head.firstChild);
@@ -762,9 +770,9 @@ frappe.provide("dolphin");
       var bar = document.createElement("span");
       bar.className = "di-navbar di-navbar-group";
 
-      var back = mkBtn("‹ Back", "x", function () { window.history.back(); });
-      var home = mkBtn("⌂ Home", "g", function () { goHome(); });
-      var refresh = mkBtn("⟳ Refresh", "x", function () {
+      var back = mkBtn("â¹ Back", "x", function () { window.history.back(); });
+      var home = mkBtn("â Home", "g", function () { goHome(); });
+      var refresh = mkBtn("â³ Refresh", "x", function () {
         try {
           if (t === "form" && window.cur_frm) cur_frm.reload_doc();
           else if (t === "list" && window.cur_list) cur_list.refresh();
@@ -774,7 +782,7 @@ frappe.provide("dolphin");
       });
 
       if (t === "form") {
-        var edit = mkBtn("✎ Edit", "g", function () {
+        var edit = mkBtn("â Edit", "g", function () {
           try {
             window.scrollTo(0, 0);
             if (window.cur_frm) {
@@ -786,17 +794,17 @@ frappe.provide("dolphin");
             }
           } catch (e) {}
         });
-        var print = mkBtn("⎙ Print", "g", function () { try { cur_frm.print_doc(); } catch (e) {} });
-        var nw = mkBtn("➕ New", "g", function () { try { frappe.new_doc(curDoctype()); } catch (e) {} });
+        var print = mkBtn("â Print", "g", function () { try { cur_frm.print_doc(); } catch (e) {} });
+        var nw = mkBtn("â New", "g", function () { try { frappe.new_doc(curDoctype()); } catch (e) {} });
         [back, home, edit, nw, print, refresh].forEach(function (b) { bar.appendChild(b); });
       } else if (t === "list") {
         var dt = curDoctype();
-        var imp = mkBtn("⤓ Import", "g", function () { diOpenImport(dt); });
+        var imp = mkBtn("â¤ Import", "g", function () { diOpenImport(dt); });
         [home, back, imp, refresh].forEach(function (b) { bar.appendChild(b); });
       } else if (t === "print") {
         [home, back].forEach(function (b) { bar.appendChild(b); });
       } else { // report
-        var rprint = mkBtn("⎙ Print", "g", function () { try { (frappe.query_report && frappe.query_report.print_report) ? frappe.query_report.print_report() : window.print(); } catch (e) { window.print(); } });
+        var rprint = mkBtn("â Print", "g", function () { try { (frappe.query_report && frappe.query_report.print_report) ? frappe.query_report.print_report() : window.print(); } catch (e) { window.print(); } });
         [home, back, rprint, refresh].forEach(function (b) { bar.appendChild(b); });
       }
       head.insertBefore(bar, head.firstChild);
@@ -925,9 +933,9 @@ frappe.provide("dolphin");
         var bar = document.createElement("div");
         bar.id = "di-arr-banner";
         bar.style.cssText = "position:relative;background:#0F2540;color:#e8d3a6;padding:9px 16px;font-size:13px;display:flex;align-items:center;gap:10px;border-bottom:2px solid #D4A24A;z-index:1000";
-        bar.innerHTML = "<span>⚓ " + n + " arrival block" + (n > 1 ? "s have" : " has") + " an open reconciliation flag.</span>" +
-          "<a href=\"/dolphin-arrivals\" style=\"color:#fff;font-weight:600;text-decoration:underline\">Review now →</a>" +
-          "<button aria-label=\"Dismiss\" style=\"margin-left:auto;background:transparent;border:none;color:#aebfd0;cursor:pointer;font-size:16px\">×</button>";
+        bar.innerHTML = "<span>â " + n + " arrival block" + (n > 1 ? "s have" : " has") + " an open reconciliation flag.</span>" +
+          "<a href=\"/dolphin-arrivals\" style=\"color:#fff;font-weight:600;text-decoration:underline\">Review now â</a>" +
+          "<button aria-label=\"Dismiss\" style=\"margin-left:auto;background:transparent;border:none;color:#aebfd0;cursor:pointer;font-size:16px\">Ã</button>";
         bar.querySelector("a").onclick = function (e) { e.preventDefault(); window.location.href = "/dolphin-arrivals"; };
         bar.querySelector("button").onclick = function () { bar.remove(); };
         document.body.insertBefore(bar, document.body.firstChild);
@@ -955,7 +963,7 @@ frappe.provide("dolphin");
   document.addEventListener("keydown", function (ev) { if (ev.key === "Escape") { try { abCloseMenus(); } catch (e) {} } });
   /* safety net: always keep the page bar (Back/Home/Edit/New/Print) and side menu present */
   setInterval(function () { try { addButtonBar(); addSideMenu(); } catch (e) {} }, 1000);
-  /* robust attach: re-add the bar the instant the page toolbar (re)renders — fixes the
+  /* robust attach: re-add the bar the instant the page toolbar (re)renders â fixes the
      missing Back/Home bar on fast-loading minimal master forms (New Gangman, New Pit, etc.) */
   try {
     var __diMoT;
