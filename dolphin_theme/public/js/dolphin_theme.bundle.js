@@ -961,7 +961,10 @@ frappe.provide("dolphin");
     var __diMoT;
     var __diMo = new MutationObserver(function () {
       clearTimeout(__diMoT);
-      __diMoT = setTimeout(function () { try { addButtonBar(); } catch (e) {} }, 50);
+      __diMoT = setTimeout(function () {
+        try { __diMo.disconnect(); addButtonBar(); } catch (e) {}
+        try { __diMo.observe(document.body, { childList: true, subtree: true }); } catch (e) {}
+      }, 200);
     });
     __diMo.observe(document.body, { childList: true, subtree: true });
   } catch (e) {}
@@ -997,7 +1000,11 @@ frappe.provide("dolphin");
     var moT = null;
     var mo = new MutationObserver(function () {
       if (moT) return;
-      moT = setTimeout(function () { moT = null; tick(); }, 250);
+      moT = setTimeout(function () {
+        moT = null;
+        try { mo.disconnect(); tick(); } catch (e) {}
+        try { if (document.body) mo.observe(document.body, { childList: true, subtree: true }); } catch (e) {}
+      }, 400);
     });
     if (document.body) mo.observe(document.body, { childList: true, subtree: true });
   } catch (e) {}
