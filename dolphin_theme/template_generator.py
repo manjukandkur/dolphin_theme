@@ -267,7 +267,7 @@ def quarry_block_template():
 	lists.sheet_state = "hidden"
 
 	headers = [
-		"Block Number",
+		"Quarry Block Number",
 		"Date Produced (DD-MM-YYYY)",
 		"Pit",
 		"Gangman",
@@ -277,7 +277,7 @@ def quarry_block_template():
 		"Status",
 		"granite_quality_grade",
 		"Granite Size Category",
-		"DMG Tonnage Factor",
+		"dmg_tonnage_factor",
 		"Gross Volume",
 		"Gross Tonnage",
 	]
@@ -403,6 +403,17 @@ def buyer_inspection_template():
 	sale_types = _select_options("Buyer Inspection", "sale_type", fallback=["Export", "Local"])
 	dmg = _names("DMG Tonnage Factor Master")
 	buyer_inspectors = _names("Buyer Inspector")
+	sizes = _names("Granite Size Category")
+	# Consignee dropdown shows COMPANY NAMES; the resolver hook converts the
+	# chosen name to the consignee code on import.
+	try:
+		consignees = [
+			(c.get("company_name") or c.get("name"))
+			for c in frappe.get_all("Export Consignee", fields=["name", "company_name"], limit_page_length=0)
+		]
+		consignees = [c for c in consignees if c]
+	except Exception:
+		consignees = []
 	blocks = _instock_blocks()
 
 	wb = Workbook()
@@ -411,51 +422,38 @@ def buyer_inspection_template():
 	lists = wb.create_sheet("Lists")
 	lists.sheet_state = "hidden"
 
-	# Block column = pick a CURRENT in-stock block NUMBER (searchable dropdown).
-	# Picking it auto-fills Source QI (ref) and L/W/H (editable) via BlockMap.
-	# Columns: A Report No, B Report Date, C Sale Type, D Specific Gravity (report factor),
-	# E Buyer Inspector, F Block Number (pick), G Block (resolved name -> imports),
-	# H Export No, I L, J W, K H, L Specific Gravity from pit (reference),
-	# M Gross Volume, N Gross Tonnage.
 	headers = [
 		"Report No",
 		"Report Date",
 		"Sale Type",
-		"Specific Gravity",
+		"Export Consignee (Buyer)",
+		"dmg_tonnage_factor",
 		"Buyer Inspector (Buyer Inspector)",
-		"Block Number (pick - do not import)",
-		"Block (Block Rows)",
+		"Block Number (Block Rows)",
 		"Export No (Block Rows)",
 		"L (Block Rows)",
 		"W (Block Rows)",
 		"H (Block Rows)",
-		"Specific Gravity (from pit) (ref)",
-		"Gross Volume",
-		"Gross Tonnage",
+		"Specific Gravity (Block Rows)",
+		"Size (Block Rows)",
 	]
-	# grey/ref columns: Block resolved (7), per-pit SG (12), Gross Volume (13), Gross Tonnage (14)
-	_write_headers(ws, headers, ref_cols={7, 12, 13, 14})
+	_write_headers(ws, headers, ref_cols={9, 10, 11, 12})
 	_date_col(ws, "B")
-	try:
-		ws["B2"] = frappe.utils.getdate(frappe.utils.nowdate())
-	except Exception:
-		pass
 
 	_apply(ws, _list_dv(lists, 1, "SaleType", sale_types), "C")
-	_apply(ws, _list_dv(lists, 2, "DMG", dmg), "D")
-	_apply(ws, _list_dv(lists, 3, "BuyerInspector", buyer_inspectors), "E")
-	_apply(ws, _list_dv(lists, 4, "InStockBlocks", [b["block_number"] for b in blocks]), "F")
+	_apply(ws, _list_dv(lists, 2, "Consignee", consignees), "D")
+	_apply(ws, _list_dv(lists, 3, "DMG", dmg), "E")
+	_apply(ws, _list_dv(lists, 4, "BuyerInspector", buyer_inspectors), "F")
+	_apply(ws, _list_dv(lists, 5, "InStockBlocks", [b["block_number"] for b in blocks]), "G")
+	_apply(ws, _list_dv(lists, 6, "Size", sizes), "M")
+	for col in ("I", "J", "K"):
+		_apply(ws, _whole_dv(), col)
 
 	for r in range(2, FORMULA_ROWS + 2):
-		# Pick a block NUMBER in F; the importable Block (its name), dims and pit SG resolve here.
-		ws["G{0}".format(r)] = '=IFERROR(VLOOKUP($F{0}&"",BlockMap!$A:$F,2,FALSE),"")'.format(r)
-		ws["I{0}".format(r)] = '=IFERROR(VLOOKUP($F{0}&"",BlockMap!$A:$F,3,FALSE),"")'.format(r)
-		ws["J{0}".format(r)] = '=IFERROR(VLOOKUP($F{0}&"",BlockMap!$A:$F,4,FALSE),"")'.format(r)
-		ws["K{0}".format(r)] = '=IFERROR(VLOOKUP($F{0}&"",BlockMap!$A:$F,5,FALSE),"")'.format(r)
-		ws["L{0}".format(r)] = '=IFERROR(VLOOKUP($F{0}&"",BlockMap!$A:$F,6,FALSE),"")'.format(r)
-		ws["M{0}".format(r)] = '=IFERROR(IF(AND(I{0}>0,J{0}>0,K{0}>0),ROUND(I{0}*J{0}*K{0}/1000000,4),""),"")'.format(r)
-		# Gross Tonnage uses the report-level Specific Gravity (D2).
-		ws["N{0}".format(r)] = '=IFERROR(IF(M{0}<>"",ROUND(M{0}*VALUE($D$2),2),""),"")'.format(r)
+		ws["I{0}".format(r)] = '=IFERROR(VLOOKUP($G{0}&"",BlockMap!$A:$F,3,FALSE),"")'.format(r)
+		ws["J{0}".format(r)] = '=IFERROR(VLOOKUP($G{0}&"",BlockMap!$A:$F,4,FALSE),"")'.format(r)
+		ws["K{0}".format(r)] = '=IFERROR(VLOOKUP($G{0}&"",BlockMap!$A:$F,5,FALSE),"")'.format(r)
+		ws["L{0}".format(r)] = '=IFERROR(VLOOKUP($G{0}&"",BlockMap!$A:$F,6,FALSE),"")'.format(r)
 
 	_blockmap(wb, blocks)
 	_readme(
@@ -463,12 +461,12 @@ def buyer_inspection_template():
 		"Buyer Inspection - Import Template",
 		[
 			"Report No is OPTIONAL - leave blank and the server auto-numbers the report.",
-			"Fill Report Date, Sale Type, DMG Tonnage Factor and Buyer Inspector ONLY on the FIRST row.",
-			"'Block (Block Rows)' is a dropdown of CURRENT in-stock block NUMBERS - pick or type to search.",
-			"When you pick a block, L/W/H and Specific Gravity pre-fill from stock (SG comes from the block's pit).",
-			"L/W/H are editable - type over them to record the buyer's re-measurement.",
+			"Fill Report Date, Sale Type, Export Consignee (Buyer), Specific Gravity and Buyer Inspector ONLY on the FIRST row.",
+			"Export Consignee (Buyer) is a dropdown of consignee COMPANY NAMES - pick one.",
+			"Block Number is a dropdown of CURRENT in-stock block numbers - pick or type to search.",
+			"L/W/H and Specific Gravity pre-fill from stock; L/W/H are editable to override.",
+			"Size: leave blank to use the block stock size, or pick A/B/C to override.",
 			"Leave parent columns blank on rows 2..n to group all blocks into ONE report.",
-			"Gross Volume fills automatically; Gross Tonnage = volume x the block's pit Specific Gravity.",
 		],
 	)
 	_send(wb, "Dolphin_BuyerInspection_Template.xlsx")
