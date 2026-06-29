@@ -121,6 +121,16 @@
     d.show();
     d.$wrapper.find(".modal-dialog").css("max-width", "920px");
   }
+  function glChild(childDt, parentDt, filters) {
+    return frappe.call({ method: "frappe.client.get_list", args: { doctype: childDt, parent: parentDt, filters: filters, fields: ["parent"], limit_page_length: 30 } })
+      .then(function (r) { return r.message || []; })
+      .catch(function () { return []; });
+  }
+  function uniqParents(rows) {
+    var seen = {}, list = [];
+    (rows || []).forEach(function (x) { if (x.parent && !seen[x.parent]) { seen[x.parent] = 1; list.push(x.parent); } });
+    return list;
+  }
   function runTrace(val) {
     val = (val || "").trim();
     var out = document.querySelector("#di-trace-out");
@@ -129,27 +139,36 @@
     out.innerHTML = '<span style="color:#9aa3ad;">searching&hellip;</span>';
     frappe.call({
       method: "frappe.client.get_list",
-      args: { doctype: "Quarry Block", or_filters: [["block_number", "=", val], ["export_block_no", "=", val]], fields: ["name", "block_number", "export_block_no", "pit", "granite_quality_grade", "granite_size_category", "length_gross", "width_gross", "height_gross", "gross_volume", "gross_tonnage", "status", "source_quarry_inspection", "buyer_inspection", "date_produced"], limit_page_length: 1 }
+      args: { doctype: "Quarry Block", or_filters: [["block_number", "=", val], ["export_block_no", "=", val]], fields: ["name", "block_number", "export_block_no", "pit", "granite_quality_grade", "granite_size_category", "length_gross", "width_gross", "height_gross", "gross_volume", "gross_tonnage", "status", "date_produced"], limit_page_length: 1 }
     }).then(function (r) {
       var b = r.message && r.message[0];
       if (!b) { out.innerHTML = '<div style="color:#c0392b;font-size:13px;">No block found for "' + esc(val) + '".</div>'; return; }
-      frappe.call({ method: "frappe.client.get_list", args: { doctype: "DC Block Row", filters: [["block", "=", b.name]], fields: ["parent"], limit_page_length: 1 } })
-        .then(function (d) { renderBlock(out, b, d.message && d.message[0] && d.message[0].parent); })
-        .catch(function () { renderBlock(out, b, null); });
+      var bn = String(b.block_number || "");
+      Promise.all([
+        glChild("Quarry Inspection Block", "Quarry Inspection", [["quarry_block_no", "=", bn]]),
+        glChild("Buyer Inspection Block", "Buyer Inspection", [["block", "=", b.name]]),
+        glChild("DC Block Row", "Delivery Challan", [["block", "=", b.name]])
+      ]).then(function (res) {
+        renderBlock(out, b, uniqParents(res[0]), uniqParents(res[1]), uniqParents(res[2]));
+      });
     });
   }
-  function renderBlock(out, b, dcName) {
+  function docRows(label, icon, doctype, names) {
+    if (!names || !names.length) return docRow(label, icon, doctype, null);
+    return names.map(function (nm) { return docRow(label, icon, doctype, nm); }).join("");
+  }
+  function renderBlock(out, b, qiNames, biNames, dcNames) {
     var dims = (b.length_gross || "?") + "&times;" + (b.width_gross || "?") + "&times;" + (b.height_gross || "?");
     out.innerHTML =
       '<div style="border:1px solid #e2e5e9;border-radius:10px;padding:13px;">' +
         '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px;">' +
           '<span style="font-size:19px;font-weight:600;color:' + NAVY + ';">Block ' + esc(b.block_number) + '</span>' +
-          '<span style="font-size:12.5px;color:#6c7680;">Export ' + esc(b.export_block_no || "&mdash;") + ' - Pit ' + esc(b.pit || "&mdash;") + ' - Grade ' + esc(b.granite_quality_grade || "&mdash;") + ' - Size ' + esc(b.granite_size_category || "&mdash;") + ' - ' + dims + ' - ' + (b.gross_volume || 0) + ' CBM - ' + (b.gross_tonnage || 0) + ' t</span>' +
+          '<span style="font-size:12.5px;color:#6c7680;">Export ' + esc(b.export_block_no || "-") + ' - Pit ' + esc(b.pit || "-") + ' - Grade ' + esc(b.granite_quality_grade || "-") + ' - Size ' + esc(b.granite_size_category || "-") + ' - ' + dims + ' - ' + (b.gross_volume || 0) + ' CBM - ' + (b.gross_tonnage || 0) + ' t</span>' +
           '<span style="margin-left:auto;">' + pill(b.status) + '</span>' +
         '</div>' +
-        docRow("Source Quarry Inspection", "ti-clipboard-check", "Quarry Inspection", b.source_quarry_inspection) +
-        docRow("Source Buyer Inspection", "ti-table", "Buyer Inspection", b.buyer_inspection) +
-        docRow("Delivery Challan", "ti-truck-delivery", "Delivery Challan", dcName) +
+        docRows("Source Quarry Inspection", "ti-clipboard-check", "Quarry Inspection", qiNames) +
+        docRows("Source Buyer Inspection", "ti-table", "Buyer Inspection", biNames) +
+        docRows("Delivery Challan", "ti-truck-delivery", "Delivery Challan", dcNames) +
       '</div>';
     Array.prototype.forEach.call(out.querySelectorAll(".di-eye"), function (btn) {
       btn.onclick = function () { openPdf(btn.getAttribute("data-dt"), btn.getAttribute("data-nm")); };
@@ -166,7 +185,8 @@
       "#di-trace .drl{font-size:10.5px;color:" + GOLDTX + ";text-transform:uppercase;letter-spacing:.04em;font-weight:600;}" +
       "#di-trace .drn{font-weight:600;color:" + NAVY + ";cursor:pointer;}" +
       "#di-trace .di-eye,#di-trace .di-open{border:1px solid #d7dbe0;background:#fff;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:12px;white-space:nowrap;color:" + NAVY + ";margin-left:6px;}" +
-      "#di-trace .di-eye:hover,#di-trace .di-open:hover{background:#f6f3ea;border-color:" + GOLD + ";}";
+      "#di-trace .di-eye:hover,#di-trace .di-open:hover{background:#f6f3ea;border-color:" + GOLD + ";}" +
+      "#di-trace .di-pv{margin:0 0 8px 0;border-left:3px solid " + GOLD + ";border-radius:0 8px 8px 0;background:#f7f8fa;padding:9px 12px;font-size:12.5px;}";
     document.head && document.head.appendChild(st);
   }
   setInterval(injectTrace, 800);
