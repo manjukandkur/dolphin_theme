@@ -48,6 +48,13 @@
 #mvapp .linkbtn{font-size:12px;color:var(--navy);background:none;border:none;cursor:pointer;text-decoration:underline;padding:0}
 #mvapp .empty{background:var(--card);border:1px dashed var(--line);border-radius:12px;padding:26px;text-align:center;color:var(--muted)}
 #mvapp .legend{font-size:11px;color:var(--muted);margin-top:14px;display:flex;gap:14px;flex-wrap:wrap}
+
+.cmp .box:first-child{background:#EEEDFE;border-color:#CECBF6}
+.cmp .box:first-child .lbl{color:#3C3489}
+.cmp .box:first-child .val{color:#26215C}
+.cmp .box:nth-child(2){background:#E1F5EE;border-color:#9FE1CB}
+.cmp .box:nth-child(2) .lbl{color:#0F6E56}
+.cmp .box:nth-child(2) .val{color:#04342C}
 </style>
 <div id="mvapp">
   <div class="header">
@@ -59,10 +66,6 @@
     <button class="btn" onclick="mvReload()">&#8635; Reload</button>
   </div>
   <div class="controls">
-    <div class="ctl"><label>By inspection</label><select id="biSel" onchange="onBI()"></select></div>
-    <div class="ctl"><label>Consignee</label><select id="consSel" onchange="onFilter()"></select></div>
-    <div class="ctl"><label>From date</label><input id="dFrom" type="date" onchange="onFilter()"></div>
-    <div class="ctl"><label>To date</label><input id="dTo" type="date" onchange="onFilter()"></div>
     <div class="ctl"><label>Search block no.</label>
       <div class="searchrow">
         <input id="blkSearch" placeholder="e.g. 1235" onkeydown="if(event.key==='Enter')onSearch()">
@@ -72,7 +75,11 @@
     <div class="ctl"><label>Side tolerance (cm)</label><input id="tolCm" type="number" min="0" step="1" value="0" onchange="render()"></div>
     <div class="ctl"><label>Volume tolerance (%)</label><input id="tolVol" type="number" min="0" step="0.5" value="0" onchange="render()"></div>
     <div class="ctl"><label>Tonnage factor</label><input id="sg" type="number" min="0" step="0.05" value="2.8" onchange="render()"></div>
-  </div>
+  <div class="ctl"><label>By inspection</label><select id="biSel" onchange="onBI()"></select></div>
+    <div class="ctl"><label>Consignee</label><select id="consSel" onchange="onFilter()"></select></div>
+    <div class="ctl"><label>From date</label><input id="dFrom" type="date" onchange="onFilter()"></div>
+    <div class="ctl"><label>To date</label><input id="dTo" type="date" onchange="onFilter()"></div>
+    </div>
   <div class="tiles" id="tiles"></div>
   <div class="chips" id="chips">
     <span class="chip on" data-f="flagged" onclick="setFilter('flagged')">Only flagged</span>
