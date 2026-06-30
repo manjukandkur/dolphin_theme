@@ -1,0 +1,79 @@
+{% raw %}
+<style>
+:root{--navy:#0F2540;--gold:#D4A24A}
+#dcfvapp{font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#23314a;max-width:1180px;margin:0 auto;padding:10px 14px}
+#dcfvapp .hd{background:var(--navy);border-radius:14px;padding:16px 20px;display:flex;align-items:center;gap:14px}
+#dcfvapp .hd .lg{width:44px;height:44px;border-radius:50%;border:2px solid var(--gold);display:flex;align-items:center;justify-content:center;color:var(--gold);font-size:19px;font-weight:600;flex:none}
+#dcfvapp .hd .ttl{color:#fff;font-size:17px;font-weight:600}
+#dcfvapp .hd .sub{color:#9fb0c4;font-size:12.5px}
+#dcfvapp .rule{height:3px;background:var(--gold);border-radius:2px;margin:0 2px 12px}
+#dcfvapp .bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:12px 0}
+#dcfvapp .seg{display:inline-flex;border:1px solid var(--navy);border-radius:8px;overflow:hidden}
+#dcfvapp .seg button{border:none;background:#fff;color:var(--navy);font-size:12.5px;padding:6px 14px;cursor:pointer}
+#dcfvapp .seg button.on{background:var(--navy);color:#fff}
+#dcfvapp .sp{flex:1}
+#dcfvapp .btn{height:32px;padding:0 13px;font-size:12.5px;border-radius:7px;border:1px solid #cfd4dc;background:#fff;cursor:pointer;color:#23314a}
+#dcfvapp .btn.gold{background:var(--gold);border:none;color:#3a2a06}
+#dcfvapp .tot{font-size:12px;color:#6b7280}
+#dcfvapp table.fvt{width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed;border:1px solid #e6d9bf;border-radius:12px;overflow:hidden}
+#dcfvapp .fvt thead th{background:#13325c;color:#fff;font-weight:600;text-align:left;padding:8px 9px}
+#dcfvapp .fvt td{padding:7px 9px;vertical-align:top;border-top:1px solid #efe3c8}
+#dcfvapp .dccell{background:var(--navy);color:#fff;vertical-align:top;border-top:2px solid var(--gold)}
+#dcfvapp .dccell .no{font-weight:600;font-size:12.5px}
+#dcfvapp .dccell .meta{color:#9fb0c4;font-size:10.5px;margin:3px 0 8px;line-height:1.5}
+#dcfvapp .dccell a{width:26px;height:26px;border-radius:6px;border:1px solid rgba(212,162,74,.6);display:inline-flex;align-items:center;justify-content:center;color:var(--gold);text-decoration:none;margin-right:4px;font-size:13px}
+#dcfvapp .pill{padding:2px 9px;border-radius:20px;font-size:10.5px;font-weight:600;white-space:nowrap}
+#dcfvapp .empty{padding:16px;color:#6b7280}
+@media print{.bar .btn{display:none}}
+</style>
+<div id="dcfvapp">
+  <div class="hd"><div class="lg">D</div><div><div class="ttl">Dispatched Blocks &mdash; Consolidated</div><div class="sub">Dolphin International &middot; all blocks dispatched via delivery challan</div></div></div>
+  <div class="rule"></div>
+  <div class="bar">
+    <span class="seg" id="seg"><button data-f="all" class="on">All DCs</button><button data-f="At Port">At port</button><button data-f="Shipped">Shipped</button></span>
+    <span class="sp"></span>
+    <span class="tot" id="tot"></span>
+    <button class="btn gold" onclick="window.print()">Print</button>
+  </div>
+  <div id="body"><div class="empty">Loading dispatched blocks&hellip;</div></div>
+</div>
+<script>
+(function(){
+  var SAND=['#fdf6e6','#f4e6c4'];
+  var SC={'Shipped':['#15a06a','#fff'],'At Port':['#e98a3c','#3d1f06'],'Dispatched/Transported':['#cfe0f5','#0c447c'],'In Delivery Challan':['#f6e3c0','#6b4a09']};
+  var filter='all',_b=null,_m=null;
+  function api(dt,filters,fields){
+    var u='/api/method/frappe.client.get_list?doctype='+encodeURIComponent(dt)+'&filters='+encodeURIComponent(JSON.stringify(filters))+'&fields='+encodeURIComponent(JSON.stringify(fields))+'&limit_page_length=0';
+    return fetch(u,{credentials:'include'}).then(function(r){return r.json();}).then(function(j){return j.message||[];});
+  }
+  function pill(s){var c=SC[s]||['#eee','#333'];return '<span class="pill" style="background:'+c[0]+';color:'+c[1]+'">'+s+'</span>';}
+  function pdf(dc){return '/api/method/frappe.utils.print_format.download_pdf?doctype=Delivery%20Challan&name='+encodeURIComponent(dc)+'&format=Dolphin%20Delivery%20Challan';}
+  function view(dc){return '/app/print/Delivery%20Challan/'+encodeURIComponent(dc);}
+  function render(){
+    var body=document.getElementById('body');
+    var byDC={};_b.forEach(function(b){(byDC[b.delivery_challan]=byDC[b.delivery_challan]||[]).push(b);});
+    var h='<table class="fvt"><colgroup><col style="width:27%"><col style="width:15%"><col style="width:24%"><col style="width:13%"><col style="width:12%"><col style="width:9%"></colgroup><thead><tr><th>Delivery challan</th><th>Export no</th><th>L&times;W&times;H</th><th style="text-align:right">CBM</th><th style="text-align:right">Tonnage</th><th>Status</th></tr></thead><tbody>';
+    var gt=0,gc=0;
+    Object.keys(byDC).sort().forEach(function(dc){
+      var bl=byDC[dc].filter(function(b){return filter==='all'||b.status===filter;});
+      if(!bl.length)return;
+      var m=_m[dc]||{},cbm=0;bl.forEach(function(b){cbm+=(+b.gross_volume||0);gt+=(+b.gross_tonnage||0);});gc+=bl.length;
+      bl.forEach(function(b,i){
+        h+='<tr style="background:'+SAND[i%2]+'">';
+        if(i===0){h+='<td class="dccell" rowspan="'+bl.length+'"><div class="no">&#128666; '+dc+'</div><div class="meta">'+(m.export_consignee||m.consignee||'&mdash;')+'<br>'+(m.shipping_mark||'')+' &middot; '+(m.sale_type||'')+' &middot; '+(m.dc_date||'')+'</div><div><a href="'+view(dc)+'" target="_blank" title="View">&#128065;</a><a href="'+pdf(dc)+'" title="PDF">&#11015;</a><a href="'+view(dc)+'" target="_blank" title="Print">&#128424;</a></div><div class="meta" style="margin-top:8px">'+bl.length+' blocks &middot; '+cbm.toFixed(2)+' cbm</div></td>';}
+        var dim=(b.length_gross||'')+'&times;'+(b.width_gross||'')+'&times;'+(b.height_gross||'');
+        h+='<td style="font-weight:600">'+(b.export_block_no||'&mdash;')+'</td><td>'+dim+'</td><td style="text-align:right">'+(+b.gross_volume||0).toFixed(2)+'</td><td style="text-align:right">'+(+b.gross_tonnage||0).toFixed(2)+'</td><td>'+pill(b.status)+'</td></tr>';
+      });
+    });
+    h+='</tbody></table>';
+    body.innerHTML=(gc===0?'<div class="empty">No blocks for this filter.</div>':'')+h;
+    document.getElementById('tot').textContent=gc+' blocks &middot; '+gt.toFixed(2)+' t';
+  }
+  document.querySelectorAll('#seg button').forEach(function(btn){btn.addEventListener('click',function(){document.querySelectorAll('#seg button').forEach(function(x){x.classList.remove('on');});btn.classList.add('on');filter=btn.dataset.f;render();});});
+  api('Quarry Block',[['delivery_challan','is','set']],['name','export_block_no','status','delivery_challan','length_gross','width_gross','height_gross','gross_volume','gross_tonnage']).then(function(blocks){
+    _b=blocks;var dcs=[];blocks.forEach(function(b){if(dcs.indexOf(b.delivery_challan)<0)dcs.push(b.delivery_challan);});
+    return api('Delivery Challan',[['name','in',dcs]],['name','export_consignee','consignee','shipping_mark','dc_date','sale_type']).then(function(dd){_m={};dd.forEach(function(d){_m[d.name]=d;});render();});
+  }).catch(function(e){document.getElementById('body').innerHTML='<div class="empty">Could not load dispatched blocks. '+((e&&e.message)||'')+'</div>';});
+})();
+</script>
+{% endraw %}
