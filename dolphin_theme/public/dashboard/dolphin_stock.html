@@ -154,6 +154,7 @@ tbody tr:hover{background:#f7fafe;}
 <div class="tabs">
 <button id="tabStock" class="on">Stock &amp; reports</button>
 <button id="tabNego">Sales negotiation</button>
+			<button id="tabDownloads">Downloads</button>
 </div>
 <div class="ctrlbar">
 <span class="cb-lab">Tonnage factor (DMG)</span>
@@ -593,13 +594,139 @@ function ngLoadLots(){
 
 /* ---------- shell ---------- */
 function clearFilters(){sel={grade:new Set(),size:new Set(),pit:new Set(),status:new Set()};vol={min:null,max:null};dims={L:null,W:null,H:null,tol:10};period={from:null,to:null};sizeMode="gte";}
+/* ===== Dolphin Download Hub (tab D) ===== */
+var DL_PF={"Quarry Inspection":"Quarry Inspection - Report","Buyer Inspection":"Buyer Inspection - Report","Delivery Challan":"Dolphin Delivery Challan"};
+var DL_LABEL={"Quarry Inspection":"QI","Buyer Inspection":"BI","Delivery Challan":"Challan"};
+var dlData=null;
+var dlState={dt:"all",cons:"",status:"all",q:"",df:"",dtto:"",ef:"",et:""};
+function dlPdfUrl(dt,name){return '/api/method/frappe.utils.print_format.download_pdf?doctype='+encodeURIComponent(dt)+'&name='+encodeURIComponent(name)+'&format='+encodeURIComponent(DL_PF[dt])+'&no_letterhead=0';}
+function dlViewUrl(dt,name){return '/printview?doctype='+encodeURIComponent(dt)+'&name='+encodeURIComponent(name)+'&format='+encodeURIComponent(DL_PF[dt])+'&no_letterhead=0&trigger_print=0';}
+function dlStatusLabel(ds){return ds===2?'Cancelled':(ds===1?'Submitted':'Draft');}
+function dlModal(dt,name){
+  var ov=document.createElement('div');
+  ov.style.cssText='position:fixed;inset:0;background:rgba(15,37,64,.55);z-index:99999;display:flex;align-items:center;justify-content:center;';
+  var box=document.createElement('div');
+  box.style.cssText='background:#fff;width:92%;max-width:920px;height:86%;border-radius:10px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 12px 44px rgba(0,0,0,.35);';
+  var bar=document.createElement('div');
+  bar.style.cssText='display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:#0F2540;color:#fff;font-weight:600;font-size:14px;';
+  var lab=document.createElement('span'); lab.textContent=(DL_LABEL[dt]||dt)+' · '+name;
+  var actions=document.createElement('div'); actions.style.cssText='display:flex;align-items:center;gap:16px;';
+  var dlBtn=document.createElement('a'); dlBtn.href=dlPdfUrl(dt,name); dlBtn.target='_blank';
+  dlBtn.textContent='Download PDF'; dlBtn.style.cssText='color:#D4A24A;text-decoration:none;font-size:13px;font-weight:600;';
+  var cl=document.createElement('span'); cl.textContent='✕'; cl.style.cssText='cursor:pointer;font-size:18px;line-height:1;';
+  actions.appendChild(dlBtn); actions.appendChild(cl); bar.appendChild(lab); bar.appendChild(actions);
+  var fr=document.createElement('iframe'); fr.src=dlViewUrl(dt,name);
+  fr.style.cssText='flex:1;border:0;width:100%;background:#fff;';
+  box.appendChild(bar); box.appendChild(fr); ov.appendChild(box); document.body.appendChild(ov);
+  function close(){ if(ov.parentNode)ov.parentNode.removeChild(ov); }
+  cl.onclick=close; ov.onclick=function(e){ if(e.target===ov)close(); };
+  document.addEventListener('keydown',function esc(e){ if(e.key==='Escape'){close();document.removeEventListener('keydown',esc);} });
+}
+async function dlLoad(){
+  if(dlData)return dlData;
+  var L='&limit_page_length=0';
+  var qi=await api('/api/method/frappe.client.get_list?doctype=Quarry%20Inspection&fields=["name","report_date","docstatus","creation"]&order_by=creation%20desc'+L);
+  var bi=await api('/api/method/frappe.client.get_list?doctype=Buyer%20Inspection&fields=["name","report_date","docstatus","creation","export_buyer"]&order_by=creation%20desc'+L);
+  var dc=await api('/api/method/frappe.client.get_list?doctype=Delivery%20Challan&fields=["name","dc_date","docstatus","creation","export_consignee"]&order_by=creation%20desc'+L);
+  var dcMap={},biMap={};
+  try{var dcc=await api('/api/method/frappe.client.get_list?doctype=DC%20Block%20Row&fields=["parent","export_block_no"]'+L+'&parent=Delivery%20Challan');(dcc||[]).forEach(function(r){if(r.export_block_no){(dcMap[r.parent]=dcMap[r.parent]||[]).push(String(r.export_block_no));}});}catch(e){}
+  try{var bic=await api('/api/method/frappe.client.get_list?doctype=Buyer%20Inspection%20Block&fields=["parent","export_block_no"]'+L+'&parent=Buyer%20Inspection');(bic||[]).forEach(function(r){if(r.export_block_no){(biMap[r.parent]=biMap[r.parent]||[]).push(String(r.export_block_no));}});}catch(e){}
+  var cons=[];
+  try{var cl=await api('/api/method/frappe.client.get_list?doctype=Export%20Consignee&fields=["name"]'+L+'&order_by=name%20asc');cons=(cl||[]).map(function(c){return c.name;});}catch(e){}
+  var recs=[];
+  (qi||[]).forEach(function(d){recs.push({dt:'Quarry Inspection',name:d.name,date:d.report_date,ds:d.docstatus,cons:'',exps:[],creation:d.creation});});
+  (bi||[]).forEach(function(d){recs.push({dt:'Buyer Inspection',name:d.name,date:d.report_date,ds:d.docstatus,cons:d.export_buyer||'',exps:biMap[d.name]||[],creation:d.creation});});
+  (dc||[]).forEach(function(d){recs.push({dt:'Delivery Challan',name:d.name,date:d.dc_date,ds:d.docstatus,cons:d.export_consignee||'',exps:dcMap[d.name]||[],creation:d.creation});});
+  recs.sort(function(a,b){return String(b.creation||'').localeCompare(String(a.creation||''));});
+  dlData={recs:recs,cons:cons};
+  return dlData;
+}
+function dlApply(recs){
+  var s=dlState;
+  return recs.filter(function(r){
+    if(s.dt!=='all' && r.dt!==s.dt)return false;
+    if(s.status!=='all' && String(r.ds)!==s.status)return false;
+    if(s.cons && r.cons!==s.cons)return false;
+    if(s.df && (!r.date || r.date<s.df))return false;
+    if(s.dtto && (!r.date || r.date>s.dtto))return false;
+    if(s.ef||s.et){
+      var lo=s.ef?parseInt(s.ef,10):-Infinity, hi=s.et?parseInt(s.et,10):Infinity;
+      var any=(r.exps||[]).some(function(x){var n=parseInt(x,10);return !isNaN(n)&&n>=lo&&n<=hi;});
+      if(!any)return false;
+    }
+    if(s.q){var q=s.q.toLowerCase();var hay=(r.name+' '+r.cons+' '+(r.exps||[]).join(' ')).toLowerCase();if(hay.indexOf(q)===-1)return false;}
+    return true;
+  });
+}
+async function renderDownloads(){
+  var app=document.getElementById('app');
+  app.innerHTML='<div class="center">Loading documents…</div>';
+  var data;
+  try{ data=await dlLoad(); }catch(e){ app.innerHTML='<div class="center">Could not load documents ('+(e.message||e)+')</div>'; return; }
+  var consOpts='<option value="">All consignees</option>'+data.cons.map(function(c){return '<option value="'+c+'">'+c+'</option>';}).join('');
+  var dtPills=[['all','All'],['Quarry Inspection','QI'],['Buyer Inspection','BI'],['Delivery Challan','Challan']].map(function(p){
+    return '<button class="dlPill" data-v="'+p[0]+'" style="padding:5px 14px;border:1px solid #d8dee6;background:'+(dlState.dt===p[0]?'#0F2540':'#fff')+';color:'+(dlState.dt===p[0]?'#fff':'#33414f')+';cursor:pointer;font-size:13px;">'+p[1]+'</button>';
+  }).join('');
+  app.innerHTML=''
+    +'<div class="card" style="margin:14px;padding:14px 16px;">'
+    +'<div style="display:flex;gap:6px;margin-bottom:12px;border-radius:6px;overflow:hidden;width:max-content;">'+dtPills+'</div>'
+    +'<div style="display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end;">'
+    +'<div><div class="flab" style="font-size:11px;color:#7a8694;">From date</div><input type="date" id="dlDf" value="'+dlState.df+'" style="padding:5px;border:1px solid #d8dee6;border-radius:5px;"></div>'
+    +'<div><div class="flab" style="font-size:11px;color:#7a8694;">To date</div><input type="date" id="dlDt" value="'+dlState.dtto+'" style="padding:5px;border:1px solid #d8dee6;border-radius:5px;"></div>'
+    +'<div><div class="flab" style="font-size:11px;color:#7a8694;">Export No from</div><input type="number" id="dlEf" value="'+dlState.ef+'" placeholder="e.g. 95001" style="width:120px;padding:5px;border:1px solid #d8dee6;border-radius:5px;"></div>'
+    +'<div><div class="flab" style="font-size:11px;color:#7a8694;">Export No to</div><input type="number" id="dlEt" value="'+dlState.et+'" placeholder="e.g. 95200" style="width:120px;padding:5px;border:1px solid #d8dee6;border-radius:5px;"></div>'
+    +'<div><div class="flab" style="font-size:11px;color:#7a8694;">Consignee</div><select id="dlCons" style="padding:5px;border:1px solid #d8dee6;border-radius:5px;">'+consOpts+'</select></div>'
+    +'<div><div class="flab" style="font-size:11px;color:#7a8694;">Status</div><select id="dlStatus" style="padding:5px;border:1px solid #d8dee6;border-radius:5px;"><option value="all">All</option><option value="0">Draft</option><option value="1">Submitted</option><option value="2">Cancelled</option></select></div>'
+    +'<div><div class="flab" style="font-size:11px;color:#7a8694;">Search</div><input type="text" id="dlQ" value="'+dlState.q+'" placeholder="name / export / consignee" style="width:200px;padding:5px;border:1px solid #d8dee6;border-radius:5px;"></div>'
+    +'<button id="dlClear" class="btn ghost" style="padding:6px 14px;">Clear</button>'
+    +'</div>'
+    +'<div id="dlCount" class="muted" style="margin-top:12px;font-size:12px;"></div>'
+    +'<div class="tablewrap" style="margin-top:6px;max-height:calc(100vh - 320px);"><table style="width:100%;border-collapse:collapse;"><thead><tr>'
+    +'<th style="text-align:left;padding:7px 10px;">Type</th><th style="text-align:left;padding:7px 10px;">Document</th><th style="text-align:left;padding:7px 10px;">Date</th><th style="text-align:left;padding:7px 10px;">Export No(s)</th><th style="text-align:left;padding:7px 10px;">Consignee</th><th style="text-align:left;padding:7px 10px;">Status</th><th style="text-align:right;padding:7px 10px;">Actions</th>'
+    +'</tr></thead><tbody id="dlBody"></tbody></table></div>'
+    +'</div>';
+  function draw(){
+    var filtered=dlApply(data.recs);
+    var show=filtered.slice(0,150);
+    document.getElementById('dlCount').textContent='Showing '+show.length+' of '+filtered.length+' documents (newest first)';
+    document.getElementById('dlBody').innerHTML=show.map(function(r){
+      var badge='<span style="display:inline-block;padding:1px 8px;border-radius:10px;font-size:11px;font-weight:600;background:'+(r.dt==='Quarry Inspection'?'#eaf6f0;color:#1D9E75':r.dt==='Buyer Inspection'?'#eaf1fc;color:#2F80ED':'#fdf3e3;color:#C9871F')+';">'+(DL_LABEL[r.dt])+'</span>';
+      var exps=(r.exps||[]).slice(0,6).join(', ')+((r.exps||[]).length>6?' …':'');
+      var st=dlStatusLabel(r.ds);
+      return '<tr style="border-top:1px solid #eef1f5;">'
+        +'<td style="padding:6px 10px;">'+badge+'</td>'
+        +'<td style="padding:6px 10px;font-weight:600;">'+r.name+'</td>'
+        +'<td style="padding:6px 10px;">'+(r.date||'—')+'</td>'
+        +'<td style="padding:6px 10px;color:#5a6573;">'+(exps||'—')+'</td>'
+        +'<td style="padding:6px 10px;">'+(r.cons||'—')+'</td>'
+        +'<td style="padding:6px 10px;">'+st+'</td>'
+        +'<td style="padding:6px 10px;text-align:right;white-space:nowrap;">'
+        +'<button class="dlEye btn ghost" data-dt="'+r.dt+'" data-n="'+String(r.name).replace(/"/g,'&quot;')+'" style="padding:3px 9px;margin-right:5px;">View</button>'
+        +'<a class="btn ghost" href="'+dlPdfUrl(r.dt,r.name)+'" target="_blank" style="padding:3px 9px;text-decoration:none;">PDF</a>'
+        +'</td></tr>';
+    }).join('') || '<tr><td colspan="7" style="padding:18px;text-align:center;color:#9aa3ad;">No documents match these filters.</td></tr>';
+    Array.prototype.forEach.call(document.querySelectorAll('.dlEye'),function(b){ b.onclick=function(){ dlModal(b.getAttribute('data-dt'), b.getAttribute('data-n')); }; });
+  }
+  Array.prototype.forEach.call(document.querySelectorAll('.dlPill'),function(b){ b.onclick=function(){ dlState.dt=b.getAttribute('data-v'); renderDownloads(); }; });
+  document.getElementById('dlDf').onchange=function(){dlState.df=this.value;draw();};
+  document.getElementById('dlDt').onchange=function(){dlState.dtto=this.value;draw();};
+  document.getElementById('dlEf').oninput=function(){dlState.ef=this.value;draw();};
+  document.getElementById('dlEt').oninput=function(){dlState.et=this.value;draw();};
+  document.getElementById('dlCons').value=dlState.cons; document.getElementById('dlCons').onchange=function(){dlState.cons=this.value;draw();};
+  document.getElementById('dlStatus').value=dlState.status; document.getElementById('dlStatus').onchange=function(){dlState.status=this.value;draw();};
+  document.getElementById('dlQ').oninput=function(){dlState.q=this.value;draw();};
+  document.getElementById('dlClear').onclick=function(){dlState={dt:'all',cons:'',status:'all',q:'',df:'',dtto:'',ef:'',et:''};renderDownloads();};
+  draw();
+}
+
 function setView(v){view=v;
 document.getElementById("tabStock").className=v==="stock"?"on":"";
 document.getElementById("tabNego").className=v==="nego"?"on":"";
-if(v==="nego")renderNego();else renderStock();}
+var _td=document.getElementById("tabDownloads");if(_td)_td.className=v==="downloads"?"on":"";var _cb=document.querySelector(".ctrlbar");if(_cb)_cb.style.display=v==="downloads"?"none":"";if(v==="downloads")renderDownloads();else if(v==="nego")renderNego();else renderStock();}
 function buildDmg(){var s=document.getElementById("dmgSel");s.innerHTML=dmgFactors.map(function(f){return '<option value="'+f+'"'+(Math.abs(f-factor)<1e-6?' selected':'')+'>'+f.toFixed(2)+'</option>';}).join("");s.onchange=function(){factor=+this.value;setView(view);};}
 document.getElementById("tabStock").onclick=function(){setView("stock");};
 document.getElementById("tabNego").onclick=function(){setView("nego");};
+var _tdb=document.getElementById("tabDownloads");if(_tdb)_tdb.onclick=function(){setView("downloads");};
 document.getElementById("reload").onclick=function(){boot();};
 document.getElementById("reset").onclick=function(){clearFilters();sort={key:"vol",dir:-1};setView(view==="reports"?"stock":view);};
 
