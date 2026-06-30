@@ -1,7 +1,5 @@
 /* ============================================================
    Dolphin theme add-ons (loaded on every desk page via hooks).
-   A) Block grids (QI/BI/DC): open with 10 rows, +10/+25/+50
-      buttons, drop completely-empty rows on save.
    B) Quarry Block list: hide the "+ Add Quarry Block" primary
       action (blocks are created through Quarry Inspection).
    C) Stock Dashboard (dolphin-stock page): inject a "TRACE A
@@ -9,46 +7,12 @@
       with eye-previews + open. Dashboard navy/gold theme; the
       three documents are told apart by their ICONS.
    Purely additive and reversible; does not touch other code.
+   NOTE: the block-grid bulk-rows feature (auto 10 rows +
+   +10/+25/+50 buttons) was removed - it interfered with new
+   forms; rows are added normally via the standard grid.
    ============================================================ */
 (function () {
   "use strict";
-
-  /* ---------------- A) block-grid helpers ---------------- */
-  var GRID = { "Buyer Inspection": "block_rows", "Quarry Inspection": "block_rows", "Delivery Challan": "dc_block_rows" };
-  function keyFields(dt) {
-    if (dt === "Quarry Inspection") return ["quarry_block_no", "length_gross", "width_gross", "height_gross"];
-    if (dt === "Buyer Inspection") return ["block", "block_number_input", "export_block_no", "length_gross", "width_gross", "height_gross"];
-    return ["block", "block_number_input", "export_block_no"];
-  }
-  function isBlank(v) { return v === undefined || v === null || v === "" || v === 0; }
-  function isEmptyRow(row, keys) { for (var i = 0; i < keys.length; i++) { if (!isBlank(row[keys[i]])) return false; } return true; }
-  function addBulkButtons(frm, fn) {
-    var f = frm.fields_dict[fn];
-    if (!f || !f.grid || typeof f.grid.add_custom_button !== "function") return;
-    [50, 25, 10].forEach(function (n) {
-      f.grid.add_custom_button("+ " + n + " rows", function () { for (var i = 0; i < n; i++) frm.add_child(fn); frm.refresh_field(fn); });
-    });
-  }
-  function defaultRows(frm, fn) {
-    if (!frm.is_new() || frm.__bulkDefaulted) return;
-    frm.__bulkDefaulted = true;
-    var have = (frm.doc[fn] || []).length;
-    for (var i = have; i < 10; i++) frm.add_child(fn);
-    frm.refresh_field(fn);
-  }
-  function pruneEmpty(frm, fn, dt) {
-    var keys = keyFields(dt), rows = frm.doc[fn] || [];
-    var kept = rows.filter(function (r) { return !isEmptyRow(r, keys); });
-    if (kept.length !== rows.length) { frm.doc[fn] = kept; kept.forEach(function (r, i) { r.idx = i + 1; }); frm.refresh_field(fn); }
-  }
-  Object.keys(GRID).forEach(function (dt) {
-    var fn = GRID[dt];
-    frappe.ui.form.on(dt, {
-      refresh: function (frm) { addBulkButtons(frm, fn); defaultRows(frm, fn); },
-      before_save: function (frm) { pruneEmpty(frm, fn, dt); },
-      validate: function (frm) { pruneEmpty(frm, fn, dt); }
-    });
-  });
 
   /* ---------------- B) hide "+ Add Quarry Block" ---------------- */
   var prevQB = frappe.listview_settings["Quarry Block"] || {};
