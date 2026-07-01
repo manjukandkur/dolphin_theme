@@ -1043,6 +1043,7 @@ frappe.provide("dolphin");
     } else { window.open(base,'_blank'); }
     return false;
   };
+  document.addEventListener('click',function(e){try{var a=e.target.closest&&e.target.closest('a[href*="print_format.download_pdf"]');if(!a)return;var u=new URL(a.getAttribute('href'),location.origin);var dt=u.searchParams.get('doctype'),nm=u.searchParams.get('name'),fmt=u.searchParams.get('format');if(dt&&nm){e.preventDefault();e.stopPropagation();window.dolphinPreview(dt,nm,fmt);}}catch(err){}},true);
   function traceRow(kind,label,dt,name,fmt,color){
     var eye=name?'<button class="btn btn-xs" style="border:1px solid '+color+';color:'+color+';background:#fff;border-radius:10px;padding:1px 9px;font-size:12px" onclick="return window.dolphinPreview(\''+dt+'\',\''+esc(name)+'\',\''+fmt+'\')">\uD83D\uDC41 view</button>':'';
     var nm=name?'<b>'+esc(name)+'</b>':'<span style="color:#8a929c">\u2014 not yet</span>';
