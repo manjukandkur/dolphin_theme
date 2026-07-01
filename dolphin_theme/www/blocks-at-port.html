@@ -1,0 +1,93 @@
+{% raw %}
+<style>
+:root{--navy:#16304F;--gold:#D4A24A}
+#bapapp{font-family:inherit;max-width:1180px;margin:0 auto;padding:10px 14px;color:#1f2a3a}
+#bapapp .hd{background:var(--navy);color:#fff;border-radius:12px;padding:16px 20px;display:flex;align-items:center;gap:14px;border-bottom:3px solid var(--gold)}
+#bapapp .hd .ic{width:44px;height:44px;border-radius:50%;border:2px solid var(--gold);display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--gold);font-size:18px}
+#bapapp h1{font-size:19px;margin:0}
+#bapapp .sub{font-size:12px;opacity:.85;margin-top:2px}
+#bapapp .bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:14px 0}
+#bapapp label{font-size:12px;color:#374151}
+#bapapp select,#bapapp input{padding:7px 10px;border:1px solid #cfd4dc;border-radius:6px;font-size:13px;margin-left:4px}
+#bapapp .push{background:#128666;color:#fff;border:none;font-weight:700;padding:9px 18px;border-radius:6px;font-size:13px;cursor:pointer}
+#bapapp .push:disabled{opacity:.45;cursor:not-allowed}
+#bapapp .count{margin-left:auto;font-size:13px;color:#374151;font-weight:600}
+#bapapp table{width:100%;border-collapse:collapse;font-size:12px;margin-top:4px}
+#bapapp th{background:var(--navy);color:#fff;padding:8px;text-align:left}
+#bapapp td{padding:7px 8px;border-top:1px solid #efe3c8}
+#bapapp tbody tr:nth-child(even) td{background:#fdf6e6}
+#bapapp .empty{padding:22px;text-align:center;color:#888}
+#bapapp a.ico{margin:0 4px;text-decoration:none;font-size:15px}
+#bapapp .nodc{color:#9a6b12;font-weight:600}
+#bapapp .ok{background:#eaf7ee;border:1px solid #bfe6cb;color:#1f7a3d;border-radius:8px;padding:10px 14px;margin:10px 0;font-size:13px}
+</style>
+<div id="bapapp">
+  <div class="hd"><div class="ic">&#9875;</div><div><h1>Blocks At Port</h1><div class="sub">Dolphin International &middot; push at-port blocks straight to an Export Shipment Lot &mdash; no Delivery Challan needed</div></div></div>
+  <div id="msg"></div>
+  <div class="bar">
+    <label>Consignee <select id="consignee"><option value="">&mdash; select &mdash;</option></select></label>
+    <label>Mark <input id="mark" style="width:100px" placeholder="optional"></label>
+    <label>Vessel <input id="vessel" style="width:120px" placeholder="optional"></label>
+    <button class="push" id="pushbtn" disabled>Push &rarr; Export Shipment Lot</button>
+    <span class="count" id="count">&mdash;</span>
+  </div>
+  <div id="body"><div class="empty">Loading at-port blocks&hellip;</div></div>
+</div>
+<script>
+(function(){
+  var TOKEN=null, ROWS=[];
+  function api(dt,filters,fields){var u='/api/method/frappe.client.get_list?doctype='+encodeURIComponent(dt)+'&filters='+encodeURIComponent(JSON.stringify(filters))+'&fields='+encodeURIComponent(JSON.stringify(fields))+'&limit_page_length=0';return fetch(u,{credentials:'include'}).then(function(r){return r.json();}).then(function(j){return j.message||[];});}
+  function esc(s){return (s==null?'':(''+s)).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+  function dcpdf(dc){return '/api/method/frappe.utils.print_format.download_pdf?doctype=Delivery%20Challan&name='+encodeURIComponent(dc)+'&format=Dolphin%20Delivery%20Challan';}
+  function qb(name){return '/app/quarry-block/'+encodeURIComponent(name);}
+  function eligible(r){return r.quarry_block && (r.raw_status==='Matched' || (r.resolution_type && r.resolution_type!=='Removed (duplicate)'));}
+  function selected(){return ROWS.filter(function(r){var c=document.getElementById('cb-'+r._i);return c&&c.checked;});}
+  function updateCount(){var s=selected(),mt=0,cbm=0;s.forEach(function(r){mt+=(+r.mt||0);cbm+=(+r.cbm||0);});document.getElementById('count').textContent=s.length+' selected &middot; '+cbm.toFixed(2)+' cbm &middot; '+mt.toFixed(2)+' t';document.getElementById('count').innerHTML=s.length+' selected &middot; '+cbm.toFixed(2)+' cbm &middot; '+mt.toFixed(2)+' t';document.getElementById('pushbtn').disabled=s.length===0;}
+  function render(){
+    var body=document.getElementById('body');
+    if(!ROWS.length){body.innerHTML='<div class="empty">No blocks are currently at port and eligible to push.</div>';return;}
+    var h='<table><thead><tr><th style="width:30px"><input type="checkbox" id="all"></th><th>Block</th><th>L&times;W&times;H</th><th style="text-align:right">CBM</th><th style="text-align:right">MT</th><th>Arrival</th><th>DC</th><th>Docs</th></tr></thead><tbody>';
+    ROWS.forEach(function(r){
+      var dim=(r.length||'')+'&times;'+(r.width||'')+'&times;'+(r.height||'');
+      h+='<tr><td><input type="checkbox" class="cb" id="cb-'+r._i+'"></td>'
+        +'<td><b>'+esc(r.block_no||'')+'</b></td>'
+        +'<td>'+dim+'</td>'
+        +'<td style="text-align:right">'+(+r.cbm||0).toFixed(2)+'</td>'
+        +'<td style="text-align:right">'+(+r.mt||0).toFixed(2)+'</td>'
+        +'<td>'+esc(r.arrival||'')+'</td>'
+        +'<td>'+(r.matched_dc?esc(r.matched_dc):'<span class="nodc">no DC</span>')+'</td>'
+        +'<td><a class="ico" href="'+qb(r.quarry_block)+'" target="_blank" title="Open block (QI/BI history)">&#128065;</a>'+(r.matched_dc?'<a class="ico" href="'+dcpdf(r.matched_dc)+'" title="DC PDF">&#11015;</a>':'')+'</td></tr>';
+    });
+    h+='</tbody></table>';
+    body.innerHTML=h;
+    document.getElementById('all').addEventListener('change',function(e){document.querySelectorAll('.cb').forEach(function(c){c.checked=e.target.checked;});updateCount();});
+    document.querySelectorAll('.cb').forEach(function(c){c.addEventListener('change',updateCount);});
+    updateCount();
+  }
+  function push(){
+    var s=selected();if(!s.length)return;
+    var consignee=document.getElementById('consignee').value;
+    var mark=document.getElementById('mark').value;
+    var vessel=document.getElementById('vessel').value;
+    var btn=document.getElementById('pushbtn');btn.disabled=true;btn.textContent='Pushing…';
+    fetch('/api/method/dolphin_theme.api_arrivals.create_shipment_lot',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json','X-Frappe-CSRF-Token':TOKEN},body:JSON.stringify({consignee:consignee,mark:mark,vessel:vessel,rows:JSON.stringify(s)})})
+      .then(function(r){return r.json();})
+      .then(function(j){
+        btn.textContent='Push \u2192 Export Shipment Lot';
+        if(j.message){document.getElementById('msg').innerHTML='<div class="ok">&#10003; Created lot <b>'+esc(j.message)+'</b> with '+s.length+' block(s). <a href="/app/shipment-lot/'+encodeURIComponent(j.message)+'" target="_blank">Open &rarr;</a></div>';
+          ROWS=ROWS.filter(function(r){return s.indexOf(r)<0;});ROWS.forEach(function(r,i){r._i=i;});render();window.scrollTo(0,0);}
+        else{alert('Push failed: '+(j.exc||JSON.stringify(j)));btn.disabled=false;}
+      }).catch(function(e){alert('Push error: '+e.message);btn.disabled=false;btn.textContent='Push \u2192 Export Shipment Lot';});
+  }
+  fetch('/api/method/dolphin_theme.api_arrivals.get_token',{credentials:'include'}).then(function(r){return r.json();}).then(function(j){TOKEN=j.message;});
+  api('Export Consignee',[],['name']).then(function(cs){var sel=document.getElementById('consignee');cs.forEach(function(c){var o=document.createElement('option');o.value=c.name;o.textContent=c.name;sel.appendChild(o);});});
+  fetch('/api/method/dolphin_theme.api_arrivals.full_view',{credentials:'include'}).then(function(r){return r.json();}).then(function(j){
+    var rows=(j.message&&j.message.rows)?j.message.rows:(Array.isArray(j.message)?j.message:[]);
+    ROWS=rows.filter(eligible);
+    ROWS.forEach(function(r,i){r._i=i;});
+    render();
+  }).catch(function(e){document.getElementById('body').innerHTML='<div class="empty">Could not load at-port blocks. '+esc(e.message)+'</div>';});
+  document.getElementById('pushbtn').addEventListener('click',push);
+})();
+</script>
+{% endraw %}
