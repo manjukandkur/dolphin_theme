@@ -161,7 +161,7 @@
         if(b.suggested_block)h+='<button class="btn blue" onclick="DARR.resolve(\''+doc.name+'\',\''+b.name+'\',\'Use challan\',{block_no:\''+esc(b.suggested_block)+'\'})">Correct to '+esc(b.suggested_block)+'</button>';
         if(b.recon_status==='Dimension mismatch')h+='<button class="btn blue" onclick="DARR.resolve(\''+doc.name+'\',\''+b.name+'\',\'Use challan\')">Use challan dims</button>';
         if(b.recon_status==='Duplicate')h+='<button class="btn blue" onclick="DARR.resolve(\''+doc.name+'\',\''+b.name+'\',\'Removed (duplicate)\')">Remove (duplicate)</button>';
-        h+='<button class="btn" onclick="DARR.resolve(\''+doc.name+'\',\''+b.name+'\',\'Keep port\')">Keep port</button>';
+        h+='<button class="btn"'+((b.recon_status==='Typo - not in DC')?' style="background:#128666;border-color:#128666;color:#fff"':'')+' onclick="DARR.resolve(\''+doc.name+'\',\''+b.name+'\',\'Keep port\')">'+((b.recon_status==='Typo - not in DC')?'No DC — OK to move to lot':'Keep port')+'</button>';
         h+='<button class="btn" onclick="DARR.resolve(\''+doc.name+'\',\''+b.name+'\',\'Fixed source\')">Our mistake &mdash; fix source</button>';
         h+='<button class="btn gold" onclick="DARR.accept(\''+doc.name+'\',\''+b.name+'\')">Accept as-is</button>';
         h+='</div><div id="reason-'+b.name+'"></div>';
