@@ -15,7 +15,7 @@
 frappe.provide("dolphin");
 (function () {
   var WS = "dolphin";
-  var NAVY = "#0F2540", GOLD = "#D4A24A";
+  var NAVY = "#16304F", GOLD = "#D4A24A";
   /* Day31: lighter slate-blue for large background surfaces (sidebar/bars/dropdowns) — better
      visibility than the very dark navy. NAVY stays as the dark ink for text on gold/white. */
   var BARBG = "#24507E", BARBG2 = "#2E5E92";
@@ -256,19 +256,25 @@ frappe.provide("dolphin");
     return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:7px">' + (P[n] || P.file) + '</svg>';
   }
   var SECTIONS = [
-    { title: "Operations", items: [
+    { title: "Quarry & Inspection", items: [
       ["Quarry Block", "Quarry Block"], ["Quarry Inspection", "Quarry Inspection"],
-      ["Buyer Inspection", "Buyer Inspection"], ["Delivery Challan", "Delivery Challan"],
-      ["Measurement Variations", "/measurement-variations", null, "url"],
-      ["Sales Lot", "Sales Lot", ROLE_OWNER] ] },
-    { title: "Local Sale", roles: ROLE_BANGALORE, items: [
-      ["Local Tax Invoice", "Local Tax Invoice"],
-      ["Arrivals Reconciliation", "/app/dolphin-reconcile", null, "url", "anchor"],
-      ["Local Blocks Inspector", "Local Blocks Inspector"] ] },
-    { title: "Shipping Documents", roles: ROLE_ARRIVALS, shaded: true, items: [
-      ["Port Arrival", "Port Arrival", null, null, "anchor"],
-      ["Blocks At Port", "Blocks At Port", null, "report", "stack"],
+      ["Buyer Inspection", "Buyer Inspection"] ] },
+    { title: "Dispatch & Port", items: [
+      ["Delivery Challan", "Delivery Challan"],
+      ["Port Arrival", "Port Arrival", ROLE_ARRIVALS, null, "anchor"],
+      ["Blocks At Port", "Blocks At Port", ROLE_ARRIVALS, "report", "stack"],
+      ["Arrivals Reconciliation", "/app/dolphin-reconcile", ROLE_BANGALORE, "url", "anchor"],
+      ["Export Shipment Lot", "Shipment Lot", ROLE_ARRIVALS, null, "ship"] ] },
+    { title: "Shipping", roles: ROLE_SHIPPING, shaded: true, items: [
       ["Shipping Document", "Shipping Document", ROLE_SHIPPING, null, "ship"] ] },
+    { title: "Sales", items: [
+      ["Sale Lot", "Sales Lot", ROLE_OWNER],
+      ["Local Tax Invoice", "Local Tax Invoice", ROLE_BANGALORE],
+      ["Local Blocks Inspector", "Local Blocks Inspector", ROLE_BANGALORE] ] },
+    { title: "Reports & Views", items: [
+      ["DC Consolidated", "/dc-fullview", null, "url", "stack"],
+      ["Measurement Variations", "/measurement-variations", null, "url"],
+      ["Backups", "/app/backups", ROLE_OWNER, "url"] ] },
     { title: "Masters", subgroups: [
       { title: "Quarry", items: [
         ["Pit", "Pit"], ["Gangman", "Gangman"], ["Granite Grade", "Granite Grade"],
