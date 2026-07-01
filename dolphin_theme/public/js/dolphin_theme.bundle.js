@@ -272,6 +272,7 @@ frappe.provide("dolphin");
       ["Local Tax Invoice", "Local Tax Invoice", ROLE_BANGALORE],
       ["Local Blocks Inspector", "Local Blocks Inspector", ROLE_BANGALORE] ] },
     { title: "Reports & Views", items: [
+      ["Trace a block", "/trace-block", null, "url", "search"],
       ["DC Consolidated", "/dc-fullview", null, "url", "stack"],
       ["Measurement Variations", "/measurement-variations", null, "url"],
       ["Backups", "/app/backups", ROLE_OWNER, "url"] ] },
