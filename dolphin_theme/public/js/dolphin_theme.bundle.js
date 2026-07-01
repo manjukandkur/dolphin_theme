@@ -262,7 +262,7 @@ frappe.provide("dolphin");
     { title: "Dispatch & Port", items: [
       ["Delivery Challan", "Delivery Challan"],
       ["Port Arrival", "Port Arrival", ROLE_ARRIVALS, null, "anchor"],
-      ["Blocks At Port", "Blocks At Port", ROLE_ARRIVALS, "report", "stack"],
+      ["Blocks At Port", "/blocks-at-port", ROLE_ARRIVALS, "url", "stack"],
       ["Arrivals Reconciliation", "/app/dolphin-reconcile", ROLE_BANGALORE, "url", "anchor"],
       ["Export Shipment Lot", "Shipment Lot", ROLE_ARRIVALS, null, "ship"] ] },
     { title: "Shipping", roles: ROLE_SHIPPING, shaded: true, items: [
