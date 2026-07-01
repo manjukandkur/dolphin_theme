@@ -1,0 +1,57 @@
+{% raw %}
+<style>
+:root{--navy:#16304F;--gold:#D4A24A}
+#bsapp{font-family:inherit;max-width:1080px;margin:0 auto;padding:10px 14px;color:#1f2a3a}
+#bsapp .hd{background:var(--navy);color:#fff;border-radius:12px 12px 0 0;padding:14px 18px;border-bottom:3px solid var(--gold);display:flex;align-items:flex-end;gap:12px}
+#bsapp .hd h1{font-size:17px;margin:0;font-weight:600}
+#bsapp .hd .sub{font-size:11px;color:#c7d2e0;margin-top:2px}
+#bsapp .prt{margin-left:auto;background:var(--gold);color:#3a2a06;border:none;font-weight:700;padding:7px 14px;border-radius:6px;font-size:13px;cursor:pointer}
+#bsapp table{width:100%;border-collapse:collapse;font-size:11px;background:#fff;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px;overflow:hidden}
+#bsapp th{background:var(--navy);color:#fff;padding:7px 6px;text-align:left}
+#bsapp td{padding:6px;border-top:1px solid #efe3c8;vertical-align:top}
+#bsapp tr:nth-child(even) td{background:#fdf6e6}
+#bsapp a{color:#185fa5;text-decoration:none}
+#bsapp .pill{font-size:11px;padding:1px 7px;border-radius:10px;font-weight:600}
+#bsapp .tot{font-size:12px;color:#374151;padding:10px 4px;display:flex;gap:18px}
+#bsapp .empty{padding:22px;text-align:center;color:#888}
+@media print{.prt{display:none}#bsapp{max-width:100%}}
+</style>
+<div id="bsapp">
+  <div class="hd"><div><h1 id="ttl">Block summary</h1><div class="sub" id="scope">Dolphin International &middot; QI &middot; BI &middot; DC cross-reference</div></div><button class="prt" onclick="window.print()">&#128424; Print / Save PDF</button></div>
+  <div id="body"><div class="empty">Loading&hellip;</div></div>
+</div>
+<script>
+(function(){
+  var SC={'In Stock':['#eaf3de','#3b6d11'],'Buyer Marked':['#faeeda','#854f0b'],'In Delivery Challan':['#e6f1fb','#0c447c'],'Dispatched/Transported':['#e6f1fb','#0c447c'],'At Port':['#eeedfe','#3c3489'],'At Bannikoppa Station yard':['#eeedfe','#3c3489'],'Shipped':['#e1f5ee','#0f6e56'],'Sold':['#f1efe8','#444441']};
+  function esc(s){return (s==null?'':(''+s)).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+  var qs=new URLSearchParams(location.search);
+  var filters=[]; var scope='All dispatched blocks';
+  if(qs.get('dc')){filters=[['delivery_challan','=',qs.get('dc')]];scope='Delivery challan '+qs.get('dc');}
+  else if(qs.get('bi')){filters=[['buyer_inspection','=',qs.get('bi')]];scope='Buyer inspection '+qs.get('bi');}
+  else if(qs.get('qi')){filters=[['source_quarry_inspection','=',qs.get('qi')]];scope='Quarry inspection '+qs.get('qi');}
+  else if(qs.get('status')){filters=[['status','=',qs.get('status')]];scope='Status: '+qs.get('status');}
+  else {filters=[['delivery_challan','is','set']];}
+  document.getElementById('scope').textContent='Dolphin International \u00b7 '+scope+' \u00b7 generated '+new Date().toLocaleDateString();
+  var FL=['name','block_number','export_block_no','granite_quality_grade','length_gross','width_gross','height_gross','gross_volume','gross_tonnage','status','source_quarry_inspection','buyer_inspection','delivery_challan'];
+  var u='/api/method/frappe.client.get_list?doctype=Quarry Block&filters='+encodeURIComponent(JSON.stringify(filters))+'&fields='+encodeURIComponent(JSON.stringify(FL))+'&limit_page_length=0&order_by=block_number asc';
+  fetch(u,{credentials:'include'}).then(function(r){return r.json();}).then(function(j){
+    var B=j.message||[]; var body=document.getElementById('body');
+    if(!B.length){body.innerHTML='<div class="empty">No blocks for this scope.</div>';return;}
+    var tc=0,tt=0;
+    var rows=B.map(function(b){
+      var sc=SC[b.status]||['#f1efe8','#444441'];
+      tc+=(+b.gross_volume||0); tt+=(+b.gross_tonnage||0);
+      var dim=(b.length_gross||'')+'&times;'+(b.width_gross||'')+'&times;'+(b.height_gross||'');
+      return '<tr><td><b>'+esc(b.block_number||b.name)+'</b><div style="color:#8a929c">'+esc(b.granite_quality_grade||'')+(b.export_block_no?(' &middot; exp '+esc(b.export_block_no)):'')+'</div></td>'
+        +'<td>'+dim+'<div style="color:#8a929c">'+(+b.gross_volume||0).toFixed(2)+' cbm</div></td>'
+        +'<td>'+(b.source_quarry_inspection?esc(b.source_quarry_inspection):'&mdash;')+'</td>'
+        +'<td>'+(b.buyer_inspection?esc(b.buyer_inspection):'&mdash;')+'</td>'
+        +'<td>'+(b.delivery_challan?esc(b.delivery_challan):'&mdash;')+'</td>'
+        +'<td><span class="pill" style="background:'+sc[0]+';color:'+sc[1]+'">'+esc(b.status||'')+'</span></td></tr>';
+    }).join('');
+    body.innerHTML='<table><thead><tr><th>Block</th><th>Size &middot; CBM</th><th>Quarry insp</th><th>Buyer insp</th><th>Delivery challan</th><th>Status</th></tr></thead><tbody>'+rows+'</tbody></table>'
+      +'<div class="tot"><span>Blocks: <b>'+B.length+'</b></span><span>Total CBM: <b>'+tc.toFixed(2)+'</b></span><span>Total tonnage: <b>'+tt.toFixed(2)+' t</b></span></div>';
+  }).catch(function(e){document.getElementById('body').innerHTML='<div class="empty">Could not load. '+esc(e.message)+'</div>';});
+})();
+</script>
+{% endraw %}
