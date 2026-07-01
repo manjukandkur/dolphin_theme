@@ -74,7 +74,7 @@
       .then(function(r){return r.json();})
       .then(function(j){
         btn.textContent='Push \u2192 Export Shipment Lot';
-        if(j.message){document.getElementById('msg').innerHTML='<div class="ok">&#10003; Created lot <b>'+esc(j.message)+'</b> with '+s.length+' block(s). <a href="/app/shipment-lot/'+encodeURIComponent(j.message)+'" target="_blank">Open &rarr;</a></div>';
+        if(j.message){document.getElementById('msg').innerHTML='<div class="ok">&#10003; Created lot <b>'+esc(j.message)+'</b> with '+s.length+' block(s). <a href="/app/export-shipment-lot/'+encodeURIComponent(j.message)+'" target="_blank">Open &rarr;</a></div>';
           ROWS=ROWS.filter(function(r){return s.indexOf(r)<0;});ROWS.forEach(function(r,i){r._i=i;});render();window.scrollTo(0,0);}
         else{alert('Push failed: '+(j.exc||JSON.stringify(j)));btn.disabled=false;}
       }).catch(function(e){alert('Push error: '+e.message);btn.disabled=false;btn.textContent='Push \u2192 Export Shipment Lot';});
