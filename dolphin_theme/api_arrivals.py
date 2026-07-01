@@ -448,12 +448,12 @@ def upsert_arrival(rows, source_file=None, current=None, meta=None):
 
 @frappe.whitelist()
 def create_shipment_lot(consignee=None, rows=None, mark=None, vessel=None):
-    """Build a Shipment Lot (the final lot) from at-port blocks selected on the
+    """Build a Export Shipment Lot (the final lot) from at-port blocks selected on the
     reconciliation sheet. `rows` is the JSON list of selected full_view rows."""
     data = json.loads(rows) if isinstance(rows, str) else (rows or [])
     if not data:
-        frappe.throw("Select at least one at-port block to build a Shipment Lot.")
-    lot = frappe.new_doc("Shipment Lot")
+        frappe.throw("Select at least one at-port block to build a Export Shipment Lot.")
+    lot = frappe.new_doc("Export Shipment Lot")
     lot.shipment_date = frappe.utils.today()
     if consignee:
         lot.export_consignee = consignee
