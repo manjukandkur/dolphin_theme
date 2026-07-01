@@ -228,7 +228,7 @@ frappe.provide("dolphin");
 
   /* ---------- floating left-panel menu (mirrors workspace sections) ---------- */
   /* Day30 role gating:
-     - Sales Lot = owner's working section -> management only. Operators (ilkal/quarry)
+     - Sale Lot = owner's working section -> management only. Operators (ilkal/quarry)
        carry Dolphin Admin/Sales/Super Admin/Entry but NOT System Manager, so System
        Manager is the clean distinguisher between owner/day-user and operators.
      - Local Sale + Shipping = Bangalore tier (di@ has only Dolphin Bangalore). */
@@ -264,11 +264,11 @@ frappe.provide("dolphin");
       ["Port Arrival", "Port Arrival", ROLE_ARRIVALS, null, "anchor"],
       ["Blocks At Port", "/blocks-at-port", ROLE_ARRIVALS, "url", "stack"],
       ["Arrivals Reconciliation", "/app/dolphin-reconcile", ROLE_BANGALORE, "url", "anchor"],
-      ["Export Shipment Lot", "Shipment Lot", ROLE_ARRIVALS, null, "ship"] ] },
+      ["Export Shipment Lot", "Export Shipment Lot", ROLE_ARRIVALS, null, "ship"] ] },
     { title: "Shipping", roles: ROLE_SHIPPING, shaded: true, items: [
       ["Shipping Document", "Shipping Document", ROLE_SHIPPING, null, "ship"] ] },
     { title: "Sales", items: [
-      ["Sale Lot", "Sales Lot", ROLE_OWNER],
+      ["Sale Lot", "Sale Lot", ROLE_OWNER],
       ["Local Tax Invoice", "Local Tax Invoice", ROLE_BANGALORE],
       ["Local Blocks Inspector", "Local Blocks Inspector", ROLE_BANGALORE] ] },
     { title: "Reports & Views", items: [
