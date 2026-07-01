@@ -1025,3 +1025,53 @@ frappe.provide("dolphin");
     if (document.body) mo.observe(document.body, { childList: true, subtree: true });
   } catch (e) {}
 })();
+
+
+/* ===== Dolphin: in-page doc preview + global block trace (added) ===== */
+(function(){
+  if(window.__dolphinTrace) return; window.__dolphinTrace=1;
+  function esc(s){return (s==null?'':(''+s)).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+  var SC={'In Stock':['#eaf3de','#3b6d11'],'Buyer Marked':['#faeeda','#854f0b'],'In Delivery Challan':['#e6f1fb','#0c447c'],'Dispatched/Transported':['#e6f1fb','#0c447c'],'At Port':['#eeedfe','#3c3489'],'At Bannikoppa Station yard':['#eeedfe','#3c3489'],'Shipped':['#e1f5ee','#0f6e56'],'Sold':['#f1efe8','#444441']};
+  window.dolphinPreview=function(dt,name,fmt){
+    if(!name){return false;}
+    var base='/printview?doctype='+encodeURIComponent(dt)+'&name='+encodeURIComponent(name)+'&format='+encodeURIComponent(fmt||'Standard')+'&trigger_print=0&no_letterhead=0';
+    var dl='/api/method/frappe.utils.print_format.download_pdf?doctype='+encodeURIComponent(dt)+'&name='+encodeURIComponent(name)+'&format='+encodeURIComponent(fmt||'Standard')+'&no_letterhead=0';
+    if(window.frappe&&frappe.ui&&frappe.ui.Dialog){
+      var d=new frappe.ui.Dialog({title:dt+' \u00b7 '+name,size:'large'});
+      d.$body.html('<iframe src="'+base+'" style="width:100%;height:66vh;border:0;background:#fff;border-radius:6px"></iframe><div style="margin-top:8px;text-align:right"><a class="btn btn-default btn-sm" href="'+dl+'" target="_blank">Download PDF</a> <a class="btn btn-default btn-sm" href="'+base+'" target="_blank">Open in new tab</a></div>');
+      d.show();
+    } else { window.open(base,'_blank'); }
+    return false;
+  };
+  function traceRow(kind,label,dt,name,fmt,color){
+    var eye=name?'<button class="btn btn-xs" style="border:1px solid '+color+';color:'+color+';background:#fff;border-radius:10px;padding:1px 9px;font-size:12px" onclick="return window.dolphinPreview(\''+dt+'\',\''+esc(name)+'\',\''+fmt+'\')">\uD83D\uDC41 view</button>':'';
+    var nm=name?'<b>'+esc(name)+'</b>':'<span style="color:#8a929c">\u2014 not yet</span>';
+    return '<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid #e5e7eb;border-left:3px solid '+color+';border-radius:8px;margin-bottom:6px"><div style="flex:1"><div style="font-size:10px;text-transform:uppercase;letter-spacing:.03em;color:#8a929c">'+label+'</div><div style="font-size:13px">'+nm+'</div></div>'+eye+'</div>';
+  }
+  window.dolphinTrace=function(q){
+    q=(q||'').trim(); if(!q) return;
+    var FL=['name','block_number','export_block_no','granite_quality_grade','length_gross','width_gross','height_gross','gross_volume','status','source_quarry_inspection','buyer_inspection','delivery_challan'];
+    function fb(field){return fetch('/api/method/frappe.client.get_list?doctype=Quarry Block&filters='+encodeURIComponent(JSON.stringify([[field,'=',q]]))+'&fields='+encodeURIComponent(JSON.stringify(FL))+'&limit_page_length=5',{credentials:'include'}).then(function(r){return r.json();}).then(function(j){return j.message||[];});}
+    var d=new frappe.ui.Dialog({title:'Trace block '+esc(q),size:'large'}); d.show(); d.$body.html('<div style="padding:16px;color:#888">Searching\u2026</div>');
+    fb('block_number').then(function(bl){ if(bl.length) return bl; return fb('export_block_no'); }).then(function(bl){
+      if(!bl.length){ d.$body.html('<div style="padding:16px;color:#888">No block <b>'+esc(q)+'</b> found.</div>'); return; }
+      d.$body.html(bl.map(function(b){
+        var sc=SC[b.status]||['#f1efe8','#444441'];
+        var dim=(b.length_gross||'')+'\u00d7'+(b.width_gross||'')+'\u00d7'+(b.height_gross||'');
+        return '<div style="margin-bottom:10px"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px"><span style="font-size:18px;font-weight:600">Block '+esc(b.block_number||b.name)+'</span><span style="font-size:12px;color:#6b7280">'+esc(b.granite_quality_grade||'')+' \u00b7 '+dim+(b.gross_volume?(' \u00b7 '+(+b.gross_volume).toFixed(2)+' cbm'):'')+(b.export_block_no?(' \u00b7 exp '+esc(b.export_block_no)):'')+'</span><span style="margin-left:auto;font-size:12px;padding:2px 10px;border-radius:12px;background:'+sc[0]+';color:'+sc[1]+';font-weight:600">\uD83D\uDCCD '+esc(b.status||'')+'</span></div>'
+          +traceRow('QI','Quarry inspection','Quarry Inspection',b.source_quarry_inspection,'Quarry Inspection - Report','#1d9e75')
+          +traceRow('BI','Buyer inspection','Buyer Inspection',b.buyer_inspection,'Buyer Inspection - Report','#185fa5')
+          +traceRow('DC','Delivery challan','Delivery Challan',b.delivery_challan,'Dolphin Delivery Challan','#7f77dd')+'</div>';
+      }).join(''));
+    });
+  };
+  function inject(){
+    var sb=document.querySelector('.body-sidebar'); if(!sb) return;
+    if(sb.querySelector('.dolphin-trace-box')) return;
+    var box=document.createElement('div'); box.className='dolphin-trace-box'; box.style.cssText='padding:8px 10px 6px';
+    box.innerHTML='<div style="display:flex;align-items:center;gap:6px;background:#0f2540;border:1px solid #D4A24A;border-radius:8px;padding:6px 9px"><span style="color:#D4A24A;font-size:15px">\u25CE</span><input class="dtq" placeholder="Trace block\u2026" style="border:none;background:transparent;color:#fff;font-size:13px;width:100%;outline:none;padding:0;height:auto"></div>';
+    sb.insertBefore(box, sb.firstChild);
+    box.querySelector('.dtq').addEventListener('keydown',function(e){ if(e.key==='Enter'){ e.preventDefault(); window.dolphinTrace(this.value); } });
+  }
+  setInterval(inject, 1500); setTimeout(inject, 500);
+})();
