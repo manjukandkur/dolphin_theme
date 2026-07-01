@@ -173,6 +173,7 @@ def resolve_flag(arrival, row_name, resolution_type, updates=None, note=None, ma
     row.resolved_on = now_datetime()
     row.recon_status = "Resolved"
     pa.save(ignore_permissions=True)
+    _mark_at_port(pa)
     return {"ok": True}
 
 
