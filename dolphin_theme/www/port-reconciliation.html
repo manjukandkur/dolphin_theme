@@ -1,128 +1,358 @@
 {% raw %}
 <style>
-:root{--navy:#3a5a86;--gold:#D4A24A}
-#pr{font-family:inherit;max-width:1320px;margin:0 auto;padding:10px 14px;color:#1f2a3a}
-#pr .hd{background:var(--navy);color:#fff;border-radius:12px 12px 0 0;padding:16px 20px;border-bottom:3px solid var(--gold);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
-#pr .hd h1{font-size:20px;margin:0;font-weight:600;flex:1}
-#pr .chip{font-size:12px;padding:4px 11px;border-radius:20px;background:#2f4a70;border:1px solid rgba(255,255,255,.25);color:#e6ecf3}
-#pr .tb{display:flex;gap:9px;flex-wrap:wrap;align-items:center;padding:12px 16px;border:0.5px solid #e5e7eb;border-top:none;background:#fff}
-#pr input,#pr select{padding:9px 11px;border:1px solid #cfd4dc;border-radius:7px;font-size:13px}
-#pr .fl{font-size:13px;padding:6px 14px;border-radius:20px;background:#f1f3f6;color:#5f6b7a;cursor:pointer}
-#pr .fl.on{background:#eaf0f7;color:#16304F;font-weight:600}
-#pr .vt{display:flex;border:1px solid #cfd4dc;border-radius:8px;overflow:hidden}
-#pr .vt span{font-size:13px;padding:7px 14px;cursor:pointer;color:#5f6b7a;background:#fff}
-#pr .vt span.on{background:var(--navy);color:#fff;font-weight:600}
-#pr .imp{font-size:13px;font-weight:600;padding:8px 14px;border-radius:8px;background:#fff;border:1.5px solid var(--gold);color:#8a5a12;cursor:pointer}
-#pr .ghost{font-size:13px;padding:8px 13px;border-radius:8px;background:#fff;border:1px solid var(--navy);color:var(--navy);cursor:pointer}
-#pr .body{display:flex;border:0.5px solid #e5e7eb;border-top:none;min-height:420px}
-#pr .arrs{width:240px;flex:none;border-right:0.5px solid #e5e7eb;overflow:auto;max-height:600px}
-#pr .arr{padding:12px 14px;border-bottom:0.5px solid #eee;cursor:pointer;border-left:3px solid transparent}
-#pr .arr.on{background:#eaf0f7;border-left-color:var(--gold)}
-#pr .arr .n{font-size:13px;font-weight:500}
-#pr .arr .m{font-size:11px;color:#6b7280;margin-top:2px}
-#pr .det{flex:1;min-width:0;overflow:auto;max-height:600px}
-#pr table{width:100%;border-collapse:collapse;font-size:13px}
-#pr th{text-align:left;color:#5f6b7a;padding:10px 8px;border-bottom:0.5px solid #eee;position:sticky;top:0;background:#fff;white-space:nowrap;font-weight:600}
-#pr td{padding:11px 8px;border-bottom:0.5px solid #f0f0f0;vertical-align:middle}
-#pr tbody tr:hover{background:#fafbfd}
-#pr .pill{font-size:11px;padding:3px 10px;border-radius:12px;font-weight:600;white-space:nowrap}
-#pr .bx{font-size:12px;padding:5px 11px;border-radius:8px;cursor:pointer;margin:2px 4px 2px 0;display:inline-block;border:1px solid #cfd4dc;color:#374151;background:#fff}
-#pr .bx.pri{background:var(--navy);color:#fff;border-color:var(--navy);font-weight:600}
-#pr .push{background:#128666;color:#fff;border:none;font-weight:600;padding:10px 18px;border-radius:8px;font-size:13px;cursor:pointer}
-#pr .push:disabled{opacity:.45;cursor:not-allowed}
-#pr .eye{cursor:pointer;color:#185fa5;font-size:17px}
-#pr .panel{width:330px;flex:none;border-left:0.5px solid #e5e7eb;display:none;flex-direction:column;max-height:600px}
-#pr .panel.on{display:flex}
-#pr .foot{padding:12px 16px;border:0.5px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px;background:#f8f9fb;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-#pr .empty{padding:26px;text-align:center;color:#9ca3af;font-size:13px}
-#pr .impbar{display:none;padding:16px 18px;background:#fdf8ef;border:0.5px solid #f0dcb4;border-top:none;align-items:center;gap:12px;flex-wrap:wrap}
+:root{--navy:#3a5a86;--navyD:#0f2444;--gold:#D4A24A}
+#pr{font-family:inherit;max-width:1400px;margin:0 auto;padding:8px 12px;color:#1f2a3a}
+#pr .hd{background:var(--navyD);color:#fff;border-radius:12px 12px 0 0;padding:14px 20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+#pr .hd h1{font-size:19px;margin:0;font-weight:600;flex:1}
+#pr .chip{font-size:12px;padding:4px 11px;border-radius:20px;background:#2f4a70;color:#e6ecf3}
+#pr .tabs{display:flex;gap:2px;background:var(--navy);padding:0 12px}
+#pr .tab{padding:11px 18px;color:#cdd8e8;font-size:14px;cursor:pointer;border-bottom:3px solid transparent}
+#pr .tab.on{color:#fff;font-weight:600;border-bottom-color:var(--gold);background:rgba(255,255,255,.06)}
+#pr .tab .b{background:#e24b4a;color:#fff;font-size:10px;border-radius:10px;padding:1px 6px;margin-left:5px}
+#pr .pane{display:none;border:0.5px solid #e5e7eb;border-top:none}
+#pr .pane.on{display:block}
+#pr .bal{display:flex;flex-wrap:wrap;background:var(--navyD);color:#fff}
+#pr .bal .c{flex:1;min-width:96px;padding:10px 12px;border-right:1px solid rgba(255,255,255,.08);text-align:center}
+#pr .bal .c .v{font-size:20px;font-weight:700;line-height:1.1}
+#pr .bal .c .l{font-size:10px;color:#aebdd2;margin-top:2px}
+#pr .bal .c.hi{background:#2a3f5f}#pr .bal .c.hi .v{color:#ffd98a}
+#pr .bal .c.warn{background:#3a1720;cursor:pointer}#pr .bal .c.warn .v{color:#ff9fa2}
+#pr .tb{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:11px 14px;background:#fbfcfe;border-bottom:0.5px solid #e7ebf1}
+#pr input,#pr select{padding:8px 10px;border:1px solid #cfd4dc;border-radius:7px;font-size:13px}
+#pr .fl{font-size:13px;padding:6px 13px;border-radius:20px;background:#eef1f6;color:#5f6b7a;cursor:pointer}
+#pr .fl.on{background:#e6efe9;color:#0f6e56;font-weight:600}
+#pr .vtog{font-size:13px;padding:7px 12px;border-radius:8px;border:1px solid #cfd4dc;background:#fff;color:#5f6b7a;cursor:pointer}
+#pr .vtog.on{background:var(--navy);color:#fff;border-color:var(--navy);font-weight:600}
+#pr .imp{font-size:13px;font-weight:600;padding:8px 13px;border-radius:8px;background:#fff;border:1.5px solid var(--gold);color:#8a5a12;cursor:pointer}
+#pr .ghost{font-size:13px;padding:8px 12px;border-radius:8px;background:#fff;border:1px solid var(--navy);color:var(--navy);cursor:pointer}
+#pr .impbar{display:none;padding:14px 16px;background:#fdf8ef;border-bottom:0.5px solid #f0dcb4;align-items:center;gap:12px;flex-wrap:wrap}
 #pr .impbar.on{display:flex}
 #pr .impbar .t{font-size:14px;font-weight:600;color:#8a5a12}
 #pr .impbar .s{font-size:12px;color:#96733a;flex-basis:100%}
-#pr .mis{color:#c0392b}
+#pr .body{display:flex;min-height:380px}
+#pr .main{flex:1;min-width:0;overflow:auto;max-height:620px}
+#pr table{width:100%;border-collapse:collapse;font-size:13px}
+#pr th{text-align:left;color:#5f6b7a;padding:10px 8px;border-bottom:0.5px solid #eee;position:sticky;top:0;background:#f5f7fa;white-space:nowrap;font-weight:600}
+#pr td{padding:10px 8px;border-bottom:0.5px solid #f0f0f0;vertical-align:middle}
+#pr tbody tr:hover{background:#fafbfd}
+#pr tr.sel{background:#eef5ff}
+#pr .blk{font-weight:700;font-size:15px}
+#pr .sub{font-size:11px;color:#9aa3af}
+#pr .pill{font-size:11px;padding:3px 9px;border-radius:12px;font-weight:600;white-space:nowrap}
+#pr .rb{font-size:11px;padding:4px 9px;border-radius:7px;cursor:pointer;border:1px solid #cfd4dc;background:#fff;color:#374151;margin:2px 3px 0 0;display:inline-block}
+#pr .rb.pri{background:var(--navy);color:#fff;border-color:var(--navy)}
+#pr .rb.ok{background:#e1f5ee;color:#0f6e56;border-color:#9fe1cb}
+#pr .rb.warn{color:#a32d2d;border-color:#f0999b}
+#pr .eye{cursor:pointer;color:#185fa5;font-size:13px;margin:0 2px;white-space:nowrap}
+#pr .exp{cursor:pointer;color:#8a94a3;font-size:15px;user-select:none}
+#pr .mini{height:7px;border-radius:4px;background:#eef1f6;overflow:hidden;display:flex;min-width:80px}
+#pr .mini i{display:block;height:100%}
+#pr .chips{display:flex;flex-wrap:wrap;gap:6px}
+#pr .chip2{font-size:12px;padding:5px 9px;border:1px solid #ccc;border-radius:8px;white-space:nowrap}
+#pr .chip2 .ct{font-size:10px;opacity:.85;margin-left:4px}
+#pr .bulk{display:none;align-items:center;gap:9px;padding:9px 14px;background:#eaf0f7;border-bottom:0.5px solid #cdd8e8}
+#pr .bulk.on{display:flex}
+#pr .bbtn{font-size:13px;padding:6px 12px;border-radius:8px;cursor:pointer;border:1px solid #cfd4dc;background:#fff}
+#pr .bbtn.pri{background:var(--navy);color:#fff;border-color:var(--navy)}
+#pr .bbtn.ok{background:#e1f5ee;color:#0f6e56;border-color:#9fe1cb}
+#pr .bbtn.warn{color:#a32d2d;border-color:#f0999b}
+#pr .panel{width:0;flex:none;border-left:0.5px solid #e5e7eb;transition:width .15s;overflow:hidden;background:#fff;max-height:620px;display:flex;flex-direction:column}
+#pr .panel.on{width:400px}
+#pr .foot{padding:11px 14px;background:#f8f9fb;border-top:0.5px solid #e7ebf1;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+#pr .push{background:#128666;color:#fff;border:none;font-weight:600;padding:9px 16px;border-radius:8px;font-size:13px;cursor:pointer}
+#pr .push:disabled{opacity:.45}
+#pr .arow{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:0.5px solid #f0f0f0;cursor:pointer}
+#pr .arow:hover{background:#fafbfd}
+#pr .empty{padding:26px;text-align:center;color:#9ca3af;font-size:13px}
+#pr .mis{color:#c0392b;font-weight:600}
+#pr .det2{background:#f7f9fc}
+#pr .det2 td{padding:0}
+#pr .detbox{padding:12px 34px}
+#pr .p-match{background:#eaf3de;color:#3b6d11}#pr .p-port{background:#e6f1fb;color:#185fa5}
+#pr .p-inlot{background:#e7ecff;color:#33449c}#pr .p-load{background:#dff3ea;color:#0c7150}
+#pr .p-flag{background:#faeeda;color:#854f0b}#pr .p-ship{background:#efeaf9;color:#4b3a86}
+#pr .p-orph{background:#fcebeb;color:#a32d2d}#pr .p-await{background:#eef1f6;color:#5f6b7a}
+#pr .p-dmg{background:#fbe3d4;color:#a3491a}#pr .p-held{background:#f3d9dd;color:#8a1f2e}
 </style>
 <div id="pr">
-  <div class="hd"><h1>Port Reconciliation and Stock at Port</h1><span class="chip" id="c-arr">&#8212;</span><span class="chip" id="c-flag">&#8212;</span></div>
-  <div class="tb">
-    <input id="q" placeholder="Search block / mark / vehicle" style="flex:1;min-width:150px">
-    <span class="fl on" data-f="all">All</span><span class="fl" data-f="Matched">Matched</span><span class="fl" data-f="flag">Flagged</span><span class="fl" data-f="Resolved">Resolved</span>
-    <div class="vt" id="vt"><span class="on" data-v="board">Board view</span><span data-v="full">Full view &#183; all arrivals</span></div>
-    <button class="imp" id="impbtn">&#8593; Import .xls</button>
-    <button class="ghost" id="csvbtn" style="display:none">&#8595; Excel / CSV</button>
-    <button class="ghost" id="prnbtn" style="display:none">&#128424; Print</button>
+  <div class="hd"><h1>Dolphin International &#8212; Port &amp; Stock</h1><span class="chip" id="c-a">&#8212;</span><span class="chip" id="c-f">&#8212;</span></div>
+  <div class="tabs">
+    <div class="tab" data-t="arr">Arrivals <span class="b" id="arrb" style="display:none">0</span></div>
+    <div class="tab on" data-t="stock">Stock at Port</div>
+    <div class="tab" data-t="lots">Shipment Lots</div>
   </div>
-  <div class="impbar" id="impbar">
-    <span class="t">&#8593; Import arrivals from .xls</span>
-    <input type="file" id="impfile" accept=".xls,.xlsx">
-    <button class="bx pri" id="impgo">Parse &amp; upsert</button>
-    <button class="bx" id="impx">Close</button>
-    <span class="s">Fallback when email forwarding is unavailable. Same parser as auto-ingest, and <b>upserts on arrival + block</b> &#8212; re-importing never creates duplicates.</span>
-    <span class="s" id="impmsg" style="display:none"></span>
+
+  <div class="pane on" id="p-stock">
+    <div class="bal" id="bal"></div>
+    <div class="tb">
+      <span class="vtog on" id="v-blk">&#9638; Blocks</span>
+      <span class="vtog" id="v-dc">&#128666; By DC &#183; loading</span>
+      <input id="q" placeholder="Search block / mark / DC / vehicle" style="flex:1;min-width:150px">
+      <span id="flrow">
+        <span class="fl on" data-f="all">All at port</span>
+        <span class="fl" data-f="lot">In lot</span>
+        <span class="fl" data-f="flag">Needs attention</span>
+        <span class="fl" data-f="exc">Exceptions</span>
+        <span class="fl" data-f="orphan">Orphans</span>
+        <span class="fl" data-f="await">Awaiting arrival</span>
+      </span>
+      <button class="imp" id="impbtn">&#8593; Import .xls</button>
+      <button class="ghost" id="csvbtn">&#8595; CSV</button>
+    </div>
+    <div class="impbar" id="impbar">
+      <span class="t">&#8593; Import arrivals from .xls</span>
+      <input type="file" id="impfile" accept=".xls,.xlsx">
+      <button class="bbtn pri" id="impgo">Parse &amp; upsert</button>
+      <button class="bbtn" id="impx">Close</button>
+      <span class="s">Fallback when email forwarding is unavailable. Upserts on block number &#8212; a block already at port or awaiting arrival is recognised and confirmed, never duplicated.</span>
+      <span class="s" id="impmsg" style="display:none"></span>
+    </div>
+    <div class="bulk" id="bulk">
+      <span><b id="bn">0</b> selected</span>
+      <span class="bbtn ok" data-b="Accepted as-is">&#10003; Accept as-is</span>
+      <span class="bbtn pri" id="bpush">&#128230; Push to Shipment Lot</span>
+      <span class="bbtn" id="bmove">&#8594; Move to At Port</span>
+      <span class="bbtn warn" data-b="Removed (duplicate)">&#128465; Remove</span>
+    </div>
+    <div class="body">
+      <div class="main" id="stmain"><div class="empty">Loading&#8230;</div></div>
+      <div class="panel" id="panel"></div>
+    </div>
+    <div class="foot" id="foot"></div>
   </div>
-  <div class="body">
-    <div class="arrs" id="arrs"><div class="empty">Loading&#8230;</div></div>
-    <div class="det"><div id="detail"><div class="empty">Select an arrival</div></div></div>
-    <div class="panel" id="panel"></div>
+
+  <div class="pane" id="p-arr">
+    <div class="tb"><input id="aq" placeholder="Search arrivals&#8230;" style="flex:1;min-width:160px">
+      <button class="imp" id="impbtn2">&#8593; Import .xls</button></div>
+    <div id="arrlist"><div class="empty">Loading&#8230;</div></div>
   </div>
-  <div class="foot" id="foot"></div>
+
+  <div class="pane" id="p-lots">
+    <div class="tb"><input id="lq" placeholder="Search block / packing list / BL / consignee / vessel&#8230;" style="flex:1;min-width:180px">
+      <span class="fl on" data-lf="all">All</span><span class="fl" data-lf="build">Building</span><span class="fl" data-lf="ship">Shipped</span>
+    </div>
+    <div id="lotmain"><div class="empty">Loading&#8230;</div></div>
+  </div>
 </div>
 <script>
 (function(){
-var TOKEN=null,ARRS=[],CUR=null,DOC=null,FILT='all',Q='',VIEW='board',FULL=null;
+function U(n){return String.fromCodePoint(n);}
+var X=U(215),DOT=U(183),DASH=U(8212),CHK=U(10003),EYE=U(128065),MAIL=U(9993),SQ=U(9636),LOCK=U(128274),AR=U(8594),ML=U(128274);
+var TOKEN=null,ROWS=[],AWAIT=[],LOTS=[],ARRS=[],ADATE={},LOTMAP={},FILT='all',Q='',VMODE='blk',SEL={};
 function esc(s){return (s==null?'':(''+s)).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
 function $(id){return document.getElementById(id);}
 function api(dt,filters,fields,lim){var u='/api/method/frappe.client.get_list?doctype='+encodeURIComponent(dt)+'&filters='+encodeURIComponent(JSON.stringify(filters))+'&fields='+encodeURIComponent(JSON.stringify(fields))+'&limit_page_length='+(lim||0);return fetch(u,{credentials:'include'}).then(function(r){return r.json();}).then(function(j){return j.message||[];});}
-function getDoc(dt,name){return fetch('/api/resource/'+encodeURIComponent(dt)+'/'+encodeURIComponent(name),{credentials:'include'}).then(function(r){return r.json();}).then(function(j){return j.data;});}
 function post(method,args){return fetch('/api/method/'+method,{method:'POST',credentials:'include',headers:{'Content-Type':'application/json','X-Frappe-CSRF-Token':TOKEN},body:JSON.stringify(args)}).then(function(r){return r.json();});}
-var SC={'Matched':['#eaf3de','#3b6d11'],'Resolved':['#e1f5ee','#0f6e56'],'Typo - not in DC':['#faeeda','#854f0b'],'Dimension mismatch':['#faeeda','#854f0b'],'Duplicate':['#fcebeb','#a32d2d'],'Awaiting':['#f1efe8','#5f5e5a']};
-function pill(s){var c=SC[s]||['#f1efe8','#444441'];return '<span class="pill" style="background:'+c[0]+';color:'+c[1]+'">'+(s?esc(s):''+String.fromCharCode(8212)+'')+'</span>';}
+function today(){return new Date();}
+function ageDays(arr){var d=ADATE[arr];if(!d)return null;var t=(today()-new Date(d))/86400000;return t>=0?Math.round(t):null;}
 fetch('/api/method/dolphin_theme.api_arrivals.get_token',{credentials:'include'}).then(function(r){return r.json();}).then(function(j){TOKEN=j.message;});
-function loadArrivals(){api('Port Arrival',[],['name','mark','arrival_date','shipper','total_blocks'],0).then(function(a){ARRS=a;renderArrs();if(a.length)select(a[0].name);});}
-function renderArrs(){var el=$('arrs');if(!ARRS.length){el.innerHTML='<div class="empty">No arrivals</div>';return;}el.innerHTML=ARRS.map(function(a){return '<div class="arr'+(CUR===a.name?' on':'')+'" data-n="'+esc(a.name)+'"><div class="n">'+esc(a.name)+'</div><div class="m">'+esc(a.mark||'')+' '+String.fromCharCode(183)+' '+esc(a.arrival_date||'')+' '+String.fromCharCode(183)+' '+(a.total_blocks||0)+' blk</div></div>';}).join('');el.querySelectorAll('.arr').forEach(function(x){x.addEventListener('click',function(){select(x.dataset.n);});});$('c-arr').textContent=ARRS.length+' arrivals';}
-function select(name){CUR=name;renderArrs();$('detail').innerHTML='<div class="empty">Loading'+String.fromCharCode(8230)+'</div>';closePanel();getDoc('Port Arrival',name).then(function(d){DOC=d;renderDetail();});}
-function matchF(b){if(FILT==='all')return true;var s=b.recon_status||b.status||'';if(FILT==='Matched')return s==='Matched';if(FILT==='Resolved')return s==='Resolved';if(FILT==='flag')return s!=='Matched'&&s!=='Resolved';return true;}
-function matchQ(b){if(!Q)return true;var t=((b.block_no||'')+' '+(b.quarry_block||'')+' '+(b.mark||'')+' '+(b.vehicle_no||'')+' '+(b.arrival||'')).toLowerCase();return t.indexOf(Q)>=0;}
-function dims(b){var l=b.length,w=b.width,h=b.height;if(!l&&!w&&!h)return ''+String.fromCharCode(8212)+'';return (l||'?')+''+String.fromCharCode(215)+''+(w||'?')+''+String.fromCharCode(215)+''+(h||'?');}
-function recBtns(b){var st=b.recon_status||'';if(st==='Matched'||st==='Resolved')return '<span style="color:#3b6d11">'+String.fromCharCode(10003)+'</span>';var o='';if(b.suggested_block)o+='<span class="bx pri" data-act="Fixed source" data-row="'+esc(b.name)+'" data-sug="'+esc(b.suggested_block)+'">Fix '+String.fromCharCode(8594)+' '+esc(b.suggested_block)+'</span>';if(st==='Dimension mismatch')o+='<span class="bx" data-act="Use challan" data-row="'+esc(b.name)+'">Use challan dims</span>';o+='<span class="bx" data-act="Accepted as-is" data-row="'+esc(b.name)+'">Accept as-is</span>';if(st==='Duplicate')o+='<span class="bx" style="border-color:#a32d2d;color:#a32d2d" data-act="Removed (duplicate)" data-row="'+esc(b.name)+'">Remove dup</span>';return o;}
-function renderDetail(){if(VIEW==='full'){renderFull();return;}if(!DOC)return;var all=DOC.blocks||[];var blks=all.filter(matchF).filter(matchQ);var flags=all.filter(function(b){var s=b.recon_status||'';return s!=='Matched'&&s!=='Resolved';}).length;$('c-flag').textContent=flags+' flags open';var h='<div style="padding:12px 14px;font-size:13px;color:#374151;border-bottom:0.5px solid #eee;display:flex;align-items:center;gap:12px;flex-wrap:wrap"><b>'+esc(DOC.name)+'</b><span>'+esc(DOC.mark||'')+'</span><span>'+esc(DOC.arrival_date||'')+'</span><span>'+all.length+' blocks</span></div>';if(!blks.length){$('detail').innerHTML=h+'<div class="empty">No blocks match filter</div>';wireFoot();return;}h+='<table><thead><tr><th style="width:24px"></th><th>Block</th><th>Dims (L'+String.fromCharCode(215)+'W'+String.fromCharCode(215)+'H)</th><th>CBM</th><th>Status</th><th>DC</th><th>Reconcile</th><th></th></tr></thead><tbody>';blks.forEach(function(b){var st=b.recon_status||'';var canPush=(st==='Matched'||st==='Resolved');h+='<tr><td>'+(canPush?'<input type="checkbox" class="ck" data-row="'+esc(b.name)+'">':'')+'</td><td><b>'+esc(b.block_no||'')+'</b>'+(b.quarry_block?'<div style="font-size:10px;color:#9ca3af">'+esc(b.quarry_block)+'</div>':'')+'</td><td>'+dims(b)+'</td><td>'+(b.cbm||''+String.fromCharCode(8212)+'')+'</td><td>'+pill(st)+'</td><td style="font-size:11px">'+(b.matched_dc?esc(b.matched_dc):''+String.fromCharCode(8212)+'')+'</td><td>'+recBtns(b)+'</td><td><span class="eye" data-row="'+esc(b.name)+'">'+String.fromCharCode(128065)+'</span></td></tr>';});h+='</tbody></table>';$('detail').innerHTML=h;wireDetail();wireFoot();}
-function wireDetail(){$('detail').querySelectorAll('.ck').forEach(function(c){c.addEventListener('change',updFoot);});$('detail').querySelectorAll('.bx').forEach(function(x){x.addEventListener('click',function(){reconcile(x.dataset.row,x.dataset.act,x.dataset.sug);});});$('detail').querySelectorAll('.eye').forEach(function(x){x.addEventListener('click',function(){openPanel(x.dataset.row);});});}
-function reconcile(rowName,act,sug){var upd={};if(act==='Fixed source'&&sug)upd.block_no=sug;post('dolphin_theme.api_arrivals.resolve_flag',{arrival:CUR,row_name:rowName,resolution_type:act,updates:upd}).then(function(){select(CUR);});}
-function checkedRows(){return [].map.call($('detail').querySelectorAll('.ck:checked'),function(c){return c.dataset.row;});}
-function updFoot(){var n=checkedRows().length;var b=$('pushbtn');if(b){b.disabled=!n;b.textContent='Push '+n+' block'+(n===1?'':'s')+' '+String.fromCharCode(8594)+' Shipment Lot';}}
-function wireFoot(){$('foot').innerHTML='<button class="push" id="pushbtn" disabled>Push '+String.fromCharCode(8594)+' Shipment Lot</button><span style="font-size:12px;color:#6b7280">Tick matched / resolved blocks, then push. Nothing is pre-selected.</span>';$('pushbtn').addEventListener('click',doPush);updFoot();}
-function doPush(){var names=checkedRows();if(!names.length)return;var map={};(DOC.blocks||[]).forEach(function(b){map[b.name]=b;});var rows=names.map(function(nm){var b=map[nm];return {quarry_block:b.quarry_block,block_no:b.block_no,length:b.length,width:b.width,height:b.height,cbm:b.cbm,mt:b.net_wt,kgs:(b.net_wt||0)*1000,matched_dc:b.matched_dc,arrival:CUR};});$('pushbtn').disabled=true;$('pushbtn').textContent='Creating'+String.fromCharCode(8230)+'';post('dolphin_theme.api_arrivals.create_shipment_lot',{consignee:DOC.shipper||DOC.mark||'',rows:rows,mark:DOC.mark||'',vessel:DOC.vessel||''}).then(function(j){var lot=(j.message&&(j.message.name||j.message))||'';$('foot').innerHTML='<span style="font-size:13px;color:#0f6e56">'+String.fromCharCode(10003)+' Created '+esc(lot)+'</span> <a href="/app/export-shipment-lot/'+encodeURIComponent(lot)+'" target="_blank" class="bx" style="border-color:#128666;color:#128666">Open lot</a> <span class="bx" id="again">Push more</span>';var a=document.getElementById('again');if(a)a.addEventListener('click',function(){select(CUR);});}).catch(function(){$('foot').innerHTML='<span style="color:#a32d2d">Error creating lot</span>';});}
-function openPanel(rowName){var b=(DOC.blocks||[]).filter(function(x){return x.name===rowName;})[0];if(!b)return;var p=$('panel');p.classList.add('on');var dt,nm,fmt;if(b.matched_dc){dt='Delivery Challan';nm=b.matched_dc;fmt='Dolphin Delivery Challan';}else{dt='Port Arrival';nm=CUR;fmt='';}var src='/printview?doctype='+encodeURIComponent(dt)+'&name='+encodeURIComponent(nm)+(fmt?'&format='+encodeURIComponent(fmt):'')+'&no_letterhead=0&_lang=en';p.innerHTML='<div style="padding:10px 12px;background:#f4f6f9;border-bottom:0.5px solid #e5e7eb;display:flex;align-items:center;gap:8px;font-size:12px"><b style="flex:1">'+esc(b.block_no||'')+' '+String.fromCharCode(183)+' '+esc(dt)+'</b><span class="bx" id="pclose">Close</span></div><iframe src="'+src+'" style="flex:1;border:none;width:100%"></iframe>';document.getElementById('pclose').addEventListener('click',closePanel);}
+
+/* ---- status mapping ---- */
+function statusOf(b){
+  var s=(b.recon_status||b.status||'').toLowerCase();
+  var bn=String(b.block_no||'').trim();
+  if(b._await)return 'await';
+  if(!bn)return 'miss';
+  if(s.indexOf('damage')>=0)return 'dmg';
+  if(s.indexOf('hold')>=0||s.indexOf('held')>=0)return 'held';
+  if(s.indexOf('orphan')>=0||(s.indexOf('not in')>=0)||(s.indexOf('typo')>=0&&!b.matched_dc))return 'orphan';
+  if(!b.matched_dc&&s.indexOf('match')<0&&s.indexOf('resolved')<0)return 'orphan';
+  var lm=LOTMAP[bn];
+  if(lm&&lm.st==='ship')return 'load';
+  if(lm&&lm.st==='build')return 'lot';
+  if(s.indexOf('mismatch')>=0||s.indexOf('dimension')>=0)return 'flag';
+  if(s.indexOf('match')>=0||s.indexOf('resolved')>=0)return 'match';
+  return 'port';
+}
+var SP={match:['p-match',CHK+' Matched'],port:['p-port',U(9679)+' At Port'],lot:['p-inlot',U(9635)+' In lot'],load:['p-load',U(9875)+' Loaded'],flag:['p-flag',U(9888)+' Dims mismatch'],ship:['p-ship',U(9096)+' Shipped'],orphan:['p-orph',U(9888)+' Orphan'],miss:['p-orph',U(9888)+' No block no'],await:['p-await',U(9684)+' Awaiting arrival'],dmg:['p-dmg',U(9888)+' Damaged'],held:['p-held',U(9940)+' Held']};
+function pill(st){var sp=SP[st]||['p-port',st];return '<span class="pill '+sp[0]+'">'+sp[1]+'</span>';}
+function dims(b){var l=b.length,w=b.width,h=b.height;if(!l&&!w&&!h)return DASH;return (l||'?')+X+(w||'?')+X+(h||'?');}
+
+/* ---- data load ---- */
+function loadAll(){
+  Promise.all([
+    fetch('/api/method/dolphin_theme.api_arrivals.full_view',{credentials:'include'}).then(function(r){return r.json();}).then(function(j){return j.message||{};}).catch(function(){return {};}),
+    fetch('/api/method/dolphin_theme.api_arrivals.lots_view',{credentials:'include'}).then(function(r){return r.json();}).then(function(j){return j.message||[];}).catch(function(){return [];}),
+    api('Port Arrival',[],['name','mark','arrival_date','shipper','total_blocks','creation'],0).catch(function(){return [];})
+  ]).then(function(res){
+    var fv=res[0];ROWS=(fv.rows||fv.blocks||(Array.isArray(fv)?fv:[]))||[];AWAIT=(fv.awaiting||[]).map(function(b){b._await=true;return b;});
+    LOTS=res[1]||[];ARRS=res[2]||[];
+    ADATE={};ARRS.forEach(function(a){ADATE[a.name]=a.arrival_date||a.creation;});
+    LOTMAP={};LOTS.forEach(function(l){(l.block_nos||[]).forEach(function(bn){LOTMAP[String(bn).trim()]={lot:l.name,st:l.status==='ship'||l.shipped?'ship':'build'};});});
+    renderBal();renderStock();renderArr();renderLots();
+  });
+}
+
+/* ---- balance strip ---- */
+function renderBal(){
+  var arrived=ROWS.length,awaiting=AWAIT.length;
+  var inlot=0,loaded=0,orph=0,flags=0;
+  ROWS.forEach(function(b){var st=statusOf(b);if(st==='lot')inlot++;else if(st==='load')loaded++;if(st==='orphan')orph++;if(['flag','dmg','held','miss','orphan'].indexOf(st)>=0)flags++;});
+  var leftout=arrived-inlot-loaded;if(leftout<0)leftout=0;
+  var dispatched=arrived+awaiting;
+  var cells=[['v',dispatched,'Dispatched'],['v',arrived,'Arrived'],['v',awaiting,'Awaiting'],['v',inlot,'In lot'],['v',loaded,'Loaded'],['hi',leftout,'Left out'],['warn',orph,'Excess &#183; no DC']];
+  $('bal').innerHTML=cells.map(function(c){var cl=c[0]==='v'?'c':'c '+c[0];return '<div class="'+cl+'"'+(c[0]==='warn'?' data-warn="1"':'')+'><div class="v">'+c[1]+'</div><div class="l">'+c[2]+'</div></div>';}).join('');
+  var w=$('bal').querySelector('[data-warn]');if(w)w.addEventListener('click',function(){setFilt('orphan');});
+  $('c-a').textContent=ARRS.length+' arrivals';$('c-f').textContent=flags+' flags open';
+  if(awaiting){$('arrb').style.display='';$('arrb').textContent=awaiting;}
+}
+
+/* ---- Stock: block view ---- */
+function allRows(){return ROWS.concat(AWAIT);}
+function matchQ(b){if(!Q)return true;var t=((b.block_no||'')+' '+(b.quarry_block||'')+' '+(b.mark||'')+' '+(b.matched_dc||'')+' '+(b.vehicle_no||'')+' '+(b.arrival||b.parent||'')).toLowerCase();return t.indexOf(Q)>=0;}
+function passFilt(st){
+  if(FILT==='all')return st!=='await'&&st!=='load';
+  if(FILT==='lot')return st==='lot';
+  if(FILT==='flag')return ['flag','miss'].indexOf(st)>=0;
+  if(FILT==='exc')return ['dmg','held'].indexOf(st)>=0;
+  if(FILT==='orphan')return st==='orphan';
+  if(FILT==='await')return st==='await';
+  return true;
+}
+function renderStock(){if(VMODE==='dc'){renderDC();return;}
+  var list=allRows().filter(matchQ).filter(function(b){return passFilt(statusOf(b));});
+  if(!list.length){$('stmain').innerHTML='<div class="empty">No blocks match this filter</div>';wireFoot();return;}
+  var h='<table><thead><tr><th style="width:22px"></th><th>Block</th><th>Mark</th><th>Dims (L'+X+'W'+X+'H)</th><th>CBM</th><th>M.T</th><th>Age</th><th>Src</th><th>Trail</th><th>Status / Resolve</th><th style="width:22px"></th></tr></thead><tbody>';
+  list.forEach(function(b,i){
+    var st=statusOf(b),sp=SP[st],dc=b.matched_dc,arr=b.arrival||b.parent||'';
+    var age=ageDays(arr),agc=age==null?'<span class="sub">'+DASH+'</span>':'<span style="'+(age>30?'color:#a32d2d;font-weight:700':(age>20?'color:#8a5a12;font-weight:600':'color:#5f6b7a'))+'">'+age+'d</span>';
+    var canSel=(st==='match'||st==='port'||st==='lot');
+    var key=arr+'|'+(b.block_no||i);
+    var sub=dc?('DC '+esc(dc)):(st==='miss'?'<span class="mis">no block no</span>':(st==='await'?'<span style="color:#5f6b7a">on DC, not yet arrived</span>':'<span class="mis">not on any DC</span>'));
+    h+='<tr'+(SEL[key]?' class="sel"':'')+'><td>'+(canSel?'<input type="checkbox" class="ck" data-k="'+esc(key)+'"'+(SEL[key]?' checked':'')+'>':'')+'</td>'
+      +'<td><span class="blk">'+esc(b.block_no||'')+'</span><div class="sub">'+sub+' '+DOT+' '+esc(arr)+'</div></td>'
+      +'<td>'+esc(b.mark||'')+'</td><td>'+dims(b)+'</td><td>'+(b.cbm||DASH)+'</td><td>'+(b.net_wt||b.mt||DASH)+'</td><td>'+agc+'</td>'
+      +'<td>'+srcEye(b)+'</td><td>'+trail(arr,dc,b.block_no)+'</td>'
+      +'<td>'+pill(st)+resolve(b,st,key)+'</td>'
+      +'<td><span class="exp" data-x="'+i+'">'+U(9656)+'</span></td></tr>'
+      +'<tr class="det2" id="dx'+i+'" style="display:none"><td colspan="11"><div class="detbox">'+detail(b,st)+'</div></td></tr>';
+  });
+  h+='</tbody></table>';$('stmain').innerHTML=h;wireStock();wireFoot();
+}
+function resolve(b,st,key){
+  if(['match','port','lot','load'].indexOf(st)>=0)return '';
+  var r=b.name?esc(b.name):'',arr=esc(b.arrival||b.parent||''),o='<div style="margin-top:5px">';
+  if(st==='flag'){if(b.suggested_block)o+='<span class="rb pri" data-act="Fixed source" data-row="'+r+'" data-arr="'+arr+'" data-sug="'+esc(b.suggested_block)+'">Fix '+AR+' '+esc(b.suggested_block)+'</span>';o+='<span class="rb pri" data-act="Use challan" data-row="'+r+'" data-arr="'+arr+'">Use DC dims</span><span class="rb ok" data-act="Accepted as-is" data-row="'+r+'" data-arr="'+arr+'">Accept</span>';}
+  else if(st==='orphan')o+='<span class="rb ok" data-act="Accepted as-is" data-row="'+r+'" data-arr="'+arr+'">Accept as extra</span>';
+  else if(st==='miss')o+='<span class="rb warn" data-act="Removed (duplicate)" data-row="'+r+'" data-arr="'+arr+'">Remove</span>';
+  else if(st==='await')o+='<span class="rb pri" data-move="1" data-bn="'+esc(b.block_no||'')+'" data-dc="'+esc(b.matched_dc||'')+'">Move to At Port</span>';
+  else if(st==='dmg')o+='<span class="rb warn" data-act="Held" data-row="'+r+'" data-arr="'+arr+'">Hold from load</span>';
+  else if(st==='held')o+='<span class="rb ok" data-act="Accepted as-is" data-row="'+r+'" data-arr="'+arr+'">Release</span>';
+  return o+'</div>';
+}
+function detail(b,st){
+  var arr=b.arrival||b.parent||'';
+  return '<div style="font-size:12px;color:#374151"><b>Block '+esc(b.block_no||'')+'</b> '+DOT+' history<br>'
+    +(b.quarry_block?'Quarry '+esc(b.quarry_block)+' '+DOT+' ':'')
+    +(b.matched_dc?'DC <a href="/app/delivery-challan/'+encodeURIComponent(b.matched_dc)+'" target="_blank">'+esc(b.matched_dc)+'</a> '+DOT+' ':'')
+    +'Arrival '+esc(arr)+' '+DOT+' status <b>'+(SP[st][1].replace(/[^ -~]/g,'').trim())+'</b>'
+    +(ageDays(arr)!=null?' '+DOT+' '+ageDays(arr)+' days at port':'')+'</div>';
+}
+function srcEye(b){var s=(b.source||b.arrival_source||'').toLowerCase();var isXls=s.indexOf('upload')>=0||s.indexOf('xls')>=0||!!b.source_file;var isEmail=s.indexOf('email')>=0||s.indexOf('mail')>=0||!!b.source_email;if(b._await)return '<span class="sub">DC</span>';if(!isXls&&!isEmail)return '<span class="sub">'+DASH+'</span>';var col=isEmail?'#185fa5':'#8a5a12';var ic=isEmail?MAIL:SQ;return '<span class="eye" style="color:'+col+'" data-src="'+(isXls?'xls':'email')+'" data-ref="'+esc(b.source_file||'')+'" data-arr="'+esc(b.arrival||b.parent||'')+'">'+ic+'</span>';}
+function trail(arr,dc,blk){var o='<span class="eye" data-panel="dc" data-arr="'+esc(arr)+'" data-dc="'+esc(dc||'')+'" data-blk="'+esc(blk||'')+'">DC</span>'+U(8250)+'<span class="eye" data-panel="arr" data-arr="'+esc(arr)+'" data-dc="" data-blk="'+esc(blk||'')+'">Arrival</span>';return '<span style="font-size:11px;color:#6b7280">'+o+'</span>';}
+function wireStock(){
+  $('stmain').querySelectorAll('.ck').forEach(function(c){c.addEventListener('change',function(){SEL[c.dataset.k]=c.checked;c.closest('tr').classList.toggle('sel',c.checked);updBulk();});});
+  $('stmain').querySelectorAll('.exp').forEach(function(x){x.addEventListener('click',function(){var d=$('dx'+x.dataset.x);d.style.display=d.style.display==='none'?'':'none';});});
+  $('stmain').querySelectorAll('.rb').forEach(function(x){x.addEventListener('click',function(){if(x.dataset.move){moveToPort([{block_no:x.dataset.bn,dc:x.dataset.dc}]);}else{reconcile(x.dataset.arr,x.dataset.row,x.dataset.act,x.dataset.sug);}});});
+  $('stmain').querySelectorAll('.eye').forEach(function(x){x.addEventListener('click',function(){if(x.dataset.src)openSource(x.dataset.src,x.dataset.ref,x.dataset.arr);else openPanel(x.dataset.panel,x.dataset.arr,x.dataset.dc,x.dataset.blk);});});
+  updBulk();
+}
+function reconcile(arr,row,act,sug){if(!row||!arr)return;var upd={};if(act==='Fixed source'&&sug)upd.block_no=sug;post('dolphin_theme.api_arrivals.resolve_flag',{arrival:arr,row_name:row,resolution_type:act,updates:upd}).then(loadAll);}
+function moveToPort(items){post('dolphin_theme.api_arrivals.move_to_at_port',{blocks:items}).then(function(){msg('Moved to At Port '+DASH+' arrivals step skipped');loadAll();}).catch(function(){msg('Move to At Port backend not deployed yet',1);});}
+function updBulk(){var n=Object.keys(SEL).filter(function(k){return SEL[k];}).length;$('bn').textContent=n;$('bulk').classList.toggle('on',n>0);var p=$('pushbtn');if(p){p.disabled=!n;p.textContent='Push '+n+' '+AR+' Shipment Lot';}}
+
+/* ---- Stock: DC loading planner ---- */
+function renderDC(){
+  var map={};
+  ROWS.forEach(function(b){var dc=b.matched_dc||'(no DC)';(map[dc]=map[dc]||{dc:dc,mk:b.mark||'',bi:b.buyer_inspection||b.bi||'',blocks:[]}).blocks.push(b);});
+  AWAIT.forEach(function(b){var dc=b.matched_dc||'(no DC)';(map[dc]=map[dc]||{dc:dc,mk:b.mark||'',bi:'',blocks:[]}).blocks.push(b);});
+  var keys=Object.keys(map);
+  if(!keys.length){$('stmain').innerHTML='<div class="empty">No DC data yet</div>';return;}
+  var h='<table><thead><tr><th>Delivery Challan</th><th>Mark</th><th>Docs</th><th>Arrived</th><th>Await</th><th>In lot</th><th>Loaded</th><th>Left out</th><th style="width:100px">Progress</th><th style="width:22px"></th></tr></thead><tbody>';
+  keys.forEach(function(k,i){var g=map[k];var arr=0,aw=0,lot=0,load=0;
+    g.blocks.forEach(function(b){var st=statusOf(b);if(st==='await')aw++;else{arr++;if(st==='lot')lot++;if(st==='load')load++;}});
+    var left=arr-lot-load;if(left<0)left=0;var disp=arr+aw;var pl=disp?Math.round(load/disp*100):0,pt=disp?Math.round(lot/disp*100):0,plf=disp?Math.round(left/disp*100):0;
+    h+='<tr><td><b>'+esc(g.dc)+'</b></td><td>'+esc(g.mk)+'</td>'
+      +'<td><span class="eye" data-dcpdf="'+esc(g.dc)+'">'+U(128196)+' DC</span></td>'
+      +'<td>'+arr+'</td><td>'+(aw?'<b style="color:#8a5a12">'+aw+'</b>':'0')+'</td><td>'+lot+'</td><td><b style="color:#0c7150">'+load+'</b></td><td>'+(left?'<b style="color:#8a5a12">'+left+'</b>':'0')+'</td>'
+      +'<td><div class="mini"><i style="width:'+pl+'%;background:#0c7150"></i><i style="width:'+pt+'%;background:#33449c"></i><i style="width:'+plf+'%;background:#e0a94a"></i></div></td>'
+      +'<td><span class="exp" data-dx="'+i+'">'+U(9656)+'</span></td></tr>'
+      +'<tr class="det2" id="ddx'+i+'" style="display:none"><td colspan="10"><div class="detbox"><div style="font-size:12px;color:var(--navy);font-weight:600;margin-bottom:8px">Blocks in '+esc(g.dc)+' '+DASH+' pick by size to load</div><div class="chips">'
+      +g.blocks.map(function(b){var st=statusOf(b);var m=DCC[st]||DCC.port;return '<span class="chip2" style="background:'+m[0]+';border-color:'+m[1]+';color:'+m[2]+'"><b>'+esc(b.block_no||'')+'</b> '+dims(b)+' '+DOT+' '+(b.cbm||'?')+'m'+U(179)+'<span class="ct">'+m[3]+'</span></span>';}).join('')
+      +'</div></div></td></tr>';
+  });
+  h+='</tbody></table>';$('stmain').innerHTML=h;
+  $('stmain').querySelectorAll('.exp').forEach(function(x){x.addEventListener('click',function(){var d=$('ddx'+x.dataset.dx);d.style.display=d.style.display==='none'?'':'none';});});
+  $('stmain').querySelectorAll('[data-dcpdf]').forEach(function(x){x.addEventListener('click',function(){openPanel('dc','',x.dataset.dcpdf,'');});});
+}
+var DCC={load:['#dff3ea','#9fe1cb','#0c7150','loaded'],lot:['#e7ecff','#b9c4f0','#33449c','in lot'],port:['#fbeedd','#f0d4a8','#8a5a12','left out'],match:['#fbeedd','#f0d4a8','#8a5a12','left out'],dmg:['#fbe3d4','#eec2a6','#a3491a','damaged'],held:['#f3d9dd','#e2b6bf','#8a1f2e','held'],await:['#eef1f6','#d7dde6','#5f6b7a','awaiting'],orphan:['#fcebeb','#f0c0c0','#a32d2d','orphan'],miss:['#fcebeb','#f0c0c0','#a32d2d','no no']};
+
+/* ---- panel ---- */
+function openPanel(kind,arr,dc,blk){var p=$('panel');p.classList.add('on');var dt,nm,fmt='';if(kind==='dc'&&dc){dt='Delivery Challan';nm=dc;fmt='Dolphin Delivery Challan';}else{dt='Port Arrival';nm=arr;}var src='/printview?doctype='+encodeURIComponent(dt)+'&name='+encodeURIComponent(nm)+(fmt?'&format='+encodeURIComponent(fmt):'')+'&no_letterhead=0&_lang=en';p.innerHTML='<div style="padding:9px 12px;background:#f4f6f9;border-bottom:0.5px solid #e5e7eb;display:flex;gap:8px;font-size:12px"><b style="flex:1">'+esc(blk||nm||'')+' '+DOT+' '+esc(dt)+'</b><span class="rb" id="pcl">Close</span></div><iframe src="'+src+'" style="flex:1;border:none;width:100%"></iframe>';$('pcl').addEventListener('click',closePanel);}
+function openSource(kind,ref,arr){var p=$('panel');p.classList.add('on');var body=kind==='xls'?'<div style="padding:16px;font-size:12px">Uploaded source .xls'+(ref?':<br><b>'+esc(ref)+'</b><br><br><a class="rb" href="'+esc(ref)+'" target="_blank">Open .xls</a>':' for '+esc(arr))+'</div>':'<iframe src="/app/communication?reference_doctype=Port%20Arrival&reference_name='+encodeURIComponent(arr)+'" style="flex:1;border:none;width:100%"></iframe>';p.innerHTML='<div style="padding:9px 12px;background:#f4f6f9;border-bottom:0.5px solid #e5e7eb;display:flex;gap:8px;font-size:12px"><b style="flex:1">'+(kind==='xls'?SQ+' .xls source':MAIL+' Email source')+'</b><span class="rb" id="pcl">Close</span></div>'+body;$('pcl').addEventListener('click',closePanel);}
 function closePanel(){var p=$('panel');p.classList.remove('on');p.innerHTML='';}
 
-/* ---------- FULL VIEW: all blocks across all arrivals (+ pooled push) ---------- */
-var FROWS=[];
-function fullRows(){var rows=FULL;if(!rows)return[];if(rows.rows)rows=rows.rows;else if(rows.blocks)rows=rows.blocks;if(!Array.isArray(rows))return[];return rows;}
-function loadFull(){$('detail').innerHTML='<div class="empty">Loading all arrivals'+String.fromCharCode(8230)+'</div>';fetch('/api/method/dolphin_theme.api_arrivals.full_view',{credentials:'include'}).then(function(r){return r.json();}).then(function(j){FULL=j.message||[];renderFull();}).catch(function(){$('detail').innerHTML='<div class="empty">Could not load full view</div>';});}
-function renderFull(){var all=fullRows();FROWS=all.filter(matchF).filter(matchQ);var flags=all.filter(function(b){var s=b.recon_status||b.status||'';return s!=='Matched'&&s!=='Resolved';}).length;$('c-arr').textContent=(new Set(all.map(function(b){return b.arrival||b.parent;}))).size+' arrivals';$('c-flag').textContent=flags+' flags open';if(!all.length){$('detail').innerHTML='<div class="empty">No blocks</div>';$('foot').innerHTML='';return;}var h='<table id="ftbl"><thead><tr><th style="width:24px"></th><th>Arrival</th><th>Src</th><th>Block</th><th>Mark</th><th>Dims (L'+String.fromCharCode(215)+'W'+String.fromCharCode(215)+'H)</th><th>CBM</th><th>M.T</th><th>Kgs</th><th>DC</th><th>Status</th><th></th></tr></thead><tbody>';FROWS.forEach(function(b,i){var mt=b.net_wt||b.mt||'';var kg=(b.net_wt?(b.net_wt*1000):(b.kgs||''));var st=(b.recon_status||b.status||'');var canPush=(st==='Matched'||st==='Resolved');h+='<tr><td>'+(canPush?'<input type="checkbox" class="fck" data-i="'+i+'">':'')+'</td><td style="font-size:11px">'+esc(b.arrival||b.parent||'')+'</td><td>'+srcEye(b)+'</td><td><b>'+esc(b.block_no||'')+'</b>'+(b.quarry_block?'<div style="font-size:10px;color:#9ca3af">'+esc(b.quarry_block)+'</div>':'')+'</td><td>'+esc(b.mark||'')+'</td><td>'+dims(b)+'</td><td>'+(b.cbm||''+String.fromCharCode(8212)+'')+'</td><td>'+(mt?esc(mt):''+String.fromCharCode(8212)+'')+'</td><td>'+(kg?esc(kg):''+String.fromCharCode(8212)+'')+'</td><td style="font-size:11px">'+(b.matched_dc?esc(b.matched_dc):''+String.fromCharCode(8212)+'')+'</td><td>'+pill(st)+'</td><td><span class="eye" data-arr="'+esc(b.arrival||b.parent||'')+'" data-dc="'+esc(b.matched_dc||'')+'" data-blk="'+esc(b.block_no||'')+'">'+String.fromCharCode(128065)+'</span></td></tr>';});h+='</tbody></table>';$('detail').innerHTML=h;$('detail').querySelectorAll('.eye').forEach(function(x){x.addEventListener('click',function(){if(x.dataset.src){openSource(x.dataset.src,x.dataset.ref,x.dataset.arr);}else{openPanelFull(x.dataset.arr,x.dataset.dc,x.dataset.blk);}});});$('detail').querySelectorAll('.fck').forEach(function(c){c.addEventListener('change',updFullFoot);});wireFullFoot();}
-function fullChecked(){return [].map.call($('detail').querySelectorAll('.fck:checked'),function(c){return FROWS[+c.dataset.i];});}
-function updFullFoot(){var n=fullChecked().length;var b=$('fpush');if(b){b.disabled=!n;b.textContent='Push '+n+' block'+(n===1?'':'s')+' '+String.fromCharCode(8594)+' one Shipment Lot';}}
-function wireFullFoot(){$('foot').innerHTML='<button class="push" id="fpush" disabled>Push '+String.fromCharCode(8594)+' one Shipment Lot</button><span style="font-size:12px;color:#6b7280">Tick matched / resolved blocks from <b>any arrival or at-port stock</b> to pool them into a single lot.</span>';$('fpush').addEventListener('click',pushFull);updFullFoot();}
-function pushFull(){var sel=fullChecked();if(!sel.length)return;var rows=sel.map(function(b){return {quarry_block:b.quarry_block,block_no:b.block_no,length:b.length,width:b.width,height:b.height,cbm:b.cbm,mt:b.net_wt||b.mt,kgs:(b.net_wt?b.net_wt*1000:b.kgs),matched_dc:b.matched_dc,arrival:b.arrival||b.parent};});var marks=Array.from(new Set(sel.map(function(b){return b.mark||'';}).filter(Boolean)));var mark=marks.length===1?marks[0]:'';$('fpush').disabled=true;$('fpush').textContent='Creating'+String.fromCharCode(8230)+'';post('dolphin_theme.api_arrivals.create_shipment_lot',{consignee:mark,rows:rows,mark:mark,vessel:''}).then(function(j){var lot=(j.message&&(j.message.name||j.message))||'';$('foot').innerHTML='<span style="font-size:13px;color:#0f6e56">'+String.fromCharCode(10003)+' Created '+esc(lot)+' with '+rows.length+' blocks from '+(new Set(rows.map(function(r){return r.arrival;}))).size+' arrival(s)</span> <a href="/app/export-shipment-lot/'+encodeURIComponent(lot)+'" target="_blank" class="bx" style="border-color:#128666;color:#128666">Open lot</a> <span class="bx" id="fagain">Push more</span>';var a=document.getElementById('fagain');if(a)a.addEventListener('click',function(){loadFull();});}).catch(function(){$('foot').innerHTML='<span style="color:#a32d2d">Error creating lot</span>';});}
-function srcEye(b){var s=(b.source||b.arrival_source||'').toLowerCase();var isXls=s.indexOf('upload')>=0||s.indexOf('xls')>=0||!!b.source_file;var isEmail=s.indexOf('email')>=0||s.indexOf('mail')>=0||!!b.source_email;if(!isXls&&!isEmail)return '<span style="color:#c7ccd4">'+String.fromCharCode(8212)+'</span>';var ref=isXls?(b.source_file||'uploaded .xls'):(b.source_email||'email');var col=isEmail?'#185fa5':'#8a5a12';var ic=isEmail?''+String.fromCharCode(9993)+'':''+String.fromCharCode(9636)+'';return '<span class="eye" style="color:'+col+'" title="'+esc(ref)+'" data-src="'+(isXls?'xls':'email')+'" data-ref="'+esc(ref)+'" data-arr="'+esc(b.arrival||b.parent||'')+'">'+ic+'</span>';}
-function openSource(kind,ref,arr){var p=$('panel');p.classList.add('on');var body;if(kind==='xls'){body='<div style="padding:16px;font-size:12px">Uploaded source file:<br><b>'+esc(ref)+'</b><br><br><a class="bx" href="'+esc(ref)+'" target="_blank">Open / download .xls</a></div>';}else{body='<iframe src="/app/communication?reference_doctype=Port%20Arrival&reference_name='+encodeURIComponent(arr)+'" style="flex:1;border:none;width:100%"></iframe>';}p.innerHTML='<div style="padding:10px 12px;background:#f4f6f9;border-bottom:0.5px solid #e5e7eb;display:flex;align-items:center;gap:8px;font-size:12px"><b style="flex:1">'+(kind==='xls'?''+String.fromCharCode(9636)+' Uploaded .xls':''+String.fromCharCode(9993)+' Email source')+'</b><span class="bx" id="pclose">Close</span></div>'+body;document.getElementById('pclose').addEventListener('click',closePanel);}
-function openPanelFull(arr,dc,blk){var p=$('panel');p.classList.add('on');var dt,nm,fmt;if(dc){dt='Delivery Challan';nm=dc;fmt='Dolphin Delivery Challan';}else{dt='Port Arrival';nm=arr;fmt='';}var src='/printview?doctype='+encodeURIComponent(dt)+'&name='+encodeURIComponent(nm)+(fmt?'&format='+encodeURIComponent(fmt):'')+'&no_letterhead=0&_lang=en';p.innerHTML='<div style="padding:10px 12px;background:#f4f6f9;border-bottom:0.5px solid #e5e7eb;display:flex;align-items:center;gap:8px;font-size:12px"><b style="flex:1">'+esc(blk||'')+' '+String.fromCharCode(183)+' '+esc(dt)+'</b><span class="bx" id="pclose">Close</span></div><iframe src="'+src+'" style="flex:1;border:none;width:100%"></iframe>';document.getElementById('pclose').addEventListener('click',closePanel);}
-function exportCsv(){var all=fullRows().filter(matchF).filter(matchQ);var head=['Arrival','Block','Quarry Block','Mark','Length','Width','Height','CBM','MT','Kgs','DC','Status'];var lines=[head.join(',')];all.forEach(function(b){var mt=b.net_wt||b.mt||'';var kg=(b.net_wt?(b.net_wt*1000):(b.kgs||''));var row=[b.arrival||b.parent||'',b.block_no||'',b.quarry_block||'',b.mark||'',b.length||'',b.width||'',b.height||'',b.cbm||'',mt,kg,b.matched_dc||'',b.recon_status||''];lines.push(row.map(function(v){v=(''+v).replace(/"/g,'""');return /[",\n]/.test(v)?'"'+v+'"':v;}).join(','));});var blob=new Blob([lines.join('\n')],{type:'text/csv'});var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='port-reconciliation-all-arrivals.csv';a.click();}
+/* ---- foot / push ---- */
+function selectedRows(){var out=[];allRows().forEach(function(b,i){var key=(b.arrival||b.parent||'')+'|'+(b.block_no||'');if(SEL[key])out.push(b);});return out;}
+function wireFoot(){$('foot').innerHTML='<button class="push" id="pushbtn" disabled>Push '+AR+' Shipment Lot</button><span style="font-size:12px;color:#6b7280">Tick matched / at-port blocks from any arrival, then pool into one lot.</span>';$('pushbtn').addEventListener('click',doPush);updBulk();}
+function doPush(){var sel=selectedRows();if(!sel.length)return;var rows=sel.map(function(b){return {quarry_block:b.quarry_block,block_no:b.block_no,length:b.length,width:b.width,height:b.height,cbm:b.cbm,mt:b.net_wt||b.mt,kgs:(b.net_wt?b.net_wt*1000:b.kgs),matched_dc:b.matched_dc,arrival:b.arrival||b.parent};});var marks=Array.from(new Set(sel.map(function(b){return b.mark||'';}).filter(Boolean)));var mk=marks.length===1?marks[0]:'';$('pushbtn').disabled=true;$('pushbtn').textContent='Creating'+U(8230);post('dolphin_theme.api_arrivals.create_shipment_lot',{consignee:mk,rows:rows,mark:mk,vessel:''}).then(function(j){var lot=(j.message&&(j.message.name||j.message))||'';SEL={};$('foot').innerHTML='<span style="color:#0f6e56">'+CHK+' Created '+esc(lot)+'</span> <a class="rb" href="/app/export-shipment-lot/'+encodeURIComponent(lot)+'" target="_blank">Open lot</a>';loadAll();}).catch(function(){$('foot').innerHTML='<span style="color:#a32d2d">Error creating lot</span>';});}
 
-/* ---------- IMPORT .xls (upsert) ---------- */
+/* ---- bulk ---- */
+$('bpush').addEventListener('click',doPush);
+$('bmove').addEventListener('click',function(){var items=selectedRows().filter(function(b){return statusOf(b)==='await';}).map(function(b){return {block_no:b.block_no,dc:b.matched_dc};});if(!items.length){msg('Select awaiting-arrival blocks to move',1);return;}moveToPort(items);});
+document.querySelectorAll('#bulk .bbtn[data-b]').forEach(function(x){x.addEventListener('click',function(){var sel=selectedRows();sel.forEach(function(b){if(b.name&&(b.arrival||b.parent))post('dolphin_theme.api_arrivals.resolve_flag',{arrival:b.arrival||b.parent,row_name:b.name,resolution_type:x.dataset.b,updates:{}});});setTimeout(function(){SEL={};loadAll();},400);});});
+
+/* ---- Arrivals tab ---- */
+function renderArr(){var el=$('arrlist');if(!ARRS.length){el.innerHTML='<div class="empty">No arrivals</div>';return;}
+  var aq=($('aq').value||'').toLowerCase();
+  var list=ARRS.filter(function(a){return !aq||(a.name+' '+(a.mark||'')+' '+(a.shipper||'')).toLowerCase().indexOf(aq)>=0;});
+  el.innerHTML=list.map(function(a){var age=a.arrival_date?ageDays(a.name):null;
+    return '<div class="arow" data-n="'+esc(a.name)+'"><div style="flex:1"><div style="font-weight:600;font-size:14px">'+esc(a.name)+'</div><div class="sub">'+esc(a.mark||'')+' '+DOT+' '+esc(a.arrival_date||'')+' '+DOT+' '+(a.total_blocks||0)+' blocks'+(age!=null?' '+DOT+' '+age+'d ago':'')+'</div></div><a class="rb" href="/app/port-arrival/'+encodeURIComponent(a.name)+'" target="_blank">Open</a></div>';}).join('');
+}
+$('aq').addEventListener('input',renderArr);
+
+/* ---- Shipment Lots tab ---- */
+var LF='all',LQ='';
+function renderLots(){var el=$('lotmain');if(!LOTS.length){el.innerHTML='<div class="empty">No shipment lots yet</div>';return;}
+  var list=LOTS.filter(function(l){var st=(l.status==='ship'||l.shipped)?'ship':'build';if(LF!=='all'&&LF!==st)return true&&false||st===LF;var hay=(l.name+' '+(l.consignee||'')+' '+(l.packing_list||'')+' '+(l.bl_no||'')+' '+((l.block_nos||[]).join(' '))).toLowerCase();return (LF==='all'||st===LF)&&(!LQ||hay.indexOf(LQ)>=0);});
+  var h='<table><thead><tr><th>Lot / vessel</th><th>Consignee</th><th>Packing list</th><th>BL no</th><th>Ship date</th><th>Blocks</th><th>CBM</th><th>Status</th><th style="width:22px"></th></tr></thead><tbody>';
+  list.forEach(function(l,i){var st=(l.status==='ship'||l.shipped)?'ship':'build';var sp=st==='ship'?'<span class="pill p-ship">'+U(9096)+' Shipped</span>':'<span class="pill p-port">'+U(9679)+' Building</span>';
+    h+='<tr><td><b>'+esc(l.title||l.name)+'</b><div class="sub">'+esc(l.name)+'</div></td><td>'+esc(l.consignee||'')+'</td><td>'+esc(l.packing_list||DASH)+'</td><td>'+esc(l.bl_no||DASH)+'</td><td>'+esc(l.ship_date||('<span class="sub">'+DASH+' on ship call</span>'))+'</td><td>'+(l.total_blocks||(l.block_nos||[]).length||0)+'</td><td>'+(l.total_cbm||DASH)+'</td><td>'+sp+'</td>'
+      +'<td><span class="exp" data-lx="'+i+'">'+U(9656)+'</span></td></tr>'
+      +'<tr class="det2" id="lx'+i+'" style="display:none"><td colspan="9"><div class="detbox">'
+      +'<div style="font-size:12px;color:#374151;margin-bottom:6px"><b>Blocks:</b> '+esc((l.block_nos||[]).join(', ')||DASH)+'</div>'
+      +'<div style="margin:8px 0"><a class="rb" href="/app/export-shipment-lot/'+encodeURIComponent(l.name)+'" target="_blank">'+U(128196)+' Open lot</a> '
+      +'<a class="rb" href="/printview?doctype=Export%20Shipment%20Lot&name='+encodeURIComponent(l.name)+'&no_letterhead=0" target="_blank">'+U(128196)+' Packing List</a> '
+      +'<span class="rb" data-bl="'+esc(l.name)+'">'+U(128196)+' BL draft</span> '
+      +'<span class="rb" style="border-color:#e0c48a;color:#8a5a12" data-inv="'+esc(l.name)+'">'+LOCK+' Invoice</span></div>'
+      +'<div class="sub">Packing List &amp; BL pull every block row from this lot. Invoice reuses the same rows; rate/amount are permission-gated (hidden from yard users).</div>'
+      +'</div></td></tr>';
+  });
+  h+='</tbody></table>';el.innerHTML=h;
+  el.querySelectorAll('.exp').forEach(function(x){x.addEventListener('click',function(){var d=$('lx'+x.dataset.lx);d.style.display=d.style.display==='none'?'':'none';});});
+  el.querySelectorAll('[data-bl]').forEach(function(x){x.addEventListener('click',function(){msg('BL draft is generated at the Shipping Document step');});});
+  el.querySelectorAll('[data-inv]').forEach(function(x){x.addEventListener('click',function(){msg('Invoice reuses lot rows; pricing is Sales/Accounts only',1);});});
+}
+$('lq').addEventListener('input',function(){LQ=this.value.trim().toLowerCase();renderLots();});
+document.querySelectorAll('#p-lots .fl').forEach(function(f){f.addEventListener('click',function(){LF=f.dataset.lf;document.querySelectorAll('#p-lots .fl').forEach(function(x){x.classList.remove('on');});f.classList.add('on');renderLots();});});
+
+/* ---- import ---- */
 function toggleImp(){$('impbar').classList.toggle('on');}
-function doImport(){var f=$('impfile').files[0];var m=$('impmsg');m.style.display='';m.style.color='#96733a';if(!f){m.textContent='Choose a .xls / .xlsx file first.';return;}m.textContent='Parsing '+f.name+''+String.fromCharCode(8230)+'';var fd=new FormData();fd.append('file',f,f.name);fetch('/api/method/dolphin_theme.api_arrivals.import_xls',{method:'POST',credentials:'include',headers:{'X-Frappe-CSRF-Token':TOKEN},body:fd}).then(function(r){return r.json();}).then(function(j){var res=j.message||{};var c=res.created||0,u=res.updated||0,d=res.duplicates||0;m.style.color='#0f6e56';m.textContent=''+String.fromCharCode(10003)+' Upserted '+f.name+' '+String.fromCharCode(8212)+' '+c+' new, '+u+' updated, '+d+' duplicates skipped. Reloading'+String.fromCharCode(8230)+'';loadArrivals();if(VIEW==='full')loadFull();}).catch(function(){m.style.color='#a32d2d';m.textContent='Import failed '+String.fromCharCode(8212)+' the import_xls backend method may not be deployed yet.';});}
+function msg(t,err){var m=$('impmsg');$('impbar').classList.add('on');m.style.display='';m.style.color=err?'#a32d2d':'#0f6e56';m.textContent=t;}
+function doImport(){var f=$('impfile').files[0];var m=$('impmsg');m.style.display='';m.style.color='#96733a';if(!f){m.textContent='Choose a .xls / .xlsx first.';return;}m.textContent='Parsing '+f.name+U(8230);var fd=new FormData();fd.append('file',f,f.name);fetch('/api/method/dolphin_theme.api_arrivals.import_xls',{method:'POST',credentials:'include',headers:{'X-Frappe-CSRF-Token':TOKEN},body:fd}).then(function(r){return r.json();}).then(function(j){var res=j.message||{};m.style.color='#0f6e56';m.textContent=CHK+' Upserted '+f.name+' '+DASH+' '+(res.created||0)+' new, '+(res.updated||0)+' confirmed, '+(res.duplicates||0)+' dup skipped. Reloading'+U(8230);loadAll();}).catch(function(){m.style.color='#a32d2d';m.textContent='Import failed '+DASH+' import_xls may not be deployed yet.';});}
 
-function setView(v){VIEW=v;document.querySelectorAll('#vt span').forEach(function(s){s.classList.toggle('on',s.dataset.v===v);});var full=(v==='full');$('csvbtn').style.display=full?'':'none';$('prnbtn').style.display=full?'':'none';$('arrs').style.display=full?'none':'';closePanel();if(full){loadFull();}else{$('c-arr').textContent=ARRS.length+' arrivals';if(CUR)select(CUR);}}
-
-$('q').addEventListener('input',function(){Q=this.value.trim().toLowerCase();renderDetail();});
-[].forEach.call(document.querySelectorAll('#pr .fl'),function(f){f.addEventListener('click',function(){FILT=f.dataset.f;document.querySelectorAll('#pr .fl').forEach(function(x){x.classList.remove('on');});f.classList.add('on');renderDetail();});});
-[].forEach.call(document.querySelectorAll('#vt span'),function(s){s.addEventListener('click',function(){setView(s.dataset.v);});});
-$('impbtn').addEventListener('click',toggleImp);
-$('impx').addEventListener('click',toggleImp);
-$('impgo').addEventListener('click',doImport);
-$('csvbtn').addEventListener('click',exportCsv);
-$('prnbtn').addEventListener('click',function(){window.print();});
-loadArrivals();
+/* ---- tabs / filters / views ---- */
+function tab(t){document.querySelectorAll('#pr .tab').forEach(function(x){x.classList.toggle('on',x.dataset.t===t);});document.querySelectorAll('#pr .pane').forEach(function(p){p.classList.remove('on');});$('p-'+t).classList.add('on');}
+document.querySelectorAll('#pr .tab').forEach(function(x){x.addEventListener('click',function(){tab(x.dataset.t);});});
+function setFilt(f){FILT=f;VMODE='blk';$('v-blk').classList.add('on');$('v-dc').classList.remove('on');$('flrow').style.display='';document.querySelectorAll('#flrow .fl').forEach(function(x){x.classList.toggle('on',x.dataset.f===f);});renderStock();}
+document.querySelectorAll('#flrow .fl').forEach(function(f){f.addEventListener('click',function(){setFilt(f.dataset.f);});});
+$('v-blk').addEventListener('click',function(){VMODE='blk';this.classList.add('on');$('v-dc').classList.remove('on');$('flrow').style.display='';$('foot').style.display='flex';renderStock();});
+$('v-dc').addEventListener('click',function(){VMODE='dc';this.classList.add('on');$('v-blk').classList.remove('on');$('flrow').style.display='none';$('foot').style.display='none';renderDC();});
+$('q').addEventListener('input',function(){Q=this.value.trim().toLowerCase();renderStock();});
+$('impbtn').addEventListener('click',toggleImp);$('impbtn2').addEventListener('click',function(){tab('stock');toggleImp();});
+$('impx').addEventListener('click',toggleImp);$('impgo').addEventListener('click',doImport);
+$('csvbtn').addEventListener('click',function(){var all=allRows().filter(matchQ);var head=['Arrival','Block','Mark','L','W','H','CBM','MT','DC','Status'];var lines=[head.join(',')];all.forEach(function(b){var row=[b.arrival||b.parent||'',b.block_no||'',b.mark||'',b.length||'',b.width||'',b.height||'',b.cbm||'',b.net_wt||b.mt||'',b.matched_dc||'',statusOf(b)];lines.push(row.map(function(v){v=(''+v).replace(/"/g,'""');return /[",\n]/.test(v)?'"'+v+'"':v;}).join(','));});var blob=new Blob([lines.join('\n')],{type:'text/csv'});var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='stock-at-port.csv';a.click();});
+loadAll();
 })();
 </script>
 {% endraw %}
