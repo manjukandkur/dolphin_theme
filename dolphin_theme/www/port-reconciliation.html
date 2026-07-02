@@ -1,43 +1,74 @@
 {% raw %}
 <style>
 :root{--navy:#3a5a86;--gold:#D4A24A}
-#pr{font-family:inherit;max-width:1180px;margin:0 auto;padding:8px 12px;color:#1f2a3a}
-#pr .hd{background:var(--navy);color:#fff;border-radius:12px 12px 0 0;padding:12px 16px;border-bottom:3px solid var(--gold);display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-#pr .hd h1{font-size:16px;margin:0;font-weight:600;flex:1}
-#pr .chip{font-size:11px;padding:3px 9px;border-radius:20px;background:#2f4a70;border:1px solid rgba(255,255,255,.25);color:#e6ecf3}
-#pr .tb{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:10px 14px;border:0.5px solid #e5e7eb;border-top:none;background:#fff}
-#pr input,#pr select{padding:7px 9px;border:1px solid #cfd4dc;border-radius:6px;font-size:12px}
-#pr .fl{font-size:12px;padding:4px 11px;border-radius:20px;background:#f1f3f6;color:#5f6b7a;cursor:pointer}
+#pr{font-family:inherit;max-width:1320px;margin:0 auto;padding:10px 14px;color:#1f2a3a}
+#pr .hd{background:var(--navy);color:#fff;border-radius:12px 12px 0 0;padding:16px 20px;border-bottom:3px solid var(--gold);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+#pr .hd h1{font-size:20px;margin:0;font-weight:600;flex:1}
+#pr .chip{font-size:12px;padding:4px 11px;border-radius:20px;background:#2f4a70;border:1px solid rgba(255,255,255,.25);color:#e6ecf3}
+#pr .tb{display:flex;gap:9px;flex-wrap:wrap;align-items:center;padding:12px 16px;border:0.5px solid #e5e7eb;border-top:none;background:#fff}
+#pr input,#pr select{padding:9px 11px;border:1px solid #cfd4dc;border-radius:7px;font-size:13px}
+#pr .fl{font-size:13px;padding:6px 14px;border-radius:20px;background:#f1f3f6;color:#5f6b7a;cursor:pointer}
 #pr .fl.on{background:#eaf0f7;color:#16304F;font-weight:600}
-#pr .body{display:flex;border:0.5px solid #e5e7eb;border-top:none;min-height:360px}
-#pr .arrs{width:200px;flex:none;border-right:0.5px solid #e5e7eb;overflow:auto;max-height:520px}
-#pr .arr{padding:9px 12px;border-bottom:0.5px solid #eee;cursor:pointer;border-left:3px solid transparent}
+#pr .vt{display:flex;border:1px solid #cfd4dc;border-radius:8px;overflow:hidden}
+#pr .vt span{font-size:13px;padding:7px 14px;cursor:pointer;color:#5f6b7a;background:#fff}
+#pr .vt span.on{background:var(--navy);color:#fff;font-weight:600}
+#pr .imp{font-size:13px;font-weight:600;padding:8px 14px;border-radius:8px;background:#fff;border:1.5px solid var(--gold);color:#8a5a12;cursor:pointer}
+#pr .ghost{font-size:13px;padding:8px 13px;border-radius:8px;background:#fff;border:1px solid var(--navy);color:var(--navy);cursor:pointer}
+#pr .body{display:flex;border:0.5px solid #e5e7eb;border-top:none;min-height:420px}
+#pr .arrs{width:240px;flex:none;border-right:0.5px solid #e5e7eb;overflow:auto;max-height:600px}
+#pr .arr{padding:12px 14px;border-bottom:0.5px solid #eee;cursor:pointer;border-left:3px solid transparent}
 #pr .arr.on{background:#eaf0f7;border-left-color:var(--gold)}
-#pr .arr .n{font-size:12px;font-weight:500}
-#pr .arr .m{font-size:10px;color:#6b7280}
-#pr .det{flex:1;min-width:0}
-#pr table{width:100%;border-collapse:collapse;font-size:11px}
-#pr th{text-align:left;color:#6b7280;padding:6px 6px;border-bottom:0.5px solid #eee}
-#pr td{padding:7px 6px;border-bottom:0.5px solid #f0f0f0;vertical-align:top}
-#pr .pill{font-size:10px;padding:1px 7px;border-radius:10px;font-weight:600}
-#pr .bx{font-size:10px;padding:2px 8px;border-radius:10px;cursor:pointer;margin:2px 3px 0 0;display:inline-block;border:0.5px solid #cfd4dc;color:#374151}
-#pr .push{background:#128666;color:#fff;border:none;font-weight:600;padding:8px 16px;border-radius:6px;font-size:12px;cursor:pointer}
+#pr .arr .n{font-size:13px;font-weight:500}
+#pr .arr .m{font-size:11px;color:#6b7280;margin-top:2px}
+#pr .det{flex:1;min-width:0;overflow:auto;max-height:600px}
+#pr table{width:100%;border-collapse:collapse;font-size:13px}
+#pr th{text-align:left;color:#5f6b7a;padding:10px 8px;border-bottom:0.5px solid #eee;position:sticky;top:0;background:#fff;white-space:nowrap;font-weight:600}
+#pr td{padding:11px 8px;border-bottom:0.5px solid #f0f0f0;vertical-align:middle}
+#pr tbody tr:hover{background:#fafbfd}
+#pr .pill{font-size:11px;padding:3px 10px;border-radius:12px;font-weight:600;white-space:nowrap}
+#pr .bx{font-size:12px;padding:5px 11px;border-radius:8px;cursor:pointer;margin:2px 4px 2px 0;display:inline-block;border:1px solid #cfd4dc;color:#374151;background:#fff}
+#pr .bx.pri{background:var(--navy);color:#fff;border-color:var(--navy);font-weight:600}
+#pr .push{background:#128666;color:#fff;border:none;font-weight:600;padding:10px 18px;border-radius:8px;font-size:13px;cursor:pointer}
 #pr .push:disabled{opacity:.45;cursor:not-allowed}
-#pr .eye{cursor:pointer;color:#185fa5;font-size:14px}
-#pr .panel{width:290px;flex:none;border-left:0.5px solid #e5e7eb;display:none;flex-direction:column;max-height:520px}
+#pr .eye{cursor:pointer;color:#185fa5;font-size:17px}
+#pr .panel{width:330px;flex:none;border-left:0.5px solid #e5e7eb;display:none;flex-direction:column;max-height:600px}
 #pr .panel.on{display:flex}
-#pr .foot{padding:10px 14px;border:0.5px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px;background:#f8f9fb;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-#pr .empty{padding:22px;text-align:center;color:#9ca3af;font-size:12px}
+#pr .foot{padding:12px 16px;border:0.5px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px;background:#f8f9fb;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+#pr .empty{padding:26px;text-align:center;color:#9ca3af;font-size:13px}
+#pr .impbar{display:none;padding:16px 18px;background:#fdf8ef;border:0.5px solid #f0dcb4;border-top:none;align-items:center;gap:12px;flex-wrap:wrap}
+#pr .impbar.on{display:flex}
+#pr .impbar .t{font-size:14px;font-weight:600;color:#8a5a12}
+#pr .impbar .s{font-size:12px;color:#96733a;flex-basis:100%}
+#pr .mis{color:#c0392b}
 </style>
 <div id="pr">
   <div class="hd"><h1>Port Reconciliation and Stock at Port</h1><span class="chip" id="c-arr">—</span><span class="chip" id="c-flag">—</span></div>
-  <div class="tb"><input id="q" placeholder="Search block / mark / vehicle" style="flex:1;min-width:140px"><span class="fl on" data-f="all">All</span><span class="fl" data-f="Matched">Matched</span><span class="fl" data-f="flag">Flagged</span><span class="fl" data-f="Resolved">Resolved</span></div>
-  <div class="body"><div class="arrs" id="arrs"><div class="empty">Loading…</div></div><div class="det"><div id="detail"><div class="empty">Select an arrival</div></div></div><div class="panel" id="panel"></div></div>
+  <div class="tb">
+    <input id="q" placeholder="Search block / mark / vehicle" style="flex:1;min-width:150px">
+    <span class="fl on" data-f="all">All</span><span class="fl" data-f="Matched">Matched</span><span class="fl" data-f="flag">Flagged</span><span class="fl" data-f="Resolved">Resolved</span>
+    <div class="vt" id="vt"><span class="on" data-v="board">Board view</span><span data-v="full">Full view · all arrivals</span></div>
+    <button class="imp" id="impbtn">&#8593; Import .xls</button>
+    <button class="ghost" id="csvbtn" style="display:none">&#8595; Excel / CSV</button>
+    <button class="ghost" id="prnbtn" style="display:none">&#128424; Print</button>
+  </div>
+  <div class="impbar" id="impbar">
+    <span class="t">&#8593; Import arrivals from .xls</span>
+    <input type="file" id="impfile" accept=".xls,.xlsx">
+    <button class="bx pri" id="impgo">Parse &amp; upsert</button>
+    <button class="bx" id="impx">Close</button>
+    <span class="s">Fallback when email forwarding is unavailable. Same parser as auto-ingest, and <b>upserts on arrival + block</b> — re-importing never creates duplicates.</span>
+    <span class="s" id="impmsg" style="display:none"></span>
+  </div>
+  <div class="body">
+    <div class="arrs" id="arrs"><div class="empty">Loading…</div></div>
+    <div class="det"><div id="detail"><div class="empty">Select an arrival</div></div></div>
+    <div class="panel" id="panel"></div>
+  </div>
   <div class="foot" id="foot"></div>
 </div>
 <script>
 (function(){
-var TOKEN=null,ARRS=[],CUR=null,DOC=null,FILT='all',Q='';
+var TOKEN=null,ARRS=[],CUR=null,DOC=null,FILT='all',Q='',VIEW='board',FULL=null;
 function esc(s){return (s==null?'':(''+s)).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
 function $(id){return document.getElementById(id);}
 function api(dt,filters,fields,lim){var u='/api/method/frappe.client.get_list?doctype='+encodeURIComponent(dt)+'&filters='+encodeURIComponent(JSON.stringify(filters))+'&fields='+encodeURIComponent(JSON.stringify(fields))+'&limit_page_length='+(lim||0);return fetch(u,{credentials:'include'}).then(function(r){return r.json();}).then(function(j){return j.message||[];});}
@@ -47,23 +78,50 @@ var SC={'Matched':['#eaf3de','#3b6d11'],'Resolved':['#e1f5ee','#0f6e56'],'Typo -
 function pill(s){var c=SC[s]||['#f1efe8','#444441'];return '<span class="pill" style="background:'+c[0]+';color:'+c[1]+'">'+esc(s||'—')+'</span>';}
 fetch('/api/method/dolphin_theme.api_arrivals.get_token',{credentials:'include'}).then(function(r){return r.json();}).then(function(j){TOKEN=j.message;});
 function loadArrivals(){api('Port Arrival',[],['name','mark','arrival_date','shipper','total_blocks'],0).then(function(a){ARRS=a;renderArrs();if(a.length)select(a[0].name);});}
-function renderArrs(){var el=$('arrs');if(!ARRS.length){el.innerHTML='<div class="empty">No arrivals</div>';return;}el.innerHTML=ARRS.map(function(a){return '<div class="arr'+(CUR===a.name?' on':'')+'" data-n="'+esc(a.name)+'"><div class="n">'+esc(a.name)+'</div><div class="m">'+esc(a.mark||'')+' \u00b7 '+esc(a.arrival_date||'')+' \u00b7 '+(a.total_blocks||0)+' blk</div></div>';}).join('');el.querySelectorAll('.arr').forEach(function(x){x.addEventListener('click',function(){select(x.dataset.n);});});$('c-arr').textContent=ARRS.length+' arrivals';}
-function select(name){CUR=name;renderArrs();$('detail').innerHTML='<div class="empty">Loading\u2026</div>';closePanel();getDoc('Port Arrival',name).then(function(d){DOC=d;renderDetail();});}
+function renderArrs(){var el=$('arrs');if(!ARRS.length){el.innerHTML='<div class="empty">No arrivals</div>';return;}el.innerHTML=ARRS.map(function(a){return '<div class="arr'+(CUR===a.name?' on':'')+'" data-n="'+esc(a.name)+'"><div class="n">'+esc(a.name)+'</div><div class="m">'+esc(a.mark||'')+' · '+esc(a.arrival_date||'')+' · '+(a.total_blocks||0)+' blk</div></div>';}).join('');el.querySelectorAll('.arr').forEach(function(x){x.addEventListener('click',function(){select(x.dataset.n);});});$('c-arr').textContent=ARRS.length+' arrivals';}
+function select(name){CUR=name;renderArrs();$('detail').innerHTML='<div class="empty">Loading…</div>';closePanel();getDoc('Port Arrival',name).then(function(d){DOC=d;renderDetail();});}
 function matchF(b){if(FILT==='all')return true;var s=b.recon_status||'';if(FILT==='Matched')return s==='Matched';if(FILT==='Resolved')return s==='Resolved';if(FILT==='flag')return s!=='Matched'&&s!=='Resolved';return true;}
-function matchQ(b){if(!Q)return true;var t=((b.block_no||'')+' '+(b.quarry_block||'')+' '+(b.mark||'')+' '+(b.vehicle_no||'')).toLowerCase();return t.indexOf(Q)>=0;}
-function dims(b){var l=b.length,w=b.width,h=b.height;if(!l&&!w&&!h)return '\u2014';return (l||'?')+'\u00d7'+(w||'?')+'\u00d7'+(h||'?');}
-function recBtns(b){var st=b.recon_status||'';if(st==='Matched'||st==='Resolved')return '<span style="color:#3b6d11">\u2713</span>';var o='';if(b.suggested_block)o+='<span class="bx" style="border-color:#3b6d11;color:#3b6d11" data-act="Fixed source" data-row="'+esc(b.name)+'" data-sug="'+esc(b.suggested_block)+'">Fix \u2192 '+esc(b.suggested_block)+'</span>';if(st==='Dimension mismatch')o+='<span class="bx" data-act="Use challan" data-row="'+esc(b.name)+'">Use challan dims</span>';o+='<span class="bx" data-act="Accepted as-is" data-row="'+esc(b.name)+'">Accept as-is</span>';if(st==='Duplicate')o+='<span class="bx" style="border-color:#a32d2d;color:#a32d2d" data-act="Removed (duplicate)" data-row="'+esc(b.name)+'">Remove dup</span>';return o;}
-function renderDetail(){if(!DOC)return;var all=DOC.blocks||[];var blks=all.filter(matchF).filter(matchQ);var flags=all.filter(function(b){var s=b.recon_status||'';return s!=='Matched'&&s!=='Resolved';}).length;$('c-flag').textContent=flags+' flags open';var h='<div style="padding:8px 12px;font-size:12px;color:#374151;border-bottom:0.5px solid #eee;display:flex;align-items:center;gap:10px;flex-wrap:wrap"><b>'+esc(DOC.name)+'</b><span>'+esc(DOC.mark||'')+'</span><span>'+esc(DOC.arrival_date||'')+'</span><span>'+all.length+' blocks</span></div>';if(!blks.length){$('detail').innerHTML=h+'<div class="empty">No blocks match filter</div>';wireFoot();return;}h+='<table><thead><tr><th style="width:22px"></th><th>Block</th><th>Dims (L\u00d7W\u00d7H)</th><th>CBM</th><th>Status</th><th>DC</th><th>Reconcile</th><th></th></tr></thead><tbody>';blks.forEach(function(b){var st=b.recon_status||'';var canPush=(st==='Matched'||st==='Resolved');h+='<tr><td>'+(canPush?'<input type="checkbox" class="ck" data-row="'+esc(b.name)+'">':'')+'</td><td><b>'+esc(b.block_no||'')+'</b>'+(b.quarry_block?'<div style="font-size:9px;color:#9ca3af">'+esc(b.quarry_block)+'</div>':'')+'</td><td>'+dims(b)+'</td><td>'+(b.cbm||'\u2014')+'</td><td>'+pill(st)+'</td><td style="font-size:10px">'+esc(b.matched_dc||'\u2014')+'</td><td>'+recBtns(b)+'</td><td><span class="eye" data-row="'+esc(b.name)+'">\uD83D\uDC41</span></td></tr>';});h+='</tbody></table>';$('detail').innerHTML=h;wireDetail();wireFoot();}
+function matchQ(b){if(!Q)return true;var t=((b.block_no||'')+' '+(b.quarry_block||'')+' '+(b.mark||'')+' '+(b.vehicle_no||'')+' '+(b.arrival||'')).toLowerCase();return t.indexOf(Q)>=0;}
+function dims(b){var l=b.length,w=b.width,h=b.height;if(!l&&!w&&!h)return '—';return (l||'?')+'×'+(w||'?')+'×'+(h||'?');}
+function recBtns(b){var st=b.recon_status||'';if(st==='Matched'||st==='Resolved')return '<span style="color:#3b6d11">✓</span>';var o='';if(b.suggested_block)o+='<span class="bx pri" data-act="Fixed source" data-row="'+esc(b.name)+'" data-sug="'+esc(b.suggested_block)+'">Fix → '+esc(b.suggested_block)+'</span>';if(st==='Dimension mismatch')o+='<span class="bx" data-act="Use challan" data-row="'+esc(b.name)+'">Use challan dims</span>';o+='<span class="bx" data-act="Accepted as-is" data-row="'+esc(b.name)+'">Accept as-is</span>';if(st==='Duplicate')o+='<span class="bx" style="border-color:#a32d2d;color:#a32d2d" data-act="Removed (duplicate)" data-row="'+esc(b.name)+'">Remove dup</span>';return o;}
+function renderDetail(){if(VIEW==='full'){renderFull();return;}if(!DOC)return;var all=DOC.blocks||[];var blks=all.filter(matchF).filter(matchQ);var flags=all.filter(function(b){var s=b.recon_status||'';return s!=='Matched'&&s!=='Resolved';}).length;$('c-flag').textContent=flags+' flags open';var h='<div style="padding:12px 14px;font-size:13px;color:#374151;border-bottom:0.5px solid #eee;display:flex;align-items:center;gap:12px;flex-wrap:wrap"><b>'+esc(DOC.name)+'</b><span>'+esc(DOC.mark||'')+'</span><span>'+esc(DOC.arrival_date||'')+'</span><span>'+all.length+' blocks</span></div>';if(!blks.length){$('detail').innerHTML=h+'<div class="empty">No blocks match filter</div>';wireFoot();return;}h+='<table><thead><tr><th style="width:24px"></th><th>Block</th><th>Dims (L×W×H)</th><th>CBM</th><th>Status</th><th>DC</th><th>Reconcile</th><th></th></tr></thead><tbody>';blks.forEach(function(b){var st=b.recon_status||'';var canPush=(st==='Matched'||st==='Resolved');h+='<tr><td>'+(canPush?'<input type="checkbox" class="ck" data-row="'+esc(b.name)+'">':'')+'</td><td><b>'+esc(b.block_no||'')+'</b>'+(b.quarry_block?'<div style="font-size:10px;color:#9ca3af">'+esc(b.quarry_block)+'</div>':'')+'</td><td>'+dims(b)+'</td><td>'+(b.cbm||'—')+'</td><td>'+pill(st)+'</td><td style="font-size:11px">'+esc(b.matched_dc||'—')+'</td><td>'+recBtns(b)+'</td><td><span class="eye" data-row="'+esc(b.name)+'">👁</span></td></tr>';});h+='</tbody></table>';$('detail').innerHTML=h;wireDetail();wireFoot();}
 function wireDetail(){$('detail').querySelectorAll('.ck').forEach(function(c){c.addEventListener('change',updFoot);});$('detail').querySelectorAll('.bx').forEach(function(x){x.addEventListener('click',function(){reconcile(x.dataset.row,x.dataset.act,x.dataset.sug);});});$('detail').querySelectorAll('.eye').forEach(function(x){x.addEventListener('click',function(){openPanel(x.dataset.row);});});}
 function reconcile(rowName,act,sug){var upd={};if(act==='Fixed source'&&sug)upd.block_no=sug;post('dolphin_theme.api_arrivals.resolve_flag',{arrival:CUR,row_name:rowName,resolution_type:act,updates:upd}).then(function(){select(CUR);});}
 function checkedRows(){return [].map.call($('detail').querySelectorAll('.ck:checked'),function(c){return c.dataset.row;});}
-function updFoot(){var n=checkedRows().length;var b=$('pushbtn');if(b){b.disabled=!n;b.textContent='Push '+n+' block'+(n===1?'':'s')+' \u2192 Shipment Lot';}}
-function wireFoot(){$('foot').innerHTML='<button class="push" id="pushbtn" disabled>Push \u2192 Shipment Lot</button><span style="font-size:11px;color:#6b7280">Tick matched / resolved blocks, then push. Nothing is pre-selected.</span>';$('pushbtn').addEventListener('click',doPush);updFoot();}
-function doPush(){var names=checkedRows();if(!names.length)return;var map={};(DOC.blocks||[]).forEach(function(b){map[b.name]=b;});var rows=names.map(function(nm){var b=map[nm];return {quarry_block:b.quarry_block,block_no:b.block_no,length:b.length,width:b.width,height:b.height,cbm:b.cbm,mt:b.net_wt,kgs:(b.net_wt||0)*1000,matched_dc:b.matched_dc,arrival:CUR};});$('pushbtn').disabled=true;$('pushbtn').textContent='Creating\u2026';post('dolphin_theme.api_arrivals.create_shipment_lot',{consignee:DOC.shipper||DOC.mark||'',rows:rows,mark:DOC.mark||'',vessel:DOC.vessel||''}).then(function(j){var lot=(j.message&&(j.message.name||j.message))||'';$('foot').innerHTML='<span style="font-size:12px;color:#0f6e56">\u2713 Created '+esc(lot)+'</span> <a href="/app/export-shipment-lot/'+encodeURIComponent(lot)+'" target="_blank" class="bx" style="border-color:#128666;color:#128666">Open lot</a> <span class="bx" id="again">Push more</span>';var a=document.getElementById('again');if(a)a.addEventListener('click',function(){select(CUR);});}).catch(function(){$('foot').innerHTML='<span style="color:#a32d2d">Error creating lot</span>';});}
-function openPanel(rowName){var b=(DOC.blocks||[]).filter(function(x){return x.name===rowName;})[0];if(!b)return;var p=$('panel');p.classList.add('on');var dt,nm,fmt;if(b.matched_dc){dt='Delivery Challan';nm=b.matched_dc;fmt='Dolphin Delivery Challan';}else{dt='Port Arrival';nm=CUR;fmt='';}var src='/printview?doctype='+encodeURIComponent(dt)+'&name='+encodeURIComponent(nm)+(fmt?'&format='+encodeURIComponent(fmt):'')+'&no_letterhead=0&_lang=en';p.innerHTML='<div style="padding:8px 10px;background:#f4f6f9;border-bottom:0.5px solid #e5e7eb;display:flex;align-items:center;gap:8px;font-size:11px"><b style="flex:1">'+esc(b.block_no||'')+' \u00b7 '+esc(dt)+'</b><span class="bx" id="pclose">Close</span></div><iframe src="'+src+'" style="flex:1;border:none;width:100%"></iframe>';document.getElementById('pclose').addEventListener('click',closePanel);}
+function updFoot(){var n=checkedRows().length;var b=$('pushbtn');if(b){b.disabled=!n;b.textContent='Push '+n+' block'+(n===1?'':'s')+' → Shipment Lot';}}
+function wireFoot(){$('foot').innerHTML='<button class="push" id="pushbtn" disabled>Push → Shipment Lot</button><span style="font-size:12px;color:#6b7280">Tick matched / resolved blocks, then push. Nothing is pre-selected.</span>';$('pushbtn').addEventListener('click',doPush);updFoot();}
+function doPush(){var names=checkedRows();if(!names.length)return;var map={};(DOC.blocks||[]).forEach(function(b){map[b.name]=b;});var rows=names.map(function(nm){var b=map[nm];return {quarry_block:b.quarry_block,block_no:b.block_no,length:b.length,width:b.width,height:b.height,cbm:b.cbm,mt:b.net_wt,kgs:(b.net_wt||0)*1000,matched_dc:b.matched_dc,arrival:CUR};});$('pushbtn').disabled=true;$('pushbtn').textContent='Creating…';post('dolphin_theme.api_arrivals.create_shipment_lot',{consignee:DOC.shipper||DOC.mark||'',rows:rows,mark:DOC.mark||'',vessel:DOC.vessel||''}).then(function(j){var lot=(j.message&&(j.message.name||j.message))||'';$('foot').innerHTML='<span style="font-size:13px;color:#0f6e56">✓ Created '+esc(lot)+'</span> <a href="/app/export-shipment-lot/'+encodeURIComponent(lot)+'" target="_blank" class="bx" style="border-color:#128666;color:#128666">Open lot</a> <span class="bx" id="again">Push more</span>';var a=document.getElementById('again');if(a)a.addEventListener('click',function(){select(CUR);});}).catch(function(){$('foot').innerHTML='<span style="color:#a32d2d">Error creating lot</span>';});}
+function openPanel(rowName){var b=(DOC.blocks||[]).filter(function(x){return x.name===rowName;})[0];if(!b)return;var p=$('panel');p.classList.add('on');var dt,nm,fmt;if(b.matched_dc){dt='Delivery Challan';nm=b.matched_dc;fmt='Dolphin Delivery Challan';}else{dt='Port Arrival';nm=CUR;fmt='';}var src='/printview?doctype='+encodeURIComponent(dt)+'&name='+encodeURIComponent(nm)+(fmt?'&format='+encodeURIComponent(fmt):'')+'&no_letterhead=0&_lang=en';p.innerHTML='<div style="padding:10px 12px;background:#f4f6f9;border-bottom:0.5px solid #e5e7eb;display:flex;align-items:center;gap:8px;font-size:12px"><b style="flex:1">'+esc(b.block_no||'')+' · '+esc(dt)+'</b><span class="bx" id="pclose">Close</span></div><iframe src="'+src+'" style="flex:1;border:none;width:100%"></iframe>';document.getElementById('pclose').addEventListener('click',closePanel);}
 function closePanel(){var p=$('panel');p.classList.remove('on');p.innerHTML='';}
+
+/* ---------- FULL VIEW: all blocks across all arrivals (+ pooled push) ---------- */
+var FROWS=[];
+function fullRows(){var rows=FULL;if(!rows)return[];if(rows.blocks)rows=rows.blocks;if(!Array.isArray(rows))return[];return rows;}
+function loadFull(){$('detail').innerHTML='<div class="empty">Loading all arrivals…</div>';fetch('/api/method/dolphin_theme.api_arrivals.full_view',{credentials:'include'}).then(function(r){return r.json();}).then(function(j){FULL=j.message||[];renderFull();}).catch(function(){$('detail').innerHTML='<div class="empty">Could not load full view</div>';});}
+function renderFull(){var all=fullRows();FROWS=all.filter(matchF).filter(matchQ);var flags=all.filter(function(b){var s=b.recon_status||'';return s!=='Matched'&&s!=='Resolved';}).length;$('c-arr').textContent=(new Set(all.map(function(b){return b.arrival||b.parent;}))).size+' arrivals';$('c-flag').textContent=flags+' flags open';if(!all.length){$('detail').innerHTML='<div class="empty">No blocks</div>';$('foot').innerHTML='';return;}var h='<table id="ftbl"><thead><tr><th style="width:24px"></th><th>Arrival</th><th>Src</th><th>Block</th><th>Mark</th><th>Dims (L×W×H)</th><th>CBM</th><th>M.T</th><th>Kgs</th><th>DC</th><th>Status</th><th></th></tr></thead><tbody>';FROWS.forEach(function(b,i){var mt=b.net_wt||b.mt||'';var kg=(b.net_wt?(b.net_wt*1000):(b.kgs||''));var canPush=(b.recon_status==='Matched'||b.recon_status==='Resolved');h+='<tr><td>'+(canPush?'<input type="checkbox" class="fck" data-i="'+i+'">':'')+'</td><td style="font-size:11px">'+esc(b.arrival||b.parent||'')+'</td><td>'+srcEye(b)+'</td><td><b>'+esc(b.block_no||'')+'</b>'+(b.quarry_block?'<div style="font-size:10px;color:#9ca3af">'+esc(b.quarry_block)+'</div>':'')+'</td><td>'+esc(b.mark||'')+'</td><td>'+dims(b)+'</td><td>'+(b.cbm||'—')+'</td><td>'+esc(mt||'—')+'</td><td>'+esc(kg||'—')+'</td><td style="font-size:11px">'+esc(b.matched_dc||'—')+'</td><td>'+pill(b.recon_status)+'</td><td><span class="eye" data-arr="'+esc(b.arrival||b.parent||'')+'" data-dc="'+esc(b.matched_dc||'')+'" data-blk="'+esc(b.block_no||'')+'">👁</span></td></tr>';});h+='</tbody></table>';$('detail').innerHTML=h;$('detail').querySelectorAll('.eye').forEach(function(x){x.addEventListener('click',function(){if(x.dataset.src){openSource(x.dataset.src,x.dataset.ref,x.dataset.arr);}else{openPanelFull(x.dataset.arr,x.dataset.dc,x.dataset.blk);}});});$('detail').querySelectorAll('.fck').forEach(function(c){c.addEventListener('change',updFullFoot);});wireFullFoot();}
+function fullChecked(){return [].map.call($('detail').querySelectorAll('.fck:checked'),function(c){return FROWS[+c.dataset.i];});}
+function updFullFoot(){var n=fullChecked().length;var b=$('fpush');if(b){b.disabled=!n;b.textContent='Push '+n+' block'+(n===1?'':'s')+' → one Shipment Lot';}}
+function wireFullFoot(){$('foot').innerHTML='<button class="push" id="fpush" disabled>Push → one Shipment Lot</button><span style="font-size:12px;color:#6b7280">Tick matched / resolved blocks from <b>any arrival or at-port stock</b> to pool them into a single lot.</span>';$('fpush').addEventListener('click',pushFull);updFullFoot();}
+function pushFull(){var sel=fullChecked();if(!sel.length)return;var rows=sel.map(function(b){return {quarry_block:b.quarry_block,block_no:b.block_no,length:b.length,width:b.width,height:b.height,cbm:b.cbm,mt:b.net_wt||b.mt,kgs:(b.net_wt?b.net_wt*1000:b.kgs),matched_dc:b.matched_dc,arrival:b.arrival||b.parent};});var marks=Array.from(new Set(sel.map(function(b){return b.mark||'';}).filter(Boolean)));var mark=marks.length===1?marks[0]:'';$('fpush').disabled=true;$('fpush').textContent='Creating…';post('dolphin_theme.api_arrivals.create_shipment_lot',{consignee:mark,rows:rows,mark:mark,vessel:''}).then(function(j){var lot=(j.message&&(j.message.name||j.message))||'';$('foot').innerHTML='<span style="font-size:13px;color:#0f6e56">✓ Created '+esc(lot)+' with '+rows.length+' blocks from '+(new Set(rows.map(function(r){return r.arrival;}))).size+' arrival(s)</span> <a href="/app/export-shipment-lot/'+encodeURIComponent(lot)+'" target="_blank" class="bx" style="border-color:#128666;color:#128666">Open lot</a> <span class="bx" id="fagain">Push more</span>';var a=document.getElementById('fagain');if(a)a.addEventListener('click',function(){loadFull();});}).catch(function(){$('foot').innerHTML='<span style="color:#a32d2d">Error creating lot</span>';});}
+function srcEye(b){var s=(b.source||b.arrival_source||'').toLowerCase();var isXls=s.indexOf('upload')>=0||s.indexOf('xls')>=0||!!b.source_file;var isEmail=s.indexOf('email')>=0||s.indexOf('mail')>=0||!!b.source_email;if(!isXls&&!isEmail)return '<span style="color:#c7ccd4">—</span>';var ref=isXls?(b.source_file||'uploaded .xls'):(b.source_email||'email');var col=isEmail?'#185fa5':'#8a5a12';var ic=isEmail?'✉':'▤';return '<span class="eye" style="color:'+col+'" title="'+esc(ref)+'" data-src="'+(isXls?'xls':'email')+'" data-ref="'+esc(ref)+'" data-arr="'+esc(b.arrival||b.parent||'')+'">'+ic+'</span>';}
+function openSource(kind,ref,arr){var p=$('panel');p.classList.add('on');var body;if(kind==='xls'){body='<div style="padding:16px;font-size:12px">Uploaded source file:<br><b>'+esc(ref)+'</b><br><br><a class="bx" href="'+esc(ref)+'" target="_blank">Open / download .xls</a></div>';}else{body='<iframe src="/app/communication?reference_doctype=Port%20Arrival&reference_name='+encodeURIComponent(arr)+'" style="flex:1;border:none;width:100%"></iframe>';}p.innerHTML='<div style="padding:10px 12px;background:#f4f6f9;border-bottom:0.5px solid #e5e7eb;display:flex;align-items:center;gap:8px;font-size:12px"><b style="flex:1">'+(kind==='xls'?'▤ Uploaded .xls':'✉ Email source')+'</b><span class="bx" id="pclose">Close</span></div>'+body;document.getElementById('pclose').addEventListener('click',closePanel);}
+function openPanelFull(arr,dc,blk){var p=$('panel');p.classList.add('on');var dt,nm,fmt;if(dc){dt='Delivery Challan';nm=dc;fmt='Dolphin Delivery Challan';}else{dt='Port Arrival';nm=arr;fmt='';}var src='/printview?doctype='+encodeURIComponent(dt)+'&name='+encodeURIComponent(nm)+(fmt?'&format='+encodeURIComponent(fmt):'')+'&no_letterhead=0&_lang=en';p.innerHTML='<div style="padding:10px 12px;background:#f4f6f9;border-bottom:0.5px solid #e5e7eb;display:flex;align-items:center;gap:8px;font-size:12px"><b style="flex:1">'+esc(blk||'')+' · '+esc(dt)+'</b><span class="bx" id="pclose">Close</span></div><iframe src="'+src+'" style="flex:1;border:none;width:100%"></iframe>';document.getElementById('pclose').addEventListener('click',closePanel);}
+function exportCsv(){var all=fullRows().filter(matchF).filter(matchQ);var head=['Arrival','Block','Quarry Block','Mark','Length','Width','Height','CBM','MT','Kgs','DC','Status'];var lines=[head.join(',')];all.forEach(function(b){var mt=b.net_wt||b.mt||'';var kg=(b.net_wt?(b.net_wt*1000):(b.kgs||''));var row=[b.arrival||b.parent||'',b.block_no||'',b.quarry_block||'',b.mark||'',b.length||'',b.width||'',b.height||'',b.cbm||'',mt,kg,b.matched_dc||'',b.recon_status||''];lines.push(row.map(function(v){v=(''+v).replace(/"/g,'""');return /[",\n]/.test(v)?'"'+v+'"':v;}).join(','));});var blob=new Blob([lines.join('\n')],{type:'text/csv'});var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='port-reconciliation-all-arrivals.csv';a.click();}
+
+/* ---------- IMPORT .xls (upsert) ---------- */
+function toggleImp(){$('impbar').classList.toggle('on');}
+function doImport(){var f=$('impfile').files[0];var m=$('impmsg');m.style.display='';m.style.color='#96733a';if(!f){m.textContent='Choose a .xls / .xlsx file first.';return;}m.textContent='Parsing '+f.name+'…';var fd=new FormData();fd.append('file',f,f.name);fetch('/api/method/dolphin_theme.api_arrivals.import_xls',{method:'POST',credentials:'include',headers:{'X-Frappe-CSRF-Token':TOKEN},body:fd}).then(function(r){return r.json();}).then(function(j){var res=j.message||{};var c=res.created||0,u=res.updated||0,d=res.duplicates||0;m.style.color='#0f6e56';m.textContent='✓ Upserted '+f.name+' — '+c+' new, '+u+' updated, '+d+' duplicates skipped. Reloading…';loadArrivals();if(VIEW==='full')loadFull();}).catch(function(){m.style.color='#a32d2d';m.textContent='Import failed — the import_xls backend method may not be deployed yet.';});}
+
+function setView(v){VIEW=v;document.querySelectorAll('#vt span').forEach(function(s){s.classList.toggle('on',s.dataset.v===v);});var full=(v==='full');$('csvbtn').style.display=full?'':'none';$('prnbtn').style.display=full?'':'none';$('arrs').style.display=full?'none':'';closePanel();if(full){loadFull();}else{$('c-arr').textContent=ARRS.length+' arrivals';if(CUR)select(CUR);}}
+
 $('q').addEventListener('input',function(){Q=this.value.trim().toLowerCase();renderDetail();});
 [].forEach.call(document.querySelectorAll('#pr .fl'),function(f){f.addEventListener('click',function(){FILT=f.dataset.f;document.querySelectorAll('#pr .fl').forEach(function(x){x.classList.remove('on');});f.classList.add('on');renderDetail();});});
+[].forEach.call(document.querySelectorAll('#vt span'),function(s){s.addEventListener('click',function(){setView(s.dataset.v);});});
+$('impbtn').addEventListener('click',toggleImp);
+$('impx').addEventListener('click',toggleImp);
+$('impgo').addEventListener('click',doImport);
+$('csvbtn').addEventListener('click',exportCsv);
+$('prnbtn').addEventListener('click',function(){window.print();});
 loadArrivals();
 })();
 </script>
