@@ -1,7 +1,7 @@
 {% raw %}
 <style>
 :root{--navy:#3a5a86;--navyD:#0f2444;--gold:#D4A24A}
-#pr{font-family:inherit;max-width:1400px;margin:0 auto;padding:8px 12px;color:#1f2a3a}
+#pr{font-family:inherit;max-width:1520px;margin:0 auto;padding:8px 12px;color:#1f2a3a}
 #pr .hd{background:var(--navyD);color:#fff;border-radius:12px 12px 0 0;padding:14px 20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 #pr .hd h1{font-size:19px;margin:0;font-weight:600;flex:1}
 #pr .chip{font-size:12px;padding:4px 11px;border-radius:20px;background:#2f4a70;color:#e6ecf3}
@@ -9,70 +9,57 @@
 #pr .tab{padding:11px 18px;color:#cdd8e8;font-size:14px;cursor:pointer;border-bottom:3px solid transparent}
 #pr .tab.on{color:#fff;font-weight:600;border-bottom-color:var(--gold);background:rgba(255,255,255,.06)}
 #pr .tab .b{background:#e24b4a;color:#fff;font-size:10px;border-radius:10px;padding:1px 6px;margin-left:5px}
-#pr .pane{display:none;border:0.5px solid #e5e7eb;border-top:none}
-#pr .pane.on{display:block}
+#pr .pane{display:none;border:.5px solid #e5e7eb;border-top:none}#pr .pane.on{display:block}
 #pr .bal{display:flex;flex-wrap:wrap;background:var(--navyD);color:#fff}
-#pr .bal .c{flex:1;min-width:96px;padding:10px 12px;border-right:1px solid rgba(255,255,255,.08);text-align:center}
-#pr .bal .c .v{font-size:20px;font-weight:700;line-height:1.1}
-#pr .bal .c .l{font-size:10px;color:#aebdd2;margin-top:2px}
-#pr .bal .c.hi{background:#2a3f5f}#pr .bal .c.hi .v{color:#ffd98a}
-#pr .bal .c.warn{background:#3a1720;cursor:pointer}#pr .bal .c.warn .v{color:#ff9fa2}
-#pr .tb{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:11px 14px;background:#fbfcfe;border-bottom:0.5px solid #e7ebf1}
-#pr input,#pr select{padding:8px 10px;border:1px solid #cfd4dc;border-radius:7px;font-size:13px}
-#pr .fl{font-size:13px;padding:6px 13px;border-radius:20px;background:#eef1f6;color:#5f6b7a;cursor:pointer}
-#pr .fl.on{background:#e6efe9;color:#0f6e56;font-weight:600}
+#pr .bal .c{flex:1;min-width:88px;padding:10px 12px;border-right:1px solid rgba(255,255,255,.08);text-align:center}
+#pr .bal .c .v{font-size:20px;font-weight:700;line-height:1.1}#pr .bal .c .l{font-size:10px;color:#aebdd2;margin-top:2px}
+#pr .bal .c.hi{background:#2a3f5f}#pr .bal .c.hi .v{color:#ffd98a}#pr .bal .c.warn{background:#3a1720}#pr .bal .c.warn .v{color:#ff9fa2}
+#pr .tb{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:11px 14px;background:#fbfcfe;border-bottom:.5px solid #e7ebf1}
+#pr input{padding:8px 10px;border:1px solid #cfd4dc;border-radius:7px;font-size:13px}
 #pr .vtog{font-size:13px;padding:7px 12px;border-radius:8px;border:1px solid #cfd4dc;background:#fff;color:#5f6b7a;cursor:pointer}
 #pr .vtog.on{background:var(--navy);color:#fff;border-color:var(--navy);font-weight:600}
-#pr .imp{font-size:13px;font-weight:600;padding:8px 13px;border-radius:8px;background:#fff;border:1.5px solid var(--gold);color:#8a5a12;cursor:pointer}
-#pr .ghost{font-size:13px;padding:8px 12px;border-radius:8px;background:#fff;border:1px solid var(--navy);color:var(--navy);cursor:pointer}
-#pr .impbar{display:none;padding:14px 16px;background:#fdf8ef;border-bottom:0.5px solid #f0dcb4;align-items:center;gap:12px;flex-wrap:wrap}
-#pr .impbar.on{display:flex}
-#pr .impbar .t{font-size:14px;font-weight:600;color:#8a5a12}
-#pr .impbar .s{font-size:12px;color:#96733a;flex-basis:100%}
-#pr .body{display:flex;min-height:380px}
-#pr .main{flex:1;min-width:0;overflow:auto;max-height:620px}
-#pr table{width:100%;border-collapse:collapse;font-size:13px}
-#pr th{text-align:left;color:#5f6b7a;padding:10px 8px;border-bottom:0.5px solid #eee;position:sticky;top:0;background:#f5f7fa;white-space:nowrap;font-weight:600}
-#pr td{padding:10px 8px;border-bottom:0.5px solid #f0f0f0;vertical-align:middle}
-#pr tbody tr:hover{background:#fafbfd}
-#pr tr.sel{background:#eef5ff}
-#pr .blk{font-weight:700;font-size:15px}
-#pr .sub{font-size:11px;color:#9aa3af}
-#pr .pill{font-size:11px;padding:3px 9px;border-radius:12px;font-weight:600;white-space:nowrap}
-#pr .rb{font-size:11px;padding:4px 9px;border-radius:7px;cursor:pointer;border:1px solid #cfd4dc;background:#fff;color:#374151;margin:2px 3px 0 0;display:inline-block}
-#pr .rb.pri{background:var(--navy);color:#fff;border-color:var(--navy)}
-#pr .rb.ok{background:#e1f5ee;color:#0f6e56;border-color:#9fe1cb}
-#pr .rb.warn{color:#a32d2d;border-color:#f0999b}
-#pr .eye{cursor:pointer;color:#185fa5;font-size:13px;margin:0 2px;white-space:nowrap}
-#pr .exp{cursor:pointer;color:#8a94a3;font-size:15px;user-select:none}
-#pr .mini{height:7px;border-radius:4px;background:#eef1f6;overflow:hidden;display:flex;min-width:80px}
-#pr .mini i{display:block;height:100%}
-#pr .chips{display:flex;flex-wrap:wrap;gap:6px}
-#pr .chip2{font-size:12px;padding:5px 9px;border:1px solid #ccc;border-radius:8px;white-space:nowrap}
-#pr .chip2 .ct{font-size:10px;opacity:.85;margin-left:4px}
-#pr .bulk{display:none;align-items:center;gap:9px;padding:9px 14px;background:#eaf0f7;border-bottom:0.5px solid #cdd8e8}
-#pr .bulk.on{display:flex}
+#pr .imp{font-size:12px;font-weight:600;padding:7px 11px;border-radius:8px;background:#fff;border:1.5px solid var(--gold);color:#8a5a12;cursor:pointer}
+#pr .gh{font-size:12px;padding:7px 11px;border-radius:8px;background:#fff;border:1px solid var(--navy);color:var(--navy);cursor:pointer}
+#pr .frow{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:8px 14px;background:#fff;border-bottom:.5px solid #e7ebf1}
+#pr .fl{font-size:12px;padding:6px 12px;border-radius:20px;background:#eef1f6;color:#5f6b7a;cursor:pointer}
+#pr .fl.on{background:#e6efe9;color:#0f6e56;font-weight:600}
+#pr .bulk{display:none;align-items:center;gap:9px;padding:9px 14px;background:#eaf0f7;border-bottom:.5px solid #cdd8e8}#pr .bulk.on{display:flex}
 #pr .bbtn{font-size:13px;padding:6px 12px;border-radius:8px;cursor:pointer;border:1px solid #cfd4dc;background:#fff}
-#pr .bbtn.pri{background:var(--navy);color:#fff;border-color:var(--navy)}
-#pr .bbtn.ok{background:#e1f5ee;color:#0f6e56;border-color:#9fe1cb}
-#pr .bbtn.warn{color:#a32d2d;border-color:#f0999b}
-#pr .panel{width:0;flex:none;border-left:0.5px solid #e5e7eb;transition:width .15s;overflow:hidden;background:#fff;max-height:620px;display:flex;flex-direction:column}
-#pr .panel.on{width:400px}
-#pr .foot{padding:11px 14px;background:#f8f9fb;border-top:0.5px solid #e7ebf1;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-#pr .push{background:#128666;color:#fff;border:none;font-weight:600;padding:9px 16px;border-radius:8px;font-size:13px;cursor:pointer}
-#pr .push:disabled{opacity:.45}
-#pr .arow{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:0.5px solid #f0f0f0;cursor:pointer}
-#pr .arow:hover{background:#fafbfd}
+#pr .bbtn.pri{background:var(--navy);color:#fff;border-color:var(--navy)}#pr .bbtn.gold{background:var(--gold);color:#4a3208;border-color:var(--gold);font-weight:600}
+#pr .impbar{display:none;padding:13px 16px;background:#fdf8ef;border-bottom:.5px solid #f0dcb4;align-items:center;gap:10px;flex-wrap:wrap}#pr .impbar.on{display:flex}
+#pr .impbar .s{font-size:12px;color:#96733a;flex-basis:100%}
+#pr .body{display:flex;min-height:360px}
+#pr .main{flex:1;min-width:0;overflow:auto;max-height:640px}
+#pr table{width:100%;border-collapse:collapse;font-size:13px}
+#pr th{text-align:left;color:#5f6b7a;padding:9px 8px;background:#f5f7fa;white-space:nowrap;font-weight:600;font-size:12px;border-bottom:.5px solid #e7ebf1;position:sticky;top:0}
+#pr td{padding:9px 8px;border-bottom:.5px solid #f0f0f0;vertical-align:middle}
+#pr tbody tr:hover{background:#fafbfd}#pr tr.sel{background:#eef5ff}
+#pr .blk{font-weight:700;font-size:15px}#pr .sub{font-size:11px;color:#9aa3af}
+#pr .eye{color:#185fa5;font-size:12px;white-space:nowrap;cursor:pointer}#pr .dc{color:#185fa5;font-weight:600;cursor:pointer}
+#pr .pill{font-size:11px;padding:2px 8px;border-radius:11px;font-weight:600;white-space:nowrap}
+#pr .p-port{background:#e6f1fb;color:#185fa5}#pr .p-inlot{background:#e7ecff;color:#33449c}#pr .p-load{background:#dff3ea;color:#0c7150}
+#pr .p-mis{background:#faeeda;color:#854f0b}#pr .p-short{background:#fcebeb;color:#a32d2d}#pr .p-dmg{background:#fbe3d4;color:#a3491a}
+#pr .p-held{background:#f3d9dd;color:#8a1f2e}#pr .p-await{background:#eef1f6;color:#5f6b7a}#pr .p-orph{background:#fcebeb;color:#a32d2d}
+#pr .rb{font-size:11px;padding:4px 9px;border-radius:7px;border:1px solid #cfd4dc;background:#fff;color:#374151;cursor:pointer;margin:1px 2px 0 0;display:inline-block}
+#pr .rb.pri{background:var(--navy);color:#fff;border-color:var(--navy)}#pr .rb.ok{background:#e1f5ee;color:#0f6e56;border-color:#9fe1cb}
+#pr .rb.gold{background:var(--gold);color:#4a3208;border-color:var(--gold);font-weight:600}#pr .rb.dim{opacity:.4;cursor:not-allowed}
+#pr .d{color:#c0392b;font-weight:700}#pr .miss{color:#a32d2d;font-weight:600}
+#pr .exp{cursor:pointer;color:#8a94a3;font-size:15px}#pr .await-row{background:#fbfaf5}
+#pr .det{background:#f5f8fc}#pr .det td{padding:0}
+#pr .trace{padding:12px 26px}
+#pr .chain{display:flex;align-items:center;flex-wrap:wrap;row-gap:8px}
+#pr .n{border:1px solid #dbe1e9;border-radius:9px;padding:7px 10px;min-width:120px;background:#fff}
+#pr .n .k{font-size:9px;color:#8a94a3;text-transform:uppercase;letter-spacing:.4px}
+#pr .n .val{font-size:12px;font-weight:600;color:var(--navy);margin-top:1px}#pr .n .m{font-size:11px;color:#5f6b7a;margin-top:2px}
+#pr .n.done{border-color:#9fe1cb;background:#f2fbf7}#pr .n.cur{border-color:var(--navy);background:#eaf0f7;box-shadow:0 0 0 2px rgba(58,90,134,.16)}
+#pr .n.pend{border-style:dashed}#pr .n.pend .val{color:#b3bcc7}#pr .n.miss{border-style:dashed;border-color:#e0b877;background:#fff8ee}#pr .n.miss .val{color:#8a5a12}
+#pr .ar{color:#c2ccd6;font-size:15px;padding:0 6px}
+#pr .panel{width:0;flex:none;border-left:.5px solid #e5e7eb;background:#fff;max-height:640px;display:flex;flex-direction:column;overflow:hidden;transition:width .15s}#pr .panel.on{width:430px}
+#pr .pnhd{padding:8px 12px;background:#f4f6f9;border-bottom:.5px solid #e5e7eb;display:flex;gap:8px;align-items:center;font-size:12px}
+#pr .pnact{display:flex;gap:6px;flex-wrap:wrap;padding:7px 12px;border-bottom:.5px solid #eee;background:#fbfcfe}
+#pr .foot{padding:11px 14px;background:#f8f9fb;border-top:.5px solid #e7ebf1;font-size:12px;color:#6b7280}
 #pr .empty{padding:26px;text-align:center;color:#9ca3af;font-size:13px}
-#pr .mis{color:#c0392b;font-weight:600}
-#pr .det2{background:#f7f9fc}
-#pr .det2 td{padding:0}
-#pr .detbox{padding:12px 34px}
-#pr .p-match{background:#eaf3de;color:#3b6d11}#pr .p-port{background:#e6f1fb;color:#185fa5}
-#pr .p-inlot{background:#e7ecff;color:#33449c}#pr .p-load{background:#dff3ea;color:#0c7150}
-#pr .p-flag{background:#faeeda;color:#854f0b}#pr .p-ship{background:#efeaf9;color:#4b3a86}
-#pr .p-orph{background:#fcebeb;color:#a32d2d}#pr .p-await{background:#eef1f6;color:#5f6b7a}
-#pr .p-dmg{background:#fbe3d4;color:#a3491a}#pr .p-held{background:#f3d9dd;color:#8a1f2e}
+#pr .arow{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:.5px solid #f0f0f0}
 </style>
 <div id="pr">
   <div class="hd"><h1>Dolphin International &#8212; Port &amp; Stock</h1><span class="chip" id="c-a">&#8212;</span><span class="chip" id="c-f">&#8212;</span></div>
@@ -81,277 +68,213 @@
     <div class="tab on" data-t="stock">Stock at Port</div>
     <div class="tab" data-t="lots">Shipment Lots</div>
   </div>
-
   <div class="pane on" id="p-stock">
     <div class="bal" id="bal"></div>
     <div class="tb">
-      <span class="vtog on" id="v-blk">&#9638; Blocks</span>
-      <span class="vtog" id="v-dc">&#128666; By DC &#183; loading</span>
-      <input id="q" placeholder="Search block / mark / DC / vehicle" style="flex:1;min-width:150px">
-      <span id="flrow">
-        <span class="fl on" data-f="all">All at port</span>
-        <span class="fl" data-f="lot">In lot</span>
-        <span class="fl" data-f="flag">Needs attention</span>
-        <span class="fl" data-f="exc">Exceptions</span>
-        <span class="fl" data-f="orphan">Orphans</span>
-        <span class="fl" data-f="await">Awaiting arrival</span>
-      </span>
-      <button class="imp" id="impbtn">&#8593; Import .xls</button>
-      <button class="ghost" id="csvbtn">&#8595; CSV</button>
+      <span class="vtog on" id="v-blk">&#9636; All transported</span><span class="vtog" id="v-dc">&#8693; Group by DC</span>
+      <input id="q" placeholder="Search block / DC / BI / consignee / mark" style="flex:1;min-width:150px">
+      <span class="imp" id="impbtn">&#8593; Import .xls</span><span class="gh" id="addbtn">+ Add at port</span><span class="gh" id="openbtn">&#9638; Opening stock</span>
+    </div>
+    <div class="frow" id="flrow">
+      <span class="fl on" data-f="all">All</span><span class="fl" data-f="await">Awaiting arrival</span><span class="fl" data-f="port">At port</span>
+      <span class="fl" data-f="lot">In lot</span><span class="fl" data-f="flag">Needs attention</span><span class="fl" data-f="excess">Excess</span><span class="fl" data-f="load">Loaded</span>
     </div>
     <div class="impbar" id="impbar">
-      <span class="t">&#8593; Import arrivals from .xls</span>
+      <b style="color:#8a5a12;font-size:13px">&#8593; Import arrivals .xls</b>
       <input type="file" id="impfile" accept=".xls,.xlsx">
-      <button class="bbtn pri" id="impgo">Parse &amp; upsert</button>
-      <button class="bbtn" id="impx">Close</button>
-      <span class="s">Fallback when email forwarding is unavailable. Upserts on block number &#8212; a block already at port or awaiting arrival is recognised and confirmed, never duplicated.</span>
+      <button class="bbtn pri" id="impgo">Parse &amp; upsert</button><button class="bbtn" id="impx">Close</button>
+      <span class="s">Confirms awaiting blocks &#8594; At Port, updates existing (no duplicate), and lists anything with no challan as Excess. Optional &#8212; DC-wise Move to At Port skips it entirely.</span>
       <span class="s" id="impmsg" style="display:none"></span>
     </div>
     <div class="bulk" id="bulk">
       <span><b id="bn">0</b> selected</span>
-      <span class="bbtn ok" data-b="Accepted as-is">&#10003; Accept as-is</span>
+      <span class="bbtn gold" id="bmove">&#8594; Move to At Port (skip arrivals)</span>
       <span class="bbtn pri" id="bpush">&#128230; Push to Shipment Lot</span>
-      <span class="bbtn" id="bmove">&#8594; Move to At Port</span>
-      <span class="bbtn warn" data-b="Removed (duplicate)">&#128465; Remove</span>
+      <span class="bbtn ok" id="baccept">&#10003; Accept as-is</span>
     </div>
     <div class="body">
       <div class="main" id="stmain"><div class="empty">Loading&#8230;</div></div>
       <div class="panel" id="panel"></div>
     </div>
-    <div class="foot" id="foot"></div>
+    <div class="foot" id="foot">One row per transported block, with its full trace. <b>Push to lot</b> is enabled only for <b>At port</b> blocks.</div>
   </div>
-
   <div class="pane" id="p-arr">
-    <div class="tb"><input id="aq" placeholder="Search arrivals&#8230;" style="flex:1;min-width:160px">
-      <button class="imp" id="impbtn2">&#8593; Import .xls</button></div>
+    <div class="tb"><input id="aq" placeholder="Search arrivals&#8230;" style="flex:1;min-width:160px"><span class="imp" id="impbtn2">&#8593; Import .xls</span></div>
     <div id="arrlist"><div class="empty">Loading&#8230;</div></div>
   </div>
-
   <div class="pane" id="p-lots">
     <div class="tb"><input id="lq" placeholder="Search block / packing list / BL / consignee / vessel&#8230;" style="flex:1;min-width:180px">
-      <span class="fl on" data-lf="all">All</span><span class="fl" data-lf="build">Building</span><span class="fl" data-lf="ship">Shipped</span>
-    </div>
+      <span class="fl on" data-lf="all">All</span><span class="fl" data-lf="build">Building</span><span class="fl" data-lf="ship">Shipped</span></div>
     <div id="lotmain"><div class="empty">Loading&#8230;</div></div>
   </div>
 </div>
 <script>
 (function(){
 function U(n){return String.fromCodePoint(n);}
-var X=U(215),DOT=U(183),DASH=U(8212),CHK=U(10003),EYE=U(128065),MAIL=U(9993),SQ=U(9636),LOCK=U(128274),AR=U(8594),ML=U(128274);
-var TOKEN=null,ROWS=[],AWAIT=[],LOTS=[],ARRS=[],ADATE={},LOTMAP={},FILT='all',Q='',VMODE='blk',SEL={};
+var X=U(215),DOT=U(183),DASH=U(8212),CHK=U(10003),AR=U(8594),TRI=U(9656),ARL=U(9666);
+var TOKEN=null,LED=[],LOTS=[],ARRS=[],ADATE={},FILT='all',Q='',VMODE='blk',SEL={},PANEL_I=null;
 function esc(s){return (s==null?'':(''+s)).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
 function $(id){return document.getElementById(id);}
-function api(dt,filters,fields,lim){var u='/api/method/frappe.client.get_list?doctype='+encodeURIComponent(dt)+'&filters='+encodeURIComponent(JSON.stringify(filters))+'&fields='+encodeURIComponent(JSON.stringify(fields))+'&limit_page_length='+(lim||0);return fetch(u,{credentials:'include'}).then(function(r){return r.json();}).then(function(j){return j.message||[];});}
-function post(method,args){return fetch('/api/method/'+method,{method:'POST',credentials:'include',headers:{'Content-Type':'application/json','X-Frappe-CSRF-Token':TOKEN},body:JSON.stringify(args)}).then(function(r){return r.json();});}
-function today(){return new Date();}
-function ageDays(arr){var d=ADATE[arr];if(!d)return null;var t=(today()-new Date(d))/86400000;return t>=0?Math.round(t):null;}
+function api(dt,f,fl,lim){var u='/api/method/frappe.client.get_list?doctype='+encodeURIComponent(dt)+'&filters='+encodeURIComponent(JSON.stringify(f))+'&fields='+encodeURIComponent(JSON.stringify(fl))+'&limit_page_length='+(lim||0);return fetch(u,{credentials:'include'}).then(function(r){return r.json();}).then(function(j){return j.message||[];});}
+function post(m,a){return fetch('/api/method/'+m,{method:'POST',credentials:'include',headers:{'Content-Type':'application/json','X-Frappe-CSRF-Token':TOKEN},body:JSON.stringify(a)}).then(function(r){return r.json();});}
+function ageDays(arr){var d=ADATE[arr];if(!d)return null;var t=(new Date()-new Date(d))/86400000;return t>=0?Math.round(t):null;}
 fetch('/api/method/dolphin_theme.api_arrivals.get_token',{credentials:'include'}).then(function(r){return r.json();}).then(function(j){TOKEN=j.message;});
+var SP={port:['p-port',U(9679)+' At port'],await:['p-await',U(9684)+' Awaiting arrival'],lot:['p-inlot',U(9635)+' In lot'],load:['p-load',U(9875)+' Loaded'],mis:['p-mis',U(9888)+' Size mismatch'],dmg:['p-dmg',U(9888)+' Damaged'],held:['p-held',U(9940)+' Held'],orphan:['p-orph',U(9888)+' Excess'+DOT+'no DC']};
+function pill(st){var s=SP[st]||['p-port',st];return '<span class="pill '+s[0]+'">'+s[1]+'</span>';}
+function dcSize(r){if(!r.dc_l&&!r.dc_w&&!r.dc_h)return DASH;return (r.dc_l||'?')+X+(r.dc_w||'?')+X+(r.dc_h||'?');}
+function ptSize(r){if(r.state==='await')return '<span class="sub">not yet arrived</span>';if(!r.pt_l&&!r.pt_w&&!r.pt_h)return DASH;var mis=(r.dc_h&&r.pt_h&&(''+r.dc_h)!==(''+r.pt_h));return (r.pt_l||'?')+X+(r.pt_w||'?')+X+(mis?'<span class="d">'+r.pt_h+'</span>':(r.pt_h||'?'));}
 
-/* ---- status mapping ---- */
-function statusOf(b){
-  var s=(b.recon_status||b.status||'').toLowerCase();
-  var bn=String(b.block_no||'').trim();
-  if(b._await)return 'await';
-  if(!bn)return 'miss';
-  if(s.indexOf('damage')>=0)return 'dmg';
-  if(s.indexOf('hold')>=0||s.indexOf('held')>=0)return 'held';
-  if(s.indexOf('orphan')>=0||(s.indexOf('not in')>=0)||(s.indexOf('typo')>=0&&!b.matched_dc))return 'orphan';
-  if(!b.matched_dc&&s.indexOf('match')<0&&s.indexOf('resolved')<0)return 'orphan';
-  var lm=LOTMAP[bn];
-  if(lm&&lm.st==='ship')return 'load';
-  if(lm&&lm.st==='build')return 'lot';
-  if(s.indexOf('mismatch')>=0||s.indexOf('dimension')>=0)return 'flag';
-  if(s.indexOf('match')>=0||s.indexOf('resolved')>=0)return 'match';
-  return 'port';
-}
-var SP={match:['p-match',CHK+' Matched'],port:['p-port',U(9679)+' At Port'],lot:['p-inlot',U(9635)+' In lot'],load:['p-load',U(9875)+' Loaded'],flag:['p-flag',U(9888)+' Dims mismatch'],ship:['p-ship',U(9096)+' Shipped'],orphan:['p-orph',U(9888)+' Orphan'],miss:['p-orph',U(9888)+' No block no'],await:['p-await',U(9684)+' Awaiting arrival'],dmg:['p-dmg',U(9888)+' Damaged'],held:['p-held',U(9940)+' Held']};
-function pill(st){var sp=SP[st]||['p-port',st];return '<span class="pill '+sp[0]+'">'+sp[1]+'</span>';}
-function dims(b){var l=b.length,w=b.width,h=b.height;if(!l&&!w&&!h)return DASH;return (l||'?')+X+(w||'?')+X+(h||'?');}
-
-/* ---- data load ---- */
 function loadAll(){
   Promise.all([
-    fetch('/api/method/dolphin_theme.api_arrivals.full_view',{credentials:'include'}).then(function(r){return r.json();}).then(function(j){return j.message||{};}).catch(function(){return {};}),
+    fetch('/api/method/dolphin_theme.api_arrivals.ledger_view',{credentials:'include'}).then(function(r){return r.json();}).then(function(j){return j.message||[];}).catch(function(){return [];}),
     fetch('/api/method/dolphin_theme.api_arrivals.lots_view',{credentials:'include'}).then(function(r){return r.json();}).then(function(j){return j.message||[];}).catch(function(){return [];}),
     api('Port Arrival',[],['name','mark','arrival_date','shipper','total_blocks','creation'],0).catch(function(){return [];})
   ]).then(function(res){
-    var fv=res[0];ROWS=(fv.rows||fv.blocks||(Array.isArray(fv)?fv:[]))||[];AWAIT=(fv.awaiting||[]).map(function(b){b._await=true;return b;});
-    LOTS=res[1]||[];ARRS=res[2]||[];
+    LED=res[0]||[];LOTS=res[1]||[];ARRS=res[2]||[];
     ADATE={};ARRS.forEach(function(a){ADATE[a.name]=a.arrival_date||a.creation;});
-    LOTMAP={};LOTS.forEach(function(l){(l.block_nos||[]).forEach(function(bn){LOTMAP[String(bn).trim()]={lot:l.name,st:l.status==='ship'||l.shipped?'ship':'build'};});});
     renderBal();renderStock();renderArr();renderLots();
   });
 }
-
-/* ---- balance strip ---- */
 function renderBal(){
-  var arrived=ROWS.length,awaiting=AWAIT.length;
-  var inlot=0,loaded=0,orph=0,flags=0;
-  ROWS.forEach(function(b){var st=statusOf(b);if(st==='lot')inlot++;else if(st==='load')loaded++;if(st==='orphan')orph++;if(['flag','dmg','held','miss','orphan'].indexOf(st)>=0)flags++;});
-  var leftout=arrived-inlot-loaded;if(leftout<0)leftout=0;
-  var dispatched=arrived+awaiting;
-  var cells=[['v',dispatched,'Dispatched'],['v',arrived,'Arrived'],['v',awaiting,'Awaiting'],['v',inlot,'In lot'],['v',loaded,'Loaded'],['hi',leftout,'Left out'],['warn',orph,'Excess &#183; no DC']];
-  $('bal').innerHTML=cells.map(function(c){var cl=c[0]==='v'?'c':'c '+c[0];return '<div class="'+cl+'"'+(c[0]==='warn'?' data-warn="1"':'')+'><div class="v">'+c[1]+'</div><div class="l">'+c[2]+'</div></div>';}).join('');
-  var w=$('bal').querySelector('[data-warn]');if(w)w.addEventListener('click',function(){setFilt('orphan');});
-  $('c-a').textContent=ARRS.length+' arrivals';$('c-f').textContent=flags+' flags open';
-  if(awaiting){$('arrb').style.display='';$('arrb').textContent=awaiting;}
+  var c={};LED.forEach(function(r){c[r.state]=(c[r.state]||0)+1;});
+  var transported=LED.filter(function(r){return r.dc;}).length;
+  var atport=(c.port||0),await=(c.await||0),inlot=(c.lot||0),loaded=(c.load||0),excess=(c.orphan||0);
+  var flags=(c.mis||0)+(c.dmg||0)+(c.held||0)+(c.orphan||0);
+  var cells=[['v',transported,'Transported'],['v',atport,'At port'],['v',await,'Awaiting'],['v',inlot,'In lot'],['v',loaded,'Loaded'],['warn',excess,'Excess &#183; no DC']];
+  $('bal').innerHTML=cells.map(function(x){return '<div class="c'+(x[0]==='warn'?' warn':'')+'"><div class="v">'+x[1]+'</div><div class="l">'+x[2]+'</div></div>';}).join('');
+  $('c-a').textContent=LED.length+' blocks';$('c-f').textContent=flags+' to resolve';
+  if(await){$('arrb').style.display='';$('arrb').textContent=await;}
 }
-
-/* ---- Stock: block view ---- */
-function allRows(){return ROWS.concat(AWAIT);}
-function matchQ(b){if(!Q)return true;var t=((b.block_no||'')+' '+(b.quarry_block||'')+' '+(b.mark||'')+' '+(b.matched_dc||'')+' '+(b.vehicle_no||'')+' '+(b.arrival||b.parent||'')).toLowerCase();return t.indexOf(Q)>=0;}
-function passFilt(st){
-  if(FILT==='all')return st!=='await'&&st!=='load';
-  if(FILT==='lot')return st==='lot';
-  if(FILT==='flag')return ['flag','miss'].indexOf(st)>=0;
-  if(FILT==='exc')return ['dmg','held'].indexOf(st)>=0;
-  if(FILT==='orphan')return st==='orphan';
-  if(FILT==='await')return st==='await';
-  return true;
-}
+function matchQ(r){if(!Q)return true;var t=((r.block_no||'')+' '+(r.dc||'')+' '+(r.source_bi||'')+' '+(r.consignee||'')+' '+(r.mark||'')).toLowerCase();return t.indexOf(Q)>=0;}
+function passFilt(st){if(FILT==='all')return true;if(FILT==='flag')return ['mis','dmg','held'].indexOf(st)>=0;if(FILT==='excess')return st==='orphan';return st===FILT;}
+function key(r){return (r.arrival||'')+'|'+r.block_no;}
 function renderStock(){if(VMODE==='dc'){renderDC();return;}
-  var list=allRows().filter(matchQ).filter(function(b){return passFilt(statusOf(b));});
-  if(!list.length){$('stmain').innerHTML='<div class="empty">No blocks match this filter</div>';wireFoot();return;}
-  var h='<table><thead><tr><th style="width:22px"></th><th>Block</th><th>Mark</th><th>Dims (L'+X+'W'+X+'H)</th><th>CBM</th><th>M.T</th><th>Age</th><th>Src</th><th>Trail</th><th>Status / Resolve</th><th style="width:22px"></th></tr></thead><tbody>';
-  list.forEach(function(b,i){
-    var st=statusOf(b),sp=SP[st],dc=b.matched_dc,arr=b.arrival||b.parent||'';
-    var age=ageDays(arr),agc=age==null?'<span class="sub">'+DASH+'</span>':'<span style="'+(age>30?'color:#a32d2d;font-weight:700':(age>20?'color:#8a5a12;font-weight:600':'color:#5f6b7a'))+'">'+age+'d</span>';
-    var canSel=(st==='match'||st==='port'||st==='lot');
-    var key=arr+'|'+(b.block_no||i);
-    var sub=dc?('DC '+esc(dc)):(st==='miss'?'<span class="mis">no block no</span>':(st==='await'?'<span style="color:#5f6b7a">on DC, not yet arrived</span>':'<span class="mis">not on any DC</span>'));
-    h+='<tr'+(SEL[key]?' class="sel"':'')+'><td>'+(canSel?'<input type="checkbox" class="ck" data-k="'+esc(key)+'"'+(SEL[key]?' checked':'')+'>':'')+'</td>'
-      +'<td><span class="blk">'+esc(b.block_no||'')+'</span><div class="sub">'+sub+' '+DOT+' '+esc(arr)+'</div></td>'
-      +'<td>'+esc(b.mark||'')+'</td><td>'+dims(b)+'</td><td>'+(b.cbm||DASH)+'</td><td>'+(b.net_wt||b.mt||DASH)+'</td><td>'+agc+'</td>'
-      +'<td>'+srcEye(b)+'</td><td>'+trail(arr,dc,b.block_no)+'</td>'
-      +'<td>'+pill(st)+resolve(b,st,key)+'</td>'
-      +'<td><span class="exp" data-x="'+i+'">'+U(9656)+'</span></td></tr>'
-      +'<tr class="det2" id="dx'+i+'" style="display:none"><td colspan="11"><div class="detbox">'+detail(b,st)+'</div></td></tr>';
+  var list=LED.filter(matchQ).filter(function(r){return passFilt(r.state);});
+  if(!list.length){$('stmain').innerHTML='<div class="empty">No blocks match this filter</div>';return;}
+  var h='<table><thead><tr><th style="width:22px"></th><th>Block</th><th>Delivery Challan</th><th>Source BI '+DOT+' Consignee</th><th>DC size</th><th>Port size</th><th>Ton</th><th>Age</th><th>State</th><th>Action</th><th style="width:22px"></th></tr></thead><tbody>';
+  list.forEach(function(r,i){
+    var k=key(r),age=ageDays(r.arrival),ageC=age==null?'<span class="sub">'+DASH+'</span>':'<span style="'+(age>30?'color:#a32d2d;font-weight:700':(age>20?'color:#8a5a12':'color:#5f6b7a'))+'">'+age+'d</span>';
+    var canSel=(r.state==='port'||r.state==='await');
+    h+='<tr'+(SEL[k]?' class="sel"':(r.state==='await'?' class="await-row"':''))+'><td>'+(canSel?'<input type="checkbox" class="ck" data-i="'+i+'"'+(SEL[k]?' checked':'')+'>':'')+'</td>'
+      +'<td><span class="blk">'+esc(r.block_no||'')+'</span></td>'
+      +'<td>'+(r.dc?'<span class="dc" data-doc="dc" data-i="'+i+'">'+esc(r.dc)+'</span> <span class="eye" data-doc="dc" data-i="'+i+'">'+U(128196)+'</span>':'<span class="sub">no challan</span>')+'</td>'
+      +'<td>'+(r.source_bi?esc(r.source_bi)+' <span class="eye" data-doc="bi" data-i="'+i+'">'+U(128196)+'</span>':'<span class="sub">'+DASH+'</span>')+'<div class="sub">'+esc(r.consignee||'')+'</div></td>'
+      +'<td>'+dcSize(r)+'</td><td>'+ptSize(r)+'</td><td>'+(r.ton||r.net_wt||DASH)+'</td><td>'+ageC+'</td>'
+      +'<td>'+pill(r.state)+'</td><td>'+action(r,i)+'</td>'
+      +'<td><span class="exp" data-x="'+i+'">'+TRI+'</span></td></tr>'
+      +'<tr class="det" id="dx'+i+'" style="display:none"><td colspan="11">'+trace(r,i)+'</td></tr>';
   });
-  h+='</tbody></table>';$('stmain').innerHTML=h;wireStock();wireFoot();
+  h+='</tbody></table>';$('stmain').innerHTML=h;wire();updBulk();
 }
-function resolve(b,st,key){
-  if(['match','port','lot','load'].indexOf(st)>=0)return '';
-  var r=b.name?esc(b.name):'',arr=esc(b.arrival||b.parent||''),o='<div style="margin-top:5px">';
-  if(st==='flag'){if(b.suggested_block)o+='<span class="rb pri" data-act="Fixed source" data-row="'+r+'" data-arr="'+arr+'" data-sug="'+esc(b.suggested_block)+'">Fix '+AR+' '+esc(b.suggested_block)+'</span>';o+='<span class="rb pri" data-act="Use challan" data-row="'+r+'" data-arr="'+arr+'">Use DC dims</span><span class="rb ok" data-act="Accepted as-is" data-row="'+r+'" data-arr="'+arr+'">Accept</span>';}
-  else if(st==='orphan')o+='<span class="rb ok" data-act="Accepted as-is" data-row="'+r+'" data-arr="'+arr+'">Accept as extra</span>';
-  else if(st==='miss')o+='<span class="rb warn" data-act="Removed (duplicate)" data-row="'+r+'" data-arr="'+arr+'">Remove</span>';
-  else if(st==='await')o+='<span class="rb pri" data-move="1" data-bn="'+esc(b.block_no||'')+'" data-dc="'+esc(b.matched_dc||'')+'">Move to At Port</span>';
-  else if(st==='dmg')o+='<span class="rb warn" data-act="Held" data-row="'+r+'" data-arr="'+arr+'">Hold from load</span>';
-  else if(st==='held')o+='<span class="rb ok" data-act="Accepted as-is" data-row="'+r+'" data-arr="'+arr+'">Release</span>';
-  return o+'</div>';
+function action(r,i){
+  if(r.state==='await')return '<span class="rb gold" data-act="move" data-i="'+i+'">'+AR+' Move to At Port</span>';
+  if(r.state==='port')return '<span class="rb pri" data-act="push" data-i="'+i+'">Push to lot</span>';
+  if(r.state==='mis')return '<span class="rb pri" data-act="use_dc" data-i="'+i+'">Use DC</span><span class="rb ok" data-act="accept" data-i="'+i+'">Accept</span>';
+  if(r.state==='dmg')return '<span class="rb" data-act="hold" data-i="'+i+'">Hold</span><span class="rb ok" data-act="accept" data-i="'+i+'">OK</span>';
+  if(r.state==='held')return '<span class="rb ok" data-act="accept" data-i="'+i+'">Release</span>';
+  if(r.state==='orphan')return '<span class="rb ok" data-act="accept" data-i="'+i+'">Accept as extra</span>';
+  if(r.state==='lot'||r.state==='load')return '<span class="sub">'+esc(r.lot_title||r.lot||'')+'</span>';
+  return '';
 }
-function detail(b,st){
-  var arr=b.arrival||b.parent||'';
-  return '<div style="font-size:12px;color:#374151"><b>Block '+esc(b.block_no||'')+'</b> '+DOT+' history<br>'
-    +(b.quarry_block?'Quarry '+esc(b.quarry_block)+' '+DOT+' ':'')
-    +(b.matched_dc?'DC <a href="/app/delivery-challan/'+encodeURIComponent(b.matched_dc)+'" target="_blank">'+esc(b.matched_dc)+'</a> '+DOT+' ':'')
-    +'Arrival '+esc(arr)+' '+DOT+' status <b>'+(SP[st][1].replace(/[^ -~]/g,'').trim())+'</b>'
-    +(ageDays(arr)!=null?' '+DOT+' '+ageDays(arr)+' days at port':'')+'</div>';
+function trace(r,i){
+  function node(cls,k,val,m,doc){return '<div class="n '+cls+'"><div class="k">'+k+'</div><div class="val">'+val+(doc?' <span class="eye" data-doc="'+doc+'" data-i="'+i+'">'+U(128196)+'</span>':'')+'</div>'+(m?'<div class="m">'+m+'</div>':'')+'</div>';}
+  var atCur=['port','mis','dmg','held','orphan'].indexOf(r.state)>=0;
+  var h='<div class="trace"><div style="font-size:12px;color:var(--navy);font-weight:600;margin-bottom:7px">Trace '+DASH+' block '+esc(r.block_no||'')+'</div><div class="chain">';
+  h+=(r.source_bi?node('done','Buyer Insp.',esc(r.source_bi),esc(r.consignee||''),'bi'):node('miss','Buyer Insp.','not linked','',''));
+  h+='<span class="ar">'+ARL+'</span>';
+  h+=(r.dc?node('done','Delivery Challan',esc(r.dc),'','dc'):node('miss','Delivery Challan','no challan','',''));
+  h+='<span class="ar">'+ARL+'</span>';
+  h+=(r.arrival?node('done','Arrival',esc(r.arrival),'','arr'):(r.state==='await'?node('pend','Arrival','awaiting','',''):node('miss','Arrival','no arrival','','')));
+  h+='<span class="ar">'+ARL+'</span>';
+  h+=node(atCur?'cur':(r.state==='await'?'pend':'done'),'At Port',(r.state==='await'?'not yet':'yes'),'','');
+  h+='<span class="ar">'+ARL+'</span>';
+  h+=(r.lot?node('cur','Shipment Lot',esc(r.lot_title||r.lot),(r.state==='load'?'shipped':'building'),'lot'):node('pend','Shipment Lot','&#8212;','',''));
+  h+='</div>';
+  if(r.dc_h&&r.pt_h&&(''+r.dc_h)!==(''+r.pt_h))h+='<div style="margin-top:8px;font-size:12px;color:#8a5a12">Size check: DC '+dcSize(r)+' vs port '+ptSize(r).replace(/<[^>]+>/g,'')+'</div>';
+  return h+'</div>';
 }
-function srcEye(b){var s=(b.source||b.arrival_source||'').toLowerCase();var isXls=s.indexOf('upload')>=0||s.indexOf('xls')>=0||!!b.source_file;var isEmail=s.indexOf('email')>=0||s.indexOf('mail')>=0||!!b.source_email;if(b._await)return '<span class="sub">DC</span>';if(!isXls&&!isEmail)return '<span class="sub">'+DASH+'</span>';var col=isEmail?'#185fa5':'#8a5a12';var ic=isEmail?MAIL:SQ;return '<span class="eye" style="color:'+col+'" data-src="'+(isXls?'xls':'email')+'" data-ref="'+esc(b.source_file||'')+'" data-arr="'+esc(b.arrival||b.parent||'')+'">'+ic+'</span>';}
-function trail(arr,dc,blk){var o='<span class="eye" data-panel="dc" data-arr="'+esc(arr)+'" data-dc="'+esc(dc||'')+'" data-blk="'+esc(blk||'')+'">DC</span>'+U(8250)+'<span class="eye" data-panel="arr" data-arr="'+esc(arr)+'" data-dc="" data-blk="'+esc(blk||'')+'">Arrival</span>';return '<span style="font-size:11px;color:#6b7280">'+o+'</span>';}
-function wireStock(){
-  $('stmain').querySelectorAll('.ck').forEach(function(c){c.addEventListener('change',function(){SEL[c.dataset.k]=c.checked;c.closest('tr').classList.toggle('sel',c.checked);updBulk();});});
+function wire(){
+  $('stmain').querySelectorAll('.ck').forEach(function(c){c.addEventListener('change',function(){var r=visRows()[+c.dataset.i];SEL[key(r)]=c.checked;c.closest('tr').classList.toggle('sel',c.checked);updBulk();});});
   $('stmain').querySelectorAll('.exp').forEach(function(x){x.addEventListener('click',function(){var d=$('dx'+x.dataset.x);d.style.display=d.style.display==='none'?'':'none';});});
-  $('stmain').querySelectorAll('.rb').forEach(function(x){x.addEventListener('click',function(){if(x.dataset.move){moveToPort([{block_no:x.dataset.bn,dc:x.dataset.dc}]);}else{reconcile(x.dataset.arr,x.dataset.row,x.dataset.act,x.dataset.sug);}});});
-  $('stmain').querySelectorAll('.eye').forEach(function(x){x.addEventListener('click',function(){if(x.dataset.src)openSource(x.dataset.src,x.dataset.ref,x.dataset.arr);else openPanel(x.dataset.panel,x.dataset.arr,x.dataset.dc,x.dataset.blk);});});
-  updBulk();
+  $('stmain').querySelectorAll('.rb[data-act]').forEach(function(x){x.addEventListener('click',function(){doAct(x.dataset.act,visRows()[+x.dataset.i]);});});
+  $('stmain').querySelectorAll('[data-doc]').forEach(function(x){x.addEventListener('click',function(){openDoc(x.dataset.doc,visRows()[+x.dataset.i]);});});
 }
-function reconcile(arr,row,act,sug){if(!row||!arr)return;var upd={};if(act==='Fixed source'&&sug)upd.block_no=sug;post('dolphin_theme.api_arrivals.resolve_flag',{arrival:arr,row_name:row,resolution_type:act,updates:upd}).then(loadAll);}
-function moveToPort(items){post('dolphin_theme.api_arrivals.move_to_at_port',{blocks:items}).then(function(){msg('Moved to At Port '+DASH+' arrivals step skipped');loadAll();}).catch(function(){msg('Move to At Port backend not deployed yet',1);});}
-function updBulk(){var n=Object.keys(SEL).filter(function(k){return SEL[k];}).length;$('bn').textContent=n;$('bulk').classList.toggle('on',n>0);var p=$('pushbtn');if(p){p.disabled=!n;p.textContent='Push '+n+' '+AR+' Shipment Lot';}}
-
-/* ---- Stock: DC loading planner ---- */
+function visRows(){return LED.filter(matchQ).filter(function(x){return passFilt(x.state);});}
+function doAct(act,r){if(!r)return;
+  if(act==='move'){post('dolphin_theme.api_arrivals.move_to_at_port',{blocks:[{block_no:r.block_no,dc:r.dc}]}).then(function(){msg('Moved '+r.block_no+' to At Port');loadAll();});}
+  else if(act==='push'){pushRows([r]);}
+  else{post('dolphin_theme.api_arrivals.resolve_block',{arrival:r.arrival,block_no:r.block_no,action:act,dc:r.dc}).then(function(){loadAll();}).catch(function(){msg('Resolve failed',1);});}
+}
+function selRows(){return LED.filter(function(r){return SEL[key(r)];});}
+function updBulk(){var n=Object.keys(SEL).filter(function(k){return SEL[k];}).length;$('bn').textContent=n;$('bulk').classList.toggle('on',n>0);}
+$('bmove').addEventListener('click',function(){var it=selRows().filter(function(r){return r.state==='await';}).map(function(r){return {block_no:r.block_no,dc:r.dc};});if(!it.length){msg('Select awaiting blocks',1);return;}post('dolphin_theme.api_arrivals.move_to_at_port',{blocks:it}).then(function(){SEL={};msg('Moved '+it.length+' to At Port');loadAll();});});
+$('bpush').addEventListener('click',function(){var rs=selRows().filter(function(r){return r.state==='port';});if(!rs.length){msg('Push only works on At-Port blocks',1);return;}pushRows(rs);});
+$('baccept').addEventListener('click',function(){var rs=selRows();rs.forEach(function(r){post('dolphin_theme.api_arrivals.resolve_block',{arrival:r.arrival,block_no:r.block_no,action:'accept',dc:r.dc});});setTimeout(function(){SEL={};loadAll();},500);});
+function pushRows(rs){var rows=rs.map(function(r){return {block_no:r.block_no,length:r.pt_l||r.dc_l,width:r.pt_w||r.dc_w,height:r.pt_h||r.dc_h,cbm:r.pt_cbm||r.dc_cbm,mt:r.net_wt||r.ton,matched_dc:r.dc,arrival:r.arrival};});var mk=(rs[0]&&rs[0].mark)||'';post('dolphin_theme.api_arrivals.create_shipment_lot',{consignee:(rs[0]&&rs[0].consignee)||mk,rows:rows,mark:mk,vessel:''}).then(function(j){var lot=(j.message&&(j.message.name||j.message))||'';SEL={};msg(CHK+' Created '+lot);loadAll();}).catch(function(){msg('Error creating lot',1);});}
+/* group by DC */
 function renderDC(){
-  var map={};
-  ROWS.forEach(function(b){var dc=b.matched_dc||'(no DC)';(map[dc]=map[dc]||{dc:dc,mk:b.mark||'',bi:b.buyer_inspection||b.bi||'',blocks:[]}).blocks.push(b);});
-  AWAIT.forEach(function(b){var dc=b.matched_dc||'(no DC)';(map[dc]=map[dc]||{dc:dc,mk:b.mark||'',bi:'',blocks:[]}).blocks.push(b);});
-  var keys=Object.keys(map);
-  if(!keys.length){$('stmain').innerHTML='<div class="empty">No DC data yet</div>';return;}
-  var h='<table><thead><tr><th>Delivery Challan</th><th>Mark</th><th>Docs</th><th>Arrived</th><th>Await</th><th>In lot</th><th>Loaded</th><th>Left out</th><th style="width:100px">Progress</th><th style="width:22px"></th></tr></thead><tbody>';
-  keys.forEach(function(k,i){var g=map[k];var arr=0,aw=0,lot=0,load=0;
-    g.blocks.forEach(function(b){var st=statusOf(b);if(st==='await')aw++;else{arr++;if(st==='lot')lot++;if(st==='load')load++;}});
-    var left=arr-lot-load;if(left<0)left=0;var disp=arr+aw;var pl=disp?Math.round(load/disp*100):0,pt=disp?Math.round(lot/disp*100):0,plf=disp?Math.round(left/disp*100):0;
-    h+='<tr><td><b>'+esc(g.dc)+'</b></td><td>'+esc(g.mk)+'</td>'
-      +'<td><span class="eye" data-dcpdf="'+esc(g.dc)+'">'+U(128196)+' DC</span></td>'
-      +'<td>'+arr+'</td><td>'+(aw?'<b style="color:#8a5a12">'+aw+'</b>':'0')+'</td><td>'+lot+'</td><td><b style="color:#0c7150">'+load+'</b></td><td>'+(left?'<b style="color:#8a5a12">'+left+'</b>':'0')+'</td>'
-      +'<td><div class="mini"><i style="width:'+pl+'%;background:#0c7150"></i><i style="width:'+pt+'%;background:#33449c"></i><i style="width:'+plf+'%;background:#e0a94a"></i></div></td>'
-      +'<td><span class="exp" data-dx="'+i+'">'+U(9656)+'</span></td></tr>'
-      +'<tr class="det2" id="ddx'+i+'" style="display:none"><td colspan="10"><div class="detbox"><div style="font-size:12px;color:var(--navy);font-weight:600;margin-bottom:8px">Blocks in '+esc(g.dc)+' '+DASH+' pick by size to load</div><div class="chips">'
-      +g.blocks.map(function(b){var st=statusOf(b);var m=DCC[st]||DCC.port;return '<span class="chip2" style="background:'+m[0]+';border-color:'+m[1]+';color:'+m[2]+'"><b>'+esc(b.block_no||'')+'</b> '+dims(b)+' '+DOT+' '+(b.cbm||'?')+'m'+U(179)+'<span class="ct">'+m[3]+'</span></span>';}).join('')
-      +'</div></div></td></tr>';
+  var map={};LED.forEach(function(r){var d=r.dc||'(no challan)';(map[d]=map[d]||{dc:r.dc,consignee:r.consignee,rows:[]}).rows.push(r);});
+  var h='';Object.keys(map).forEach(function(dcn,i){var g=map[dcn];var arr=0,aw=0,lot=0,load=0;g.rows.forEach(function(r){if(r.state==='await')aw++;else arr++;if(r.state==='lot')lot++;if(r.state==='load')load++;});var left=arr-lot-load;if(left<0)left=0;
+    h+='<div style="border-bottom:.5px solid #eef2f6"><div style="display:flex;align-items:center;gap:12px;padding:11px 14px;background:#fbfcfe">'
+      +'<b style="font-size:14px">'+esc(dcn)+'</b>'+(g.consignee?'<span class="sub">'+esc(g.consignee)+'</span>':'')
+      +'<span class="pill p-port">'+arr+' at port</span>'+(aw?'<span class="pill p-await">'+aw+' awaiting</span>':'')+(lot?'<span class="pill p-inlot">'+lot+' in lot</span>':'')+(load?'<span class="pill p-load">'+load+' loaded</span>':'')
+      +'<span style="flex:1"></span>'
+      +(g.dc?'<span class="eye" data-dcdoc="'+esc(g.dc)+'">'+U(128196)+' DC</span>':'')
+      +(aw&&g.dc?'<span class="rb gold" data-movedc="'+esc(g.dc)+'">'+AR+' Move whole DC to At Port</span>':'')
+      +'</div></div>';
   });
-  h+='</tbody></table>';$('stmain').innerHTML=h;
-  $('stmain').querySelectorAll('.exp').forEach(function(x){x.addEventListener('click',function(){var d=$('ddx'+x.dataset.dx);d.style.display=d.style.display==='none'?'':'none';});});
-  $('stmain').querySelectorAll('[data-dcpdf]').forEach(function(x){x.addEventListener('click',function(){openPanel('dc','',x.dataset.dcpdf,'');});});
+  $('stmain').innerHTML=h||'<div class="empty">No data</div>';
+  $('stmain').querySelectorAll('[data-movedc]').forEach(function(x){x.addEventListener('click',function(){post('dolphin_theme.api_arrivals.move_dc_to_at_port',{dc:x.dataset.movedc}).then(function(res){msg('Moved '+((res.message&&res.message.moved)||'')+' blocks of '+x.dataset.movedc+' to At Port');loadAll();}).catch(function(){msg('Move failed',1);});});});
+  $('stmain').querySelectorAll('[data-dcdoc]').forEach(function(x){x.addEventListener('click',function(){openPanel('Delivery Challan',x.dataset.dcdoc,'Dolphin Delivery Challan');});});
 }
-var DCC={load:['#dff3ea','#9fe1cb','#0c7150','loaded'],lot:['#e7ecff','#b9c4f0','#33449c','in lot'],port:['#fbeedd','#f0d4a8','#8a5a12','left out'],match:['#fbeedd','#f0d4a8','#8a5a12','left out'],dmg:['#fbe3d4','#eec2a6','#a3491a','damaged'],held:['#f3d9dd','#e2b6bf','#8a1f2e','held'],await:['#eef1f6','#d7dde6','#5f6b7a','awaiting'],orphan:['#fcebeb','#f0c0c0','#a32d2d','orphan'],miss:['#fcebeb','#f0c0c0','#a32d2d','no no']};
-
-/* ---- panel ---- */
-function openPanel(kind,arr,dc,blk){var p=$('panel');p.classList.add('on');var dt,nm,fmt='';if(kind==='dc'&&dc){dt='Delivery Challan';nm=dc;fmt='Dolphin Delivery Challan';}else{dt='Port Arrival';nm=arr;}var src='/printview?doctype='+encodeURIComponent(dt)+'&name='+encodeURIComponent(nm)+(fmt?'&format='+encodeURIComponent(fmt):'')+'&no_letterhead=0&_lang=en';p.innerHTML='<div style="padding:9px 12px;background:#f4f6f9;border-bottom:0.5px solid #e5e7eb;display:flex;gap:8px;font-size:12px"><b style="flex:1">'+esc(blk||nm||'')+' '+DOT+' '+esc(dt)+'</b><span class="rb" id="pcl">Close</span></div><iframe src="'+src+'" style="flex:1;border:none;width:100%"></iframe>';$('pcl').addEventListener('click',closePanel);}
-function openSource(kind,ref,arr){var p=$('panel');p.classList.add('on');var body=kind==='xls'?'<div style="padding:16px;font-size:12px">Uploaded source .xls'+(ref?':<br><b>'+esc(ref)+'</b><br><br><a class="rb" href="'+esc(ref)+'" target="_blank">Open .xls</a>':' for '+esc(arr))+'</div>':'<iframe src="/app/communication?reference_doctype=Port%20Arrival&reference_name='+encodeURIComponent(arr)+'" style="flex:1;border:none;width:100%"></iframe>';p.innerHTML='<div style="padding:9px 12px;background:#f4f6f9;border-bottom:0.5px solid #e5e7eb;display:flex;gap:8px;font-size:12px"><b style="flex:1">'+(kind==='xls'?SQ+' .xls source':MAIL+' Email source')+'</b><span class="rb" id="pcl">Close</span></div>'+body;$('pcl').addEventListener('click',closePanel);}
+/* doc panel (context-aware) */
+function openDoc(kind,r){if(!r)return;
+  if(kind==='dc'&&r.dc)openPanel('Delivery Challan',r.dc,'Dolphin Delivery Challan');
+  else if(kind==='bi'&&r.source_bi)openPanel('Buyer Inspection',r.source_bi,'');
+  else if(kind==='lot'&&r.lot)openPanel('Export Shipment Lot',r.lot,'');
+  else if(kind==='arr'&&r.arrival)openPanel('Port Arrival',r.arrival,'');
+}
+function openPanel(dt,nm,fmt){var p=$('panel');p.classList.add('on');var src='/printview?doctype='+encodeURIComponent(dt)+'&name='+encodeURIComponent(nm)+(fmt?'&format='+encodeURIComponent(fmt):'')+'&no_letterhead=0&_lang=en';
+  p.innerHTML='<div class="pnhd"><b style="flex:1">'+esc(nm)+' '+DOT+' '+esc(dt)+'</b><span class="rb" id="pcl">Close</span></div>'
+    +'<div class="pnact"><a class="rb pri" href="'+src+'" target="_blank">'+U(11021)+' Full view</a><a class="rb" href="'+src+'" target="_blank">'+U(128424)+' Print</a><a class="rb" href="/api/method/frappe.utils.print_format.download_pdf?doctype='+encodeURIComponent(dt)+'&name='+encodeURIComponent(nm)+(fmt?'&format='+encodeURIComponent(fmt):'')+'" target="_blank">'+U(11015)+' PDF</a></div>'
+    +'<iframe src="'+src+'" style="flex:1;border:none;width:100%"></iframe>';
+  $('pcl').addEventListener('click',closePanel);
+}
 function closePanel(){var p=$('panel');p.classList.remove('on');p.innerHTML='';}
-
-/* ---- foot / push ---- */
-function selectedRows(){var out=[];allRows().forEach(function(b,i){var key=(b.arrival||b.parent||'')+'|'+(b.block_no||'');if(SEL[key])out.push(b);});return out;}
-function wireFoot(){$('foot').innerHTML='<button class="push" id="pushbtn" disabled>Push '+AR+' Shipment Lot</button><span style="font-size:12px;color:#6b7280">Tick matched / at-port blocks from any arrival, then pool into one lot.</span>';$('pushbtn').addEventListener('click',doPush);updBulk();}
-function doPush(){var sel=selectedRows();if(!sel.length)return;var rows=sel.map(function(b){return {quarry_block:b.quarry_block,block_no:b.block_no,length:b.length,width:b.width,height:b.height,cbm:b.cbm,mt:b.net_wt||b.mt,kgs:(b.net_wt?b.net_wt*1000:b.kgs),matched_dc:b.matched_dc,arrival:b.arrival||b.parent};});var marks=Array.from(new Set(sel.map(function(b){return b.mark||'';}).filter(Boolean)));var mk=marks.length===1?marks[0]:'';$('pushbtn').disabled=true;$('pushbtn').textContent='Creating'+U(8230);post('dolphin_theme.api_arrivals.create_shipment_lot',{consignee:mk,rows:rows,mark:mk,vessel:''}).then(function(j){var lot=(j.message&&(j.message.name||j.message))||'';SEL={};$('foot').innerHTML='<span style="color:#0f6e56">'+CHK+' Created '+esc(lot)+'</span> <a class="rb" href="/app/export-shipment-lot/'+encodeURIComponent(lot)+'" target="_blank">Open lot</a>';loadAll();}).catch(function(){$('foot').innerHTML='<span style="color:#a32d2d">Error creating lot</span>';});}
-
-/* ---- bulk ---- */
-$('bpush').addEventListener('click',doPush);
-$('bmove').addEventListener('click',function(){var items=selectedRows().filter(function(b){return statusOf(b)==='await';}).map(function(b){return {block_no:b.block_no,dc:b.matched_dc};});if(!items.length){msg('Select awaiting-arrival blocks to move',1);return;}moveToPort(items);});
-document.querySelectorAll('#bulk .bbtn[data-b]').forEach(function(x){x.addEventListener('click',function(){var sel=selectedRows();sel.forEach(function(b){if(b.name&&(b.arrival||b.parent))post('dolphin_theme.api_arrivals.resolve_flag',{arrival:b.arrival||b.parent,row_name:b.name,resolution_type:x.dataset.b,updates:{}});});setTimeout(function(){SEL={};loadAll();},400);});});
-
-/* ---- Arrivals tab ---- */
-function renderArr(){var el=$('arrlist');if(!ARRS.length){el.innerHTML='<div class="empty">No arrivals</div>';return;}
-  var aq=($('aq').value||'').toLowerCase();
-  var list=ARRS.filter(function(a){return !aq||(a.name+' '+(a.mark||'')+' '+(a.shipper||'')).toLowerCase().indexOf(aq)>=0;});
-  el.innerHTML=list.map(function(a){var age=a.arrival_date?ageDays(a.name):null;
-    return '<div class="arow" data-n="'+esc(a.name)+'"><div style="flex:1"><div style="font-weight:600;font-size:14px">'+esc(a.name)+'</div><div class="sub">'+esc(a.mark||'')+' '+DOT+' '+esc(a.arrival_date||'')+' '+DOT+' '+(a.total_blocks||0)+' blocks'+(age!=null?' '+DOT+' '+age+'d ago':'')+'</div></div><a class="rb" href="/app/port-arrival/'+encodeURIComponent(a.name)+'" target="_blank">Open</a></div>';}).join('');
-}
+/* arrivals */
+function renderArr(){var el=$('arrlist');if(!ARRS.length){el.innerHTML='<div class="empty">No arrivals</div>';return;}var aq=($('aq').value||'').toLowerCase();
+  el.innerHTML=ARRS.filter(function(a){return !aq||(a.name+' '+(a.mark||'')).toLowerCase().indexOf(aq)>=0;}).map(function(a){var age=ageDays(a.name);
+    return '<div class="arow"><div style="flex:1"><div style="font-weight:600;font-size:14px">'+esc(a.name)+'</div><div class="sub">'+esc(a.mark||'')+' '+DOT+' '+esc(a.arrival_date||'')+' '+DOT+' '+(a.total_blocks||0)+' blocks'+(age!=null?' '+DOT+' '+age+'d ago':'')+'</div></div><a class="rb" href="/app/port-arrival/'+encodeURIComponent(a.name)+'" target="_blank">Open</a></div>';}).join('');}
 $('aq').addEventListener('input',renderArr);
-
-/* ---- Shipment Lots tab ---- */
+/* lots */
 var LF='all',LQ='';
 function renderLots(){var el=$('lotmain');if(!LOTS.length){el.innerHTML='<div class="empty">No shipment lots yet</div>';return;}
-  var list=LOTS.filter(function(l){var st=(l.status==='ship'||l.shipped)?'ship':'build';if(LF!=='all'&&LF!==st)return true&&false||st===LF;var hay=(l.name+' '+(l.consignee||'')+' '+(l.packing_list||'')+' '+(l.bl_no||'')+' '+((l.block_nos||[]).join(' '))).toLowerCase();return (LF==='all'||st===LF)&&(!LQ||hay.indexOf(LQ)>=0);});
+  var list=LOTS.filter(function(l){var st=(l.status==='ship'||l.shipped)?'ship':'build';var hay=(l.name+' '+(l.consignee||'')+' '+(l.bl_no||'')+' '+((l.block_nos||[]).join(' '))).toLowerCase();return (LF==='all'||st===LF)&&(!LQ||hay.indexOf(LQ)>=0);});
   var h='<table><thead><tr><th>Lot / vessel</th><th>Consignee</th><th>Packing list</th><th>BL no</th><th>Ship date</th><th>Blocks</th><th>CBM</th><th>Status</th><th style="width:22px"></th></tr></thead><tbody>';
-  list.forEach(function(l,i){var st=(l.status==='ship'||l.shipped)?'ship':'build';var sp=st==='ship'?'<span class="pill p-ship">'+U(9096)+' Shipped</span>':'<span class="pill p-port">'+U(9679)+' Building</span>';
-    h+='<tr><td><b>'+esc(l.title||l.name)+'</b><div class="sub">'+esc(l.name)+'</div></td><td>'+esc(l.consignee||'')+'</td><td>'+esc(l.packing_list||DASH)+'</td><td>'+esc(l.bl_no||DASH)+'</td><td>'+esc(l.ship_date||('<span class="sub">'+DASH+' on ship call</span>'))+'</td><td>'+(l.total_blocks||(l.block_nos||[]).length||0)+'</td><td>'+(l.total_cbm||DASH)+'</td><td>'+sp+'</td>'
-      +'<td><span class="exp" data-lx="'+i+'">'+U(9656)+'</span></td></tr>'
-      +'<tr class="det2" id="lx'+i+'" style="display:none"><td colspan="9"><div class="detbox">'
-      +'<div style="font-size:12px;color:#374151;margin-bottom:6px"><b>Blocks:</b> '+esc((l.block_nos||[]).join(', ')||DASH)+'</div>'
-      +'<div style="margin:8px 0"><a class="rb" href="/app/export-shipment-lot/'+encodeURIComponent(l.name)+'" target="_blank">'+U(128196)+' Open lot</a> '
-      +'<a class="rb" href="/printview?doctype=Export%20Shipment%20Lot&name='+encodeURIComponent(l.name)+'&no_letterhead=0" target="_blank">'+U(128196)+' Packing List</a> '
-      +'<span class="rb" data-bl="'+esc(l.name)+'">'+U(128196)+' BL draft</span> '
-      +'<span class="rb" style="border-color:#e0c48a;color:#8a5a12" data-inv="'+esc(l.name)+'">'+LOCK+' Invoice</span></div>'
-      +'<div class="sub">Packing List &amp; BL pull every block row from this lot. Invoice reuses the same rows; rate/amount are permission-gated (hidden from yard users).</div>'
-      +'</div></td></tr>';
-  });
+  list.forEach(function(l,i){var st=(l.status==='ship'||l.shipped)?'ship':'build';var sp=st==='ship'?'<span class="pill p-load">'+U(9875)+' Shipped</span>':'<span class="pill p-port">'+U(9679)+' Building</span>';
+    h+='<tr><td><b>'+esc(l.title||l.name)+'</b><div class="sub">'+esc(l.name)+'</div></td><td>'+esc(l.consignee||'')+'</td><td>'+esc(l.packing_list||DASH)+'</td><td>'+esc(l.bl_no||DASH)+'</td><td>'+esc(l.ship_date||DASH)+'</td><td>'+(l.total_blocks||(l.block_nos||[]).length||0)+'</td><td>'+(l.total_cbm||DASH)+'</td><td>'+sp+'</td>'
+      +'<td><span class="exp" data-lx="'+i+'">'+TRI+'</span></td></tr>'
+      +'<tr class="det" id="lx'+i+'" style="display:none"><td colspan="9"><div class="trace"><div style="font-size:12px;color:#374151;margin-bottom:6px"><b>Blocks:</b> '+esc((l.block_nos||[]).join(', ')||DASH)+'</div>'
+      +'<a class="rb" href="/app/export-shipment-lot/'+encodeURIComponent(l.name)+'" target="_blank">'+U(128196)+' Open lot</a> '
+      +'<a class="rb" href="/printview?doctype=Export%20Shipment%20Lot&name='+encodeURIComponent(l.name)+'&no_letterhead=0" target="_blank">'+U(128196)+' Packing List</a></div></td></tr>';});
   h+='</tbody></table>';el.innerHTML=h;
-  el.querySelectorAll('.exp').forEach(function(x){x.addEventListener('click',function(){var d=$('lx'+x.dataset.lx);d.style.display=d.style.display==='none'?'':'none';});});
-  el.querySelectorAll('[data-bl]').forEach(function(x){x.addEventListener('click',function(){msg('BL draft is generated at the Shipping Document step');});});
-  el.querySelectorAll('[data-inv]').forEach(function(x){x.addEventListener('click',function(){msg('Invoice reuses lot rows; pricing is Sales/Accounts only',1);});});
-}
+  el.querySelectorAll('.exp').forEach(function(x){x.addEventListener('click',function(){var d=$('lx'+x.dataset.lx);d.style.display=d.style.display==='none'?'':'none';});});}
 $('lq').addEventListener('input',function(){LQ=this.value.trim().toLowerCase();renderLots();});
 document.querySelectorAll('#p-lots .fl').forEach(function(f){f.addEventListener('click',function(){LF=f.dataset.lf;document.querySelectorAll('#p-lots .fl').forEach(function(x){x.classList.remove('on');});f.classList.add('on');renderLots();});});
-
-/* ---- import ---- */
+/* import */
 function toggleImp(){$('impbar').classList.toggle('on');}
 function msg(t,err){var m=$('impmsg');$('impbar').classList.add('on');m.style.display='';m.style.color=err?'#a32d2d':'#0f6e56';m.textContent=t;}
-function doImport(){var f=$('impfile').files[0];var m=$('impmsg');m.style.display='';m.style.color='#96733a';if(!f){m.textContent='Choose a .xls / .xlsx first.';return;}m.textContent='Parsing '+f.name+U(8230);var fd=new FormData();fd.append('file',f,f.name);fetch('/api/method/dolphin_theme.api_arrivals.import_xls',{method:'POST',credentials:'include',headers:{'X-Frappe-CSRF-Token':TOKEN},body:fd}).then(function(r){return r.json();}).then(function(j){var res=j.message||{};m.style.color='#0f6e56';m.textContent=CHK+' Upserted '+f.name+' '+DASH+' '+(res.created||0)+' new, '+(res.updated||0)+' confirmed, '+(res.duplicates||0)+' dup skipped. Reloading'+U(8230);loadAll();}).catch(function(){m.style.color='#a32d2d';m.textContent='Import failed '+DASH+' import_xls may not be deployed yet.';});}
-
-/* ---- tabs / filters / views ---- */
-function tab(t){document.querySelectorAll('#pr .tab').forEach(function(x){x.classList.toggle('on',x.dataset.t===t);});document.querySelectorAll('#pr .pane').forEach(function(p){p.classList.remove('on');});$('p-'+t).classList.add('on');}
+function doImport(){var f=$('impfile').files[0];var m=$('impmsg');m.style.display='';m.style.color='#96733a';if(!f){m.textContent='Choose a .xls first.';return;}m.textContent='Parsing '+f.name+U(8230);var fd=new FormData();fd.append('file',f,f.name);fetch('/api/method/dolphin_theme.api_arrivals.import_xls',{method:'POST',credentials:'include',headers:{'X-Frappe-CSRF-Token':TOKEN},body:fd}).then(function(r){return r.json();}).then(function(j){var res=j.message||{};m.style.color='#0f6e56';m.textContent=CHK+' Upserted '+f.name+' '+DASH+' '+(res.created||0)+' new, '+(res.updated||0)+' confirmed. Reloading'+U(8230);loadAll();}).catch(function(){m.style.color='#a32d2d';m.textContent='Import failed.';});}
+/* tabs (panel closes on switch) */
+function tab(t){closePanel();document.querySelectorAll('#pr .tab').forEach(function(x){x.classList.toggle('on',x.dataset.t===t);});document.querySelectorAll('#pr .pane').forEach(function(p){p.classList.remove('on');});$('p-'+t).classList.add('on');}
 document.querySelectorAll('#pr .tab').forEach(function(x){x.addEventListener('click',function(){tab(x.dataset.t);});});
-function setFilt(f){FILT=f;VMODE='blk';$('v-blk').classList.add('on');$('v-dc').classList.remove('on');$('flrow').style.display='';document.querySelectorAll('#flrow .fl').forEach(function(x){x.classList.toggle('on',x.dataset.f===f);});renderStock();}
-document.querySelectorAll('#flrow .fl').forEach(function(f){f.addEventListener('click',function(){setFilt(f.dataset.f);});});
-$('v-blk').addEventListener('click',function(){VMODE='blk';this.classList.add('on');$('v-dc').classList.remove('on');$('flrow').style.display='';$('foot').style.display='flex';renderStock();});
-$('v-dc').addEventListener('click',function(){VMODE='dc';this.classList.add('on');$('v-blk').classList.remove('on');$('flrow').style.display='none';$('foot').style.display='none';renderDC();});
+document.querySelectorAll('#flrow .fl').forEach(function(f){f.addEventListener('click',function(){FILT=f.dataset.f;VMODE='blk';$('v-blk').classList.add('on');$('v-dc').classList.remove('on');$('flrow').style.display='';document.querySelectorAll('#flrow .fl').forEach(function(x){x.classList.remove('on');});f.classList.add('on');closePanel();renderStock();});});
+$('v-blk').addEventListener('click',function(){VMODE='blk';this.classList.add('on');$('v-dc').classList.remove('on');$('flrow').style.display='';closePanel();renderStock();});
+$('v-dc').addEventListener('click',function(){VMODE='dc';this.classList.add('on');$('v-blk').classList.remove('on');$('flrow').style.display='none';closePanel();renderDC();});
 $('q').addEventListener('input',function(){Q=this.value.trim().toLowerCase();renderStock();});
-$('impbtn').addEventListener('click',toggleImp);$('impbtn2').addEventListener('click',function(){tab('stock');toggleImp();});
-$('impx').addEventListener('click',toggleImp);$('impgo').addEventListener('click',doImport);
-$('csvbtn').addEventListener('click',function(){var all=allRows().filter(matchQ);var head=['Arrival','Block','Mark','L','W','H','CBM','MT','DC','Status'];var lines=[head.join(',')];all.forEach(function(b){var row=[b.arrival||b.parent||'',b.block_no||'',b.mark||'',b.length||'',b.width||'',b.height||'',b.cbm||'',b.net_wt||b.mt||'',b.matched_dc||'',statusOf(b)];lines.push(row.map(function(v){v=(''+v).replace(/"/g,'""');return /[",\n]/.test(v)?'"'+v+'"':v;}).join(','));});var blob=new Blob([lines.join('\n')],{type:'text/csv'});var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='stock-at-port.csv';a.click();});
+$('impbtn').addEventListener('click',toggleImp);$('impbtn2').addEventListener('click',function(){tab('stock');toggleImp();});$('impx').addEventListener('click',toggleImp);$('impgo').addEventListener('click',doImport);
+$('addbtn').addEventListener('click',function(){var b=prompt('Add block at port - enter: block, L, W, H (cm)');if(!b)return;var p=b.split(/[\s,]+/);post('dolphin_theme.api_arrivals.move_to_at_port',{blocks:[{block_no:p[0]}]}).then(function(){msg('Added '+p[0]+' at port');loadAll();});});
+$('openbtn').addEventListener('click',function(){toggleImp();msg('Opening stock: paste/import via the .xls box, or use + Add at port for one block',0);});
 loadAll();
 })();
 </script>
