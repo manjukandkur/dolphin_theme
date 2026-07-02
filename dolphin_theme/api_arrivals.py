@@ -642,7 +642,7 @@ def import_xls(arrival=None, mark=None, agency=None):
         pa = frappe.get_doc("Port Arrival", arrival)
     else:
         existing = frappe.db.get_value(
-            "Port Arrival", {"mark": doc_mark, "source_sheet": sheet}, "name"
+            "Port Arrival", {"mark": doc_mark, "source_sheet": sheet, "docstatus": 0}, "name"
         ) if doc_mark else None
         if existing:
             pa = frappe.get_doc("Port Arrival", existing)
