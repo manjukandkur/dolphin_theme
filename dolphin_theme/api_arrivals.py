@@ -824,3 +824,241 @@ def move_to_at_port(blocks=None):
     pa.save(ignore_permissions=True)
     frappe.db.commit()
     return {"arrival": pa.name, "moved": moved}
+
+
+# ===========================================================================
+# Holistic transported-block ledger + actions  (append to api_arrivals.py)
+#
+# KEY FIX: an arrival sheet's block number matches the Delivery Challan's
+# `block` field (the quarry block no) — NOT dc_block_rows.block_no (internal
+# series) nor export_block_no. Matching now tries block -> block_no -> export.
+#
+#   ledger_view()          one flat row per transported block, with backward
+#                          trace (DC -> source BI -> consignee) + lot + state.
+#   move_dc_to_at_port(dc) DC-wise "skip arrivals": whole challan -> At Port.
+#   resolve_block(...)     accept / link / fix keyed by (arrival, block_no).
+#   block_availability(..) which DC each block is already on (dialog + BI).
+# ===========================================================================
+
+
+def _s(v):
+    return str(v).strip() if v not in (None, "") else ""
+
+
+def _consignee_names():
+    m = {}
+    try:
+        for c in frappe.get_all("Export Consignee", fields=["name", "consignee_name"]):
+            m[c.name] = c.get("consignee_name") or c.name
+    except Exception:
+        pass
+    return m
+
+
+def _lot_membership():
+    """block key -> {lot, st(build/ship), title}"""
+    m = {}
+    for l in frappe.get_all("Export Shipment Lot", fields=["name", "docstatus"]):
+        try:
+            d = frappe.get_doc("Export Shipment Lot", l.name)
+        except Exception:
+            continue
+        shipped = (d.docstatus == 1) or bool(d.get("shipped"))
+        title = d.get("title") or d.get("consignee") or d.name
+        for tf in d.meta.get_table_fields():
+            for r in (d.get(tf.fieldname) or []):
+                for k in (r.get("block_no"), r.get("export_block_no"),
+                          r.get("block"), r.get("quarry_block")):
+                    if _s(k):
+                        m[_s(k)] = {"lot": d.name, "st": "ship" if shipped else "build", "title": title}
+    return m
+
+
+def _arrived_index():
+    """block_no -> Port Arrival Block row (physically at port)."""
+    idx = {}
+    for p in frappe.get_all(
+        "Port Arrival Block",
+        fields=["parent", "block_no", "mark", "length", "width", "height",
+                "cbm", "net_wt", "recon_status", "match_status"],
+        limit_page_length=0,
+    ):
+        k = _s(p.block_no)
+        if k:
+            idx.setdefault(k, p)
+    return idx
+
+
+@frappe.whitelist()
+def ledger_view():
+    """One flat row per transported block: block -> DC -> BI/consignee, plus
+    arrival/port reality, lot membership and a single state."""
+    lots = _lot_membership()
+    arrived = _arrived_index()
+    cons = _consignee_names()
+
+    dcs = {x.name: x for x in frappe.get_all(
+        "Delivery Challan", filters={"docstatus": 1},
+        fields=["name", "export_consignee", "shipping_mark"])}
+
+    rows, seen = [], set()
+
+    if dcs:
+        for r in frappe.get_all(
+            "DC Block Row",
+            filters={"parenttype": "Delivery Challan", "parent": ["in", list(dcs.keys())]},
+            fields=["parent", "block", "block_no", "export_block_no",
+                    "source_inspection", "grade", "length_gross", "width_gross",
+                    "height_gross", "gross_volume", "gross_tonnage"],
+            limit_page_length=0,
+        ):
+            dc = dcs.get(r.parent)
+            if not dc:
+                continue
+            keys = [_s(k) for k in (r.block, r.block_no, r.export_block_no) if _s(k)]
+            primary = _s(r.block) or (keys[0] if keys else "")
+            if not primary:
+                continue
+            pa = next((arrived[k] for k in keys if k in arrived), None)
+            lot = next((lots[k] for k in keys if k in lots), None)
+
+            if lot and lot["st"] == "ship":
+                state = "load"
+            elif lot:
+                state = "lot"
+            elif pa is not None:
+                rs = _s(pa.recon_status).lower()
+                state = ("dmg" if "damage" in rs else
+                         "held" if ("hold" in rs or "held" in rs) else
+                         "mis" if ("mismatch" in rs or "dimension" in rs) else "port")
+            else:
+                state = "await"
+
+            rows.append({
+                "block_no": primary,
+                "mark": (pa.mark if pa else None) or dc.shipping_mark,
+                "dc": dc.name,
+                "consignee": cons.get(dc.export_consignee, dc.export_consignee),
+                "source_bi": r.source_inspection,
+                "grade": r.grade,
+                "dc_l": r.length_gross, "dc_w": r.width_gross, "dc_h": r.height_gross,
+                "dc_cbm": r.gross_volume, "ton": r.gross_tonnage,
+                "pt_l": (pa.length if pa else None), "pt_w": (pa.width if pa else None),
+                "pt_h": (pa.height if pa else None), "pt_cbm": (pa.cbm if pa else None),
+                "net_wt": (pa.net_wt if pa else None),
+                "arrival": (pa.parent if pa else None),
+                "recon_status": (pa.recon_status if pa else None),
+                "lot": (lot["lot"] if lot else None),
+                "lot_title": (lot["title"] if lot else None),
+                "state": state, "source": "dc",
+            })
+            for k in keys:
+                seen.add(k)
+
+    # arrived but not on any submitted DC -> excess / opening / accepted
+    for k, pa in arrived.items():
+        if k in seen:
+            continue
+        lot = lots.get(k)
+        rs = _s(pa.recon_status).lower()
+        if lot and lot["st"] == "ship":
+            state = "load"
+        elif lot:
+            state = "lot"
+        elif "resolved" in rs or "accept" in rs or "opening" in rs:
+            state = "port"
+        else:
+            state = "orphan"
+        rows.append({
+            "block_no": k, "mark": pa.mark, "dc": None, "consignee": None,
+            "source_bi": None, "grade": None,
+            "dc_l": None, "dc_w": None, "dc_h": None, "dc_cbm": None, "ton": None,
+            "pt_l": pa.length, "pt_w": pa.width, "pt_h": pa.height,
+            "pt_cbm": pa.cbm, "net_wt": pa.net_wt,
+            "arrival": pa.parent, "recon_status": pa.recon_status,
+            "lot": (lot["lot"] if lot else None),
+            "lot_title": (lot["title"] if lot else None),
+            "state": state, "source": "arrival",
+        })
+    return rows
+
+
+@frappe.whitelist()
+def move_dc_to_at_port(dc=None):
+    """DC-wise skip-arrivals: place every block on this challan At Port."""
+    if not dc:
+        frappe.throw("No challan given.")
+    d = frappe.get_doc("Delivery Challan", dc)
+    blocks = []
+    for r in (d.get("dc_block_rows") or []):
+        bn = _s(r.get("block")) or _s(r.get("block_no"))
+        if bn:
+            blocks.append({"block_no": bn, "dc": dc})
+    if not blocks:
+        frappe.throw("This challan has no blocks.")
+    return move_to_at_port(blocks)
+
+
+@frappe.whitelist()
+def resolve_block(arrival=None, block_no=None, action="accept", dc=None):
+    """Resolve a flagged block, keyed by (arrival, block_no). Once accepted the
+    block reads as Resolved and shows under All at port."""
+    block_no = _s(block_no)
+    if not block_no:
+        frappe.throw("No block number.")
+
+    name = None
+    if arrival:
+        name = frappe.db.get_value("Port Arrival Block",
+                                   {"parent": arrival, "block_no": block_no}, "name")
+    if not name:
+        name = frappe.db.get_value("Port Arrival Block", {"block_no": block_no}, "name")
+    if not name:
+        frappe.throw("Block {0} not found at port.".format(block_no))
+
+    updates = {}
+    if action in ("accept", "release", "accept_extra"):
+        updates["recon_status"] = "Resolved"
+    elif action == "use_dc":
+        updates["recon_status"] = "Resolved"
+    elif action == "hold":
+        updates["recon_status"] = "Held"
+    elif action == "link_dc" and dc:
+        updates["matched_dc"] = dc
+        updates["recon_status"] = "Resolved"
+    else:
+        updates["recon_status"] = "Resolved"
+
+    frappe.db.set_value("Port Arrival Block", name, updates, update_modified=False)
+    frappe.db.commit()
+    return {"block_no": block_no, "action": action, "ok": True}
+
+
+@frappe.whitelist()
+def block_availability(blocks=None):
+    """Given block numbers, return {block: dc_name or None} — which challan
+    (draft or submitted) each block already sits on. Powers the Available /
+    on-DC indicator in the add-blocks dialog and the Buyer Inspection screen."""
+    import json as _json
+    if isinstance(blocks, str):
+        blocks = _json.loads(blocks)
+    blocks = [_s(b) for b in (blocks or []) if _s(b)]
+    if not blocks:
+        return {}
+    out = {b: None for b in blocks}
+    rows = frappe.get_all(
+        "DC Block Row",
+        filters={"parenttype": "Delivery Challan"},
+        fields=["parent", "block", "block_no", "export_block_no"],
+        limit_page_length=0,
+    )
+    # only challans that still count (not cancelled)
+    valid = set(frappe.get_all("Delivery Challan",
+                               filters={"docstatus": ["<", 2]}, pluck="name"))
+    for r in rows:
+        if r.parent not in valid:
+            continue
+        for k in (_s(r.block), _s(r.block_no), _s(r.export_block_no)):
+            if k in out and not out[k]:
+                out[k] = r.parent
+    return out
