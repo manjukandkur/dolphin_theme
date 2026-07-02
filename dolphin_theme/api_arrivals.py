@@ -712,3 +712,115 @@ def import_xls(arrival=None, mark=None, agency=None):
         "duplicates": 0,
         "total_blocks": pa.total_blocks,
     }
+
+
+# ===========================================================================
+# Workspace additions (append to dolphin_theme/api_arrivals.py)
+#   lots_view()        -> read-only feed for the Shipment Lots tab + lets the
+#                         Stock page compute in-lot / loaded / left-out.
+#   move_to_at_port()  -> bulk "skip arrivals": take DC-submitted blocks that are
+#                         awaiting arrival and place them At Port (draft, reversible).
+# Both are defensive: field names are probed with meta.has_field so a schema
+# difference degrades gracefully instead of writing bad data.
+# ===========================================================================
+import json as _json
+
+
+@frappe.whitelist()
+def lots_view():
+    """Every Export Shipment Lot with its consignee/vessel/doc numbers and the
+    list of block numbers it holds. Read-only."""
+    out = []
+    for name in frappe.get_all("Export Shipment Lot", pluck="name"):
+        try:
+            d = frappe.get_doc("Export Shipment Lot", name)
+        except Exception:
+            continue
+
+        block_nos = []
+        for tf in d.meta.get_table_fields():
+            rows = d.get(tf.fieldname) or []
+            picked = []
+            for r in rows:
+                bn = r.get("block_no") or r.get("block") or r.get("quarry_block")
+                if bn:
+                    picked.append(str(bn).strip())
+            if picked:
+                block_nos = picked
+                break
+
+        def gv(*keys):
+            for k in keys:
+                if d.meta.has_field(k):
+                    v = d.get(k)
+                    if v not in (None, ""):
+                        return v
+            return None
+
+        shipped = bool(gv("shipped")) or d.docstatus == 1
+        stf = gv("status")
+        if stf and str(stf).lower() in ("shipped", "dispatched", "sailed", "closed"):
+            shipped = True
+
+        out.append({
+            "name": d.name,
+            "title": gv("title", "lot_name", "lot_title") or d.name,
+            "consignee": gv("consignee", "consignee_name", "customer", "shipper", "mark") or "",
+            "vessel": gv("vessel", "vessel_name", "vessel_voyage", "voyage") or "",
+            "packing_list": gv("packing_list", "packing_list_no", "pl_no"),
+            "bl_no": gv("bl_no", "bill_of_lading", "bl_number", "bl"),
+            "ship_date": (str(gv("ship_date", "shipment_date", "sailed_on") or "") or None),
+            "total_blocks": gv("total_blocks") or len(block_nos),
+            "total_cbm": gv("total_cbm"),
+            "status": "ship" if shipped else "build",
+            "shipped": shipped,
+            "block_nos": block_nos,
+        })
+    return out
+
+
+@frappe.whitelist()
+def move_to_at_port(blocks=None):
+    """Place DC-submitted 'awaiting arrival' blocks At Port without an arrival file
+    (the 'skip the double-check' path). Writes into a single reusable DRAFT Port
+    Arrival so it is easy to review / undo. Idempotent by block number."""
+    if isinstance(blocks, str):
+        blocks = _json.loads(blocks)
+    blocks = blocks or []
+    if not blocks:
+        frappe.throw("No blocks supplied to move.")
+
+    label = "AT-PORT (skipped arrivals)"
+    tname = frappe.db.get_value(
+        "Port Arrival", {"mark": label, "docstatus": 0}, "name"
+    )
+    if tname:
+        pa = frappe.get_doc("Port Arrival", tname)
+    else:
+        pa = frappe.new_doc("Port Arrival")
+        if pa.meta.has_field("mark"):
+            pa.mark = label
+        if pa.meta.has_field("arrival_date"):
+            pa.arrival_date = frappe.utils.today()
+
+    existing = {str(b.block_no).strip() for b in pa.blocks}
+    moved = 0
+    for it in blocks:
+        bn = str((it or {}).get("block_no") or "").strip()
+        if not bn or bn in existing:
+            continue
+        row = pa.append("blocks", {})
+        row.block_no = bn
+        existing.add(bn)
+        if row.meta.has_field("matched_dc") and it.get("dc"):
+            row.matched_dc = it.get("dc")
+        if row.meta.has_field("recon_status"):
+            row.recon_status = "Resolved"
+        moved += 1
+
+    if pa.meta.has_field("total_blocks"):
+        pa.total_blocks = len(pa.blocks)
+    pa.flags.ignore_mandatory = True
+    pa.save(ignore_permissions=True)
+    frappe.db.commit()
+    return {"arrival": pa.name, "moved": moved}
