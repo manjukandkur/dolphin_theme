@@ -488,3 +488,227 @@ def create_shipment_lot(consignee=None, rows=None, mark=None, vessel=None):
     lot.flags.ignore_mandatory = True
     lot.insert(ignore_permissions=True)
     return lot.name
+
+# ===========================================================================
+# Arrival .xls importer  (append to dolphin_theme/api_arrivals.py)
+# Block number is the PRIMARY key. Only Dolphin's own sheet is ingested, so a
+# workbook that also carries another company's tab (e.g. VARDHINI XG) cannot
+# pollute the report. Idempotent: re-importing upserts blocks by block_no.
+# ===========================================================================
+import re as _re
+
+
+def _xls_s(v):
+    if isinstance(v, float):
+        return str(int(v)) if v == int(v) else str(v)
+    return str(v).strip()
+
+
+def _xls_num(v):
+    try:
+        return float(str(v).replace(",", "").strip())
+    except Exception:
+        return None
+
+
+def _xls_is_dolphin_sheet(sheet, single):
+    """Keep the Dolphin sheet: the only sheet, or a tab whose name / top title
+    rows mention 'dolphin'. Drop tabs whose title names another firm (M/S. ...)."""
+    if single:
+        return True
+    if "dolphin" in sheet.name.lower():
+        return True
+    for r in range(min(sheet.nrows, 3)):
+        line = " ".join(_xls_s(sheet.cell_value(r, c)).lower() for c in range(sheet.ncols))
+        if "dolphin" in line:
+            return True
+        if _re.search(r"m/?s\.", line):
+            return False
+    return False
+
+
+def _xls_header(sheet):
+    for r in range(min(sheet.nrows, 12)):
+        cells = [_xls_s(sheet.cell_value(r, c)).lower() for c in range(sheet.ncols)]
+        if _re.search(r"block\s*no", " ".join(cells)):
+            cm = {}
+            for c, t in enumerate(cells):
+                t = t.strip()
+                if _re.fullmatch(r"block\s*no\.?", t):
+                    cm["block_no"] = c
+                elif t == "cbm":
+                    cm.setdefault("cbm", c)
+                elif t in ("mark", "marking"):
+                    cm["mark"] = c
+                elif t in ("vehicle no.", "vehicle no", "way o transport", "way of transport"):
+                    cm["vehicle"] = c
+                elif t == "location":
+                    cm["location"] = c
+                elif t in ("line no", "line no.", "line no. "):
+                    cm["line"] = c
+                elif t in ("ado no", "ado no."):
+                    cm["ado"] = c
+                elif t in ("permit no", "permit no."):
+                    cm["permit"] = c
+                elif "weight" in t or t == "a/wt":
+                    cm.setdefault("weight", c)
+                elif t == "measurement":
+                    cm["meas"] = c
+            return r, cm
+    return None, {}
+
+
+def _xls_dims(sheet, r, start):
+    vals, c = [], start
+    while c < sheet.ncols and len(vals) < 3:
+        v = _xls_num(sheet.cell_value(r, c))
+        if v is not None:
+            vals.append(v)
+        c += 1
+    return (vals + [None, None, None])[:3]
+
+
+def _parse_arrival_xls(content):
+    """content: bytes of a .xls. Returns (rows, sheet_name) for the Dolphin sheet."""
+    try:
+        import xlrd
+    except Exception:
+        frappe.throw(
+            "The .xls reader (xlrd) is not installed on this bench. "
+            "Add xlrd to the app's requirements and redeploy."
+        )
+    wb = xlrd.open_workbook(file_contents=content)
+    single = wb.nsheets == 1
+    rows, used_sheet = [], None
+    for sh in wb.sheets():
+        if not _xls_is_dolphin_sheet(sh, single):
+            continue
+        hr, cm = _xls_header(sh)
+        if hr is None or "block_no" not in cm:
+            continue
+        used_sheet = sh.name
+        for r in range(hr + 1, sh.nrows):
+            bno = _xls_s(sh.cell_value(r, cm["block_no"]))
+            if not bno or not _re.search(r"\d", bno):
+                continue
+            joined = " ".join(_xls_s(sh.cell_value(r, c)).lower() for c in range(sh.ncols))
+            if "total" in joined and not _re.search(r"\bblock", joined):
+                continue
+            length = width = height = None
+            if "meas" in cm:
+                length, width, height = _xls_dims(sh, r, cm["meas"])
+
+            def cell(k):
+                return _xls_s(sh.cell_value(r, cm[k])) if k in cm else None
+
+            rows.append({
+                "block_no": bno,
+                "mark": (cell("mark") or None),
+                "cbm": _xls_num(sh.cell_value(r, cm["cbm"])) if "cbm" in cm else None,
+                "weight": _xls_num(sh.cell_value(r, cm["weight"])) if "weight" in cm else None,
+                "length": length, "width": width, "height": height,
+                "vehicle_no": cell("vehicle"),
+                "yard_location": cell("location"),
+                "line_no": cell("line"),
+                "ado_no": cell("ado"),
+                "permit_no": cell("permit"),
+            })
+    return rows, used_sheet
+
+
+@frappe.whitelist()
+def import_xls(arrival=None, mark=None, agency=None):
+    """Import a Dolphin arrivals .xls (uploaded as multipart 'file').
+
+    Block number is the primary key; only Dolphin's sheet is ingested.
+    Idempotent - upserts blocks by block_no into the target Port Arrival:
+    the one named in `arrival`, else an existing arrival with the same
+    mark + source sheet, else a new Port Arrival. Runs reconciliation after."""
+    f = frappe.request.files.get("file") if frappe.request else None
+    if not f:
+        frappe.throw("No file received. Attach an .xls file.")
+    content = f.stream.read() if hasattr(f, "stream") else f.read()
+    fname = getattr(f, "filename", "arrival.xls")
+
+    rows, sheet = _parse_arrival_xls(content)
+    if not rows:
+        frappe.throw("No Dolphin block rows found (only the Dolphin sheet is read).")
+
+    marks = [r["mark"] for r in rows if r.get("mark")]
+    doc_mark = mark or (marks[0] if marks else None)
+
+    pa = None
+    if arrival and frappe.db.exists("Port Arrival", arrival):
+        pa = frappe.get_doc("Port Arrival", arrival)
+    else:
+        existing = frappe.db.get_value(
+            "Port Arrival", {"mark": doc_mark, "source_sheet": sheet}, "name"
+        ) if doc_mark else None
+        if existing:
+            pa = frappe.get_doc("Port Arrival", existing)
+        else:
+            pa = frappe.new_doc("Port Arrival")
+            pa.arrival_date = frappe.utils.today()
+
+    if doc_mark and pa.meta.has_field("mark"):
+        pa.mark = doc_mark
+    if agency and pa.meta.has_field("shipper"):
+        pa.shipper = agency
+    if pa.meta.has_field("source_sheet"):
+        pa.source_sheet = sheet
+    subj = frappe.form_dict.get("subject") if frappe.form_dict else None
+    sender = frappe.form_dict.get("sender") if frappe.form_dict else None
+    if subj and pa.meta.has_field("email_subject"):
+        pa.email_subject = subj
+    if sender and pa.meta.has_field("email_sender"):
+        pa.email_sender = sender
+
+    existing_by_block = {str(b.block_no).strip(): b for b in pa.blocks}
+    created = updated = 0
+    for r in rows:
+        b = existing_by_block.get(r["block_no"])
+        if not b:
+            b = pa.append("blocks", {})
+            b.block_no = r["block_no"]
+            created += 1
+        else:
+            updated += 1
+        if r.get("mark"):
+            b.mark = r["mark"]
+        for k in ("length", "width", "height", "cbm",
+                  "vehicle_no", "yard_location", "line_no", "ado_no", "permit_no"):
+            if r.get(k) is not None and b.meta.has_field(k):
+                b.set(k, r[k])
+        if r.get("weight") is not None:
+            if b.meta.has_field("net_wt"):
+                b.net_wt = r["weight"]
+            if b.meta.has_field("a_wt") and not b.get("a_wt"):
+                b.a_wt = r["weight"]
+
+    pa.total_blocks = len(pa.blocks)
+    pa.total_cbm = round(sum(flt(b.cbm) for b in pa.blocks), 3)
+    pa.total_net_wt = round(sum(flt(b.net_wt) for b in pa.blocks), 3)
+    pa.flags.ignore_mandatory = True
+    pa.save(ignore_permissions=True)
+
+    try:
+        _classify(pa)
+        for row in pa.blocks:
+            frappe.db.set_value("Port Arrival Block", row.name, {
+                "recon_status": row.recon_status,
+                "matched_dc": row.matched_dc,
+                "suggested_block": row.suggested_block,
+            }, update_modified=False)
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), "import_xls reconcile")
+
+    frappe.db.commit()
+    return {
+        "arrival": pa.name,
+        "sheet": sheet,
+        "file": fname,
+        "created": created,
+        "updated": updated,
+        "duplicates": 0,
+        "total_blocks": pa.total_blocks,
+    }
