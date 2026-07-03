@@ -1071,8 +1071,8 @@ frappe.provide("dolphin");
     gl('Quarry Block',[['export_block_no','like','%'+q+'%']],['name','block_number','export_block_no'],function(x){return{t:'Block',l:'exp '+x.export_block_no,s:'block '+(x.block_number||x.name),act:'trace',key:x.export_block_no};});
     [['Quarry Inspection','Quarry inspection','doc'],['Buyer Inspection','Buyer inspection','doc'],['Delivery Challan','Delivery challan','doc'],['Port Arrival','Arrival','nav'],['Export Shipment Lot','Export shipment lot','nav']].forEach(function(c){gl(c[0],[['name','like','%'+q+'%']],['name'],function(x){return{t:c[1],l:x.name,s:'',act:c[2],dt:c[0],route:'/app/'+c[0].toLowerCase().replace(/ /g,'-')+'/'};});});
   }
-  function inject(){var sb=document.querySelector('.body-sidebar');if(!sb)return;if(sb.querySelector('.dolphin-trace-box'))return;
-    var box=document.createElement('div');box.className='dolphin-trace-box';box.style.cssText='padding:8px 10px 6px;position:relative';
+  function inject(){var sb=(document.querySelector('.page-head .row')||document.querySelector('.page-head .container')||document.querySelector('.page-head'));if(!sb)return;if(sb.querySelector('.dolphin-trace-box'))return;
+    var box=document.createElement('div');box.className='dolphin-trace-box';box.style.cssText='display:inline-flex;align-items:center;position:relative;margin:2px 14px 2px 0;max-width:330px;flex:0 1 330px;z-index:1030';
     box.innerHTML='<div style="display:flex;align-items:center;gap:6px;background:#0f2540;border:1px solid #D4A24A;border-radius:8px;padding:6px 9px"><span style="color:#D4A24A;font-size:13px">&#128269;</span><input class="dtq" placeholder="Search\u2026" style="border:none;background:transparent;color:#fff;font-size:13px;width:100%;outline:none;padding:0;height:auto"></div><div class="dtdd" style="display:none;position:absolute;left:10px;right:10px;top:44px;z-index:1000;background:#fff;border:1px solid #cfd4dc;border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.18);max-height:320px;overflow:auto"></div>';
     sb.insertBefore(box,sb.firstChild);var inp=box.querySelector('.dtq'),dd=box.querySelector('.dtdd'),t=null;
     function render(items,q){if(!q){dd.style.display='none';return;}if(!items.length){dd.innerHTML='<div style="padding:12px;color:#888;font-size:12px;text-align:center">No match</div>';dd.style.display='block';return;}var groups={};items.forEach(function(r){(groups[r.t]=groups[r.t]||[]).push(r);});dd.innerHTML=Object.keys(groups).map(function(g){return '<div style="font-size:10px;text-transform:uppercase;color:#8a929c;padding:6px 11px 2px;background:#f6f7f9">'+g+'</div>'+groups[g].map(function(r,idx){return '<div class="dti" data-g="'+g+'" data-idx="'+idx+'" style="padding:8px 11px;border-top:0.5px solid #eee;cursor:pointer"><div style="font-size:13px;font-weight:500;color:#1f2a3a">'+r.l+'</div>'+(r.s?'<div style="font-size:11px;color:#6b7280">'+r.s+'</div>':'')+'</div>';}).join('');}).join('');dd.style.display='block';dd.querySelectorAll('.dti').forEach(function(el){el.addEventListener('mousedown',function(ev){ev.preventDefault();var r=groups[el.dataset.g][+el.dataset.idx];dd.style.display='none';inp.blur();if(r.act==='trace')window.dolphinTrace(r.key);else if(r.act==='doc')window.dolphinPreview(r.dt,r.l,fmtOf(r.dt));else if(r.act==='nav')window.location.href=r.route+encodeURIComponent(r.l);});});}
@@ -1082,4 +1082,9 @@ frappe.provide("dolphin");
     inp.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();var f=dd.querySelector('.dti');if(f){f.dispatchEvent(new MouseEvent('mousedown'));}else if(inp.value.trim()){window.dolphinTrace(inp.value.trim());}}});
   }
   setInterval(inject, 1500); setTimeout(inject, 500);
+
+/* trace box on top bar: re-mount per page */
+function diTraceTopbarBoot(){try{if(typeof inject==='function'){inject();}}catch(e){}}
+try{if(window.frappe&&frappe.router&&frappe.router.on){frappe.router.on('change',function(){setTimeout(diTraceTopbarBoot,250);setTimeout(diTraceTopbarBoot,850);});}}catch(e){}
+setTimeout(diTraceTopbarBoot,1200);setTimeout(diTraceTopbarBoot,2600);
 })();
