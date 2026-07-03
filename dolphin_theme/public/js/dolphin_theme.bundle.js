@@ -262,8 +262,7 @@ frappe.provide("dolphin");
     { title: "Dispatch & Port", items: [
       ["Delivery Challan", "Delivery Challan"],
       ["Port Arrival", "Port Arrival", ROLE_ARRIVALS, null, "anchor"],
-      ["Blocks At Port", "/blocks-at-port", ROLE_ARRIVALS, "url", "stack"],
-      ["Arrivals Reconciliation", "/app/dolphin-reconcile", ROLE_BANGALORE, "url", "anchor"],
+      ["Port & Stock", "/port-reconciliation", ROLE_ARRIVALS, "url", "stack"],
       ["Export Shipment Lot", "Export Shipment Lot", ROLE_ARRIVALS, null, "ship"] ] },
     { title: "Shipping", roles: ROLE_SHIPPING, shaded: true, items: [
       ["Shipping Document", "Shipping Document", ROLE_SHIPPING, null, "ship"] ] },
@@ -272,7 +271,6 @@ frappe.provide("dolphin");
       ["Local Tax Invoice", "Local Tax Invoice", ROLE_BANGALORE],
       ["Local Blocks Inspector", "Local Blocks Inspector", ROLE_BANGALORE] ] },
     { title: "Reports & Views", items: [
-      ["Trace a block", "/trace-block", null, "url", "search"],
       ["Block Summary", "/block-summary", null, "url", "file"],
       ["DC Consolidated", "/dc-fullview", null, "url", "stack"],
       ["Measurement Variations", "/measurement-variations", null, "url"],
