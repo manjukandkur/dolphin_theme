@@ -1065,3 +1065,107 @@ def block_availability(blocks=None):
             if k in out and not out[k]:
                 out[k] = r.parent
     return out
+
+
+@frappe.whitelist()
+def active_lots():
+    """Building/Ready (not shipped) Export Shipment Lots for the push picker."""
+    out = []
+    for l in lots_view():
+        if l.get("status") != "ship" and not l.get("shipped"):
+            out.append({
+                "name": l["name"],
+                "title": l.get("title"),
+                "consignee": l.get("consignee"),
+                "total_blocks": l.get("total_blocks"),
+            })
+    return out
+
+
+@frappe.whitelist()
+def add_blocks_to_lot(lot=None, rows=None):
+    """Append at-port blocks to an existing (building) Export Shipment Lot."""
+    if not lot:
+        frappe.throw("No lot given.")
+    data = _json.loads(rows) if isinstance(rows, str) else (rows or [])
+    if not data:
+        frappe.throw("No blocks to add.")
+    d = frappe.get_doc("Export Shipment Lot", lot)
+    tf = None
+    for t in d.meta.get_table_fields():
+        tf = t.fieldname
+        break
+    if not tf:
+        frappe.throw("Lot has no block table.")
+    existing = set()
+    for r in (d.get(tf) or []):
+        for k in (r.get("block_no"), r.get("block"), r.get("quarry_block")):
+            if _s(k):
+                existing.add(_s(k))
+    added = 0
+    tc = flt(d.get("total_cbm"))
+    tt = flt(d.get("total_net_tonnage"))
+    for r in data:
+        bn = _s(r.get("block_no"))
+        if not bn or bn in existing:
+            continue
+        ch = d.append(tf, {})
+        if ch.meta.has_field("block"):
+            ch.block = r.get("quarry_block") or None
+        if ch.meta.has_field("block_no"):
+            ch.block_no = r.get("block_no")
+        for fld in ("length", "width", "height"):
+            if ch.meta.has_field(fld):
+                ch.set(fld, cint(r.get(fld)))
+        if ch.meta.has_field("cbm"):
+            ch.cbm = flt(r.get("cbm"))
+        if ch.meta.has_field("net_tonnage"):
+            ch.net_tonnage = flt(r.get("mt"))
+        if ch.meta.has_field("net_kgs"):
+            ch.net_kgs = cint(r.get("kgs"))
+        if ch.meta.has_field("source_dc"):
+            ch.source_dc = r.get("matched_dc") or ""
+        if ch.meta.has_field("source_arrival"):
+            ch.source_arrival = r.get("arrival") or ""
+        existing.add(bn)
+        added += 1
+        tc += flt(r.get("cbm"))
+        tt += flt(r.get("mt"))
+    if d.meta.has_field("block_count"):
+        d.block_count = len(d.get(tf) or [])
+    if d.meta.has_field("total_cbm"):
+        d.total_cbm = round(tc, 2)
+    if d.meta.has_field("total_net_tonnage"):
+        d.total_net_tonnage = round(tt, 3)
+    if d.meta.has_field("total_net_kgs"):
+        d.total_net_kgs = cint(round(tt * 1000))
+    d.flags.ignore_mandatory = True
+    d.save(ignore_permissions=True)
+    frappe.db.commit()
+    return {"lot": d.name, "added": added}
+
+
+@frappe.whitelist()
+def mark_lot_shipped(lot=None, vessel=None, ship_date=None, bl_no=None):
+    """Mark an Export Shipment Lot as Shipped -> moves it to Exported Shipments.
+    Block status cascades to Shipped via the Server Script on save."""
+    if not lot:
+        frappe.throw("No lot given.")
+    d = frappe.get_doc("Export Shipment Lot", lot)
+    if d.meta.has_field("status"):
+        d.status = "Shipped"
+    if d.meta.has_field("shipped"):
+        d.shipped = 1
+    if vessel and d.meta.has_field("vessel"):
+        d.vessel = vessel
+    if ship_date:
+        if d.meta.has_field("ship_date"):
+            d.ship_date = ship_date
+        elif d.meta.has_field("shipment_date"):
+            d.shipment_date = ship_date
+    if bl_no and d.meta.has_field("bl_no"):
+        d.bl_no = bl_no
+    d.flags.ignore_mandatory = True
+    d.save(ignore_permissions=True)
+    frappe.db.commit()
+    return {"lot": d.name, "status": "Shipped"}
