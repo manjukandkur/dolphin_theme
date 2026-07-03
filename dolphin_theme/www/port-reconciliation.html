@@ -60,6 +60,18 @@
 #pr .foot{padding:11px 14px;background:#f8f9fb;border-top:.5px solid #e7ebf1;font-size:12px;color:#6b7280}
 #pr .empty{padding:26px;text-align:center;color:#9ca3af;font-size:13px}
 #pr .arow{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:.5px solid #f0f0f0}
+
+#pr .rb.gold,#pr .bbtn.gold{font-size:14px;padding:10px 16px}
+#pr .pill{font-size:13px;padding:4px 12px}
+#pr .eye{font-size:16px}
+#pr .rb{font-size:13px}
+#__ov.pop{position:fixed;inset:0;background:rgba(15,36,68,.55);z-index:99998;display:none;align-items:center;justify-content:center}
+#__ov.pop.on{display:flex}
+#__ov .popbox{width:92vw;max-width:1100px;height:90vh;background:#fff;border-radius:12px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 10px 40px rgba(0,0,0,.35)}
+#__ov .pophd{display:flex;gap:8px;align-items:center;padding:9px 12px;background:#0f2444;color:#fff}
+#__ov iframe{flex:1;border:none;width:100%}
+#__ov .rb{font-size:13px;padding:6px 11px;border-radius:7px;border:1px solid rgba(255,255,255,.4);background:rgba(255,255,255,.12);color:#fff;cursor:pointer;text-decoration:none;display:inline-block}
+#__ov .rb.pri{background:#D4A24A;color:#4a3208;border-color:#D4A24A}
 </style>
 <div id="pr">
   <div class="hd"><h1>Dolphin International &#8212; Port &amp; Stock</h1><span class="chip" id="c-a">&#8212;</span><span class="chip" id="c-f">&#8212;</span></div>
@@ -276,6 +288,43 @@ $('impbtn').addEventListener('click',toggleImp);$('impbtn2').addEventListener('c
 $('addbtn').addEventListener('click',function(){var b=prompt('Add block at port - enter: block, L, W, H (cm)');if(!b)return;var p=b.split(/[\s,]+/);post('dolphin_theme.api_arrivals.move_to_at_port',{blocks:[{block_no:p[0]}]}).then(function(){msg('Added '+p[0]+' at port');loadAll();});});
 $('openbtn').addEventListener('click',function(){toggleImp();msg('Opening stock: paste/import via the .xls box, or use + Add at port for one block',0);});
 loadAll();
+
+function action(r,i){
+if(r.state==='await')return '<span class="rb gold" data-act="move" data-i="'+i+'">'+AR+' Move to At Port</span>';
+if(r.state==='port')return '<span class="rb pri" data-act="push" data-i="'+i+'">Push to lot</span>';
+if(r.state==='mis')return '<span class="rb pri" data-act="use_dc" data-i="'+i+'">Use DC</span><span class="rb ok" data-act="accept" data-i="'+i+'">Accept</span>';
+if(r.state==='dmg')return '<span class="rb" data-act="hold" data-i="'+i+'">Hold</span><span class="rb ok" data-act="accept" data-i="'+i+'">OK</span>';
+if(r.state==='held')return '<span class="rb ok" data-act="accept" data-i="'+i+'">Release</span>';
+if(r.state==='orphan')return '<span class="rb ok" data-act="accept" data-i="'+i+'">Accept as extra</span>';
+if(r.state==='lot'||r.state==='load')return '<span class="dc" data-doc="lot" data-i="'+i+'">'+esc(r.lot_title||r.lot||'')+' '+U(128196)+'</span>';
+return '';
+}
+function renderArr(){var el=$('arrlist');if(!ARRS.length){el.innerHTML='<div class="empty">No arrivals</div>';return;}var aq=($('aq').value||'').toLowerCase();
+el.innerHTML=ARRS.filter(function(a){return !aq||(a.name+' '+(a.mark||'')).toLowerCase().indexOf(aq)>=0;}).map(function(a){var age=ageDays(a.name);
+return '<div class="arow"><div style="flex:1"><div style="font-weight:600;font-size:14px">'+esc(a.name)+'</div><div class="sub">'+esc(a.mark||'')+' '+DOT+' '+esc(a.arrival_date||'')+' '+DOT+' '+(a.total_blocks||0)+' blocks'+(age!=null?' '+DOT+' '+age+'d ago':'')+'</div></div><span class="eye" data-arr="'+esc(a.name)+'">'+U(128196)+' Preview</span> <a class="rb" href="/app/port-arrival/'+encodeURIComponent(a.name)+'" target="_blank">Open</a></div>';}).join('');
+el.querySelectorAll('[data-arr]').forEach(function(x){x.addEventListener('click',function(){openPanel('Port Arrival',x.dataset.arr,'');});});}
+function renderLots(){var el=$('lotmain');if(!LOTS.length){el.innerHTML='<div class="empty">No shipment lots yet</div>';return;}
+var list=LOTS.filter(function(l){var st=(l.status==='ship'||l.shipped)?'ship':'build';var hay=(l.name+' '+(l.consignee||'')+' '+(l.bl_no||'')+' '+((l.block_nos||[]).join(' '))).toLowerCase();return (LF==='all'||st===LF)&&(!LQ||hay.indexOf(LQ)>=0);});
+var h='<table><thead><tr><th>Lot / vessel</th><th>Consignee</th><th>Packing list</th><th>BL no</th><th>Ship date</th><th>Blocks</th><th>CBM</th><th>Status</th><th>Doc</th><th style="width:22px"></th></tr></thead><tbody>';
+list.forEach(function(l,i){var st=(l.status==='ship'||l.shipped)?'ship':'build';var sp=st==='ship'?'<span class="pill p-load">'+U(9875)+' Shipped</span>':'<span class="pill p-port">'+U(9679)+' Building</span>';
+h+='<tr><td><b>'+esc(l.title||l.name)+'</b><div class="sub">'+esc(l.name)+'</div></td><td>'+esc(l.consignee||'')+'</td><td>'+esc(l.packing_list||DASH)+'</td><td>'+esc(l.bl_no||DASH)+'</td><td>'+esc(l.ship_date||DASH)+'</td><td>'+(l.total_blocks||(l.block_nos||[]).length||0)+'</td><td>'+(l.total_cbm||DASH)+'</td><td>'+sp+'</td><td><span class="eye" data-lot="'+esc(l.name)+'">'+U(128196)+' Packing List</span></td>'
++'<td><span class="exp" data-lx="'+i+'">'+TRI+'</span></td></tr>'
++'<tr class="det" id="lx'+i+'" style="display:none"><td colspan="10"><div class="trace"><div style="font-size:12px;color:#374151;margin-bottom:6px"><b>Blocks:</b> '+esc((l.block_nos||[]).join(', ')||DASH)+'</div>'
++'<a class="rb" href="/app/export-shipment-lot/'+encodeURIComponent(l.name)+'" target="_blank">'+U(128196)+' Open lot</a></div></td></tr>';});
+h+='</tbody></table>';el.innerHTML=h;
+el.querySelectorAll('.exp').forEach(function(x){x.addEventListener('click',function(){var d=$('lx'+x.dataset.lx);d.style.display=d.style.display==='none'?'':'none';});});
+el.querySelectorAll('[data-lot]').forEach(function(x){x.addEventListener('click',function(){openPanel('Export Shipment Lot',x.dataset.lot,'');});});}
+function openPanel(dt,nm,fmt){
+var ov=$('__ov'); if(!ov){ov=document.createElement('div');ov.id='__ov';document.body.appendChild(ov);}
+var src='/printview?doctype='+encodeURIComponent(dt)+'&name='+encodeURIComponent(nm)+(fmt?'&format='+encodeURIComponent(fmt):'')+'&no_letterhead=0&_lang=en';
+var pdf='/api/method/frappe.utils.print_format.download_pdf?doctype='+encodeURIComponent(dt)+'&name='+encodeURIComponent(nm)+(fmt?'&format='+encodeURIComponent(fmt):'');
+ov.className='pop on';
+ov.innerHTML='<div class="popbox"><div class="pophd"><span class="rb" id="__bk">'+U(8592)+' Back</span><a class="rb" href="/app">'+U(8962)+' Home</a><b style="flex:1;font-size:13px">'+esc(nm)+' '+DOT+' '+esc(dt)+'</b><a class="rb pri" href="'+src+'" target="_blank">'+U(11021)+' Full view</a><a class="rb" href="'+src+'" target="_blank">'+U(128424)+' Print</a><a class="rb" href="'+pdf+'" target="_blank">'+U(11015)+' PDF</a><span class="rb" id="__cl">'+U(10005)+' Close</span></div><iframe src="'+src+'"></iframe></div>';
+$('__bk').addEventListener('click',closePanel);$('__cl').addEventListener('click',closePanel);
+ov.addEventListener('click',function(e){if(e.target===ov)closePanel();});
+}
+function closePanel(){var ov=$('__ov');if(ov){ov.className='pop';ov.innerHTML='';}}
+
 })();
 </script>
 {% endraw %}
