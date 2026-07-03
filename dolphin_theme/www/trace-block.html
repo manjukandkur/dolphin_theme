@@ -1,60 +1,98 @@
 {% raw %}
 <style>
 :root{--navy:#16304F;--gold:#D4A24A}
-#tbapp{font-family:inherit;max-width:820px;margin:0 auto;padding:10px 14px;color:#1f2a3a}
+#tbapp{font-family:inherit;max-width:960px;margin:0 auto;padding:10px 14px;color:#1f2a3a}
 #tbapp .hd{background:var(--navy);color:#fff;border-radius:12px;padding:16px 20px;display:flex;align-items:center;gap:14px;border-bottom:3px solid var(--gold)}
 #tbapp .hd .ic{width:44px;height:44px;border-radius:50%;border:2px solid var(--gold);display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--gold);font-size:20px}
 #tbapp h1{font-size:19px;margin:0}
 #tbapp .sub{font-size:12px;opacity:.85;margin-top:2px}
 #tbapp .sbx{display:flex;gap:8px;margin:14px 0}
-#tbapp input{flex:1;padding:10px 12px;border:1px solid #cfd4dc;border-radius:8px;font-size:15px}
-#tbapp .card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:16px;margin-top:8px}
-#tbapp .doc{display:flex;align-items:center;gap:10px;background:#fff;border:1px solid #e5e7eb;border-left:3px solid #888;border-radius:8px;padding:10px 12px;margin-bottom:7px}
-#tbapp .doc .lbl{font-size:11px;text-transform:uppercase;letter-spacing:.03em;color:#8a929c}
-#tbapp .doc .nm{font-weight:600;font-size:14px}
-#tbapp a.eye{margin-left:auto;display:inline-flex;align-items:center;gap:5px;font-size:12px;padding:5px 12px;border-radius:12px;border:1px solid #185fa5;color:#185fa5;text-decoration:none;white-space:nowrap}
-#tbapp .badge{font-size:12px;padding:2px 10px;border-radius:12px;font-weight:600}
-#tbapp .empty{padding:22px;text-align:center;color:#888}
+#tbapp input{flex:1;padding:11px 14px;border:1px solid #cfd4dc;border-radius:8px;font-size:15px}
+#tbapp .hint{font-size:11px;color:#8a929c;margin:-6px 2px 10px}
+#tbapp .card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:18px;margin-top:8px}
+#tbapp .bhead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px}
+#tbapp .bno{font-size:22px;font-weight:800;letter-spacing:.01em}
+#tbapp .meta{font-size:12px;color:#6b7280}
+#tbapp .badge{font-size:12px;padding:3px 12px;border-radius:12px;font-weight:700}
+#tbapp .idrule{font-size:11px;color:#94a0af;margin:2px 0 14px}
+/* horizontal journey */
+#tbapp .journey{display:flex;gap:0;overflow-x:auto;padding:6px 2px 2px}
+#tbapp .stg{flex:1 0 138px;min-width:138px;position:relative;padding:0 6px}
+#tbapp .stg .node{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;border:2px solid #cfd4dc;background:#fff;color:#aeb6c1;position:relative;z-index:2}
+#tbapp .stg.done .node{border-color:#0f6e56;background:#0f6e56;color:#fff}
+#tbapp .stg.cur .node{border-color:var(--gold);background:var(--gold);color:#3a2a05;box-shadow:0 0 0 4px #f6ecd6}
+#tbapp .stg .bar{position:absolute;top:17px;left:calc(50% + 17px);right:calc(-50% + 17px);height:3px;background:#e2e6ec;z-index:1}
+#tbapp .stg.done .bar{background:#0f6e56}
+#tbapp .stg:last-child .bar{display:none}
+#tbapp .stg .lbl{font-size:11px;text-transform:uppercase;letter-spacing:.03em;color:#8a929c;margin-top:9px}
+#tbapp .stg .val{font-weight:700;font-size:14px;margin-top:1px;word-break:break-word}
+#tbapp .stg .val.pend{color:#b3bac4;font-weight:500}
+#tbapp .stg a.eye{display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:3px 9px;border-radius:11px;border:1px solid #185fa5;color:#185fa5;text-decoration:none;margin-top:6px}
+#tbapp .empty{padding:26px;text-align:center;color:#888}
+#tbapp .foot{margin-top:14px;font-size:11px;color:#9aa3af;text-align:right}
+@media(max-width:640px){#tbapp .journey{gap:0}}
 </style>
 <div id="tbapp">
-  <div class="hd"><div class="ic">&#9678;</div><div><h1>Trace a block</h1><div class="sub">Dolphin International &middot; type any block number or export no to see where it is</div></div></div>
-  <div class="sbx"><input id="q" placeholder="Block number or export no&hellip;" autofocus></div>
-  <div id="result"><div class="empty">Enter a block number above.</div></div>
+<div class="hd"><div class="ic">&#9678;</div><div><h1>Trace a block</h1><div class="sub">Dolphin International &middot; type any quarry block number or export number to see its full journey</div></div></div>
+<div class="sbx"><input id="q" placeholder="Quarry block number or export number&hellip;" autofocus></div>
+<div class="hint">Tip: quarry block number works up to Delivery Challan &middot; export number works from At Port onward. Either one finds the block.</div>
+<div id="result"><div class="empty">Enter a block number above.</div></div>
 </div>
 <script>
 (function(){
-  var SC={'In Stock':['#eaf3de','#3b6d11'],'Buyer Marked':['#faeeda','#854f0b'],'In Delivery Challan':['#e6f1fb','#0c447c'],'Dispatched/Transported':['#e6f1fb','#0c447c'],'At Port':['#eeedfe','#3c3489'],'At Bannikoppa Station yard':['#eeedfe','#3c3489'],'Shipped':['#e1f5ee','#0f6e56'],'Sold':['#f1efe8','#444441']};
-  var FL=['name','block_number','export_block_no','status','delivery_challan','buyer_inspection','source_quarry_inspection','granite_quality_grade','length_gross','width_gross','height_gross','gross_volume'];
-  function api(filters){var u='/api/method/frappe.client.get_list?doctype=Quarry Block&filters='+encodeURIComponent(JSON.stringify(filters))+'&fields='+encodeURIComponent(JSON.stringify(FL))+'&limit_page_length=5';return fetch(u,{credentials:'include'}).then(function(r){return r.json();}).then(function(j){return j.message||[];});}
-  function pdf(dt,nm,fmt){return '/api/method/frappe.utils.print_format.download_pdf?doctype='+encodeURIComponent(dt)+'&name='+encodeURIComponent(nm)+'&format='+encodeURIComponent(fmt)+'&no_letterhead=0';}
-  function esc(s){return (s==null?'':(''+s)).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
-  function docRow(kind,label,dt,nm,fmt,color){
-    var eye=nm?'<a class="eye" style="border-color:'+color+';color:'+color+'" href="'+pdf(dt,nm,fmt)+'" target="_blank">&#128065; PDF</a>':'';
-    var nmh=nm?esc(nm):'<span style="color:#8a929c">&mdash; not yet</span>';
-    return '<div class="doc" style="border-left-color:'+color+'"><div><div class="lbl">'+label+'</div><div class="nm">'+nmh+'</div></div>'+eye+'</div>';
-  }
-  function render(q,bl){
-    var R=document.getElementById('result');
-    if(!bl.length){R.innerHTML='<div class="empty">No block <b>'+esc(q)+'</b> found.</div>';return;}
-    R.innerHTML=bl.map(function(b){
-      var sc=SC[b.status]||['#f1efe8','#444441'];
-      var dim=(b.length_gross||'')+'&times;'+(b.width_gross||'')+'&times;'+(b.height_gross||'');
-      var cbm=b.gross_volume?(' &middot; '+(+b.gross_volume).toFixed(2)+' cbm'):'';
-      return '<div class="card"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px">'
-        +'<span style="font-size:20px;font-weight:700">Block '+esc(b.block_number||b.name)+'</span>'
-        +'<span style="font-size:12px;color:#6b7280">'+esc(b.granite_quality_grade||'')+' &middot; '+dim+cbm+(b.export_block_no?(' &middot; exp '+esc(b.export_block_no)):'')+'</span>'
-        +'<span class="badge" style="margin-left:auto;background:'+sc[0]+';color:'+sc[1]+'">&#128205; '+esc(b.status||'')+'</span></div>'
-        +docRow('QI','Quarry inspection','Quarry Inspection',b.source_quarry_inspection,'Quarry Inspection - Report','#1d9e75')
-        +docRow('BI','Buyer inspection','Buyer Inspection',b.buyer_inspection,'Buyer Inspection - Report','#185fa5')
-        +docRow('DC','Delivery challan','Delivery Challan',b.delivery_challan,'Dolphin Delivery Challan','#7f77dd')
-        +'</div>';
-    }).join('');
-  }
-  var t=null;
-  function go(){var q=document.getElementById('q').value.trim();if(!q){document.getElementById('result').innerHTML='<div class="empty">Enter a block number above.</div>';return;}
-    api([['block_number','=',q]]).then(function(bl){ if(bl.length) return bl; return api([['export_block_no','=',q]]); }).then(function(bl){ render(q,bl); }).catch(function(e){document.getElementById('result').innerHTML='<div class="empty">Error: '+esc(e.message)+'</div>';});
-  }
-  document.getElementById('q').addEventListener('input',function(){clearTimeout(t);t=setTimeout(go,350);});
+var SC={'In Stock':['#eaf3de','#3b6d11'],'Buyer Marked':['#faeeda','#854f0b'],'In Delivery Challan':['#e6f1fb','#0c447c'],'Dispatched/Transported':['#e6f1fb','#0c447c'],'At Port':['#eeedfe','#3c3489'],'At Bannikoppa Station yard':['#eeedfe','#3c3489'],'Shipped':['#e1f5ee','#0f6e56'],'Sold':['#f1efe8','#444441']};
+// lifecycle rank for stage completion
+var RANK={'In Stock':0,'Buyer Marked':1,'In Delivery Challan':2,'Dispatched/Transported':3,'At Port':4,'At Bannikoppa Station yard':4,'Shipped':5,'Sold':6};
+var FL=['name','block_number','export_block_no','status','delivery_challan','buyer_inspection','source_quarry_inspection','granite_quality_grade','length_gross','width_gross','height_gross','gross_volume'];
+function api(filters){var u='/api/method/frappe.client.get_list?doctype=Quarry Block&filters='+encodeURIComponent(JSON.stringify(filters))+'&fields='+encodeURIComponent(JSON.stringify(FL))+'&limit_page_length=5';return fetch(u,{credentials:'include'}).then(function(r){return r.json();}).then(function(j){return j.message||[];});}
+function pdf(dt,nm,fmt){return '/api/method/frappe.utils.print_format.download_pdf?doctype='+encodeURIComponent(dt)+'&name='+encodeURIComponent(nm)+'&format='+encodeURIComponent(fmt)+'&no_letterhead=0';}
+function esc(s){return (s==null?'':(''+s)).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+function eye(dt,nm,fmt){return nm?'<a class="eye" href="'+pdf(dt,nm,fmt)+'" target="_blank">&#128065; PDF</a>':'';}
+function stage(cls,icon,label,val,pend,extra){
+return '<div class="stg '+cls+'"><div class="bar"></div><div class="node">'+icon+'</div>'
++'<div class="lbl">'+label+'</div>'
++'<div class="val'+(pend?' pend':'')+'">'+val+'</div>'+(extra||'')+'</div>';
+}
+function journey(b){
+var rank=(b.status in RANK)?RANK[b.status]:0;
+var qno=esc(b.block_number||b.name);           // quarry block number (up to DC)
+var xno=b.export_block_no?esc(b.export_block_no):'not yet'; // export number (Transport onward)
+// stage class by lifecycle rank: passed => done, current => cur, future => ''
+function st(idx){ return rank>idx?'done':(rank===idx?'cur':''); }
+// doc stage: done if the linked doc exists, else follow rank
+function dc(idx,doc){ return doc?'done':st(idx); }
+var s=[];
+s.push(stage(rank>0?'done':'cur','&#9679;','Quarried',qno,false));
+s.push(stage(dc(0,b.source_quarry_inspection),'QI','Quarry Insp.',b.source_quarry_inspection?qno:'not yet',!b.source_quarry_inspection,eye('Quarry Inspection',b.source_quarry_inspection,'Quarry Inspection - Report')));
+s.push(stage(dc(1,b.buyer_inspection),'BI','Buyer Insp.',b.buyer_inspection?qno:'not yet',!b.buyer_inspection,eye('Buyer Inspection',b.buyer_inspection,'Buyer Inspection - Report')));
+s.push(stage(dc(2,b.delivery_challan),'DC','Delivery Challan',b.delivery_challan?qno:'not yet',!b.delivery_challan,eye('Delivery Challan',b.delivery_challan,'Dolphin Delivery Challan')));
+s.push(stage(st(3),'&#128667;','Transported',(rank>=3?xno:'not yet'),rank<3,false));
+s.push(stage(st(4),'&#9875;','At Port',(rank>=4?xno:'not yet'),rank<4,false));
+s.push(stage(rank>=5?'done':'','&#128674;','Shipped',(rank>=5?xno:'not yet'),rank<5,false));
+return '<div class="journey">'+s.join('')+'</div>';
+}
+function render(q,bl){
+var R=document.getElementById('result');
+if(!bl.length){R.innerHTML='<div class="empty">No block <b>'+esc(q)+'</b> found. Try the other number (quarry vs export).</div>';return;}
+R.innerHTML=bl.map(function(b){
+var sc=SC[b.status]||['#f1efe8','#444441'];
+var dim=(b.length_gross||'')+'&times;'+(b.width_gross||'')+'&times;'+(b.height_gross||'');
+var cbm=b.gross_volume?(' &middot; '+(+b.gross_volume).toFixed(2)+' cbm'):'';
+return '<div class="card">'
++'<div class="bhead"><span class="bno">Block '+esc(b.block_number||b.name)+'</span>'
++(b.export_block_no?'<span class="meta">export '+esc(b.export_block_no)+'</span>':'')
++'<span class="badge" style="margin-left:auto;background:'+sc[0]+';color:'+sc[1]+'">&#128205; '+esc(b.status||'')+'</span></div>'
++'<div class="meta">'+esc(b.granite_quality_grade||'')+(dim!=='&times;&times;'?(' &middot; '+dim+cbm):'')+'</div>'
++'<div class="idrule">Quarry block number up to Delivery Challan &middot; export number from Transport onward</div>'
++journey(b)
++'</div>';
+}).join('')+'<div class="foot">Dolphin International &middot; Trace a block</div>';
+}
+var t=null;
+function go(){var q=document.getElementById('q').value.trim();if(!q){document.getElementById('result').innerHTML='<div class="empty">Enter a block number above.</div>';return;}
+api([['block_number','=',q]]).then(function(bl){ if(bl.length) return bl; return api([['export_block_no','=',q]]); }).then(function(bl){ if(bl.length) return bl; return api([['name','=',q]]); }).then(function(bl){ render(q,bl); }).catch(function(e){document.getElementById('result').innerHTML='<div class="empty">Error: '+esc(e.message)+'</div>';});
+}
+document.getElementById('q').addEventListener('input',function(){clearTimeout(t);t=setTimeout(go,350);});
 })();
 </script>
 {% endraw %}
