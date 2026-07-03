@@ -72,6 +72,19 @@
 #__ov iframe{flex:1;border:none;width:100%}
 #__ov .rb{font-size:13px;padding:6px 11px;border-radius:7px;border:1px solid rgba(255,255,255,.4);background:rgba(255,255,255,.12);color:#fff;cursor:pointer;text-decoration:none;display:inline-block}
 #__ov .rb.pri{background:#D4A24A;color:#4a3208;border-color:#D4A24A}
+
+#pr .hdnav{display:flex;gap:6px;margin-right:10px}
+#pr .hdnav a{font-size:12px;padding:5px 10px;border-radius:7px;background:rgba(255,255,255,.14);color:#fff;text-decoration:none;border:1px solid rgba(255,255,255,.28);cursor:pointer}
+#pr .hdnav a:hover{background:rgba(255,255,255,.26)}
+#__lp{position:fixed;inset:0;background:rgba(15,36,68,.55);z-index:99999;display:none;align-items:center;justify-content:center}
+#__lp.on{display:flex}
+#__lp .lpbox{width:460px;max-width:92vw;background:#fff;border-radius:12px;overflow:hidden}
+#__lp .lphd{background:#0f2444;color:#fff;padding:12px 16px;font-weight:600;font-size:14px}
+#__lp .lpbd{padding:14px 16px}
+#__lp select{width:100%;margin-top:6px;padding:8px;border:1px solid #cfd4dc;border-radius:7px;font-size:13px}
+#__lp .lpft{display:flex;justify-content:flex-end;gap:8px;padding:12px 16px;border-top:.5px solid #eee}
+#__lp .rb{font-size:13px;padding:7px 12px;border-radius:7px;border:1px solid #cfd4dc;background:#fff;cursor:pointer}
+#__lp .rb.gold{background:#D4A24A;color:#4a3208;border-color:#D4A24A;font-weight:600}
 </style>
 <div id="pr">
   <div class="hd"><h1>Dolphin International &#8212; Port &amp; Stock</h1><span class="chip" id="c-a">&#8212;</span><span class="chip" id="c-f">&#8212;</span></div>
@@ -324,6 +337,97 @@ $('__bk').addEventListener('click',closePanel);$('__cl').addEventListener('click
 ov.addEventListener('click',function(e){if(e.target===ov)closePanel();});
 }
 function closePanel(){var ov=$('__ov');if(ov){ov.className='pop';ov.innerHTML='';}}
+
+
+function addHeaderNav(){
+  var hd=document.querySelector('#pr .hd');
+  if(!hd || hd.querySelector('.hdnav')) return;
+  var nav=document.createElement('span'); nav.className='hdnav';
+  nav.innerHTML='<a id="__navback">'+U(8592)+' Back</a><a href="/app">'+U(8962)+' Home</a><a href="/app/dolphin">'+U(9776)+' Menu</a>';
+  hd.insertBefore(nav, hd.firstChild);
+  var bk=nav.querySelector('#__navback');
+  if(bk) bk.addEventListener('click',function(){ if(history.length>1) history.back(); else location.href='/app'; });
+}
+function openPanel(dt,nm,fmt,hlBlock){
+  var ov=$('__ov'); if(!ov){ov=document.createElement('div');ov.id='__ov';document.body.appendChild(ov);}
+  var src='/printview?doctype='+encodeURIComponent(dt)+'&name='+encodeURIComponent(nm)+(fmt?'&format='+encodeURIComponent(fmt):'')+'&no_letterhead=0&_lang=en';
+  var pdf='/api/method/frappe.utils.print_format.download_pdf?doctype='+encodeURIComponent(dt)+'&name='+encodeURIComponent(nm)+(fmt?'&format='+encodeURIComponent(fmt):'');
+  ov.className='pop on';
+  ov.innerHTML='<div class="popbox"><div class="pophd"><span class="rb" id="__bk">'+U(8592)+' Back</span><a class="rb" href="/app">'+U(8962)+' Home</a><b style="flex:1;font-size:13px">'+esc(nm)+' '+DOT+' '+esc(dt)+(hlBlock?' '+DOT+' block '+esc(hlBlock):'')+'</b><a class="rb pri" href="'+src+'" target="_blank">'+U(11021)+' Full view</a><a class="rb" href="'+src+'" target="_blank">'+U(128424)+' Print</a><a class="rb" href="'+pdf+'" target="_blank">'+U(11015)+' PDF</a><span class="rb" id="__cl">'+U(10005)+' Close</span></div><iframe id="__ovif" src="'+src+'"></iframe></div>';
+  $('__bk').addEventListener('click',closePanel);$('__cl').addEventListener('click',closePanel);
+  ov.addEventListener('click',function(e){if(e.target===ov)closePanel();});
+  if(hlBlock){ var ifr=$('__ovif'); if(ifr){ ifr.addEventListener('load',function(){ try{ var d=ifr.contentDocument||ifr.contentWindow.document; var els=d.querySelectorAll('td,th,span,div,b'); var tgt=null; for(var i=0;i<els.length;i++){ if((els[i].textContent||'').trim()===String(hlBlock)){ tgt=els[i]; break; } } if(tgt){ var row=tgt.closest('tr')||tgt; row.style.background='#fff3cd'; row.style.outline='2px solid #d4a24a'; row.scrollIntoView({block:'center'}); } }catch(e){} }); } }
+}
+function openDoc(kind,r){if(!r)return;
+  if(kind==='dc'&&r.dc)openPanel('Delivery Challan',r.dc,'Dolphin Delivery Challan',r.block_no);
+  else if(kind==='bi'&&r.source_bi)openPanel('Buyer Inspection',r.source_bi,'',r.block_no);
+  else if(kind==='lot'&&r.lot)openPanel('Export Shipment Lot',r.lot,'',r.block_no);
+  else if(kind==='arr'&&r.arrival)openPanel('Port Arrival',r.arrival,'',r.block_no);
+}
+function _isShipped(l){ return l.status==='ship' || l.shipped; }
+function ensureExportedTab(){
+  var tabs=document.querySelector('#pr .tabs');
+  if(tabs && !tabs.querySelector('[data-t="exported"]')){
+    var t=document.createElement('div'); t.className='tab'; t.setAttribute('data-t','exported'); t.textContent='Exported Shipments';
+    t.addEventListener('click',function(){ tab('exported'); });
+    tabs.appendChild(t);
+  }
+  var pl=$('p-lots');
+  if(pl && pl.parentNode && !$('p-exported')){
+    var pane=document.createElement('div'); pane.className='pane'; pane.id='p-exported';
+    pane.innerHTML='<div class="tb"><input id="eq2" placeholder="Search exported / shipped lots'+U(8230)+'" style="flex:1;min-width:180px"></div><div id="exportedmain"><div class="empty">No exported shipments yet</div></div>';
+    pl.parentNode.appendChild(pane);
+    var ei=pane.querySelector('#eq2'); if(ei) ei.addEventListener('input',renderLots);
+  }
+}
+function renderLotTableInto(el,list,exported){
+  if(!list.length){ el.innerHTML='<div class="empty">'+(exported?'No exported shipments yet':'No active lots')+'</div>'; return; }
+  var h='<table><thead><tr><th>Lot</th><th>Consignee</th><th>Vessel</th><th>BL no</th><th>Ship date</th><th>Blocks</th><th>CBM</th><th>Status</th><th>Doc</th><th>'+(exported?'Shipped':'Action')+'</th><th style="width:22px"></th></tr></thead><tbody>';
+  list.forEach(function(l,i){
+    var st=_isShipped(l)?'ship':'build';
+    var sp=st==='ship'?'<span class="pill p-load">'+U(9875)+' Shipped</span>':'<span class="pill p-port">'+U(9679)+' Building</span>';
+    var act=exported?'<span class="sub">'+esc(l.ship_date||l.vessel||DASH)+'</span>':'<span class="rb gold" data-shiplot="'+esc(l.name)+'">'+U(9875)+' Mark shipped</span>';
+    h+='<tr><td><b>'+esc(l.title||l.name)+'</b><div class="sub">'+esc(l.name)+'</div></td><td>'+esc(l.consignee||'')+'</td><td>'+esc(l.vessel||DASH)+'</td><td>'+esc(l.bl_no||DASH)+'</td><td>'+esc(l.ship_date||DASH)+'</td><td>'+(l.total_blocks||(l.block_nos||[]).length||0)+'</td><td>'+(l.total_cbm||DASH)+'</td><td>'+sp+'</td><td><span class="eye" data-lot="'+esc(l.name)+'">'+U(128196)+'</span></td><td>'+act+'</td><td><span class="exp" data-lx="'+i+'">'+TRI+'</span></td></tr>'
+      +'<tr class="det" id="'+(exported?'ex':'lx')+i+'" style="display:none"><td colspan="11"><div class="trace"><div style="font-size:12px;color:#374151;margin-bottom:6px"><b>Blocks:</b> '+esc((l.block_nos||[]).join(', ')||DASH)+'</div><a class="rb" href="/app/export-shipment-lot/'+encodeURIComponent(l.name)+'" target="_blank">'+U(128196)+' Open lot</a></div></td></tr>';
+  });
+  h+='</tbody></table>'; el.innerHTML=h;
+  var pfx=exported?'ex':'lx';
+  el.querySelectorAll('.exp').forEach(function(x){x.addEventListener('click',function(){var d=$(pfx+x.dataset.lx);if(d)d.style.display=d.style.display==='none'?'':'none';});});
+  el.querySelectorAll('[data-lot]').forEach(function(x){x.addEventListener('click',function(){openPanel('Export Shipment Lot',x.dataset.lot,'');});});
+  el.querySelectorAll('[data-shiplot]').forEach(function(x){x.addEventListener('click',function(){shipLot(x.dataset.shiplot);});});
+}
+function renderLots(){
+  ensureExportedTab();
+  var lq=(($('lq')&&$('lq').value)||'').toLowerCase();
+  var eq=(($('eq2')&&$('eq2').value)||'').toLowerCase();
+  function hay(l){return (l.name+' '+(l.consignee||'')+' '+(l.bl_no||'')+' '+(l.vessel||'')+' '+((l.block_nos||[]).join(' '))).toLowerCase();}
+  var active=LOTS.filter(function(l){return !_isShipped(l) && (!lq||hay(l).indexOf(lq)>=0);});
+  var exported=LOTS.filter(function(l){return _isShipped(l) && (!eq||hay(l).indexOf(eq)>=0);});
+  var el=$('lotmain'); if(el) renderLotTableInto(el,active,false);
+  var eel=$('exportedmain'); if(eel) renderLotTableInto(eel,exported,true);
+}
+function pushRows(rs){
+  var rows=rs.map(function(r){return {block_no:r.block_no,length:r.pt_l||r.dc_l,width:r.pt_w||r.dc_w,height:r.pt_h||r.dc_h,cbm:r.pt_cbm||r.dc_cbm,mt:r.net_wt||r.ton,matched_dc:r.dc,arrival:r.arrival,quarry_block:r.block_no,consignee:r.consignee,mark:r.mark};});
+  var active=LOTS.filter(function(l){return !_isShipped(l);});
+  var ov=$('__lp'); if(!ov){ov=document.createElement('div');ov.id='__lp';document.body.appendChild(ov);}
+  ov.className='on';
+  var opts='<option value="__new">'+U(10133)+' New lot</option>';
+  active.forEach(function(l){ opts+='<option value="'+esc(l.name)+'">'+esc(l.title||l.name)+' '+DOT+' '+esc(l.consignee||'')+' ('+(l.total_blocks||0)+')</option>'; });
+  ov.innerHTML='<div class="lpbox"><div class="lphd">Push '+rs.length+' block'+(rs.length>1?'s':'')+' to a lot</div><div class="lpbd"><label style="font-size:12px;color:#5f6b7a">Choose lot</label><select id="__lpsel">'+opts+'</select></div><div class="lpft"><span class="rb" id="__lpcancel">Cancel</span><span class="rb gold" id="__lpok">Push</span></div></div>';
+  $('__lpcancel').addEventListener('click',function(){ov.className='';ov.innerHTML='';});
+  $('__lpok').addEventListener('click',function(){
+    var v=$('__lpsel').value; ov.className='';ov.innerHTML='';
+    if(v==='__new'){ var mk=(rs[0]&&rs[0].mark)||''; post('dolphin_theme.api_arrivals.create_shipment_lot',{consignee:(rs[0]&&rs[0].consignee)||mk,rows:rows,mark:mk,vessel:''}).then(function(j){var lot=(j.message&&(j.message.name||j.message))||'';SEL={};msg(CHK+' Created '+lot);loadAll();}).catch(function(){msg('Error creating lot',1);}); }
+    else { post('dolphin_theme.api_arrivals.add_blocks_to_lot',{lot:v,rows:rows}).then(function(j){var n=(j.message&&j.message.added)||0;SEL={};msg(CHK+' Added '+n+' to '+v);loadAll();}).catch(function(){msg('Error adding to lot',1);}); }
+  });
+}
+function shipLot(name){
+  var vessel=prompt('Vessel name (optional):','')||'';
+  var date=prompt('Ship date (YYYY-MM-DD, optional):','')||'';
+  var bl=prompt('BL no (optional):','')||'';
+  post('dolphin_theme.api_arrivals.mark_lot_shipped',{lot:name,vessel:vessel,ship_date:date,bl_no:bl}).then(function(){msg(CHK+' '+name+' marked shipped');loadAll();}).catch(function(){msg('Error marking shipped',1);});
+}
+addHeaderNav();
 
 })();
 </script>
