@@ -429,6 +429,33 @@ function shipLot(name){
 }
 addHeaderNav();
 
+
+function openPanel(dt,nm,fmt,hlBlock){
+  var ov=$('__ov'); if(!ov){ov=document.createElement('div');ov.id='__ov';document.body.appendChild(ov);}
+  var src='/printview?doctype='+encodeURIComponent(dt)+'&name='+encodeURIComponent(nm)+(fmt?'&format='+encodeURIComponent(fmt):'')+'&no_letterhead=0&_lang=en';
+  var pdf='/api/method/frappe.utils.print_format.download_pdf?doctype='+encodeURIComponent(dt)+'&name='+encodeURIComponent(nm)+(fmt?'&format='+encodeURIComponent(fmt):'');
+  ov.className='pop on';
+  ov.innerHTML='<div class="popbox"><div class="pophd"><span class="rb" id="__bk">'+U(8592)+' Back</span><a class="rb" href="/app">'+U(8962)+' Home</a><a class="rb" href="/app/dolphin">'+U(9776)+' Menu</a><b style="flex:1;font-size:13px">'+esc(nm)+' '+DOT+' '+esc(dt)+(hlBlock?' '+DOT+' block '+esc(hlBlock):'')+'</b><a class="rb pri" href="'+src+'" target="_blank">'+U(11021)+' Full view</a><a class="rb" href="'+src+'" target="_blank">'+U(128424)+' Print</a><a class="rb" href="'+pdf+'" target="_blank">'+U(11015)+' PDF</a><span class="rb" id="__cl">'+U(10005)+' Close</span></div><iframe id="__ovif" src="'+src+'"></iframe></div>';
+  $('__bk').addEventListener('click',closePanel);$('__cl').addEventListener('click',closePanel);
+  ov.addEventListener('click',function(e){if(e.target===ov)closePanel();});
+  if(hlBlock){
+    var ifr=$('__ovif'); var want=String(hlBlock).trim(); var tries=0;
+    var hl=function(){
+      tries++;
+      try{
+        var d=ifr.contentDocument||ifr.contentWindow.document;
+        if(!d||!d.body){ if(tries<12) setTimeout(hl,400); return; }
+        var els=d.querySelectorAll('td,th'); var tgt=null,i;
+        for(i=0;i<els.length;i++){ if((els[i].textContent||'').trim()===want){ tgt=els[i]; break; } }
+        if(!tgt){ for(i=0;i<els.length;i++){ var tx=(els[i].textContent||'').trim(); if(tx && tx.length<=want.length+8 && tx.indexOf(want)>=0){ tgt=els[i]; break; } } }
+        if(tgt){ var row=tgt.closest('tr')||tgt; row.style.background='#fff3cd'; row.style.outline='2px solid #d4a24a'; try{row.scrollIntoView({block:'center'});}catch(e){} }
+        else if(tries<12){ setTimeout(hl,400); }
+      }catch(e){ if(tries<12) setTimeout(hl,400); }
+    };
+    if(ifr){ ifr.addEventListener('load',function(){ setTimeout(hl,250); }); setTimeout(hl,700); }
+  }
+}
+
 })();
 </script>
 {% endraw %}
