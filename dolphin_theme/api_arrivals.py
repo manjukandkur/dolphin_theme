@@ -781,9 +781,8 @@ def lots_view():
 
 @frappe.whitelist()
 def move_to_at_port(blocks=None):
-    """Place DC-submitted 'awaiting arrival' blocks At Port without an arrival file
-    (the 'skip the double-check' path). Writes into a single reusable DRAFT Port
-    Arrival so it is easy to review / undo. Idempotent by block number."""
+    """Place DC-submitted 'awaiting arrival' blocks At Port without an arrival file.
+    Writes into a single reusable DRAFT Port Arrival. Idempotent by block number."""
     if isinstance(blocks, str):
         blocks = _json.loads(blocks)
     blocks = blocks or []
@@ -791,16 +790,20 @@ def move_to_at_port(blocks=None):
         frappe.throw("No blocks supplied to move.")
 
     label = "AT-PORT (skipped arrivals)"
-    tname = frappe.db.get_value(
-        "Port Arrival", {"mark": label, "docstatus": 0}, "name"
-    )
-    if tname:
-        pa = frappe.get_doc("Port Arrival", tname)
-    else:
+    meta = frappe.get_meta("Port Arrival")
+    tag = next((f for f in ("source_sheet", "email_subject", "source_file")
+                if meta.has_field(f)), None)
+
+    pa = None
+    if tag:
+        tname = frappe.db.get_value("Port Arrival", {tag: label, "docstatus": 0}, "name")
+        if tname:
+            pa = frappe.get_doc("Port Arrival", tname)
+    if pa is None:
         pa = frappe.new_doc("Port Arrival")
-        if pa.meta.has_field("mark"):
-            pa.mark = label
-        if pa.meta.has_field("arrival_date"):
+        if tag:
+            pa.set(tag, label)
+        if meta.has_field("arrival_date"):
             pa.arrival_date = frappe.utils.today()
 
     existing = {str(b.block_no).strip() for b in pa.blocks}
@@ -818,7 +821,7 @@ def move_to_at_port(blocks=None):
             row.recon_status = "Resolved"
         moved += 1
 
-    if pa.meta.has_field("total_blocks"):
+    if meta.has_field("total_blocks"):
         pa.total_blocks = len(pa.blocks)
     pa.flags.ignore_mandatory = True
     pa.save(ignore_permissions=True)
