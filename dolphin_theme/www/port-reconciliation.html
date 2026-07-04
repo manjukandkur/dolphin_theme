@@ -489,6 +489,56 @@ function pushRows(rs){
   var rows=rs.map(function(r){return {block_no:r.block_no,length:r.pt_l||r.dc_l,width:r.pt_w||r.dc_w,height:r.pt_h||r.dc_h,cbm:r.pt_cbm||r.dc_cbm,mt:r.net_wt||r.ton,matched_dc:r.dc,arrival:r.arrival,consignee:r.consignee,mark:r.mark};});
   showLotPicker(rows);
 }
+
+/* ==== Lot detail view (Phase 2) ==== */
+function _ov(id){var o=document.getElementById(id);if(o)o.remove();var ov=document.createElement('div');ov.id=id;ov.style.cssText='position:fixed;left:0;top:0;right:0;bottom:0;background:rgba(0,0,0,.42);z-index:99999;display:flex;align-items:center;justify-content:center';ov.addEventListener('click',function(e){if(e.target===ov)ov.remove();});document.body.appendChild(ov);return ov;}
+function _dim(b){return esc((b.length||'')+'&#215;'+(b.width||'')+'&#215;'+(b.height||''))+(b.cbm?(' &#183; '+b.cbm):'');}
+function lotAddPicker(lot){
+  post('dolphin_theme.api_arrivals.at_port_available',{lot:lot}).then(function(j){
+    var blocks=(j.message||[]);var ov=_ov('__lap');
+    var rows=blocks.length?blocks.map(function(b,i){return '<label style="display:flex;align-items:center;gap:9px;padding:8px 10px;border:1px solid #e5e7eb;border-radius:8px;margin-top:6px;cursor:pointer"><input type="checkbox" data-i="'+i+'"><b style="width:64px">'+esc(b.block_no)+'</b><span style="color:#6b7280;font-size:12px">'+_dim(b)+'</span></label>';}).join(''):'<div style="color:#8a929c;padding:8px 2px">No At-Port blocks available to add.</div>';
+    ov.innerHTML='<div style="background:#fff;border-radius:12px;max-width:520px;width:94%;max-height:84vh;overflow:auto"><div style="background:#16304F;color:#fff;padding:13px 16px;font-weight:600;border-radius:12px 12px 0 0">Add At-Port blocks to '+esc(lot)+'</div><div style="padding:12px 14px">'+rows+'</div><div style="padding:10px 14px;text-align:right;border-top:1px solid #eee"><span id="__lapx" style="cursor:pointer;color:#6b7280;padding:6px 12px;margin-right:8px">Cancel</span><button id="__lapadd" style="background:#D4A24A;border:none;color:#3a2a05;font-weight:600;border-radius:8px;padding:7px 14px;cursor:pointer">Add selected</button></div></div>';
+    window.__lapB=blocks;
+    document.getElementById('__lapx').onclick=function(){ov.remove();};
+    document.getElementById('__lapadd').onclick=function(){var picked=[];[].forEach.call(ov.querySelectorAll('input[type=checkbox]:checked'),function(c){picked.push(window.__lapB[+c.getAttribute('data-i')]);});if(!picked.length){msg('Select at least one block',1);return;}ov.remove();post('dolphin_theme.api_arrivals.add_blocks_to_lot',{lot:lot,rows:picked}).then(function(){msg(CHK+' Added to '+lot);openLotDetail(lot);loadAll();}).catch(function(){msg('Error adding',1);});};
+  }).catch(function(){msg('Error loading blocks',1);});
+}
+function linkSdPicker(lot){
+  post('dolphin_theme.api_arrivals.list_shipping_documents',{}).then(function(j){
+    var sds=(j.message||[]);var ov=_ov('__sdp');
+    var rows=sds.length?sds.map(function(s){return '<div class="__sdr" data-sd="'+esc(s.name)+'" style="display:flex;align-items:center;gap:9px;padding:9px 11px;border:1px solid #e5e7eb;border-radius:8px;margin-top:6px;cursor:pointer"><b>'+esc(s.name)+'</b><span style="color:#6b7280;font-size:12px">'+esc((s.consignee||'')+(s.date?(' - '+s.date):''))+'</span></div>';}).join(''):'<div style="color:#8a929c;padding:8px 2px">No Shipping Documents found.</div>';
+    ov.innerHTML='<div style="background:#fff;border-radius:12px;max-width:480px;width:94%;max-height:84vh;overflow:auto"><div style="background:#16304F;color:#fff;padding:13px 16px;font-weight:600;border-radius:12px 12px 0 0">Link a Shipping Document to '+esc(lot)+'</div><div style="padding:12px 14px">'+rows+'</div><div style="padding:10px 14px;text-align:right;border-top:1px solid #eee"><span id="__sdx" style="cursor:pointer;color:#6b7280;padding:6px 12px">Cancel</span></div></div>';
+    document.getElementById('__sdx').onclick=function(){ov.remove();};
+    [].forEach.call(ov.querySelectorAll('.__sdr'),function(el){el.onclick=function(){var sd=el.getAttribute('data-sd');ov.remove();post('dolphin_theme.api_arrivals.link_shipping_document',{lot:lot,shipping_document:sd}).then(function(){msg(CHK+' Linked '+sd);openLotDetail(lot);}).catch(function(){msg('Error linking',1);});};});
+  }).catch(function(){msg('Error loading docs',1);});
+}
+function openLotDetail(lot){
+  post('dolphin_theme.api_arrivals.lot_detail',{lot:lot}).then(function(j){
+    var d=j.message||{};var shipped=!!d.shipped;var ov=_ov('__ld');
+    var blocksHtml=(d.blocks||[]).length?(d.blocks||[]).map(function(b){return '<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid #f0f0f0;font-size:13px"><b style="width:64px">'+esc(b.block_no)+'</b><span style="color:#6b7280;flex:1">'+_dim(b)+'</span><span class="__ret" data-bn="'+esc(b.block_no)+'" style="font-size:11px;border:1px solid #185fa5;color:#185fa5;border-radius:11px;padding:3px 9px;cursor:pointer">&#8592; Return to At Port</span></div>';}).join(''):'<div style="color:#8a929c;padding:8px 0">No blocks yet &mdash; use Add blocks.</div>';
+    var sdRow=d.shipping_document?('<b>'+esc(d.shipping_document)+'</b> <span class="__sdview" style="font-size:11px;border:1px solid #185fa5;color:#185fa5;border-radius:11px;padding:3px 9px;cursor:pointer;margin-left:6px">&#128065; View</span> <span class="__sdlink" style="font-size:11px;color:#8a5a12;cursor:pointer;margin-left:8px">change</span>'):('<span class="__sdlink" style="font-size:12px;border:1px dashed #D4A24A;color:#8a5a12;border-radius:8px;padding:5px 11px;cursor:pointer">&#128206; Link Shipping Document</span>');
+    var exp=shipped?('<div style="background:#e1f5ee;border:1px solid #9fe1cb;border-radius:10px;padding:11px 13px;margin-top:12px"><div style="color:#0f6e56;font-weight:600;font-size:13px">&#128674; Exported</div><div style="font-size:12px;color:#3a6b5e;margin-top:3px">Vessel '+esc(d.vessel||'&mdash;')+' &#183; BL '+esc(d.bl_no||'&mdash;')+' &#183; '+esc(d.ship_date||'')+'</div><span id="__reopen" style="display:inline-block;margin-top:9px;font-size:12px;border:1px solid #b04a3a;color:#b04a3a;border-radius:8px;padding:5px 12px;cursor:pointer">&#8635; Reopen lot (blocks back to At Port)</span></div>'):('<div style="background:#fdf8ef;border:1px solid #D4A24A;border-radius:10px;padding:11px 13px;margin-top:12px"><div style="color:#8a5a12;font-weight:600;font-size:13px">Export this lot</div><div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:8px"><input id="__ev" placeholder="Vessel" value="'+esc(d.vessel||'')+'" style="flex:1;min-width:110px;padding:6px 9px;border:1px solid #cfd4dc;border-radius:8px;font-size:12px"><input id="__ebl" placeholder="BL no" value="'+esc(d.bl_no||'')+'" style="flex:1;min-width:100px;padding:6px 9px;border:1px solid #cfd4dc;border-radius:8px;font-size:12px"><input id="__edt" type="date" value="'+esc(d.ship_date||'')+'" style="min-width:130px;padding:6px 9px;border:1px solid #cfd4dc;border-radius:8px;font-size:12px"></div><button id="__exp" style="margin-top:9px;background:#D4A24A;border:none;color:#3a2a05;font-weight:600;border-radius:8px;padding:8px 16px;cursor:pointer">&#10003; Export lot</button></div>');
+    ov.innerHTML='<div style="background:#fff;border-radius:12px;max-width:560px;width:95%;max-height:88vh;overflow:auto"><div style="background:#16304F;color:#fff;padding:13px 16px;border-radius:12px 12px 0 0"><div style="font-weight:600;font-size:15px">'+esc(d.name)+' &#183; '+esc(d.status||'')+'</div><div style="font-size:12px;color:#c7d2e0;margin-top:2px">'+esc(d.consignee||'')+' &#183; '+(d.block_count||0)+' blocks</div></div><div style="padding:12px 15px"><div style="font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:#8a929c;margin-bottom:4px">Blocks in this lot</div>'+blocksHtml+'<div style="margin-top:10px"><span id="__addb" style="font-size:12px;background:#D4A24A;color:#3a2a05;font-weight:600;border-radius:8px;padding:6px 13px;cursor:pointer">&#43; Add blocks (from At Port)</span></div><div style="font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:#8a929c;margin:14px 0 4px">Shipping document</div><div style="font-size:13px">'+sdRow+'</div>'+exp+'</div><div style="padding:10px 15px;text-align:right;border-top:1px solid #eee"><span id="__ldx" style="cursor:pointer;color:#6b7280;padding:6px 12px">Close</span></div></div>';
+    document.getElementById('__ldx').onclick=function(){ov.remove();};
+    document.getElementById('__addb').onclick=function(){lotAddPicker(lot);};
+    var sdl=ov.querySelector('.__sdlink');if(sdl)sdl.onclick=function(){linkSdPicker(lot);};
+    var sdv=ov.querySelector('.__sdview');if(sdv&&typeof openPanel==='function')sdv.onclick=function(){openPanel('Shipping Document',d.shipping_document,'Shipping Document - Packing List');};
+    [].forEach.call(ov.querySelectorAll('.__ret'),function(el){el.onclick=function(){var bn=el.getAttribute('data-bn');if(!confirm('Return block '+bn+' to At Port?'))return;post('dolphin_theme.api_arrivals.remove_lot_block',{lot:lot,block_no:bn}).then(function(){msg(CHK+' '+bn+' returned to At Port');openLotDetail(lot);loadAll();}).catch(function(){msg('Error',1);});};});
+    var ex=document.getElementById('__exp');if(ex)ex.onclick=function(){var v=document.getElementById('__ev').value,bl=document.getElementById('__ebl').value,dt=document.getElementById('__edt').value;if(!(d.block_count>0)){msg('Add blocks before exporting',1);return;}if(!confirm('Export '+lot+' with '+(d.block_count||0)+' block(s)? This marks them Shipped.'))return;post('dolphin_theme.api_arrivals.mark_lot_shipped',{lot:lot,vessel:v,ship_date:dt,bl_no:bl}).then(function(){msg(CHK+' '+lot+' exported');openLotDetail(lot);loadAll();}).catch(function(){msg('Error exporting',1);});};
+    var ro=document.getElementById('__reopen');if(ro)ro.onclick=function(){if(!confirm('Reopen '+lot+'? Blocks go back to At Port.'))return;post('dolphin_theme.api_arrivals.reopen_lot',{lot:lot}).then(function(){msg(CHK+' '+lot+' reopened');openLotDetail(lot);loadAll();}).catch(function(){msg('Error',1);});};
+  }).catch(function(){msg('Error loading lot',1);});
+}
+function shipLot(lot){ if(lot&&typeof lot==='object'){return;} openLotDetail(lot); }
+function ensureNewLotBtn(){
+  var inp=document.querySelector('#pr input[placeholder*="packing list"], #pr input[placeholder*="vessel"]');
+  if(!inp||document.getElementById('__newlotbtn'))return;
+  var b=document.createElement('button');b.id='__newlotbtn';b.innerHTML='&#43; New lot';
+  b.style.cssText='margin-left:8px;background:#16304F;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-weight:600;cursor:pointer';
+  b.onclick=function(){post('dolphin_theme.api_arrivals.create_empty_lot',{}).then(function(j){var nm=(j.message&&(j.message.name||j.message))||'';msg(CHK+' Created '+nm);loadAll();if(nm)openLotDetail(nm);}).catch(function(){msg('Error creating lot',1);});};
+  if(inp.parentNode)inp.parentNode.appendChild(b);
+}
+setInterval(ensureNewLotBtn,1000);
+
 })();
 </script>
 {% endraw %}
