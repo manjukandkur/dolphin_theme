@@ -1285,3 +1285,26 @@ def list_shipping_documents():
         d = frappe.db.get_value("Shipping Document", r.name, ["export_consignee", "shipment_date", "vessel"], as_dict=True) or {}
         out.append({"name": r.name, "consignee": (d.get("export_consignee") or ""), "date": _s(d.get("shipment_date") or ""), "vessel": (d.get("vessel") or "")})
     return out
+
+
+@frappe.whitelist()
+def at_port_available(lot=None):
+    """At-Port blocks not already in any lot - for the in-lot Add picker."""
+    names = frappe.get_all("Quarry Block", filters={"status": "At Port"},
+        fields=["name", "block_number", "export_block_no", "granite_quality_grade",
+                "length_gross", "width_gross", "height_gross", "gross_volume"],
+        limit_page_length=0)
+    in_lot = set()
+    for lb in frappe.get_all("Shipment Lot Block", fields=["block_no", "block"], limit_page_length=0):
+        for k in (lb.get("block_no"), lb.get("block")):
+            if k:
+                in_lot.add(_s(k))
+    out = []
+    for b in names:
+        bn = _s(b.get("block_number") or b.get("name") or "")
+        if not bn or bn in in_lot:
+            continue
+        out.append({"block_no": bn, "export_block_no": b.get("export_block_no") or "",
+            "grade": b.get("granite_quality_grade") or "", "length": b.get("length_gross"),
+            "width": b.get("width_gross"), "height": b.get("height_gross"), "cbm": b.get("gross_volume")})
+    return out
