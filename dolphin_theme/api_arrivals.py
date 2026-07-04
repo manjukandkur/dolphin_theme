@@ -1169,3 +1169,119 @@ def mark_lot_shipped(lot=None, vessel=None, ship_date=None, bl_no=None):
     d.save(ignore_permissions=True)
     frappe.db.commit()
     return {"lot": d.name, "status": "Shipped"}
+
+
+def _lot_table_field(d):
+    for t in d.meta.get_table_fields():
+        return t.fieldname
+    return None
+
+
+@frappe.whitelist()
+def create_empty_lot():
+    """Create an empty Export Shipment Lot (status Ready); return its name."""
+    lot = frappe.new_doc("Export Shipment Lot")
+    if lot.meta.has_field("shipment_date"):
+        lot.shipment_date = frappe.utils.today()
+    if lot.meta.has_field("status"):
+        lot.status = "Ready"
+    lot.insert(ignore_permissions=True)
+    frappe.db.commit()
+    return {"name": lot.name}
+
+
+@frappe.whitelist()
+def lot_detail(lot=None):
+    """Header + blocks for the lot-detail view."""
+    if not lot:
+        frappe.throw("No lot given.")
+    d = frappe.get_doc("Export Shipment Lot", lot)
+    tf = _lot_table_field(d)
+    blocks = []
+    for r in (d.get(tf) or []):
+        blocks.append({
+            "block": r.get("block"),
+            "block_no": r.get("block_no") or r.get("block"),
+            "length": r.get("length"), "width": r.get("width"), "height": r.get("height"),
+            "cbm": r.get("cbm"), "grade": r.get("grade"), "source_dc": r.get("source_dc"),
+        })
+    shipped = (d.get("status") == "Shipped") or bool(d.get("shipped"))
+    return {
+        "name": d.name, "status": d.get("status"), "shipped": 1 if shipped else 0,
+        "vessel": d.get("vessel") or "", "bl_no": d.get("bl_no") or "",
+        "ship_date": _s(d.get("shipment_date") or ""),
+        "consignee": d.get("export_consignee") or "",
+        "shipping_document": d.get("shipping_document") or "",
+        "block_count": len(blocks), "blocks": blocks,
+    }
+
+
+@frappe.whitelist()
+def remove_lot_block(lot=None, block_no=None):
+    """Remove one block from a lot; if shipped, return that block to At Port."""
+    if not lot or not block_no:
+        frappe.throw("Lot and block required.")
+    d = frappe.get_doc("Export Shipment Lot", lot)
+    tf = _lot_table_field(d)
+    if not tf:
+        frappe.throw("Lot has no block table.")
+    target = _s(block_no)
+    kept, removed_qb = [], None
+    for r in (d.get(tf) or []):
+        rn = _s(r.get("block_no")) or _s(r.get("block"))
+        if rn == target and removed_qb is None:
+            removed_qb = r.get("block") or r.get("block_no")
+            continue
+        kept.append(r)
+    d.set(tf, kept)
+    d.save(ignore_permissions=True)
+    if removed_qb and ((d.get("status") == "Shipped") or bool(d.get("shipped"))):
+        if frappe.db.exists("Quarry Block", removed_qb):
+            frappe.db.set_value("Quarry Block", removed_qb, "status", "At Port")
+    frappe.db.commit()
+    return {"name": d.name, "removed": target}
+
+
+@frappe.whitelist()
+def reopen_lot(lot=None):
+    """Reopen a shipped lot: status back to Ready and its blocks back to At Port."""
+    if not lot:
+        frappe.throw("No lot given.")
+    d = frappe.get_doc("Export Shipment Lot", lot)
+    tf = _lot_table_field(d)
+    if d.meta.has_field("status"):
+        d.status = "Ready"
+    if d.meta.has_field("shipped"):
+        d.shipped = 0
+    d.save(ignore_permissions=True)
+    for r in (d.get(tf) or []):
+        qb = r.get("block") or r.get("block_no")
+        if qb and frappe.db.exists("Quarry Block", qb):
+            frappe.db.set_value("Quarry Block", qb, "status", "At Port")
+    frappe.db.commit()
+    return {"name": d.name, "status": "Ready"}
+
+
+@frappe.whitelist()
+def link_shipping_document(lot=None, shipping_document=None):
+    """Link an existing Shipping Document to a lot."""
+    if not lot:
+        frappe.throw("No lot given.")
+    d = frappe.get_doc("Export Shipment Lot", lot)
+    if not d.meta.has_field("shipping_document"):
+        frappe.throw("Lot has no shipping_document field.")
+    d.shipping_document = shipping_document or None
+    d.save(ignore_permissions=True)
+    frappe.db.commit()
+    return {"name": d.name, "shipping_document": d.get("shipping_document") or ""}
+
+
+@frappe.whitelist()
+def list_shipping_documents():
+    """Recent Shipping Documents for the link picker."""
+    rows = frappe.get_all("Shipping Document", fields=["name"], order_by="creation desc", limit_page_length=50)
+    out = []
+    for r in rows:
+        d = frappe.db.get_value("Shipping Document", r.name, ["export_consignee", "shipment_date", "vessel"], as_dict=True) or {}
+        out.append({"name": r.name, "consignee": (d.get("export_consignee") or ""), "date": _s(d.get("shipment_date") or ""), "vessel": (d.get("vessel") or "")})
+    return out
