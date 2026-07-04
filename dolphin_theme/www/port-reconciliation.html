@@ -456,6 +456,39 @@ function openPanel(dt,nm,fmt,hlBlock){
   }
 }
 
+
+/* ==== Push-to-lot picker (override) ==== */
+function createNewLot(rows){
+  var mk=(rows[0]&&rows[0].mark)||'';
+  post('dolphin_theme.api_arrivals.create_shipment_lot',{consignee:(rows[0]&&rows[0].consignee)||mk,rows:rows,mark:mk,vessel:''}).then(function(j){var lot=(j.message&&(j.message.name||j.message))||'';SEL={};msg(CHK+' Created '+lot);loadAll();}).catch(function(){msg('Error creating lot',1);});
+}
+function showLotPicker(rows){
+  var old=document.getElementById('__lp');if(old)old.remove();
+  post('dolphin_theme.api_arrivals.active_lots',{}).then(function(j){
+    var lots=(j.message||[]);
+    var ov=document.createElement('div');ov.id='__lp';
+    ov.style.cssText='position:fixed;left:0;top:0;right:0;bottom:0;background:rgba(0,0,0,.42);z-index:99999;display:flex;align-items:center;justify-content:center';
+    var rowsHtml=lots.length?lots.map(function(l){return '<div class="__lprow" data-lot="'+esc(l.name)+'" style="display:flex;align-items:center;gap:10px;padding:11px 12px;border:1px solid #e5e7eb;border-radius:8px;margin-top:7px;cursor:pointer"><b>'+esc(l.name)+'</b><span style="color:#6b7280;font-size:12px">'+(l.total_blocks||0)+' blocks'+(l.consignee?(' &middot; '+esc(l.consignee)):'')+'</span></div>';}).join(''):'<div style="color:#8a929c;padding:8px 2px">No lots yet &mdash; create a new one.</div>';
+    ov.innerHTML='<div style="background:#fff;border-radius:12px;max-width:460px;width:92%;max-height:82vh;overflow:auto">'
+      +'<div style="background:#16304F;color:#fff;padding:14px 16px;font-weight:600;border-radius:12px 12px 0 0">Push '+rows.length+' block'+(rows.length>1?'s':'')+' to a shipment lot</div>'
+      +'<div style="padding:12px 14px">'
+      +'<div id="__lpnew" style="display:flex;align-items:center;gap:8px;padding:11px 12px;border:1px dashed #D4A24A;border-radius:8px;cursor:pointer;color:#8a5a12;font-weight:600;margin-bottom:8px">&#43; New lot (with these blocks)</div>'
+      +'<div style="font-size:12px;color:#8a929c;margin:6px 2px 2px">or add to an existing lot:</div>'
+      +rowsHtml
+      +'</div>'
+      +'<div style="padding:10px 14px;text-align:right;border-top:1px solid #eee"><span id="__lpx" style="cursor:pointer;color:#6b7280;padding:6px 12px">Cancel</span></div>'
+      +'</div>';
+    document.body.appendChild(ov);
+    ov.addEventListener('click',function(e){if(e.target===ov)ov.remove();});
+    document.getElementById('__lpx').onclick=function(){ov.remove();};
+    document.getElementById('__lpnew').onclick=function(){ov.remove();createNewLot(rows);};
+    [].forEach.call(ov.querySelectorAll('.__lprow'),function(el){el.onclick=function(){var lot=el.getAttribute('data-lot');ov.remove();post('dolphin_theme.api_arrivals.add_blocks_to_lot',{lot:lot,rows:rows}).then(function(){SEL={};msg(CHK+' Added to '+lot);loadAll();}).catch(function(){msg('Error adding to lot',1);});};});
+  }).catch(function(){msg('Error loading lots',1);});
+}
+function pushRows(rs){
+  var rows=rs.map(function(r){return {block_no:r.block_no,length:r.pt_l||r.dc_l,width:r.pt_w||r.dc_w,height:r.pt_h||r.dc_h,cbm:r.pt_cbm||r.dc_cbm,mt:r.net_wt||r.ton,matched_dc:r.dc,arrival:r.arrival,consignee:r.consignee,mark:r.mark};});
+  showLotPicker(rows);
+}
 })();
 </script>
 {% endraw %}
