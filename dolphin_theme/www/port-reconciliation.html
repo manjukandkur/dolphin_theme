@@ -207,7 +207,7 @@ function trace(r,i){
   var h='<div class="trace"><div style="font-size:12px;color:var(--navy);font-weight:600;margin-bottom:7px">Trace '+DASH+' block '+esc(r.block_no||'')+'</div><div class="chain">';
   h+=(r.source_bi?node('done','Buyer Insp.',esc(r.source_bi),esc(r.consignee||''),'bi'):node('miss','Buyer Insp.','not linked','',''));
   h+='<span class="ar">'+ARL+'</span>';
-  h+=(r.dc?node('done','Delivery Challan',esc(r.dc),'','dc'):node('miss','Delivery Challan','no challan','',''));
+  h+=(r.dc?node('done','Delivery Challan',esc((window.DCMAP&&DCMAP[r.dc])||r.dc),'','dc'):node('miss','Delivery Challan','no challan','',''));
   h+='<span class="ar">'+ARL+'</span>';
   h+=(r.arrival?node('done','Arrival',esc(r.arrival),'','arr'):(r.state==='await'?node('pend','Arrival','awaiting','',''):node('miss','Arrival','no arrival','','')));
   h+='<span class="ar">'+ARL+'</span>';
@@ -241,7 +241,7 @@ function renderDC(){
   var map={};LED.forEach(function(r){var d=r.dc||'(no challan)';(map[d]=map[d]||{dc:r.dc,consignee:r.consignee,rows:[]}).rows.push(r);});
   var h='';Object.keys(map).forEach(function(dcn,i){var g=map[dcn];var arr=0,aw=0,lot=0,load=0;g.rows.forEach(function(r){if(r.state==='await')aw++;else arr++;if(r.state==='lot')lot++;if(r.state==='load')load++;});var left=arr-lot-load;if(left<0)left=0;
     h+='<div style="border-bottom:.5px solid #eef2f6"><div style="display:flex;align-items:center;gap:12px;padding:11px 14px;background:#fbfcfe">'
-      +'<b style="font-size:14px">'+esc(dcn)+'</b>'+(g.consignee?'<span class="sub">'+esc(g.consignee)+'</span>':'')
+      +'<b style="font-size:14px">'+esc((window.DCMAP&&DCMAP[dcn])||dcn)+'</b>'+(g.consignee?'<span class="sub">'+esc(g.consignee)+'</span>':'')
       +'<span class="pill p-port">'+arr+' at port</span>'+(aw?'<span class="pill p-await">'+aw+' awaiting</span>':'')+(lot?'<span class="pill p-inlot">'+lot+' in lot</span>':'')+(load?'<span class="pill p-load">'+load+' loaded</span>':'')
       +'<span style="flex:1"></span>'
       +(g.dc?'<span class="eye" data-dcdoc="'+esc(g.dc)+'">'+U(128196)+' DC</span>':'')
