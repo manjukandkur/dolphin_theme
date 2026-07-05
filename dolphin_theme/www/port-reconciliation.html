@@ -101,7 +101,7 @@
       <span class="imp" id="impbtn">&#8593; Import .xls</span><span class="gh" id="addbtn">+ Add at port</span><span class="gh" id="openbtn">&#9638; Opening stock</span>
     </div>
     <div class="frow" id="flrow">
-      <span class="fl on" data-f="all">All</span><span class="fl" data-f="await">Awaiting arrival</span><span class="fl" data-f="port">At port</span>
+      <span class="fl on" data-f="await">Awaiting arrival</span><span class="fl" data-f="all">All</span><span class="fl" data-f="port">At port</span>
       <span class="fl" data-f="lot">In lot</span><span class="fl" data-f="flag">Needs attention</span><span class="fl" data-f="excess">Excess</span><span class="fl" data-f="load">Loaded</span>
     </div>
     <div class="impbar" id="impbar">
@@ -137,7 +137,7 @@
 (function(){
 function U(n){return String.fromCodePoint(n);}
 var X=U(215),DOT=U(183),DASH=U(8212),CHK=U(10003),AR=U(8594),TRI=U(9656),ARL=U(9666);
-var TOKEN=null,LED=[],LOTS=[],ARRS=[],ADATE={},FILT='all',Q='',VMODE='blk',SEL={},PANEL_I=null;
+var TOKEN=null,LED=[],LOTS=[],ARRS=[],ADATE={},FILT='await',Q='',VMODE='blk',SEL={},PANEL_I=null;
 function esc(s){return (s==null?'':(''+s)).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
 function $(id){return document.getElementById(id);}
 function api(dt,f,fl,lim){var u='/api/method/frappe.client.get_list?doctype='+encodeURIComponent(dt)+'&filters='+encodeURIComponent(JSON.stringify(f))+'&fields='+encodeURIComponent(JSON.stringify(fl))+'&limit_page_length='+(lim||0);return fetch(u,{credentials:'include'}).then(function(r){return r.json();}).then(function(j){return j.message||[];});}
