@@ -153,9 +153,9 @@ function loadAll(){
   Promise.all([
     fetch('/api/method/dolphin_theme.api_arrivals.ledger_view',{credentials:'include'}).then(function(r){return r.json();}).then(function(j){return j.message||[];}).catch(function(){return [];}),
     fetch('/api/method/dolphin_theme.api_arrivals.lots_view',{credentials:'include'}).then(function(r){return r.json();}).then(function(j){return j.message||[];}).catch(function(){return [];}),
-    api('Port Arrival',[],['name','mark','arrival_date','shipper','total_blocks','creation'],0).catch(function(){return [];})
+    api('Port Arrival',[],['name','mark','arrival_date','shipper','total_blocks','creation'],0).catch(function(){return [];}),api('Delivery Challan',[],['name','delivery_challan_no'],0).catch(function(){return [];})
   ]).then(function(res){
-    LED=res[0]||[];LOTS=res[1]||[];ARRS=res[2]||[];
+    LED=res[0]||[];LOTS=res[1]||[];ARRS=res[2]||[];window.DCMAP={};(res[3]||[]).forEach(function(d){if(d&&d.name&&d.delivery_challan_no)DCMAP[d.name]=d.delivery_challan_no;});
     ADATE={};ARRS.forEach(function(a){ADATE[a.name]=a.arrival_date||a.creation;});
     renderBal();renderStock();renderArr();renderLots();
   });
@@ -182,7 +182,7 @@ function renderStock(){if(VMODE==='dc'){renderDC();return;}
     var canSel=(r.state==='port'||r.state==='await');
     h+='<tr'+(SEL[k]?' class="sel"':(r.state==='await'?' class="await-row"':''))+'><td>'+(canSel?'<input type="checkbox" class="ck" data-i="'+i+'"'+(SEL[k]?' checked':'')+'>':'')+'</td>'
       +'<td><span class="blk">'+esc(r.block_no||'')+'</span></td>'
-      +'<td>'+(r.dc?'<span class="dc" data-doc="dc" data-i="'+i+'">'+esc(r.dc)+'</span> <span class="eye" data-doc="dc" data-i="'+i+'">'+U(128196)+'</span>':'<span class="sub">no challan</span>')+'</td>'
+      +'<td>'+(r.dc?'<span class="dc" data-doc="dc" data-i="'+i+'">'+esc((window.DCMAP&&DCMAP[r.dc])||r.dc)+'</span> <span class="eye" data-doc="dc" data-i="'+i+'">'+U(128196)+'</span>':'<span class="sub">no challan</span>')+'</td>'
       +'<td>'+(r.source_bi?esc(r.source_bi)+' <span class="eye" data-doc="bi" data-i="'+i+'">'+U(128196)+'</span>':'<span class="sub">'+DASH+'</span>')+'<div class="sub">'+esc(r.consignee||'')+'</div></td>'
       +'<td>'+dcSize(r)+'</td><td>'+ptSize(r)+'</td><td>'+(r.ton||r.net_wt||DASH)+'</td><td>'+ageC+'</td>'
       +'<td>'+pill(r.state)+'</td><td>'+action(r,i)+'</td>'
