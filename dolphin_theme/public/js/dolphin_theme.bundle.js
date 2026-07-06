@@ -636,10 +636,12 @@ frappe.provide("dolphin");
   }
   function buildActionBar(head) {
     var frm = window.cur_frm; if (!frm) return;
-    var bar = head.querySelector(".di-actionbar");
+    var host = head.parentElement || head;
+    var bar = host.querySelector(".di-actionbar");
     if (!bar) {
       bar = document.createElement("span");
       bar.className = "di-navbar-group di-actionbar";
+      bar.style.flexWrap = "nowrap";
       var back = abChip("‹", "Back", function () { window.history.back(); });
       var home = abChip("⌂", "Home", function () { goHome(); });
       var title = document.createElement("span"); title.className = "di-ab-title"; title.setAttribute("data-di-abtitle", "1");
@@ -649,7 +651,7 @@ frappe.provide("dolphin");
       save.onclick = function () { try { frm.save(); } catch (e) {} };
       bar.appendChild(back); bar.appendChild(home); bar.appendChild(title);
       bar.appendChild(addDD); bar.appendChild(actDD); bar.appendChild(save);
-      head.insertBefore(bar, head.firstChild);
+      host.insertBefore(bar, head);
     }
     var t = bar.querySelector("[data-di-abtitle]");
     if (t) { try { t.textContent = (frm.doc && frm.doc.__islocal) ? ("New " + frm.doctype) : ((frm.doc && frm.doc.name) || frm.doctype); } catch (e) { t.textContent = frm.doctype; } }
