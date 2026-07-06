@@ -883,7 +883,7 @@ def _arrived_index():
     for p in frappe.get_all(
         "Port Arrival Block",
         fields=["parent", "block_no", "mark", "length", "width", "height",
-                "cbm", "net_wt", "recon_status", "match_status"],
+                "cbm", "net_wt", "recon_status", "match_status", "vehicle_no"],
         limit_page_length=0,
     ):
         k = _s(p.block_no)
@@ -902,8 +902,9 @@ def ledger_view():
 
     dcs = {x.name: x for x in frappe.get_all(
         "Delivery Challan", filters={"docstatus": 1},
-        fields=["name", "export_consignee", "shipping_mark"])}
+        fields=["name", "export_consignee", "shipping_mark", "vehicle", "port_of_loading"])}
 
+    ports = {p.name: p.port_code for p in frappe.get_all("Indian Port", fields=["name", "port_code"])}
     rows, seen = [], set()
 
     if dcs:
@@ -953,7 +954,7 @@ def ledger_view():
                 "recon_status": (pa.recon_status if pa else None),
                 "lot": (lot["lot"] if lot else None),
                 "lot_title": (lot["title"] if lot else None),
-                "state": state, "source": "dc",
+                "truck": dc.vehicle, "port": dc.port_of_loading, "port_code": ports.get(dc.port_of_loading, dc.port_of_loading), "state": state, "source": "dc",
             })
             for k in keys:
                 seen.add(k)
@@ -981,7 +982,7 @@ def ledger_view():
             "arrival": pa.parent, "recon_status": pa.recon_status,
             "lot": (lot["lot"] if lot else None),
             "lot_title": (lot["title"] if lot else None),
-            "state": state, "source": "arrival",
+            "truck": pa.vehicle_no, "port": None, "port_code": None, "state": state, "source": "arrival",
         })
     return rows
 
