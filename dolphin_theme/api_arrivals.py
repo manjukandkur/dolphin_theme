@@ -1309,3 +1309,37 @@ def at_port_available(lot=None):
             "grade": b.get("granite_quality_grade") or "", "length": b.get("length_gross"),
             "width": b.get("width_gross"), "height": b.get("height_gross"), "cbm": b.get("gross_volume")})
     return out
+
+
+@frappe.whitelist()
+def xls_source():
+    """Imported arrival files as XLS sources with provenance: 'email' when the
+    arrival carries an arrivals-inbox sender/subject, else 'direct' import."""
+    meta = frappe.get_meta("Port Arrival")
+    def has(f):
+        return meta.has_field(f)
+    fields = ["name", "arrival_date", "creation", "total_blocks"]
+    for f in ("source_file", "source_sheet", "email_subject", "email_sender",
+              "mark", "shipper", "total_cbm", "total_net_wt"):
+        if has(f):
+            fields.append(f)
+    out = []
+    for a in frappe.get_all("Port Arrival", fields=fields,
+                            order_by="creation desc", limit_page_length=0):
+        sender = a.get("email_sender") or ""
+        subject = a.get("email_subject") or ""
+        provenance = "email" if (sender or subject) else "direct"
+        out.append({
+            "arrival": a.name,
+            "file": a.get("source_file") or "",
+            "sheet": a.get("source_sheet") or "",
+            "rows": a.get("total_blocks") or 0,
+            "mark": a.get("mark") or "",
+            "sender": sender,
+            "subject": subject,
+            "provenance": provenance,
+            "date": str(a.get("arrival_date") or a.get("creation") or "")[:10],
+            "cbm": a.get("total_cbm") or 0,
+            "net_wt": a.get("total_net_wt") or 0,
+        })
+    return out
