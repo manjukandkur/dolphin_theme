@@ -55,7 +55,7 @@
         +'<td style="text-align:right">'+(+r.cbm||0).toFixed(2)+'</td>'
         +'<td style="text-align:right">'+(+r.mt||0).toFixed(2)+'</td>'
         +'<td>'+esc(r.arrival||'')+'</td>'
-        +'<td>'+(r.matched_dc?esc(r.matched_dc):'<span class="nodc">no DC</span>')+'</td>'
+        +'<td>'+(r.matched_dc?esc((window.DCMAP&&window.DCMAP[r.matched_dc])||r.matched_dc):'<span class="nodc">no DC</span>')+'</td>'
         +'<td><a class="ico" href="'+qb(r.quarry_block)+'" target="_blank" title="Open block (QI/BI history)">&#128065;</a>'+(r.matched_dc?'<a class="ico" href="'+dcpdf(r.matched_dc)+'" title="DC PDF">&#11015;</a>':'')+'</td></tr>';
     });
     h+='</tbody></table>';
@@ -80,6 +80,7 @@
       }).catch(function(e){alert('Push error: '+e.message);btn.disabled=false;btn.textContent='Push \u2192 Export Shipment Lot';});
   }
   fetch('/api/method/dolphin_theme.api_arrivals.get_token',{credentials:'include'}).then(function(r){return r.json();}).then(function(j){TOKEN=j.message;});
+  window.DCMAP={};api('Delivery Challan',[],['name','delivery_challan_no']).then(function(dd){dd.forEach(function(d){if(d&&d.delivery_challan_no)window.DCMAP[d.name]=d.delivery_challan_no;});if(typeof ROWS!=='undefined'&&ROWS&&ROWS.length)render();});
   api('Export Consignee',[],['name']).then(function(cs){var sel=document.getElementById('consignee');cs.forEach(function(c){var o=document.createElement('option');o.value=c.name;o.textContent=c.name;sel.appendChild(o);});});
   fetch('/api/method/dolphin_theme.api_arrivals.full_view',{credentials:'include'}).then(function(r){return r.json();}).then(function(j){
     var rows=(j.message&&j.message.rows)?j.message.rows:(Array.isArray(j.message)?j.message:[]);
