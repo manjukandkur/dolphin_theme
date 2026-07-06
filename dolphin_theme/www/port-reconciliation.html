@@ -91,6 +91,7 @@
   <div class="tabs">
     <div class="tab" data-t="arr">Arrivals <span class="b" id="arrb" style="display:none">0</span></div>
     <div class="tab on" data-t="stock">Stock at Port</div>
+    <div class="tab" data-t="recon">Reconciliation</div>
     <div class="tab" data-t="lots">Shipment Lots</div>
   </div>
   <div class="pane on" id="p-stock">
@@ -149,6 +150,96 @@ function pill(st){var s=SP[st]||['p-port',st];return '<span class="pill '+s[0]+'
 function dcSize(r){if(!r.dc_l&&!r.dc_w&&!r.dc_h)return DASH;return (r.dc_l||'?')+X+(r.dc_w||'?')+X+(r.dc_h||'?');}
 function ptSize(r){if(r.state==='await')return '<span class="sub">not yet arrived</span>';if(!r.pt_l&&!r.pt_w&&!r.pt_h)return DASH;var mis=(r.dc_h&&r.pt_h&&(''+r.dc_h)!==(''+r.pt_h));return (r.pt_l||'?')+X+(r.pt_w||'?')+X+(mis?'<span class="d">'+r.pt_h+'</span>':(r.pt_h||'?'));}
 
+var RSUB='cmp';
+function _fx(n){var x=(+n);if(n==null||isNaN(x))return '0.00';return x.toFixed(2);}
+function _dcGroups(){var g={};LED.forEach(function(r){if(r.source!=='dc')return;var k=r.dc;if(!k)return;(g[k]=g[k]||{dc:k,rows:[]}).rows.push(r);});return g;}
+function rcPayload(r){return {block_no:r.block_no,quarry_block:r.block_no,length:(r.pt_l||r.dc_l||0),width:(r.pt_w||r.dc_w||0),height:(r.pt_h||r.dc_h||0),cbm:(r.pt_cbm||r.dc_cbm||0),mt:(r.net_wt||r.ton||0),kgs:Math.round((r.net_wt||r.ton||0)*1000),grade:(r.grade||''),matched_dc:(r.dc||''),arrival:(r.arrival||''),consignee:(r.consignee||''),mark:(r.mark||'')};}
+function rcSelected(sel){var out=[];document.querySelectorAll('#rcmain '+sel+':checked').forEach(function(c){out.push(LED[+c.dataset.i]);});return out;}
+function renderRecon(){
+  var pane=$('p-recon');
+  if(!pane){pane=document.createElement('div');pane.className='pane';pane.id='p-recon';var host=$('p-stock');(host?host.parentNode:$('pr')).appendChild(pane);}
+  var subs=[['cmp','DC-wise comparison'],['b2b','XLS block-to-block'],['lot','Ready for export lot'],['src','XLS source']];
+  var bar='<div class="tb" style="flex-wrap:wrap;gap:3px">';
+  subs.forEach(function(s){bar+='<span class="vtog'+(RSUB===s[0]?' on':'')+'" data-rs="'+s[0]+'">'+s[1]+'</span>';});
+  bar+='</div>';
+  pane.innerHTML=bar+'<div id="rcmain"></div>';
+  pane.querySelectorAll('[data-rs]').forEach(function(x){x.addEventListener('click',function(){RSUB=x.dataset.rs;renderRecon();});});
+  var m=$('rcmain');
+  if(RSUB==='cmp')renderCmp(m);else if(RSUB==='b2b')renderB2B(m);else if(RSUB==='lot')renderReady(m);else renderSrc(m);
+}
+function renderCmp(m){
+  var g=_dcGroups(),keys=Object.keys(g).sort(),rows='',nM=0,nT=0,nX=0;
+  keys.forEach(function(k){
+    var rs=g[k].rows;
+    var truck=(rs[0]&&rs[0].truck)||'',pc=(rs[0]&&(rs[0].port_code||rs[0].port))||'';
+    var arrived=rs.filter(function(r){return r.state!=='await';}).length,awaiting=rs.length-arrived;
+    var dcMT=rs.reduce(function(a,r){return a+(+r.ton||0);},0);
+    var xlsMT=rs.reduce(function(a,r){return a+(+r.net_wt||0);},0);
+    var dcm=(window.DCMAP&&DCMAP[k])||k,d2=xlsMT-dcMT,lim=Math.max(0.3,dcMT*0.03),status,cls;
+    if(arrived===0){status='All awaiting';cls='p-await';}
+    else if(awaiting>0){status=arrived+'/'+rs.length+' arrived';cls='p-await';}
+    else if(Math.abs(d2)<=0.05){status='Match';cls='p-load';nM++;}
+    else if(Math.abs(d2)<=lim){status='Within tol';cls='p-mis';nT++;}
+    else{status='Mismatch';cls='p-orph';nX++;}
+    var dcolor=(arrived>0&&awaiting===0&&Math.abs(d2)>lim)?' style="color:#a32d2d;font-weight:600"':'';
+    rows+='<tr><td><b>'+esc(dcm)+'</b></td><td class="sub">'+esc(truck)+'</td><td>'+rs.length+'</td><td>'+_fx(dcMT)+'</td><td>'+(arrived?_fx(xlsMT):DASH)+'</td><td'+dcolor+'>'+((arrived&&awaiting===0)?((d2>=0?'+':'')+_fx(d2)):DASH)+'</td><td><span class="pill '+cls+'">'+status+'</span></td><td class="sub">'+esc(pc)+'</td></tr>';
+  });
+  m.innerHTML='<div class="frow" style="padding:8px 2px;gap:6px"><span class="pill p-load">'+nM+' match</span><span class="pill p-mis">'+nT+' within tol</span><span class="pill p-orph">'+nX+' mismatch</span></div><table><thead><tr><th>DC</th><th>Truck</th><th>Blk</th><th>DC MT</th><th>XLS MT</th><th>'+U(916)+'</th><th>Status</th><th>Port</th></tr></thead><tbody>'+rows+'</tbody></table><div class="sub" style="margin-top:8px;padding:0 2px">DC stored tonnage vs summed arrival net weight per challan. Tolerance 3% or 0.3 MT.</div>';
+}
+function renderB2B(m){
+  var rows='',nready=0;
+  LED.forEach(function(r,i){
+    var arrived=(r.pt_l!=null||r.pt_cbm!=null||r.state!=='await');if(!arrived)return;
+    var rs=(r.recon_status||'').toLowerCase(),resolved=(rs.indexOf('resolved')>=0||rs.indexOf('accept')>=0||r.state==='port'),st,cls,verified=false;
+    if(r.state==='orphan'){st='Excess '+DOT+' no DC';cls='p-orph';}
+    else if(rs.indexOf('mismatch')>=0||rs.indexOf('dimension')>=0){st='Dim mismatch';cls='p-mis';}
+    else if(rs.indexOf('duplicate')>=0){st='Duplicate';cls='p-orph';}
+    else if(rs.indexOf('typo')>=0||rs.indexOf('not in')>=0){st='Not in DC';cls='p-orph';}
+    else{st=(resolved?'Verified':'At port');cls='p-load';verified=true;}
+    if(verified&&r.dc)nready++;
+    var dcm=(window.DCMAP&&DCMAP[r.dc])||r.dc||DASH;
+    var dcsz=(r.dc_l!=null)?(r.dc_l+X+r.dc_w+X+r.dc_h):DASH,ptsz=(r.pt_l!=null)?(r.pt_l+X+r.pt_w+X+r.pt_h):DASH;
+    var act=(!verified)?'<button class="rb gold" data-rslv="'+i+'">Resolve</button>':'';
+    rows+='<tr><td>'+((verified&&r.dc)?'<input type="checkbox" class="bck" data-i="'+i+'">':'')+'</td><td><span class="blk">'+esc(r.block_no||'')+'</span></td><td>'+esc(dcm)+'</td><td class="sub">'+dcsz+'</td><td>'+ptsz+'</td><td><span class="pill '+cls+'">'+st+'</span></td><td>'+act+'</td></tr>';
+  });
+  m.innerHTML='<table><thead><tr><th style="width:22px"></th><th>Block</th><th>DC</th><th>DC size</th><th>XLS size</th><th>Status</th><th></th></tr></thead><tbody>'+rows+'</tbody></table><div class="frow" style="margin-top:10px;padding-top:9px;border-top:1px solid #eef2f6"><span class="sub" style="flex:1">'+nready+' verified blocks on a DC</span><button class="rb pri" id="rc-push">Push verified to lot</button></div>';
+  m.querySelectorAll('[data-rslv]').forEach(function(b){b.addEventListener('click',function(){openResolve(LED[+b.dataset.rslv],b);});});
+  var p=$('rc-push');if(p)p.addEventListener('click',function(){var sel=rcSelected('.bck');if(!sel.length){msg('Select verified blocks first',1);return;}showLotPicker(sel.map(rcPayload));});
+}
+function openResolve(r,btn){
+  var old=document.getElementById('__rm');if(old)old.remove();
+  var opts=(r.state==='orphan')?[['accept_extra','Accept as excess'],['hold','Hold']]:[['accept','Accept as-is'],['use_dc','Use DC size'],['hold','Hold']];
+  var menu=document.createElement('div');menu.id='__rm';
+  menu.style.cssText='position:absolute;z-index:99999;background:#fff;border:1px solid #cfd4dc;border-radius:8px;overflow:hidden;box-shadow:0 6px 18px rgba(0,0,0,.14)';
+  opts.forEach(function(o){var it=document.createElement('div');it.textContent=o[1];it.style.cssText='padding:8px 14px;font-size:12px;cursor:pointer;border-bottom:1px solid #f2f5f9;white-space:nowrap';it.addEventListener('mouseover',function(){it.style.background='#f4f7fb';});it.addEventListener('mouseout',function(){it.style.background='#fff';});it.addEventListener('click',function(){menu.remove();doResolve(r,o[0]);});menu.appendChild(it);});
+  document.body.appendChild(menu);
+  var rc=btn.getBoundingClientRect();menu.style.left=(window.scrollX+rc.left)+'px';menu.style.top=(window.scrollY+rc.bottom+4)+'px';
+  setTimeout(function(){var cl=function(e){if(!menu.contains(e.target)){menu.remove();document.removeEventListener('mousedown',cl,true);}};document.addEventListener('mousedown',cl,true);},0);
+}
+function doResolve(r,action){post('dolphin_theme.api_arrivals.resolve_block',{arrival:(r.arrival||''),block_no:r.block_no,action:action}).then(function(){msg('Block '+r.block_no+' resolved');loadAll();}).catch(function(){msg('Resolve failed',1);});}
+function renderReady(m){
+  var list=[],rows='';
+  LED.forEach(function(r,i){if(r.state==='port'){list.push(i);var dcm=(window.DCMAP&&DCMAP[r.dc])||r.dc||DASH;rows+='<tr><td><input type="checkbox" class="rck" data-i="'+i+'"></td><td><span class="blk">'+esc(r.block_no||'')+'</span></td><td>'+esc(dcm)+'</td><td class="sub">'+esc(r.grade||'')+'</td><td>'+_fx(r.net_wt||r.ton)+'</td><td><span class="pill p-port">'+esc(r.port_code||r.port||'')+'</span></td></tr>';}});
+  m.innerHTML=(list.length?('<table><thead><tr><th style="width:22px"></th><th>Block</th><th>DC</th><th>Grade</th><th>MT</th><th>Port</th></tr></thead><tbody>'+rows+'</tbody></table>'):'<div class="sub" style="padding:16px 2px">No at-port blocks awaiting a lot.</div>')+'<div class="frow" style="margin-top:10px;padding-top:9px;border-top:1px solid #eef2f6"><span class="sub" id="rc-lsel" style="flex:1">0 selected</span><button class="rb pri" id="rc-lot">Push to export lot</button></div>';
+  m.querySelectorAll('.rck').forEach(function(c){c.addEventListener('change',function(){$('rc-lsel').textContent=rcSelected('.rck').length+' selected';});});
+  var b=$('rc-lot');if(b)b.addEventListener('click',function(){var sel=rcSelected('.rck');if(!sel.length){msg('Select blocks first',1);return;}showLotPicker(sel.map(rcPayload));});
+}
+function renderSrc(m){
+  m.innerHTML='<div class="sub" style="padding:14px 2px">Loading sources...</div>';
+  post('dolphin_theme.api_arrivals.xls_source',{}).then(function(j){
+    var list=(j.message||[]);
+    if(!list.length){m.innerHTML='<div class="sub" style="padding:16px 2px">No imported arrival files yet.</div>';return;}
+    var h='';
+    list.forEach(function(s){
+      var email=(s.provenance==='email');
+      var badge='<span class="pill '+(email?'p-port':'p-await')+'">'+(email?'Arrivals email':'Direct import')+'</span>';
+      var who=email?esc(s.sender||'dolphin.arrivals@gmail.com'):'uploaded';
+      h+='<div style="display:flex;align-items:center;gap:10px;padding:10px 4px;border-bottom:1px solid #eef2f6"><span class="eye" data-arr="'+esc(s.arrival)+'">'+U(email?9993:8593)+'</span><div style="flex:1"><div>'+esc(s.file||s.arrival)+' <span class="sub">'+DOT+' '+esc(s.sheet||'')+' '+DOT+' '+s.rows+' rows</span></div><div class="sub">'+badge+' '+who+'</div></div><span class="sub">'+esc(s.date||'')+'</span></div>';
+    });
+    m.innerHTML=h;
+    m.querySelectorAll('[data-arr]').forEach(function(x){x.addEventListener('click',function(){openPanel('Port Arrival',x.dataset.arr,'');});});
+  }).catch(function(){m.innerHTML='<div class="sub" style="padding:16px 2px">XLS source view needs the latest backend. Deploy pending.</div>';});
+}
 function loadAll(){
   Promise.all([
     fetch('/api/method/dolphin_theme.api_arrivals.ledger_view',{credentials:'include'}).then(function(r){return r.json();}).then(function(j){return j.message||[];}).catch(function(){return [];}),
@@ -157,7 +248,7 @@ function loadAll(){
   ]).then(function(res){
     LED=res[0]||[];LOTS=res[1]||[];ARRS=res[2]||[];window.DCMAP={};(res[3]||[]).forEach(function(d){if(d&&d.name&&d.delivery_challan_no)DCMAP[d.name]=d.delivery_challan_no;});
     ADATE={};ARRS.forEach(function(a){ADATE[a.name]=a.arrival_date||a.creation;});
-    renderBal();renderStock();renderArr();renderLots();
+    renderBal();renderStock();renderArr();renderLots();renderRecon();
   });
 }
 function renderBal(){
