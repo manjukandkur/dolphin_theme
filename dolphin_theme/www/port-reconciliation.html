@@ -238,7 +238,12 @@ function renderSrc(m){
       var email=(s.provenance==='email');
       var badge='<span class="pill '+(email?'p-port':'p-await')+'">'+(email?'Arrivals email':'Direct import')+'</span>';
       var who=email?esc(s.sender||'dolphin.arrivals@gmail.com'):'uploaded';
-      h+='<div style="display:flex;align-items:center;gap:10px;padding:10px 4px;border-bottom:1px solid #eef2f6"><span class="eye" data-arr="'+esc(s.arrival)+'">'+U(email?9993:8593)+'</span><div style="flex:1"><div>'+esc(s.file||s.arrival)+' <span class="sub">'+DOT+' '+esc(s.sheet||'')+' '+DOT+' '+s.rows+' rows</span></div><div class="sub">'+badge+' '+who+'</div></div><span class="sub">'+esc(s.date||'')+'</span></div>';
+      var isFile=(s.file&&(''+s.file).charAt(0)==='/');
+      var nm=isFile?('<a href="'+esc(s.file)+'" target="_blank" style="color:#185fa5;text-decoration:none">'+esc(s.file)+'</a>')
+                   :('<span class="srcopen" data-arr="'+esc(s.arrival)+'" style="color:#185fa5;cursor:pointer">'+esc(s.file||s.arrival)+'</span>');
+      var act=isFile?('<a class="rb" href="'+esc(s.file)+'" target="_blank" title="Open the .xls file">'+U(11015)+' Open xls</a>')
+                    :('<span class="rb" data-arr="'+esc(s.arrival)+'" title="Open arrival record">'+U(128065)+' View</span>');
+      h+='<div style="display:flex;align-items:center;gap:10px;padding:10px 4px;border-bottom:1px solid #eef2f6"><span class="eye" data-arr="'+esc(s.arrival)+'" style="cursor:pointer">'+U(email?9993:8593)+'</span><div style="flex:1"><div>'+nm+' <span class="sub">'+DOT+' '+esc(s.sheet||'')+' '+DOT+' '+s.rows+' rows</span></div><div class="sub">'+badge+' '+who+'</div></div>'+act+'<span class="sub" style="margin-left:8px">'+esc(s.date||'')+'</span></div>';
     });
     m.innerHTML=h;
     m.querySelectorAll('[data-arr]').forEach(function(x){x.addEventListener('click',function(){openPanel('Port Arrival',x.dataset.arr,'');});});
