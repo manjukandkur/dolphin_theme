@@ -7,12 +7,22 @@
  */
 frappe.ui.form.on('Export Shipment Lot', {
   refresh: function (frm) {
-    if (frm.is_new()) return;
     frm.add_custom_button('Add Blocks', function () { dolphin_add_blocks(frm); });
   }
 });
 
 function dolphin_add_blocks(frm) {
+  // Auto-save new/dirty lots first so the child blocks have a parent to attach to.
+  if (frm.is_new() || frm.is_dirty()) {
+    frm.save().then(function () { dolphin_add_blocks_load(frm); }, function () {
+      frappe.msgprint('Please fill Shipment Date, then click Add Blocks again — the lot saves automatically.');
+    });
+    return;
+  }
+  dolphin_add_blocks_load(frm);
+}
+
+function dolphin_add_blocks_load(frm) {
   frappe.call({
     method: 'dolphin_theme.api_arrivals.at_port_available',
     args: { lot: frm.doc.name }, freeze: true,
