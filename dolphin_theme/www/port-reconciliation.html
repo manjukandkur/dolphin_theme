@@ -189,22 +189,26 @@ function renderCmp(m){
 function renderB2B(m){
   var rows='',nready=0;
   LED.forEach(function(r,i){
-    var arrived=(r.pt_l!=null||r.pt_cbm!=null||r.state!=='await');if(!arrived)return;
-    var rs=(r.recon_status||'').toLowerCase(),resolved=(rs.indexOf('resolved')>=0||rs.indexOf('accept')>=0||r.state==='port'),st,cls,verified=false;
-    if(r.state==='orphan'){st='Excess '+DOT+' no DC';cls='p-orph';}
-    else if(rs.indexOf('mismatch')>=0||rs.indexOf('dimension')>=0){st='Dim mismatch';cls='p-mis';}
-    else if(rs.indexOf('duplicate')>=0){st='Duplicate';cls='p-orph';}
-    else if(rs.indexOf('typo')>=0||rs.indexOf('not in')>=0){st='Not in DC';cls='p-orph';}
-    else{st=(resolved?'Verified':'At port');cls='p-load';verified=true;}
-    if(verified&&r.dc)nready++;
+    if(r.state==='await')return;
+    var st,cls,canR=false,pushable=false;
+    if(r.state==='orphan'){st='Excess '+DOT+' no DC';cls='p-orph';canR=true;}
+    else if(r.state==='mis'){st='Dim mismatch';cls='p-mis';canR=true;}
+    else if(r.state==='held'){st='Held';cls='p-mis';canR=true;}
+    else if(r.state==='dmg'){st='Damaged';cls='p-orph';canR=true;}
+    else if(r.state==='load'){st='Loaded';cls='p-load';}
+    else if(r.state==='lot'){st='In lot';cls='p-inlot';}
+    else{st='Verified';cls='p-load';pushable=!!r.dc;}
+    if(pushable)nready++;
     var dcm=(window.DCMAP&&DCMAP[r.dc])||r.dc||DASH;
-    var dcsz=(r.dc_l!=null)?(r.dc_l+X+r.dc_w+X+r.dc_h):DASH,ptsz=(r.pt_l!=null)?(r.pt_l+X+r.pt_w+X+r.pt_h):DASH;
-    var act=(!verified)?'<button class="rb gold" data-rslv="'+i+'">Resolve</button>':'';
-    rows+='<tr><td>'+((verified&&r.dc)?'<input type="checkbox" class="bck" data-i="'+i+'">':'')+'</td><td><span class="blk">'+esc(r.block_no||'')+'</span></td><td>'+esc(dcm)+'</td><td class="sub">'+dcsz+'</td><td>'+ptsz+'</td><td><span class="pill '+cls+'">'+st+'</span></td><td>'+act+'</td></tr>';
+    var hasDc=(r.dc_l||r.dc_w||r.dc_h),hasPt=(r.pt_l||r.pt_w||r.pt_h);
+    var dcsz=hasDc?((r.dc_l||0)+X+(r.dc_w||0)+X+(r.dc_h||0)):DASH;
+    var ptsz=hasPt?((r.pt_l||0)+X+(r.pt_w||0)+X+(r.pt_h||0)):DASH;
+    var act=canR?'<button class="rb gold" data-rslv="'+i+'">Resolve</button>':'';
+    rows+='<tr><td>'+(pushable?'<input type="checkbox" class="bck" data-i="'+i+'">':'')+'</td><td><span class="blk">'+esc(r.block_no||'')+'</span></td><td>'+esc(dcm)+'</td><td class="sub">'+dcsz+'</td><td>'+ptsz+'</td><td><span class="pill '+cls+'">'+st+'</span></td><td>'+act+'</td></tr>';
   });
-  m.innerHTML='<table><thead><tr><th style="width:22px"></th><th>Block</th><th>DC</th><th>DC size</th><th>XLS size</th><th>Status</th><th></th></tr></thead><tbody>'+rows+'</tbody></table><div class="frow" style="margin-top:10px;padding-top:9px;border-top:1px solid #eef2f6"><span class="sub" style="flex:1">'+nready+' verified blocks on a DC</span><button class="rb pri" id="rc-push">Push verified to lot</button></div>';
+  m.innerHTML='<table><thead><tr><th style="width:22px"></th><th>Block</th><th>DC</th><th>DC size</th><th>XLS size</th><th>Status</th><th></th></tr></thead><tbody>'+rows+'</tbody></table><div class="frow" style="margin-top:10px;padding-top:9px;border-top:1px solid #eef2f6"><span class="sub" style="flex:1">'+nready+' at-port blocks ready to push</span><button class="rb pri" id="rc-push">Push selected to lot</button></div>';
   m.querySelectorAll('[data-rslv]').forEach(function(b){b.addEventListener('click',function(){openResolve(LED[+b.dataset.rslv],b);});});
-  var p=$('rc-push');if(p)p.addEventListener('click',function(){var sel=rcSelected('.bck');if(!sel.length){msg('Select verified blocks first',1);return;}showLotPicker(sel.map(rcPayload));});
+  var p=$('rc-push');if(p)p.addEventListener('click',function(){var sel=rcSelected('.bck');if(!sel.length){msg('Select blocks first',1);return;}showLotPicker(sel.map(rcPayload));});
 }
 function openResolve(r,btn){
   var old=document.getElementById('__rm');if(old)old.remove();
