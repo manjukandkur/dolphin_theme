@@ -239,9 +239,9 @@ function pushRows(rs){var rows=rs.map(function(r){return {block_no:r.block_no,le
 /* group by DC */
 function renderDC(){
   var map={};LED.forEach(function(r){var d=r.dc||'(no challan)';(map[d]=map[d]||{dc:r.dc,consignee:r.consignee,rows:[]}).rows.push(r);});
-  var h='';Object.keys(map).forEach(function(dcn,i){var g=map[dcn];var arr=0,aw=0,lot=0,load=0;g.rows.forEach(function(r){if(r.state==='await')aw++;else arr++;if(r.state==='lot')lot++;if(r.state==='load')load++;});var left=arr-lot-load;if(left<0)left=0;
+  var h='';Object.keys(map).forEach(function(dcn,i){var g=map[dcn];var arr=0,aw=0,lot=0,load=0;g.rows.forEach(function(r){if(r.state==='await')aw++;else arr++;if(r.state==='lot')lot++;if(r.state==='load')load++;});var left=arr-lot-load;if(left<0)left=0;var _tk=(g.rows[0]&&g.rows[0].truck)||'';var _pc=(g.rows[0]&&(g.rows[0].port_code||g.rows[0].port))||'';var _tn=0,_bn=[];g.rows.forEach(function(r){_tn+=(+r.ton||0);if(r.block_no)_bn.push(r.block_no);});
     h+='<div style="border-bottom:.5px solid #eef2f6"><div style="display:flex;align-items:center;gap:12px;padding:11px 14px;background:#fbfcfe">'
-      +'<b style="font-size:14px">'+esc((window.DCMAP&&DCMAP[dcn])||dcn)+'</b>'+(g.consignee?'<span class="sub">'+esc(g.consignee)+'</span>':'')
+      +'<b style="font-size:14px">'+esc((window.DCMAP&&DCMAP[dcn])||dcn)+'</b>'+(g.consignee?'<span class="sub">'+esc(g.consignee)+'</span>':'')+'<span class="sub" style="margin-left:6px;font-size:12px" title="'+esc(_bn.join(', '))+'">'+(_tk?'&#128667; '+esc(_tk)+' ':'')+'&#183; '+_bn.length+' blk &#183; '+_tn.toFixed(2)+' MT'+(_pc?' &#183; '+esc(_pc):'')+'</span>'
       +'<span class="pill p-port">'+arr+' at port</span>'+(aw?'<span class="pill p-await">'+aw+' awaiting</span>':'')+(lot?'<span class="pill p-inlot">'+lot+' in lot</span>':'')+(load?'<span class="pill p-load">'+load+' loaded</span>':'')
       +'<span style="flex:1"></span>'
       +(g.dc?'<span class="eye" data-dcdoc="'+esc(g.dc)+'">'+U(128196)+' DC</span>':'')
