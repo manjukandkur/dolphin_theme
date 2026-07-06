@@ -61,7 +61,7 @@
       var m=_m[dc]||{},cbm=0;bl.forEach(function(b){cbm+=(+b.gross_volume||0);gt+=(+b.gross_tonnage||0);});gc+=bl.length;var _amt=(+m.total_amount||((+m.rate_per_mt||0)*(+m.total_tonnage||0)));gAmt+=_amt;
       bl.forEach(function(b,i){
         h+='<tr style="background:'+SAND[i%2]+'">';
-        if(i===0){h+='<td class="dccell" rowspan="'+bl.length+'"><div class="no">&#128666; '+dc+'</div><div class="meta">'+(m.export_consignee||m.consignee||'&mdash;')+'<br>'+(m.shipping_mark||'')+' &middot; '+(m.sale_type||'')+' &middot; '+(m.dc_date||'')+'</div><div><a href="'+view(dc)+'" target="_blank" title="View">&#128065;</a><a href="'+pdf(dc)+'" title="PDF">&#11015;</a><a href="'+view(dc)+'" target="_blank" title="Print">&#128424;</a></div><div class="meta" style="margin-top:8px">'+bl.length+' blocks &middot; '+cbm.toFixed(2)+' cbm &middot; ₹'+inr(_amt)+'</div></td>';}
+        if(i===0){h+='<td class="dccell" rowspan="'+bl.length+'"><div class="no">&#128666; '+(m.delivery_challan_no||dc)+'</div><div class="meta">'+(m.export_consignee||m.consignee||'&mdash;')+'<br>'+(m.shipping_mark||'')+' &middot; '+(m.sale_type||'')+' &middot; '+(m.dc_date||'')+'</div><div><a href="'+view(dc)+'" target="_blank" title="View">&#128065;</a><a href="'+pdf(dc)+'" title="PDF">&#11015;</a><a href="'+view(dc)+'" target="_blank" title="Print">&#128424;</a></div><div class="meta" style="margin-top:8px">'+bl.length+' blocks &middot; '+cbm.toFixed(2)+' cbm &middot; ₹'+inr(_amt)+'</div></td>';}
         var dim=(b.length_gross||'')+'&times;'+(b.width_gross||'')+'&times;'+(b.height_gross||'');
         h+='<td style="font-weight:600">'+(b.export_block_no||'&mdash;')+'</td><td>'+dim+'</td><td style="text-align:right">'+(+b.gross_volume||0).toFixed(2)+'</td><td style="text-align:right">'+(+b.gross_tonnage||0).toFixed(2)+'</td><td>'+pill(b.status)+'</td></tr>';
       });
@@ -73,7 +73,7 @@
   document.querySelectorAll('#seg button').forEach(function(btn){btn.addEventListener('click',function(){document.querySelectorAll('#seg button').forEach(function(x){x.classList.remove('on');});btn.classList.add('on');filter=btn.dataset.f;render();});});
   api('Quarry Block',[['delivery_challan','is','set']],['name','export_block_no','status','delivery_challan','length_gross','width_gross','height_gross','gross_volume','gross_tonnage']).then(function(blocks){
     _b=blocks;var dcs=[];blocks.forEach(function(b){if(dcs.indexOf(b.delivery_challan)<0)dcs.push(b.delivery_challan);});
-    return api('Delivery Challan',[['name','in',dcs]],['name','export_consignee','consignee','shipping_mark','dc_date','sale_type','rate_per_mt','total_amount','total_tonnage']).then(function(dd){_m={};dd.forEach(function(d){_m[d.name]=d;});render();});
+    return api('Delivery Challan',[['name','in',dcs]],['name','export_consignee','consignee','shipping_mark','dc_date','sale_type','rate_per_mt','total_amount','total_tonnage','delivery_challan_no']).then(function(dd){_m={};dd.forEach(function(d){_m[d.name]=d;});render();});
   }).catch(function(e){document.getElementById('body').innerHTML='<div class="empty">Could not load dispatched blocks. '+((e&&e.message)||'')+'</div>';});
 })();
 </script>
