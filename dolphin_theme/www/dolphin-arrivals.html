@@ -91,6 +91,8 @@
   var mn=machine();
   $('mach-name').textContent = mn || 'not named yet — tag it from Dolphin Data Tools';
 
+  window.DCMAP={};api('Delivery Challan',[],['name','delivery_challan_no']).then(function(dd){(dd||[]).forEach(function(d){if(d&&d.delivery_challan_no)window.DCMAP[d.name]=d.delivery_challan_no;});}).catch(function(){});
+
   function loadBoard(){
     $('detail').style.display='none';
     var b=$('board');b.style.display='';b.innerHTML='<p class="muted">Loading arrivals&hellip;</p>';
@@ -140,7 +142,7 @@
       +'<span class="badge '+(flags?'b-red':'b-ok')+'">'+(flags?flags+' flag'+(flags>1?'s':'')+' open':'all matched')+'</span></div>';
     // chain
     h+='<div class="chain">';
-    Object.keys(dcs).forEach(function(dc){h+='<span class="seg">'+esc(dc)+' <button class="eye" title="Peek challan" onclick="DARR.peekDC(\''+esc(dc)+'\')">&#128065;</button></span>';});
+    Object.keys(dcs).forEach(function(dc){h+='<span class="seg">'+esc((window.DCMAP&&window.DCMAP[dc])||dc)+' <button class="eye" title="Peek challan" onclick="DARR.peekDC(\''+esc(dc)+'\')">&#128065;</button></span>';});
     if(doc.source_file)h+='<span class="seg" style="background:#1a4d3a">xls <a class="eye" style="color:#6ee0b0" href="'+esc(doc.source_file)+'" target="_blank">&#128065;</a></span>';
     h+='<span class="seg arr">&#9875; '+esc(doc.name)+'</span></div>';
     h+='<div id="peek"></div>';
@@ -150,9 +152,9 @@
       var resolved=!!b.resolution_type;
       h+='<div class="blk '+m.c+'" id="blk-'+b.name+'"><div class="row" style="flex-wrap:wrap;gap:8px">'
         +'<span class="dot" style="background:'+m.d+'"></span><b style="color:var(--navy)">'+esc(b.block_no||'(blank)')+'</b>';
-      if(b.recon_status==='Dimension mismatch')h+='<span class="muted">L'+(b.length||0)+' W'+(b.width||0)+' H'+(b.height||0)+' vs challan '+esc(b.matched_dc)+'</span>';
+      if(b.recon_status==='Dimension mismatch')h+='<span class="muted">L'+(b.length||0)+' W'+(b.width||0)+' H'+(b.height||0)+' vs challan '+esc((window.DCMAP&&window.DCMAP[b.matched_dc])||b.matched_dc)+'</span>';
       else if(b.recon_status==='Typo - not in DC'&&b.suggested_block)h+='<span class="muted">not on any DC &middot; nearest <b>'+esc(b.suggested_block)+'</b></span>';
-      else if(b.matched_dc)h+='<span class="muted">on '+esc(b.matched_dc)+'</span>';
+      else if(b.matched_dc)h+='<span class="muted">on '+esc((window.DCMAP&&window.DCMAP[b.matched_dc])||b.matched_dc)+'</span>';
       h+='<span class="badge '+m.b+'" style="margin-left:auto">'+esc(m.t)+'</span></div>';
       if(resolved){
         h+='<div class="stamp">&#10003; '+esc(b.resolution_type)+(b.resolution_note?' &middot; '+esc(b.resolution_note):'')+' &middot; '+esc(b.resolved_machine||'')+' &middot; '+esc(b.resolved_by||'')+'</div>';
@@ -181,7 +183,7 @@
     var p=$('peek');p.innerHTML='<div class="peek">Loading '+esc(dc)+'&hellip;</div>';
     api('frappe.client.get',{doctype:'Delivery Challan',name:dc}).then(function(d){
       var rows=(d.dc_block_rows||[]).map(function(r){return esc(r.block)+' ('+r.length_gross+'×'+r.width_gross+'×'+r.height_gross+')';}).join(' &middot; ');
-      p.innerHTML='<div class="peek"><b style="color:var(--navy)">'+esc(dc)+'</b> &middot; '+esc(d.dc_date||'')+' &middot; source of truth<br>'+rows+'</div>';
+      p.innerHTML='<div class="peek"><b style="color:var(--navy)">'+esc((window.DCMAP&&window.DCMAP[dc])||dc)+'</b> &middot; '+esc(d.dc_date||'')+' &middot; source of truth<br>'+rows+'</div>';
     });
   }
 
