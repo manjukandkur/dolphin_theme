@@ -940,6 +940,7 @@ def ledger_view():
 
             rows.append({
                 "block_no": primary,
+                "export_block_no": r.export_block_no,
                 "mark": (pa.mark if pa else None) or dc.shipping_mark,
                 "dc": dc.name,
                 "consignee": cons.get(dc.export_consignee, dc.export_consignee),
