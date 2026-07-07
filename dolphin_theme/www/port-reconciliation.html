@@ -370,7 +370,7 @@ function closePanel(){var p=$('panel');p.classList.remove('on');p.innerHTML='';}
 /* arrivals */
 function renderArr(){var el=$('arrlist');if(!ARRS.length){el.innerHTML='<div class="empty">No arrivals</div>';return;}var aq=($('aq').value||'').toLowerCase();
   el.innerHTML=ARRS.filter(function(a){return !aq||(a.name+' '+(a.mark||'')).toLowerCase().indexOf(aq)>=0;}).map(function(a){var age=ageDays(a.name);
-    return '<div class="arow"><div style="flex:1"><div style="font-weight:600;font-size:14px">'+esc(a.name)+'</div><div class="sub">'+esc(a.mark||'')+' '+DOT+' '+esc(fmtDate(a.arrival_date))+' '+DOT+' '+(a.total_blocks||0)+' blocks'+(age!=null?' '+DOT+' '+age+'d ago':'')+'</div></div><a class="rb" href="/app/port-arrival/'+encodeURIComponent(a.name)+'" target="_blank">Open</a></div>';}).join('');}
+    return '<div class="arow"><div style="flex:1"><div style="font-weight:600;font-size:15px">'+esc(a.name)+'</div><div class="sub" style="font-size:12.5px;color:#41506a">'+esc(a.mark||'')+' '+DOT+' '+esc(fmtDate(a.arrival_date))+' '+DOT+' '+(a.total_blocks||0)+' blocks'+(age!=null?' '+DOT+' '+age+'d ago':'')+'</div></div><a class="rb" href="/app/port-arrival/'+encodeURIComponent(a.name)+'" target="_blank">Open</a></div>';}).join('');}
 $('aq').addEventListener('input',renderArr);
 /* lots */
 var LF='all',LQ='';
@@ -415,7 +415,7 @@ return '';
 }
 function renderArr(){var el=$('arrlist');if(!ARRS.length){el.innerHTML='<div class="empty">No arrivals</div>';return;}var aq=($('aq').value||'').toLowerCase();
 el.innerHTML=ARRS.filter(function(a){return !aq||(a.name+' '+(a.mark||'')).toLowerCase().indexOf(aq)>=0;}).map(function(a){var age=ageDays(a.name);
-return '<div class="arow"><div style="flex:1"><div style="font-weight:600;font-size:14px">'+esc(a.name)+'</div><div class="sub">'+esc(a.mark||'')+' '+DOT+' '+esc(fmtDate(a.arrival_date))+' '+DOT+' '+(a.total_blocks||0)+' blocks'+(age!=null?' '+DOT+' '+age+'d ago':'')+'</div></div><span class="rb" data-xls="'+esc(a.name)+'">'+U(128196)+' View sheet</span> <span class="eye" data-arr="'+esc(a.name)+'">'+U(128196)+' Preview</span> <a class="rb" href="/app/port-arrival/'+encodeURIComponent(a.name)+'" target="_blank">Open</a></div>';}).join('');
+return '<div class="arow"><div style="flex:1"><div style="font-weight:600;font-size:15px">'+esc(a.name)+'</div><div class="sub" style="font-size:12.5px;color:#41506a">'+esc(a.mark||'')+' '+DOT+' '+esc(fmtDate(a.arrival_date))+' '+DOT+' '+(a.total_blocks||0)+' blocks'+(age!=null?' '+DOT+' '+age+'d ago':'')+'</div></div><span class="rb" data-xls="'+esc(a.name)+'">'+U(128196)+' View sheet</span> <span class="eye" data-arr="'+esc(a.name)+'">'+U(128196)+' Preview</span> <a class="rb" href="/app/port-arrival/'+encodeURIComponent(a.name)+'" target="_blank">Open</a></div>';}).join('');
 el.querySelectorAll('[data-arr]').forEach(function(x){x.addEventListener('click',function(){openPanel('Port Arrival',x.dataset.arr,'');});});el.querySelectorAll('[data-xls]').forEach(function(x){x.addEventListener('click',function(){openArrivalXls(x.dataset.xls);});});}
 function renderLots(){var el=$('lotmain');if(!LOTS.length){el.innerHTML='<div class="empty">No shipment lots yet</div>';return;}
 var list=LOTS.filter(function(l){var st=(l.status==='ship'||l.shipped)?'ship':'build';var hay=(l.name+' '+(l.consignee||'')+' '+(l.bl_no||'')+' '+((l.block_nos||[]).join(' '))).toLowerCase();return (LF==='all'||st===LF)&&(!LQ||hay.indexOf(LQ)>=0);});
