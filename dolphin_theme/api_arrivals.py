@@ -1004,7 +1004,7 @@ def move_dc_to_at_port(dc=None):
 
 
 @frappe.whitelist()
-def resolve_block(arrival=None, block_no=None, action="accept", dc=None):
+def resolve_block(arrival=None, block_no=None, action="accept", dc=None, length=None, width=None, height=None, cbm=None, weight=None):
     """Resolve a flagged block, keyed by (arrival, block_no). Once accepted the
     block reads as Resolved and shows under All at port."""
     block_no = _s(block_no)
@@ -1033,6 +1033,10 @@ def resolve_block(arrival=None, block_no=None, action="accept", dc=None):
     else:
         updates["recon_status"] = "Resolved"
 
+    if action == "modify":
+        for _f, _v in (("length", length), ("width", width), ("height", height), ("cbm", cbm), ("weight", weight)):
+            if _v not in (None, ""):
+                updates[_f] = flt(_v)
     frappe.db.set_value("Port Arrival Block", name, updates, update_modified=False)
     frappe.db.commit()
     return {"block_no": block_no, "action": action, "ok": True}
