@@ -1343,3 +1343,76 @@ def xls_source():
             "net_wt": a.get("total_net_wt") or 0,
         })
     return out
+
+
+
+def _arrival_file_bytes(url):
+    """Bytes of a stored File by its file_url, private or public."""
+    if not url:
+        return None
+    try:
+        fdoc = frappe.get_doc("File", {"file_url": url})
+        return fdoc.get_content()
+    except Exception:
+        pass
+    try:
+        from frappe.utils.file_manager import get_file
+        return get_file(url)[1]
+    except Exception:
+        return None
+
+
+@frappe.whitelist()
+def arrival_xls_grid(arrival=None, max_rows=120):
+    """Raw source .xls sheet as a grid of cells with per-row tags
+    (parsed / skip / head / pre) so the carrier sheet can be viewed inline
+    next to the parsed blocks."""
+    if not arrival:
+        return {}
+    pa = frappe.get_doc("Port Arrival", arrival)
+    src = getattr(pa, "source_file", None) or ""
+    if not src:
+        return {"error": "No source file stored on this arrival."}
+    content = _arrival_file_bytes(src)
+    if content is None:
+        return {"error": "Source file not found: " + src}
+    try:
+        import xlrd
+    except Exception:
+        return {"error": "xlrd not installed on this bench."}
+    wb = xlrd.open_workbook(file_contents=content)
+    single = wb.nsheets == 1
+    grid, tags, used, hr = [], [], None, None
+    for sh in wb.sheets():
+        if not _xls_is_dolphin_sheet(sh, single):
+            continue
+        hr, cm = _xls_header(sh)
+        bcol = cm.get("block_no") if cm else None
+        used = sh.name
+        n = min(int(max_rows), sh.nrows)
+        for r in range(n):
+            row = [_xls_s(sh.cell_value(r, c)) for c in range(sh.ncols)]
+            grid.append(row)
+            if hr is None or r == hr:
+                tag = "head"
+            elif r < hr:
+                tag = "pre"
+            else:
+                bno = _xls_s(sh.cell_value(r, bcol)) if bcol is not None else ""
+                joined = " ".join(str(x).lower() for x in row)
+                if not bno or not _re.search(r"\d", bno):
+                    tag = "skip"
+                elif "total" in joined:
+                    tag = "skip"
+                else:
+                    tag = "parsed"
+            tags.append(tag)
+        break
+    return {
+        "sheet": used,
+        "grid": grid,
+        "tags": tags,
+        "header_row": hr,
+        "file": src,
+        "counts": {"parsed": tags.count("parsed"), "skipped": tags.count("skip")},
+    }
