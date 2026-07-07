@@ -901,6 +901,7 @@ def ledger_view():
     lots = _lot_membership()
     arrived = _arrived_index()
     cons = _consignee_names()
+    emap = _export_map()
 
     dcs = {x.name: x for x in frappe.get_all(
         "Delivery Challan", filters={"docstatus": 1},
@@ -942,7 +943,7 @@ def ledger_view():
 
             rows.append({
                 "block_no": primary,
-                "export_block_no": r.export_block_no,
+                "export_block_no": r.export_block_no or emap.get(_s(r.block_no)) or emap.get(_s(primary)) or "",
                 "mark": (pa.mark if pa else None) or dc.shipping_mark,
                 "dc": dc.name,
                 "consignee": cons.get(dc.export_consignee, dc.export_consignee),
