@@ -152,7 +152,7 @@ function ptSize(r){if(r.state==='await')return '<span class="sub">not yet arrive
 
 var RSUB='cmp';
 function _fx(n){var x=(+n);if(n==null||isNaN(x))return '0.00';return x.toFixed(2);}
-function _dcGroups(){var g={};LED.forEach(function(r){if(r.source!=='dc')return;var k=r.dc;if(!k)return;(g[k]=g[k]||{dc:k,rows:[]}).rows.push(r);});return g;}
+var PORTABBR={'krishnapatnam':'KRI1','nhava sheva':'NSA1','jawaharlal nehru':'NSA1','jnpt':'NSA1','chennai':'MAA1','kakinada':'KAK1','mundra':'MUN1','kolkata':'CCU1','cochin':'COK1','kochi':'COK1','mangalore':'NML1'};function portAbbr(p){if(!p)return '';var k=(''+p).trim().toLowerCase();return PORTABBR[k]||p;}function _blkList(arr,cap){cap=cap||6;var ns=arr.map(function(b){return (''+b).replace(/^[A-Za-z]+-?/,'');});var s='Blocks: '+ns.slice(0,cap).join(', ');var ex=ns.length-cap;return s+(ex>0?(' +'+ex+' more'):'');}function _dcAgg(dc){var t='',p='',mt=0,bl=[];LED.forEach(function(r){if((r.dc||'')!==dc)return;if(!t&&r.truck)t=r.truck;if(!p&&(r.port_code||r.port))p=(r.port_code||r.port);mt+=(+r.ton||0);if(r.block_no)bl.push(r.block_no);});return {truck:t,port:p,mt:mt,blocks:bl};}function _dcSub(dc){if(!dc)return '';var a=_dcAgg(dc);var parts=[];if(a.truck)parts.push('&#128667; '+esc(a.truck));parts.push(_blkList(a.blocks));parts.push(a.mt.toFixed(2)+' MT');var pa=portAbbr(a.port);if(pa)parts.push(esc(pa));return '<div class="sub" style="font-size:11px;margin-top:1px">'+parts.join(' &#183; ')+'</div>';}function _dcGroups(){var g={};LED.forEach(function(r){if(r.source!=='dc')return;var k=r.dc;if(!k)return;(g[k]=g[k]||{dc:k,rows:[]}).rows.push(r);});return g;}
 function rcPayload(r){return {block_no:r.block_no,quarry_block:r.block_no,length:(r.pt_l||r.dc_l||0),width:(r.pt_w||r.dc_w||0),height:(r.pt_h||r.dc_h||0),cbm:(r.pt_cbm||r.dc_cbm||0),mt:(r.net_wt||r.ton||0),kgs:Math.round((r.net_wt||r.ton||0)*1000),grade:(r.grade||''),matched_dc:(r.dc||''),arrival:(r.arrival||''),consignee:(r.consignee||''),mark:(r.mark||'')};}
 function rcSelected(sel){var out=[];document.querySelectorAll('#rcmain '+sel+':checked').forEach(function(c){out.push(LED[+c.dataset.i]);});return out;}
 function renderRecon(){
@@ -282,7 +282,7 @@ function renderStock(){if(VMODE==='dc'){renderDC();return;}
     var canSel=(r.state==='port'||r.state==='await');
     h+='<tr'+(SEL[k]?' class="sel"':(r.state==='await'?' class="await-row"':''))+'><td>'+(canSel?'<input type="checkbox" class="ck" data-i="'+i+'"'+(SEL[k]?' checked':'')+'>':'')+'</td>'
       +'<td><span class="blk">'+esc(r.block_no||'')+'</span></td>'
-      +'<td>'+(r.dc?'<span class="dc" data-doc="dc" data-i="'+i+'">'+esc((window.DCMAP&&DCMAP[r.dc])||r.dc)+'</span> <span class="eye" data-doc="dc" data-i="'+i+'">'+U(128196)+'</span>':'<span class="sub">no challan</span>')+'</td>'
+      +'<td>'+(r.dc?'<span class="dc" data-doc="dc" data-i="'+i+'">'+esc((window.DCMAP&&DCMAP[r.dc])||r.dc)+'</span> <span class="eye" data-doc="dc" data-i="'+i+'">'+U(128196)+'</span>'+_dcSub(r.dc):'<span class="sub">no challan</span>')+'</td>'
       +'<td>'+(r.source_bi?esc(r.source_bi)+' <span class="eye" data-doc="bi" data-i="'+i+'">'+U(128196)+'</span>':'<span class="sub">'+DASH+'</span>')+'<div class="sub">'+esc(r.consignee||'')+'</div></td>'
       +'<td>'+dcSize(r)+'</td><td>'+ptSize(r)+'</td><td>'+(r.ton||r.net_wt||DASH)+'</td><td>'+ageC+'</td>'
       +'<td>'+pill(r.state)+'</td><td>'+action(r,i)+'</td>'
@@ -341,7 +341,7 @@ function renderDC(){
   var map={};LED.forEach(function(r){var d=r.dc||'(no challan)';(map[d]=map[d]||{dc:r.dc,consignee:r.consignee,rows:[]}).rows.push(r);});
   var h='';Object.keys(map).forEach(function(dcn,i){var g=map[dcn];var arr=0,aw=0,lot=0,load=0;g.rows.forEach(function(r){if(r.state==='await')aw++;else arr++;if(r.state==='lot')lot++;if(r.state==='load')load++;});var left=arr-lot-load;if(left<0)left=0;var _tk=(g.rows[0]&&g.rows[0].truck)||'';var _pc=(g.rows[0]&&(g.rows[0].port_code||g.rows[0].port))||'';var _tn=0,_bn=[];g.rows.forEach(function(r){_tn+=(+r.ton||0);if(r.block_no)_bn.push(r.block_no);});
     h+='<div style="border-bottom:.5px solid #eef2f6"><div style="display:flex;align-items:center;gap:12px;padding:11px 14px;background:#fbfcfe">'
-      +'<b style="font-size:14px">'+esc((window.DCMAP&&DCMAP[dcn])||dcn)+'</b>'+(g.consignee?'<span class="sub">'+esc(g.consignee)+'</span>':'')+'<span class="sub" style="margin-left:6px;font-size:12px" title="'+esc(_bn.join(', '))+'">'+(_tk?'&#128667; '+esc(_tk)+' ':'')+'&#183; '+_bn.length+' blk &#183; '+_tn.toFixed(2)+' MT'+(_pc?' &#183; '+esc(_pc):'')+'</span>'
+      +'<b style="font-size:14px">'+esc((window.DCMAP&&DCMAP[dcn])||dcn)+'</b>'+(g.consignee?'<span class="sub">'+esc(g.consignee)+'</span>':'')+'<span class="sub" style="margin-left:6px;font-size:12px" title="'+esc(_bn.join(', '))+'">'+(_tk?'&#128667; '+esc(_tk)+' ':'')+'&#183; '+_blkList(_bn)+' &#183; '+_tn.toFixed(2)+' MT'+(portAbbr(_pc)?' &#183; '+esc(portAbbr(_pc)):'')+'</span>'
       +'<span class="pill p-port">'+arr+' at port</span>'+(aw?'<span class="pill p-await">'+aw+' awaiting</span>':'')+(lot?'<span class="pill p-inlot">'+lot+' in lot</span>':'')+(load?'<span class="pill p-load">'+load+' loaded</span>':'')
       +'<span style="flex:1"></span>'
       +(g.dc?'<span class="eye" data-dcdoc="'+esc(g.dc)+'">'+U(128196)+' DC</span>':'')
