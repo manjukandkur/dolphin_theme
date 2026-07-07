@@ -731,6 +731,7 @@ def lots_view():
     """Every Export Shipment Lot with its consignee/vessel/doc numbers and the
     list of block numbers it holds. Read-only."""
     out = []
+    emap = _export_map()
     for name in frappe.get_all("Export Shipment Lot", pluck="name"):
         try:
             d = frappe.get_doc("Export Shipment Lot", name)
@@ -744,7 +745,8 @@ def lots_view():
             for r in rows:
                 bn = r.get("block_no") or r.get("block") or r.get("quarry_block")
                 if bn:
-                    picked.append(str(bn).strip())
+                    _k = str(bn).strip()
+                    picked.append(emap.get(_k, _k))
             if picked:
                 block_nos = picked
                 break
@@ -1527,3 +1529,20 @@ def export_doc_blocks_xls(doctype=None, name=None):
     frappe.response["filename"] = str(name) + ".xlsx"
     frappe.response["filecontent"] = buf.getvalue()
     frappe.response["type"] = "download"
+
+
+
+def _export_map():
+    """quarry block_number -> export_block_no, for port displays."""
+    m = {}
+    try:
+        for qb in frappe.get_all("Quarry Block",
+                                 fields=["block_number", "export_block_no"],
+                                 limit_page_length=0):
+            k = str(qb.block_number or "").strip()
+            v = str(qb.export_block_no or "").strip()
+            if k and v:
+                m[k] = v
+    except Exception:
+        pass
+    return m
