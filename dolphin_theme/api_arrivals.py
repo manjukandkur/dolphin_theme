@@ -1422,3 +1422,107 @@ def arrival_xls_grid(arrival=None, max_rows=120):
         "file": src,
         "counts": {"parsed": tags.count("parsed"), "skipped": tags.count("skip")},
     }
+
+
+
+@frappe.whitelist()
+def sync_arrivals_email():
+    """Manually pull incoming email accounts on demand (Check new mail)."""
+    n = 0
+    try:
+        for ea in frappe.get_all("Email Account", filters={"enable_incoming": 1}, pluck="name"):
+            try:
+                frappe.get_doc("Email Account", ea).receive()
+                n += 1
+            except Exception:
+                frappe.log_error(frappe.get_traceback(), "sync_arrivals_email")
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), "sync_arrivals_email")
+    return {"accounts": n}
+
+
+@frappe.whitelist()
+def reparse_arrival(arrival=None):
+    """Re-run the parser on an arrival's stored .xls and refresh its blocks in place."""
+    if not arrival:
+        return {"error": "No arrival."}
+    pa = frappe.get_doc("Port Arrival", arrival)
+    src = getattr(pa, "source_file", None) or ""
+    if not src:
+        return {"error": "No source file on this arrival."}
+    content = _arrival_file_bytes(src)
+    if content is None:
+        return {"error": "Source file not found."}
+    rows, sheet = _parse_arrival_xls(content)
+    existing = {}
+    for b in pa.blocks:
+        existing[str(b.block_no)] = b.name
+    updated, new = 0, 0
+    fields = ("mark", "cbm", "weight", "length", "width", "height",
+              "vehicle_no", "yard_location", "line_no", "ado_no", "permit_no")
+    for row in rows:
+        bno = str(row.get("block_no") or "").strip()
+        if not bno:
+            continue
+        if bno in existing:
+            vals = {}
+            for f in fields:
+                v = row.get(f)
+                if v is not None:
+                    vals[f] = v
+            if vals:
+                frappe.db.set_value("Port Arrival Block", existing[bno], vals, update_modified=False)
+            updated += 1
+        else:
+            new += 1
+    frappe.db.commit()
+    return {"updated": updated, "new": new, "total": len(rows), "sheet": sheet}
+
+
+@frappe.whitelist()
+def export_arrival_xls(arrival=None):
+    """Download a Port Arrival's blocks as an .xlsx."""
+    if not arrival:
+        frappe.throw("No arrival.")
+    import openpyxl, io
+    pa = frappe.get_doc("Port Arrival", arrival)
+    wb = openpyxl.Workbook(); ws = wb.active; ws.title = "Blocks"
+    cols = ["block_no", "length", "width", "height", "cbm", "weight", "mark", "matched_dc", "recon_status"]
+    ws.append([c.upper() for c in cols])
+    for b in pa.blocks:
+        ws.append([b.get(c) for c in cols])
+    buf = io.BytesIO(); wb.save(buf)
+    frappe.response["filename"] = (arrival or "arrival") + ".xlsx"
+    frappe.response["filecontent"] = buf.getvalue()
+    frappe.response["type"] = "download"
+
+
+@frappe.whitelist()
+def export_doc_blocks_xls(doctype=None, name=None):
+    """Download a document's block/row child table as .xlsx (QI/BI/DC)."""
+    if not doctype or not name:
+        frappe.throw("doctype and name required.")
+    import openpyxl, io
+    doc = frappe.get_doc(doctype, name)
+    meta = frappe.get_meta(doctype)
+    tf = None
+    for df in meta.get_table_fields():
+        fn = (df.fieldname or "").lower()
+        if "block" in fn or "row" in fn:
+            tf = df.fieldname
+            break
+    if not tf and meta.get_table_fields():
+        tf = meta.get_table_fields()[0].fieldname
+    rows = doc.get(tf) if tf else []
+    wb = openpyxl.Workbook(); ws = wb.active; ws.title = doctype[:31]
+    if rows:
+        cmeta = frappe.get_meta(rows[0].doctype)
+        cols = [f.fieldname for f in cmeta.fields
+                if f.fieldtype not in ("Section Break", "Column Break", "HTML", "Button")][:20]
+        ws.append([c.upper() for c in cols])
+        for r in rows:
+            ws.append([r.get(c) for c in cols])
+    buf = io.BytesIO(); wb.save(buf)
+    frappe.response["filename"] = str(name) + ".xlsx"
+    frappe.response["filecontent"] = buf.getvalue()
+    frappe.response["type"] = "download"
