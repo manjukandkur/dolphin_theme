@@ -262,7 +262,7 @@ frappe.provide("dolphin");
     { title: "Dispatch & Port", items: [
       ["Delivery Challan", "Delivery Challan"],
       ["Port Arrival", "Port Arrival", ROLE_ARRIVALS, null, "anchor"],
-      ["Port & Stock", "/port-reconciliation", ROLE_ARRIVALS, "url", "stack"],
+      ["Port & Stock", "/app/dolphin-port", ROLE_ARRIVALS, "url", "stack"],
       ["Export Shipment Lot", "Export Shipment Lot", ROLE_ARRIVALS, null, "ship"] ] },
     { title: "Shipping", roles: ROLE_SHIPPING, shaded: true, items: [
       ["Shipping Document", "Shipping Document", ROLE_SHIPPING, null, "ship"] ] },
@@ -1036,9 +1036,10 @@ frappe.provide("dolphin");
     if(!name){return false;}
     var base='/printview?doctype='+encodeURIComponent(dt)+'&name='+encodeURIComponent(name)+'&format='+encodeURIComponent(fmt||'Standard')+'&trigger_print=0&no_letterhead=0';
     var dl='/api/method/frappe.utils.print_format.download_pdf?doctype='+encodeURIComponent(dt)+'&name='+encodeURIComponent(name)+'&format='+encodeURIComponent(fmt||'Standard')+'&no_letterhead=0';
+    var xls='/api/method/dolphin_theme.api_arrivals.export_doc_blocks_xls?doctype='+encodeURIComponent(dt)+'&name='+encodeURIComponent(name);
     if(window.frappe&&frappe.ui&&frappe.ui.Dialog){
       var d=new frappe.ui.Dialog({title:dt+' \u00b7 '+name,size:'large'});
-      d.$body.html('<iframe src="'+base+'" style="width:100%;height:66vh;border:0;background:#fff;border-radius:6px"></iframe><div style="margin-top:8px;text-align:right"><a class="btn btn-default btn-sm" href="'+dl+'" target="_blank">Download PDF</a> <a class="btn btn-default btn-sm" href="'+base+'" target="_blank">Open in new tab</a></div>');
+      d.$body.html('<iframe src="'+base+'" style="width:100%;height:66vh;border:0;background:#fff;border-radius:6px"></iframe><div style="margin-top:8px;text-align:right"><a class="btn btn-default btn-sm" href="'+dl+'" target="_blank">Download PDF</a> <a class="btn btn-default btn-sm" href="'+xls+'" target="_blank">Download XLS</a> <a class="btn btn-default btn-sm" href="'+base+'" target="_blank">Open in new tab</a></div>');
       d.show();
     } else { window.open(base,'_blank'); }
     return false;
