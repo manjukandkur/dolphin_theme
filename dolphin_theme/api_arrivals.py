@@ -1030,10 +1030,12 @@ def resolve_block(arrival=None, block_no=None, action="accept", dc=None, length=
     elif action == "link_dc" and dc:
         updates["matched_dc"] = dc
         updates["recon_status"] = "Resolved"
+    elif action == "unresolve":
+        updates["recon_status"] = ""
     else:
         updates["recon_status"] = "Resolved"
 
-    if action == "modify":
+    if action in ("modify", "unresolve"):
         for _f, _v in (("length", length), ("width", width), ("height", height), ("cbm", cbm), ("weight", weight)):
             if _v not in (None, ""):
                 updates[_f] = flt(_v)
