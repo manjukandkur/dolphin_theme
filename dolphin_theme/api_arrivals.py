@@ -1138,6 +1138,12 @@ def add_blocks_to_lot(lot=None, rows=None):
             ch.source_dc = r.get("matched_dc") or ""
         if ch.meta.has_field("source_arrival"):
             ch.source_arrival = r.get("arrival") or ""
+        if ch.meta.has_field("export_block_no"):
+            ex = _s(r.get("export_block_no"))
+            if not ex:
+                ex = _s(frappe.db.get_value(
+                    "Quarry Block", {"block_number": bn}, "export_block_no"))
+            ch.export_block_no = ex
         existing.add(bn)
         added += 1
         tc += flt(r.get("cbm"))
