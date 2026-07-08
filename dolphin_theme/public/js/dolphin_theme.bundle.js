@@ -1091,3 +1091,49 @@ function diTraceTopbarBoot(){try{if(typeof inject==='function'){inject();}}catch
 try{if(window.frappe&&frappe.router&&frappe.router.on){frappe.router.on('change',function(){setTimeout(diTraceTopbarBoot,250);setTimeout(diTraceTopbarBoot,850);});}}catch(e){}
 setTimeout(diTraceTopbarBoot,1200);setTimeout(diTraceTopbarBoot,2600);
 })();
+
+/* ===== Dolphin: Import XLS into an Export Shipment Lot (adds matching At-Port blocks) ===== */
+frappe.ui.form.on('Export Shipment Lot', {
+  refresh: function (frm) {
+    frm.add_custom_button('Import XLS', function () { dolphinImportLotXls(frm); });
+  }
+});
+function dolphinImportLotXls(frm) {
+  if (frm.is_new() || frm.is_dirty()) {
+    frm.save().then(function () { dolphinLotUpload(frm); }, function () {
+      frappe.msgprint('Fill Shipment Date, then click Import XLS again â the lot saves automatically.');
+    });
+    return;
+  }
+  dolphinLotUpload(frm);
+}
+function dolphinLotUpload(frm) {
+  new frappe.ui.FileUploader({
+    dialog_title: 'Import blocks from XLS â ' + frm.doc.name,
+    allow_multiple: false,
+    doctype: frm.doc.doctype,
+    docname: frm.doc.name,
+    restrictions: { allowed_file_types: ['.xls', '.xlsx'] },
+    on_success: function (file) {
+      var url = file && (file.file_url || (file.doc && file.doc.file_url));
+      if (!url) { frappe.msgprint('Upload failed â no file URL.'); return; }
+      frappe.call({
+        method: 'dolphin_theme.api_arrivals.import_lot_blocks_xls',
+        args: { lot: frm.doc.name, file_url: url },
+        freeze: true, freeze_message: 'Matching blocks from sheetâ¦',
+        callback: function (r) {
+          var m = (r && r.message) || {};
+          var msg = '<b>' + (m.added || 0) + '</b> block(s) added to the lot.';
+          if (m.not_found && m.not_found.length) {
+            msg += '<br><span style="color:#a1451f">' + m.not_found.length +
+              ' number(s) not added (not At-Port or unknown): ' +
+              frappe.utils.escape_html(m.not_found.join(', ')) + '</span>';
+          }
+          if (m.message) { msg += '<br>' + frappe.utils.escape_html(m.message); }
+          frappe.msgprint({ title: 'Import XLS', message: msg, indicator: (m.added ? 'green' : 'orange') });
+          frm.reload_doc();
+        }
+      });
+    }
+  });
+}
