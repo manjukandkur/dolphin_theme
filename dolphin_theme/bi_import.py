@@ -35,6 +35,13 @@ def resolve_bi(doc, method=None):
 					if not row.get("block_number_input"):
 						row.block_number_input = num
 			if row.get("block"):
+				# Carry the export number forward from the Quarry Block so Buyer
+				# Inspection holds it too (effective once the BI block row has an
+				# export_block_no field; harmless otherwise).
+				if not row.get("export_block_no"):
+					_ex = frappe.db.get_value("Quarry Block", row.block, "export_block_no")
+					if _ex:
+						row.export_block_no = _ex
 				b = frappe.db.get_value(
 					"Quarry Block",
 					row.block,

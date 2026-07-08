@@ -1681,3 +1681,79 @@ def _export_map():
     except Exception:
         pass
     return m
+
+
+@frappe.whitelist()
+def create_shipping_from_lot(lot=None):
+    """Create a draft Shipping Document from an Export Shipment Lot and link it
+    back to the lot. Reuses an already-linked Shipping Document if present.
+    Header (consignee/vessel/BL/date) is carried from the lot; block rows and
+    totals are copied from the lot's block table (export_block_no included)."""
+    if not lot:
+        frappe.throw("No lot given.")
+    d = frappe.get_doc("Export Shipment Lot", lot)
+    tf = _lot_table_field(d)
+    rows = d.get(tf) or []
+    if not rows:
+        frappe.throw("This lot has no blocks to ship.")
+
+    existing = d.get("shipping_document")
+    if existing and frappe.db.exists("Shipping Document", existing):
+        return {"shipping_document": existing, "lot": d.name,
+                "blocks": len(rows), "reused": True}
+
+    sd = frappe.new_doc("Shipping Document")
+    sd.shipment_date = _s(d.get("shipment_date")) or frappe.utils.today()
+    if sd.meta.has_field("source_lot"):
+        sd.source_lot = d.name
+    mark = d.get("export_consignee") or d.get("shipping_mark") or ""
+    for fld, val in (("shipping_mark", mark), ("marks_nos", mark),
+                     ("export_consignee", d.get("export_consignee")),
+                     ("voyage_no", d.get("vessel")), ("bl_no", d.get("bl_no")),
+                     ("goods_description", "Granite - Roughly Trimmed Blocks"),
+                     ("currency", "USD"), ("tax_treatment", "Export under LUT (No GST)"),
+                     ("rate_basis", "Per Kg"), ("country_of_origin", "INDIA"),
+                     ("pre_carriage_by", "ROAD"), ("terms_of_delivery", "F.O.B.")):
+        if val and sd.meta.has_field(fld):
+            sd.set(fld, val)
+
+    total_cbm = 0.0
+    total_mt = 0.0
+    for r in rows:
+        row = sd.append("blocks", {})
+        if row.meta.has_field("block"):
+            row.block = r.get("block")
+        if row.meta.has_field("block_no"):
+            row.block_no = r.get("block_no") or r.get("block")
+        if row.meta.has_field("export_block_no"):
+            row.export_block_no = r.get("export_block_no")
+        for fld in ("length", "width", "height"):
+            if row.meta.has_field(fld):
+                row.set(fld, cint(r.get(fld)))
+        vol = flt(r.get("cbm"))
+        mt = flt(r.get("net_tonnage"))
+        if row.meta.has_field("net_volume"):
+            row.net_volume = vol
+        if row.meta.has_field("net_tonnage"):
+            row.net_tonnage = mt
+        if row.meta.has_field("net_kgs"):
+            row.net_kgs = cint(r.get("net_kgs") or round(mt * 1000))
+        total_cbm += vol
+        total_mt += mt
+
+    if sd.meta.has_field("block_count"):
+        sd.block_count = len(rows)
+    if sd.meta.has_field("total_cbm"):
+        sd.total_cbm = round(total_cbm, 2)
+    if sd.meta.has_field("total_net_tonnage"):
+        sd.total_net_tonnage = round(total_mt, 3)
+    if sd.meta.has_field("total_net_kgs"):
+        sd.total_net_kgs = cint(round(total_mt * 1000))
+    sd.flags.ignore_mandatory = True
+    sd.insert(ignore_permissions=True)
+
+    if d.meta.has_field("shipping_document"):
+        d.shipping_document = sd.name
+        d.save(ignore_permissions=True)
+    frappe.db.commit()
+    return {"shipping_document": sd.name, "lot": d.name, "blocks": len(rows)}
