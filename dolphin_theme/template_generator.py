@@ -477,3 +477,66 @@ def buyer_inspection_template():
 		],
 	)
 	_send(wb, "Dolphin_BuyerInspection_Template.xlsx")
+
+
+@frappe.whitelist()
+def export_shipment_lot_template():
+	"""Live 'Import XLS' template for Export Shipment Lot.
+
+	A single 'Export Block No' column with a dropdown of the EXPORT numbers
+	that are currently At Port and not yet in any lot (refreshed from masters
+	on every download). Import matches EXPORT numbers ONLY -- quarry block
+	numbers are not accepted."""
+	try:
+		from dolphin_theme.api_arrivals import at_port_available
+		avail = at_port_available(None)
+	except Exception:
+		avail = []
+	rows = []
+	for b in avail:
+		ex = str(b.get("export_block_no") or "").strip()
+		if ex:
+			dims = "x".join([str(b.get(k) or "") for k in ("length", "width", "height")])
+			rows.append((ex, dims, b.get("cbm")))
+	rows.sort(key=lambda r: r[0])
+	export_nos = [r[0] for r in rows]
+
+	wb = Workbook()
+	ws = wb.active
+	ws.title = "Import Blocks"
+	_write_headers(ws, ["Export Block No", "Notes (optional - ignored)"])
+	ws.column_dimensions["A"].width = 22
+	ws.column_dimensions["B"].width = 46
+
+	ws_lists = wb.create_sheet("Lists")
+	ws_lists.sheet_state = "hidden"
+	if export_nos:
+		dv = _list_dv(ws_lists, 1, "Export Block No", export_nos)
+		_apply(ws, dv, "A")
+
+	ref = wb.create_sheet("AtPort (ref)")
+	ref.append(["Export Block No", "Size (LxWxH)", "CBM"])
+	for r in rows:
+		ref.append([r[0], r[1], r[2]])
+	for c in range(1, 4):
+		ref.cell(row=1, column=c).fill = HEADER_FILL
+		ref.cell(row=1, column=c).font = HEADER_FONT
+	ref.column_dimensions["A"].width = 20
+	ref.column_dimensions["B"].width = 20
+	ref.column_dimensions["C"].width = 10
+
+	_readme(wb, "Export Shipment Lot - Import XLS template", [
+		"1. Put EXPORT block numbers in the 'Export Block No' column (one per row).",
+		"   Only EXPORT numbers are matched - quarry block numbers are NOT accepted.",
+		"   Pick from the dropdown (current At-Port blocks) or type the number.",
+		"2. The 'Notes' column is only for your reference and is ignored on import.",
+		"3. On the Export Shipment Lot form click 'Import XLS' and upload this file.",
+		"",
+		"The system matches each export number to a block that is At Port and not",
+		"already in a lot, then fills dimensions / CBM / net tonnage / source DC",
+		"automatically. Numbers that are not At Port (or unknown) are listed back.",
+		"",
+		"Generated LIVE - the dropdown reflects the " + str(len(export_nos)) +
+		" export block(s) currently available At Port.",
+	])
+	_send(wb, "Export_Shipment_Lot_Import_Template.xlsx")
