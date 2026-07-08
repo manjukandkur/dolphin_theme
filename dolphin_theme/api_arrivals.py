@@ -1474,10 +1474,11 @@ def _arrival_file_bytes(url):
 
 
 @frappe.whitelist()
-def arrival_xls_grid(arrival=None, max_rows=120):
-    """Raw source .xls sheet as a grid of cells with per-row tags
-    (parsed / skip / head / pre) so the carrier sheet can be viewed inline
-    next to the parsed blocks."""
+def arrival_xls_grid(arrival=None, max_rows=5000):
+    """Raw source sheet as the carrier sent it -- full grid of cell values PLUS
+    each cell's original fill colour (when the .xls carries formatting), so the
+    inline viewer looks like the shipping-agency file. Per-row parse tags are
+    still returned for the parsed/skipped legend."""
     if not arrival:
         return {}
     pa = frappe.get_doc("Port Arrival", arrival)
@@ -1491,9 +1492,32 @@ def arrival_xls_grid(arrival=None, max_rows=120):
         import xlrd
     except Exception:
         return {"error": "xlrd not installed on this bench."}
-    wb = xlrd.open_workbook(file_contents=content)
+    fmt = True
+    try:
+        wb = xlrd.open_workbook(file_contents=content, formatting_info=True)
+    except Exception:
+        fmt = False
+        try:
+            wb = xlrd.open_workbook(file_contents=content)
+        except Exception as e:
+            return {"error": "Could not read sheet: " + str(e)}
+
+    def _bg(sh, r, c):
+        if not fmt:
+            return ""
+        try:
+            xf = wb.xf_list[sh.cell_xf_index(r, c)]
+            if xf.background.fill_pattern != 1:
+                return ""
+            rgb = wb.colour_map.get(xf.background.pattern_colour_index)
+            if not rgb:
+                return ""
+            return "#%02x%02x%02x" % rgb
+        except Exception:
+            return ""
+
     single = wb.nsheets == 1
-    grid, tags, used, hr = [], [], None, None
+    grid, tags, colors, used, hr = [], [], [], None, None
     for sh in wb.sheets():
         if not _xls_is_dolphin_sheet(sh, single):
             continue
@@ -1504,6 +1528,7 @@ def arrival_xls_grid(arrival=None, max_rows=120):
         for r in range(n):
             row = [_xls_s(sh.cell_value(r, c)) for c in range(sh.ncols)]
             grid.append(row)
+            colors.append([_bg(sh, r, c) for c in range(sh.ncols)])
             if hr is None or r == hr:
                 tag = "head"
             elif r < hr:
@@ -1523,6 +1548,8 @@ def arrival_xls_grid(arrival=None, max_rows=120):
         "sheet": used,
         "grid": grid,
         "tags": tags,
+        "colors": colors,
+        "has_colors": fmt,
         "header_row": hr,
         "file": src,
         "counts": {"parsed": tags.count("parsed"), "skipped": tags.count("skip")},
