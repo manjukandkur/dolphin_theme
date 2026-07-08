@@ -1,0 +1,147 @@
+{% raw %}
+<style>
+#bh{font-family:inherit;max-width:1520px;margin:0 auto;padding:8px 12px;color:#1f2a3a;zoom:1.12}
+#bh .hd{background:#16304F;color:#fff;border-radius:12px 12px 0 0;padding:12px 18px;display:flex;align-items:center;gap:12px;border-bottom:2px solid #2490ef}
+#bh .hd .di{width:26px;height:26px;border-radius:50%;background:#D4A24A;color:#16304F;font-weight:700;display:flex;align-items:center;justify-content:center;font-size:12px}
+#bh .hd h1{font-size:18px;margin:0;font-weight:600;flex:1}
+#bh .chip{font-size:11px;padding:3px 11px;border-radius:12px;background:#2490ef;color:#fff}
+#bh .rb{font-size:12px;padding:5px 11px;border-radius:8px;background:#fff;border:1px solid #cfd4dc;color:#1f2a3a;cursor:pointer}
+#bh .tabs{display:flex;gap:2px;background:#24507E;padding:0 10px;overflow-x:auto}
+#bh .tab{padding:10px 11px;color:#cdd8e8;font-size:12px;cursor:pointer;border-bottom:3px solid transparent;white-space:nowrap}
+#bh .tab.on{color:#fff;font-weight:600;border-bottom-color:#D4A24A}
+#bh .tab b{color:#D4A24A}
+#bh .ctx{background:#e6f1fb;padding:0}
+#bh .flt{background:#f7fbff;padding:9px 14px;border-bottom:.5px solid #d6e6f5;display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:12px}
+#bh select,#bh input{font-size:12px;padding:3px 6px;border:.5px solid #b5d4f4;border-radius:6px}
+#bh input.n{width:44px;text-align:center;padding:3px 4px}
+#bh .pane{border:.5px solid #d6e6f5;border-top:none;background:#fff;min-height:340px;position:relative}
+#bh .tcards{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;padding:12px 14px}
+#bh .tcard{background:#e6f1fb;border-radius:9px;padding:10px}
+#bh .tcard .v{font-size:21px;font-weight:700;color:#0c447c;line-height:1.1}
+#bh .tcard .l{font-size:10px;color:#5f6b7a;margin-top:2px}
+#bh table.gs{width:100%;border-collapse:collapse;font-size:12px}
+#bh table.gs th{background:#e6f1fb;color:#0c447c;font-size:10px;text-transform:uppercase;padding:6px 12px;text-align:right}
+#bh table.gs th:first-child{text-align:left}
+#bh table.gs td{padding:6px 12px;text-align:right;border-top:.5px solid #eef2f6}
+#bh table.gs td:first-child{text-align:left;font-weight:600}
+#bh .cell{cursor:pointer;color:#185fa5}#bh .cell:hover{background:#e6f1fb}
+#bh .brow{display:flex;align-items:center;padding:7px 14px;border-bottom:.5px solid #eef2f6;font-size:12.5px}
+#bh .brow:hover{background:#f4f9ff}
+#bh .mini{font-size:11px;border:1px solid #85b7eb;color:#185fa5;border-radius:9px;padding:2px 9px;cursor:pointer}
+#bh .sheet{display:none;position:absolute;inset:0;background:rgba(15,36,68,.5);z-index:30}
+#bh .sheet .box{position:absolute;top:0;right:0;bottom:0;width:56%;min-width:360px;background:#fff;box-shadow:-8px 0 24px rgba(0,0,0,.22);overflow:auto;padding:15px 18px}
+#bh .stt{padding:7px 14px;cursor:pointer;font-size:12px;color:#5f6b7a;border-bottom:2px solid transparent}
+#bh .stt.on{color:#0c447c;font-weight:600;border-bottom-color:#2490ef}
+#bh .note{border-left:3px solid #2490ef;background:#f4f9ff;border-radius:0 6px 6px 0;padding:6px 9px;margin-bottom:6px}
+#bh .muted{color:#8a929c}
+</style>
+<div id="bh">
+  <div class="hd"><div class="di">DI</div><h1>Blocks &mdash; live stock position</h1><span class="chip" id="bh-asof">&mdash;</span><span class="rb" id="bh-reload">&#8635; Reload</span></div>
+  <div class="tabs" id="bh-tabs"></div>
+  <div class="ctx" id="bh-ctx"></div>
+  <div class="flt">
+    <span style="color:#0c447c;font-weight:600">&#9776; Filters</span>
+    <span>Grade <select id="bh-grade"><option value="">all</option></select></span>
+    <span>Produced <input type="date" id="bh-from"> &rarr; <input type="date" id="bh-to"></span>
+    <span>Size <select id="bh-mode"><option value="ge">&ge;</option><option value="lt">smaller</option></select> <input class="n" id="bh-L" value="180">&times;<input class="n" id="bh-W" value="100">&times;<input class="n" id="bh-H" value="60"></span>
+    <span>&#128269; <input id="bh-q" placeholder="block / export" style="width:130px"></span>
+    <span class="muted" style="margin-left:auto;font-style:italic">applies to all tabs</span>
+  </div>
+  <div class="pane" id="bh-pane"><div style="padding:40px;text-align:center;color:#8a929c">Loading blocks&hellip;</div><div class="sheet" id="bh-sheet"></div></div>
+</div>
+<script>
+var TOKEN=null,DATA=[],ST={tab:'all',ctx:'',drill:null};
+function $(id){return document.getElementById(id);}
+function esc(s){return (s==null?'':(''+s)).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+function f(n,d){d=d==null?2:d;n=+n||0;return (Math.round(n*Math.pow(10,d))/Math.pow(10,d)).toFixed(d);}
+function dm(s){return s?(''+s).slice(0,10).split('-').reverse().join('-'):'';}
+function post(m,a){return fetch('/api/method/'+m,{method:'POST',credentials:'include',headers:{'Content-Type':'application/json','X-Frappe-CSRF-Token':TOKEN},body:JSON.stringify(a)}).then(function(r){return r.json();});}
+var GF={};
+var STAGES=[['all','All','&#9707;'],['instock','In stock','&#128230;'],['bi','Buyer marked','&#128100;'],['dc','In DC','&#128196;'],['port','At port','&#9875;'],['shipped','Shipped','&#128674;'],['dup','Duplicates','&#128203;']];
+function thr(){return {L:+$('bh-L').value||0,W:+$('bh-W').value||0,H:+$('bh-H').value||0,mode:$('bh-mode').value};}
+function big(b,t){return b.L>=t.L&&b.W>=t.W&&b.H>=t.H;}
+function dupCount(){var c={};DATA.forEach(function(b){if(b.block)c[b.block]=(c[b.block]||0)+1;});return c;}
+function uniq(a){var o=[];a.forEach(function(x){if(x&&o.indexOf(x)<0)o.push(x);});return o.sort();}
+function base(){var q=($('bh-q').value||'').toLowerCase(),from=$('bh-from').value,to=$('bh-to').value,g=$('bh-grade').value,dc=dupCount();
+  return DATA.filter(function(b){
+    if(ST.tab==='dup'){if(dc[b.block]<2)return false;}else if(ST.tab!=='all'&&b.stage!==ST.tab)return false;
+    if(ST.tab==='bi'&&ST.ctx&&b.bi!==ST.ctx)return false;
+    if(ST.tab==='dc'&&ST.ctx&&b.dc!==ST.ctx)return false;
+    if(g&&b.grade!==g)return false;
+    if(from&&b.produced&&b.produced<from)return false; if(to&&b.produced&&b.produced>to)return false;
+    if(q&&(b.block+' '+b.exp).toLowerCase().indexOf(q)<0)return false; return true;});}
+function sums(a){var c=0,m=0,n=0;a.forEach(function(b){c+=+b.cbm||0;m+=+b.mt||0;n+=+b.net||0;});return {n:a.length,cbm:c,mt:m,net:n};}
+function totBar(s){return [[s.n,'Blocks'],[f(s.cbm),'&Sigma; Gross volume CBM'],[f(s.mt),'&Sigma; Gross tonnage MT'],[f(s.net),'&Sigma; Net tonnage MT']].map(function(c){return '<div class="tcard"><div class="v">'+c[0]+'</div><div class="l">'+c[1]+'</div></div>';}).join('');}
+function tabs(){var dc=dupCount();var nd=Object.keys(dc).filter(function(k){return dc[k]>1;}).length;
+  $('bh-tabs').innerHTML=STAGES.map(function(s){var n=s[0]==='all'?DATA.length:(s[0]==='dup'?nd:DATA.filter(function(b){return b.stage===s[0];}).length);
+    return '<span class="tab '+(ST.tab===s[0]?'on':'')+'" data-t="'+s[0]+'">'+s[2]+' '+s[1]+' <b>'+n+'</b></span>';}).join('');
+  Array.prototype.forEach.call($('bh-tabs').children,function(el){el.onclick=function(){ST.tab=el.dataset.t;ST.ctx='';ST.drill=null;render();};});}
+function ctxBar(){var slot=$('bh-ctx');
+  if(ST.tab==='bi'){var bis=uniq(DATA.filter(function(b){return b.stage==='bi';}).map(function(b){return b.bi;}));
+    slot.style.padding='8px 14px';slot.innerHTML='<span style="font-size:11px;color:#0c447c;font-weight:600">&#128100; Buyer Inspection</span> <select id="bh-bi"><option value="">All BIs ('+bis.length+')</option>'+bis.map(function(x){return '<option '+(x===ST.ctx?'selected':'')+'>'+esc(x)+'</option>';}).join('')+'</select>';
+    $('bh-bi').onchange=function(){ST.ctx=this.value;ST.drill=null;render();};}
+  else if(ST.tab==='dc'){var dcs=uniq(DATA.filter(function(b){return b.stage==='dc';}).map(function(b){return b.dc;}));
+    slot.style.padding='8px 14px';slot.innerHTML='<span style="font-size:11px;color:#0c447c;font-weight:600">&#128196; Delivery Challan</span> <select id="bh-dc"><option value="">All DCs ('+dcs.length+')</option>'+dcs.map(function(x){return '<option '+(x===ST.ctx?'selected':'')+'>'+esc(x)+'</option>';}).join('')+'</select>';
+    $('bh-dc').onchange=function(){ST.ctx=this.value;ST.drill=null;render();};}
+  else{slot.style.padding='0';slot.innerHTML='';}}
+function summary(){var bs=base(),t=thr();
+  var gs=uniq(DATA.map(function(b){return b.grade;})).filter(Boolean).map(function(g){var arr=bs.filter(function(b){return b.grade===g;});return {g:g,arr:arr,b1:arr.filter(function(b){return big(b,t);}).length,sm:arr.filter(function(b){return !big(b,t);}).length};});
+  var h='<div class="tcards">'+totBar(sums(bs))+'</div><div style="font-size:11px;color:#0c447c;font-weight:600;padding:0 14px 5px">Grade &times; size &mdash; tap any number to expand</div><div style="padding:0 14px 14px"><table class="gs"><thead><tr><th>Grade</th><th>&ge; '+t.L+'&times;'+t.W+'&times;'+t.H+'</th><th>smaller</th><th>total</th><th>&Sigma; MT</th></tr></thead><tbody>'
+    +gs.map(function(r){return '<tr><td>'+esc(r.g)+'</td><td class="cell" data-g="'+esc(r.g)+'" data-b="ge">'+r.b1+'</td><td class="cell" data-g="'+esc(r.g)+'" data-b="lt">'+r.sm+'</td><td class="cell" data-g="'+esc(r.g)+'" data-b="all">'+r.arr.length+'</td><td>'+f(sums(r.arr).mt)+'</td></tr>';}).join('')
+    +(gs.length?'':'<tr><td colspan="5" class="muted" style="text-align:center;padding:16px">No blocks match the filters.</td></tr>')+'</tbody></table></div>';
+  setPane(h);
+  Array.prototype.forEach.call($('bh-pane').querySelectorAll('.cell'),function(el){el.onclick=function(){ST.drill={g:el.dataset.g,b:el.dataset.b};render();};});}
+function drillList(){var bs=base(),t=thr(),d=ST.drill;var arr=bs.filter(function(b){if(d.g&&b.grade!==d.g)return false;if(d.b==='ge'&&!big(b,t))return false;if(d.b==='lt'&&big(b,t))return false;return true;});
+  var title=(d.g?('Grade '+esc(d.g)):'All')+' &middot; '+(d.b==='ge'?('&ge; '+t.L+'&times;'+t.W+'&times;'+t.H):d.b==='lt'?'smaller':'all sizes')+(ST.ctx?(' &middot; '+esc(ST.ctx)):'');
+  var h='<div style="padding:11px 14px"><div style="display:flex;align-items:center;gap:9px;margin-bottom:9px"><span class="mini" id="bh-back">&larr; Summary</span><span style="font-size:13px;font-weight:600">'+title+'</span></div><div class="tcards" style="padding:0;margin-bottom:10px">'+totBar(sums(arr))+'</div><div style="border:.5px solid #d6e6f5;border-radius:9px;overflow:hidden;max-height:300px;overflow:auto">'
+    +'<div class="brow" style="background:#f6f9fd;color:#0c447c;font-size:10px;text-transform:uppercase"><span style="flex:1">Block</span><span style="width:96px">Size</span><span style="width:52px;text-align:right">MT</span><span style="width:40px"></span></div>'
+    +(arr.length?arr.map(function(b){return '<div class="brow"><div style="flex:1"><b>'+esc(b.exp||b.block)+'</b> <span class="muted" style="font-size:11px">&middot; '+esc(b.block)+' &middot; '+esc(b.grade)+'</span></div><span style="width:96px;font-size:11px">'+b.L+'&times;'+b.W+'&times;'+b.H+'</span><span style="width:52px;text-align:right">'+f(b.mt,1)+'</span><span style="width:40px;text-align:right"><span class="mini" data-eye="'+esc(b.name)+'">&#128065;</span></span></div>';}).join(''):'<div class="brow muted" style="padding:16px;justify-content:center">No blocks.</div>')
+    +'</div></div>';
+  setPane(h);
+  $('bh-back').onclick=function(){ST.drill=null;render();};
+  Array.prototype.forEach.call($('bh-pane').querySelectorAll('[data-eye]'),function(el){el.onclick=function(){openSheet(el.dataset.eye);};});}
+function dupView(){var dc=dupCount();var keys=Object.keys(dc).filter(function(k){return dc[k]>1;});
+  var h='<div style="padding:12px 14px"><div style="font-size:12px;color:#5f6b7a;margin-bottom:10px">'+keys.length+' block number(s) used by more than one record. Review and remove the wrong one.</div>';
+  keys.forEach(function(k){var recs=DATA.filter(function(b){return b.block===k;});
+    h+='<div style="border:.5px solid #cfd4dc;border-radius:10px;overflow:hidden;margin-bottom:10px"><div style="background:#fdf3f3;color:#a32d2d;font-size:12px;font-weight:600;padding:7px 12px;border-bottom:.5px solid #eee">&#9888; Block number '+esc(k)+' &mdash; '+recs.length+' records</div>'
+      +recs.map(function(b){var canDel=!b.dc&&!b.bi;return '<div class="brow"><div style="flex:1">'+esc(b.exp||'&mdash;')+' <span class="muted" style="font-size:11px">&middot; '+esc(b.name)+' &middot; pit '+esc(b.pit)+' &middot; '+b.L+'&times;'+b.W+'&times;'+b.H+' &middot; '+esc(b.status)+'</span></div><span class="mini" data-eye="'+esc(b.name)+'">&#128065; View</span> '+(canDel?'<span class="mini" data-del="'+esc(b.name)+'" style="border-color:#e24b4a;color:#a32d2d">&#128465; Delete</span>':'<span class="muted" style="font-size:10px">in BI/DC</span>')+'</div>';}).join('')+'</div>';});
+  h+='<div class="muted" style="font-size:11px">Deletion is blocked when the block is already in a BI or DC.</div></div>';
+  setPane(h);
+  Array.prototype.forEach.call($('bh-pane').querySelectorAll('[data-eye]'),function(el){el.onclick=function(){openSheet(el.dataset.eye);};});
+  Array.prototype.forEach.call($('bh-pane').querySelectorAll('[data-del]'),function(el){el.onclick=function(){if(!confirm('Delete block '+el.dataset.del+'? This cannot be undone.'))return;post('dolphin_theme.blocks_api.delete_block',{name:el.dataset.del}).then(function(j){if(j.message&&j.message.ok){DATA=DATA.filter(function(b){return b.name!==el.dataset.del;});render();}else{alert((j._server_messages||'Could not delete'));}});};});}
+function setPane(h){var pane=$('bh-pane');var sheet=$('bh-sheet');pane.innerHTML=h;pane.appendChild(sheet);}
+function byName(n){return DATA.filter(function(b){return b.name===n;})[0];}
+function openSheet(name,tab){var b=byName(name);if(!b)return;var sh=$('bh-sheet');sh.style.display='block';tab=tab||'det';
+  sh.innerHTML='<div class="box"><div style="text-align:center;color:#8a929c;padding:30px">Loading&hellip;</div></div>';
+  sh.onclick=function(ev){if(ev.target===sh){sh.style.display='none';}};
+  post('dolphin_theme.blocks_api.block_detail',{name:name}).then(function(j){renderSheet(b,j.message||{},tab);});}
+function renderSheet(b,det,tab){var sh=$('bh-sheet');
+  var head='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><span style="font-size:14px;font-weight:600">'+esc(b.exp||b.block)+' <span class="muted" style="font-size:11px">&middot; '+esc(b.block)+'</span></span><span class="rb" id="bh-x">&#10005;</span></div>'
+    +'<div style="display:flex;gap:2px;border-bottom:.5px solid #d6e6f5;margin-bottom:12px"><span class="stt '+(tab==='det'?'on':'')+'" data-s="det">Details</span><span class="stt '+(tab==='hist'?'on':'')+'" data-s="hist">History</span><span class="stt '+(tab==='note'?'on':'')+'" data-s="note">Notes'+(det.notes&&det.notes.length?(' &middot; '+det.notes.length):'')+'</span><span class="stt '+(tab==='edit'?'on':'')+'" data-s="edit">Edit</span></div>';
+  var body='';
+  if(tab==='det'){var ro=function(l,v){return '<div style="margin-bottom:6px"><span class="muted" style="font-size:11px">'+l+'</span><div style="font-size:13px">'+v+'</div></div>';};
+    body='<div style="display:grid;grid-template-columns:1fr 1fr;gap:2px 14px">'+ro('Produced',dm(det.produced))+ro('Pit',esc(det.pit))+ro('Grade',esc(det.grade))+ro('Size',b.L+'&times;'+b.W+'&times;'+b.H)+ro('CBM',f(det.cbm,3))+ro('Gross MT',f(det.mt))+ro('Reached port',det.portd?dm(det.portd):'&mdash;')+ro('Shipped',det.shipd?dm(det.shipd):'&mdash;')+'</div>';}
+  else if(tab==='hist'){var ev=[['Produced',det.produced,'#3b6d11',''],['Quarry Inspection',det.qid,'#1d9e75',det.qi],['Buyer Inspection',det.bid,'#185fa5',det.bi],['Delivery Challan',det.dcd,'#7f77dd',det.dc],['Reached port',det.portd,'#3c3489',det.portd?'Arrival':''],['Shipped',det.shipd,'#0f6e56',det.shipd?'Lot':'']];
+    body='<div style="position:relative;padding-left:20px">'+ev.map(function(e,i){var done=!!e[1];return '<div style="position:relative;margin-bottom:'+(i<ev.length-1?'14px':'0')+'">'+(i<ev.length-1?'<div style="position:absolute;left:-14px;top:14px;bottom:-14px;width:2px;background:#e0e6ee"></div>':'')+'<div style="position:absolute;left:-19px;top:2px;width:12px;height:12px;border-radius:50%;background:'+(done?e[2]:'#cfd4dc')+'"></div><div style="display:flex;align-items:center;gap:8px"><span style="font-size:12px;font-weight:600;color:'+(done?'#1f2a3a':'#8a929c')+'">'+e[0]+'</span>'+(e[3]?'<span class="mini" data-doc="'+esc(e[3])+'" style="border-color:'+e[2]+';color:'+e[2]+'">&#128065; '+esc(e[3])+'</span>':'')+'</div><div class="muted" style="font-size:11px">'+(done?dm(e[1]):'not yet')+'</div></div>';}).join('')+'</div>';}
+  else if(tab==='note'){body='<div style="max-height:180px;overflow:auto;margin-bottom:10px">'+((det.notes&&det.notes.length)?det.notes.map(function(n){return '<div class="note"><div style="font-size:12px">'+esc(n.t)+'</div><div class="muted" style="font-size:10px">added '+dm(n.d)+'</div></div>';}).join(''):'<div class="muted" style="font-size:12px;padding:6px 0">No notes yet.</div>')+'</div><textarea id="bh-note" placeholder="Add a note&hellip;" style="width:100%;height:54px"></textarea><button class="rb" id="bh-addnote" style="margin-top:6px;background:#2490ef;color:#fff;border:none">Add note</button>';}
+  else{var inStock=det.status==='In Stock';
+    body=(inStock?'':'<div style="background:#fdf3f3;color:#a32d2d;font-size:11px;padding:7px 9px;border-radius:7px;margin-bottom:10px">Block is &lsquo;'+esc(det.status)+'&rsquo;. Saving edits will change downstream figures &mdash; tick confirm.</div>')
+      +'<div style="margin-bottom:9px"><div class="muted" style="font-size:11px;margin-bottom:3px">Grade</div><input id="e-grade" value="'+esc(det.grade)+'" style="width:100%"></div>'
+      +'<div style="margin-bottom:9px"><div class="muted" style="font-size:11px;margin-bottom:3px">Size L &times; W &times; H</div><div style="display:flex;gap:6px"><input id="e-L" value="'+b.L+'" style="flex:1"><input id="e-W" value="'+b.W+'" style="flex:1"><input id="e-H" value="'+b.H+'" style="flex:1"></div></div>'
+      +(inStock?'':'<label style="font-size:11px;display:block;margin-bottom:9px"><input type="checkbox" id="e-force" style="width:auto"> Yes, update downstream figures</label>')
+      +'<button class="rb" id="bh-save" style="background:#D4A24A;color:#4a3208;border:none;font-weight:600">Save</button>';}
+  sh.innerHTML='<div class="box">'+head+body+'</div>';
+  $('bh-x').onclick=function(){sh.style.display='none';};
+  sh.onclick=function(ev){if(ev.target===sh){sh.style.display='none';}};
+  Array.prototype.forEach.call(sh.querySelectorAll('.stt'),function(el){el.onclick=function(){renderSheet(b,det,el.dataset.s);};});
+  Array.prototype.forEach.call(sh.querySelectorAll('[data-doc]'),function(el){el.onclick=function(){alert('Opens '+el.dataset.doc+' report (wired to preview).');};});
+  if(tab==='note'){$('bh-addnote').onclick=function(){var v=$('bh-note').value.trim();if(!v)return;post('dolphin_theme.blocks_api.add_block_note',{name:b.name,text:v}).then(function(){openSheet(b.name,'note');});};}
+  if(tab==='edit'){$('bh-save').onclick=function(){var force=$('e-force')?($('e-force').checked?1:0):1;post('dolphin_theme.blocks_api.save_block_fields',{name:b.name,length:$('e-L').value,width:$('e-W').value,height:$('e-H').value,grade:$('e-grade').value,force:force}).then(function(j){if(j.message&&j.message.ok){b.L=+$('e-L').value;b.W=+$('e-W').value;b.H=+$('e-H').value;b.grade=$('e-grade').value;b.cbm=j.message.cbm;b.mt=j.message.mt;sh.style.display='none';render();}else{alert('Could not save. '+(j._server_messages||''));}});};}}
+function render(){tabs();ctxBar();if(ST.tab==='dup')dupView();else if(ST.drill)drillList();else summary();}
+function load(){$('bh-pane').innerHTML='<div style="padding:40px;text-align:center;color:#8a929c">Loading blocks&hellip;</div><div class="sheet" id="bh-sheet"></div>';
+  fetch('/api/method/dolphin_theme.blocks_api.blocks_hub',{credentials:'include'}).then(function(r){return r.json();}).then(function(j){DATA=j.message||[];var gsel=$('bh-grade');var gv=gsel.value;gsel.innerHTML='<option value="">all</option>'+uniq(DATA.map(function(b){return b.grade;})).filter(Boolean).map(function(g){return '<option '+(g===gv?'selected':'')+'>'+esc(g)+'</option>';}).join('');var d=new Date();$('bh-asof').textContent='as of '+('0'+d.getDate()).slice(-2)+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+d.getFullYear();render();}).catch(function(){$('bh-pane').innerHTML='<div style="padding:40px;text-align:center;color:#a32d2d">Could not load blocks (endpoint may still be deploying).</div>';});}
+fetch('/api/method/dolphin_theme.api_arrivals.get_token',{credentials:'include'}).then(function(r){return r.json();}).then(function(j){TOKEN=j.message;});
+['bh-grade','bh-from','bh-to','bh-mode','bh-L','bh-W','bh-H','bh-q'].forEach(function(id){var el=$(id);el.addEventListener('input',function(){ST.drill=null;render();});el.addEventListener('change',function(){ST.drill=null;render();});});
+$('bh-reload').onclick=load;
+load();
+</script>
