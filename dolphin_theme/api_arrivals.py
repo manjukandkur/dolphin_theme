@@ -1811,3 +1811,41 @@ def paste_verify(lot=None, numbers=None):
             "status": status, "in_lot": loc or "", "warnings": warns,
         })
     return out
+
+
+@frappe.whitelist()
+def backfill_bi_export():
+    """One-time backfill: fill export_block_no on Buyer Inspection block rows
+    from the Quarry Block master (matched by the row's block link, then by
+    block number). Uses db.set_value so it works on submitted inspections.
+    Returns before/after counts (idempotent - already-filled rows are skipped)."""
+    rows = frappe.get_all(
+        "Buyer Inspection Block",
+        fields=["name", "block", "block_number_input", "export_block_no"],
+        limit_page_length=0,
+    )
+    total = len(rows)
+    had = 0
+    filled = 0
+    no_key = 0
+    no_match = 0
+    for r in rows:
+        if _s(r.get("export_block_no")):
+            had += 1
+            continue
+        key = r.get("block") or r.get("block_number_input")
+        if not key:
+            no_key += 1
+            continue
+        ex = frappe.db.get_value("Quarry Block", key, "export_block_no")
+        if not ex:
+            ex = frappe.db.get_value("Quarry Block", {"block_number": _s(key)}, "export_block_no")
+        if ex:
+            frappe.db.set_value("Buyer Inspection Block", r.get("name"),
+                                "export_block_no", ex, update_modified=False)
+            filled += 1
+        else:
+            no_match += 1
+    frappe.db.commit()
+    return {"total_rows": total, "had_before": had, "filled_now": filled,
+            "no_block_key": no_key, "no_qb_match": no_match, "has_after": had + filled}
