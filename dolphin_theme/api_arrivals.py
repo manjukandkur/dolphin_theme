@@ -1757,3 +1757,57 @@ def create_shipping_from_lot(lot=None):
         d.save(ignore_permissions=True)
     frappe.db.commit()
     return {"shipping_document": sd.name, "lot": d.name, "blocks": len(rows)}
+
+
+@frappe.whitelist()
+def paste_verify(lot=None, numbers=None):
+    """Verify a pasted list of export/block numbers before adding them to a lot.
+    Matches each against Quarry Block (export number first, then quarry block
+    number), and returns per-row data + non-blocking warnings so the user can
+    confirm / resolve / override."""
+    nums = _json.loads(numbers) if isinstance(numbers, str) else (numbers or [])
+    FIELDS = ["name", "block_number", "export_block_no", "status",
+              "granite_quality_grade", "length_gross", "width_gross",
+              "height_gross", "gross_volume", "buyer_inspection",
+              "source_buyer_inspection", "delivery_challan"]
+    # block -> lot membership map
+    inlot = {}
+    try:
+        for r in frappe.get_all("Shipment Lot Block",
+                fields=["parent", "block_no", "block", "export_block_no"],
+                limit_page_length=0):
+            for k in (r.get("block_no"), r.get("block"), r.get("export_block_no")):
+                if _s(k):
+                    inlot[_s(k)] = r.get("parent")
+    except Exception:
+        pass
+    out = []
+    seen = set()
+    for raw in nums:
+        n = _s(raw)
+        if not n or n in seen:
+            continue
+        seen.add(n)
+        qb = frappe.db.get_value("Quarry Block", {"export_block_no": n}, FIELDS, as_dict=True) \
+            or frappe.db.get_value("Quarry Block", {"block_number": n}, FIELDS, as_dict=True)
+        if not qb:
+            out.append({"input": n, "found": 0, "warnings": ["Not found in Quarry Blocks"]})
+            continue
+        warns = []
+        status = qb.get("status") or ""
+        if "at port" not in status.lower():
+            warns.append("Status is '" + (status or "-") + "' (not At Port)")
+        if not (qb.get("buyer_inspection") or qb.get("source_buyer_inspection")):
+            warns.append("No Buyer Inspection")
+        loc = inlot.get(_s(qb.get("block_number"))) or inlot.get(_s(qb.get("export_block_no")))
+        if loc:
+            warns.append("Already in this lot" if loc == lot else ("Already in lot " + loc))
+        out.append({
+            "input": n, "found": 1, "block": qb.get("name"),
+            "block_no": qb.get("block_number"), "export_no": qb.get("export_block_no"),
+            "grade": qb.get("granite_quality_grade") or "",
+            "L": cint(qb.get("length_gross")), "W": cint(qb.get("width_gross")),
+            "H": cint(qb.get("height_gross")), "cbm": flt(qb.get("gross_volume")),
+            "status": status, "in_lot": loc or "", "warnings": warns,
+        })
+    return out
