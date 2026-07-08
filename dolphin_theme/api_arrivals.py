@@ -1243,10 +1243,10 @@ def import_lot_blocks_xls(lot=None, file_url=None):
     avail = at_port_available(lot)
     by_key = {}
     for b in avail:
-        by_key[_s(b.get("block_no"))] = b
+        # EXPORT numbers only -- quarry block numbers are intentionally NOT matched
         ex = _s(b.get("export_block_no"))
         if ex:
-            by_key.setdefault(ex, b)
+            by_key[ex] = b
     used = set()
     rows = []
     not_found = []
