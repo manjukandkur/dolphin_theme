@@ -1182,6 +1182,107 @@ def mark_lot_shipped(lot=None, vessel=None, ship_date=None, bl_no=None):
     return {"lot": d.name, "status": "Shipped"}
 
 
+def _xls_tokens(content, file_url=""):
+    """Every non-empty cell of an uploaded .xls/.xlsx as a list of string tokens."""
+    toks = []
+    name = (file_url or "").lower()
+
+    def _num(v):
+        try:
+            fv = float(v)
+            if fv == int(fv):
+                return str(int(fv))
+            return str(v)
+        except Exception:
+            return _s(v)
+
+    if not name.endswith(".xlsx"):
+        try:
+            import xlrd
+            wb = xlrd.open_workbook(file_contents=content)
+            for sh in wb.sheets():
+                for r in range(sh.nrows):
+                    for c in range(sh.ncols):
+                        v = sh.cell_value(r, c)
+                        if v is None or v == "":
+                            continue
+                        toks.append(_num(v))
+            return toks
+        except Exception:
+            pass
+    try:
+        import openpyxl, io
+        wb = openpyxl.load_workbook(io.BytesIO(content), read_only=True, data_only=True)
+        for ws in wb.worksheets:
+            for row in ws.iter_rows(values_only=True):
+                for v in row:
+                    if v is None or v == "":
+                        continue
+                    toks.append(_num(v))
+    except Exception:
+        pass
+    return toks
+
+
+@frappe.whitelist()
+def import_lot_blocks_xls(lot=None, file_url=None):
+    """Read block numbers (quarry OR export) from an uploaded .xls/.xlsx and add
+    every matching At-Port block to the given Export Shipment Lot. Uses the same
+    lookup/enrichment as the Add Blocks dialog, so system data stays authoritative."""
+    if not lot:
+        frappe.throw("No lot given.")
+    if not file_url:
+        frappe.throw("No file uploaded.")
+    content = _arrival_file_bytes(file_url)
+    if content is None:
+        frappe.throw("Uploaded file could not be read.")
+    tokens = _xls_tokens(content, file_url)
+    if not tokens:
+        return {"added": 0, "matched": 0, "not_found": [],
+                "message": "No cells could be read from the file."}
+    avail = at_port_available(lot)
+    by_key = {}
+    for b in avail:
+        by_key[_s(b.get("block_no"))] = b
+        ex = _s(b.get("export_block_no"))
+        if ex:
+            by_key.setdefault(ex, b)
+    used = set()
+    rows = []
+    not_found = []
+    seen_tok = set()
+    for tok in tokens:
+        t = _s(tok)
+        if not t or t in seen_tok:
+            continue
+        seen_tok.add(t)
+        b = by_key.get(t)
+        if not b:
+            if any(ch.isdigit() for ch in t):
+                not_found.append(t)
+            continue
+        bn = _s(b.get("block_no"))
+        if bn in used:
+            continue
+        used.add(bn)
+        qb = frappe.db.get_value("Quarry Block", {"block_number": bn},
+            ["name", "delivery_challan", "port_net_wt", "gross_tonnage", "tonnage_factor"],
+            as_dict=True) or {}
+        fac = flt(qb.get("tonnage_factor")) or 2.7
+        mt = flt(qb.get("port_net_wt")) or flt(qb.get("gross_tonnage")) or (flt(b.get("cbm")) * fac)
+        rows.append({
+            "block_no": bn, "quarry_block": qb.get("name"),
+            "length": b.get("length"), "width": b.get("width"), "height": b.get("height"),
+            "cbm": b.get("cbm"), "mt": mt, "matched_dc": qb.get("delivery_challan") or "",
+        })
+    if not rows:
+        return {"added": 0, "matched": 0, "not_found": not_found[:60],
+                "message": "None of the numbers in the file matched an available At-Port block."}
+    res = add_blocks_to_lot(lot, rows)
+    return {"added": (res or {}).get("added", len(rows)),
+            "matched": len(rows), "not_found": not_found[:60]}
+
+
 def _lot_table_field(d):
     for t in d.meta.get_table_fields():
         return t.fieldname
