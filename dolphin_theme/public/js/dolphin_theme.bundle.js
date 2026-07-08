@@ -537,7 +537,8 @@ frappe.provide("dolphin");
   var DI_GENERATOR_TEMPLATES = {
     "Quarry Inspection": "dolphin_theme.template_generator.quarry_inspection_template",
     "Buyer Inspection": "dolphin_theme.template_generator.buyer_inspection_template",
-    "Quarry Block": "dolphin_theme.template_generator.quarry_block_template"
+    "Quarry Block": "dolphin_theme.template_generator.quarry_block_template",
+    "Export Shipment Lot": "dolphin_theme.template_generator.export_shipment_lot_template"
   };
   function diDownloadGenerated(dt) {
     var method = DI_GENERATOR_TEMPLATES[dt];
@@ -1096,6 +1097,7 @@ setTimeout(diTraceTopbarBoot,1200);setTimeout(diTraceTopbarBoot,2600);
 frappe.ui.form.on('Export Shipment Lot', {
   refresh: function (frm) {
     frm.add_custom_button('Import XLS', function () { dolphinImportLotXls(frm); });
+    frm.add_custom_button('Download Template', function () { if (window.diDownloadTemplate) window.diDownloadTemplate('Export Shipment Lot'); });
   }
 });
 function dolphinImportLotXls(frm) {
@@ -1137,3 +1139,18 @@ function dolphinLotUpload(frm) {
     }
   });
 }
+
+/* ===== Dolphin: Export Shipment Lot list -> "Refresh & Download Template" (live export-number template) ===== */
+frappe.listview_settings = frappe.listview_settings || {};
+(function () {
+  var s = frappe.listview_settings['Export Shipment Lot'] = frappe.listview_settings['Export Shipment Lot'] || {};
+  var prev = s.onload;
+  s.onload = function (lv) {
+    if (prev) { try { prev(lv); } catch (e) {} }
+    try {
+      lv.page.add_inner_button('Refresh & Download Template', function () {
+        if (window.diDownloadTemplate) window.diDownloadTemplate('Export Shipment Lot');
+      });
+    } catch (e) {}
+  };
+})();
