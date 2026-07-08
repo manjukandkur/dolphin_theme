@@ -257,6 +257,7 @@ frappe.provide("dolphin");
   }
   var SECTIONS = [
     { title: "Quarry & Inspection", items: [
+      ["Blocks", "/app/dolphin-blocks", null, "url", "stack"],
       ["Quarry Block", "Quarry Block"], ["Quarry Inspection", "Quarry Inspection"],
       ["Buyer Inspection", "Buyer Inspection"] ] },
     { title: "Dispatch & Port", items: [
