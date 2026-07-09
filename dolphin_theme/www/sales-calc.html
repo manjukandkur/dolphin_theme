@@ -5,241 +5,430 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Dolphin — Sales &amp; Calculations</title>
 <style>
-:root{--navy:#0F2540;--gold:#D4A24A;--blue:#2490ef;--ink:#1c2430;--muted:#5f6b7a;--line:#e7ebf1;--bg:#eef1f6;--green:#1D9E75;}
+:root{--navy:#0F2540;--gold:#D4A24A;--blue:#2490ef;--ink:#1c2430;--muted:#5f6b7a;--line:#e7ebf1;--bg:#eef1f6;--green:#1D9E75;--red:#c0392b;}
 *{box-sizing:border-box;}
 body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--ink);font-size:14px;-webkit-font-smoothing:antialiased;}
-.wrap{max-width:1160px;margin:0 auto;padding:18px;}
-.topbar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;background:var(--navy);border-radius:14px;padding:14px 18px;color:#fff;margin-bottom:16px;}
-.topbar .title{font-size:17px;font-weight:600;}
-.lockchip{display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);border-radius:999px;padding:4px 12px;font-size:12px;font-weight:600;color:#dfe8f4;}
-.fx{margin-left:auto;display:inline-flex;align-items:center;gap:12px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);border-radius:12px;padding:8px 12px;}
-.fx .r{font-size:16px;font-weight:700;}
-.fx .sub{font-size:11px;color:#bcd0e6;}
-.fx button{background:var(--gold);color:#3a2a05;border:0;border-radius:8px;padding:6px 12px;font-weight:700;cursor:pointer;font-size:12px;}
-.card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:18px;}
-.hero{border:2px solid var(--gold);box-shadow:0 8px 26px rgba(212,162,74,.14);margin-bottom:16px;}
-.cols{display:grid;grid-template-columns:420px 1fr;gap:16px;align-items:start;}
-@media(max-width:880px){.cols{grid-template-columns:1fr;}}
-.card+.card{margin-top:16px;}
-.ct{font-size:12px;font-weight:800;color:var(--navy);text-transform:uppercase;letter-spacing:.5px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.wrap{max-width:1180px;margin:0 auto;padding:18px;}
+.topbar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;background:var(--navy);border-radius:14px;padding:14px 18px;color:#fff;margin-bottom:14px;}
+.topbar .title{font-size:17px;font-weight:700;}
+.fx{margin-left:auto;display:inline-flex;align-items:center;gap:14px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);border-radius:12px;padding:8px 14px;}
+.fx .sub{font-size:10.5px;color:#bcd0e6;}
+.fx .sep{border-left:1px solid rgba(255,255,255,.22);padding-left:14px;}
+.fx button{background:var(--gold);color:#3a2a05;border:0;border-radius:8px;padding:6px 12px;font-weight:800;cursor:pointer;font-size:11.5px;}
+.card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:18px;margin-bottom:14px;}
+.hero{border:2px solid var(--gold);box-shadow:0 8px 26px rgba(212,162,74,.14);}
+.ct{font-size:12px;font-weight:800;color:var(--navy);text-transform:uppercase;letter-spacing:.5px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;}
 .ct .sub{font-weight:500;text-transform:none;letter-spacing:0;color:var(--muted);font-size:12px;}
-.grp{margin-top:12px;}
-.glab{font-size:11px;font-weight:800;color:var(--navy);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px;}
-.f{display:flex;flex-direction:column;}
-.f label{font-size:10.5px;color:#7a8694;font-weight:700;margin-bottom:4px;display:flex;align-items:center;gap:5px;}
-.gdot{display:inline-block;width:10px;height:10px;border-radius:3px;}
+label.fl{font-size:10.5px;color:#7a8694;font-weight:800;margin-bottom:4px;display:block;text-transform:uppercase;letter-spacing:.3px;}
 input,select{height:36px;border:1px solid #d8dee6;border-radius:9px;padding:0 9px;font-size:13.5px;background:#fff;color:var(--ink);font-family:inherit;}
-.row{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;}
-.chip{padding:6px 13px;border:1px solid #d8dee6;border-radius:999px;background:#fff;color:var(--muted);font-weight:700;font-size:12.5px;cursor:pointer;}
+.hbar{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end;}
+.chip{padding:6px 13px;border:1px solid #d8dee6;border-radius:999px;background:#fff;color:var(--muted);font-weight:700;font-size:12.5px;cursor:pointer;display:inline-block;user-select:none;}
 .chip.on{background:var(--navy);color:#fff;border-color:var(--navy);}
-.lbl{font-size:11px;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:.3px;align-self:center;margin-right:2px;}
-.inopt{display:flex;align-items:center;gap:10px;flex-wrap:wrap;border:1px solid var(--line);border-radius:11px;padding:11px 12px;margin-bottom:8px;cursor:pointer;transition:.12s;}
-.inopt:hover{background:#fafcff;}
-.inopt.on{border-color:var(--gold);background:#fffdf6;box-shadow:0 0 0 2px rgba(212,162,74,.15);}
-.inopt .dot{width:16px;height:16px;border-radius:50%;border:2px solid #cfd6e0;flex:none;}
-.inopt.on .dot{border-color:var(--gold);background:radial-gradient(circle,#D4A24A 40%,#fff 46%);}
-.inopt .nm{font-weight:700;color:var(--navy);font-size:13px;}
-.inopt select{height:32px;}
-.hint{font-size:11.5px;color:var(--muted);}
-.right{position:sticky;top:16px;}
-.terms{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;}
-.realline{margin-top:12px;font-size:13px;color:var(--muted);}
-.realline b{color:var(--navy);}
-.tablewrap{margin-top:10px;border:1px solid var(--line);border-radius:12px;overflow:auto;}
-table.grid{width:100%;border-collapse:collapse;font-size:13px;}
-table.grid th{text-align:right;padding:10px 11px;font-weight:700;color:var(--muted);background:#f5f8fc;border-bottom:1px solid var(--line);white-space:nowrap;font-size:11px;text-transform:uppercase;letter-spacing:.3px;}
+.gdot{display:inline-block;width:10px;height:10px;border-radius:3px;vertical-align:-1px;margin-right:5px;}
+table.grid{width:100%;border-collapse:separate;border-spacing:0;font-size:13px;font-variant-numeric:tabular-nums;}
+table.grid thead th{position:sticky;top:0;z-index:2;text-align:right;padding:11px 13px;font-weight:800;color:#3c4c66;background:#eaf0f8;border-bottom:2px solid #d5deec;white-space:nowrap;font-size:10px;text-transform:uppercase;letter-spacing:.5px;}
 table.grid th:first-child,table.grid td:first-child{text-align:left;}
-table.grid td{padding:9px 11px;border-top:1px solid #eef1f5;text-align:right;}
+table.grid td{padding:10px 13px;border-top:1px solid #d9e2ee;text-align:right;color:#2a3446;}
+table.grid tbody tr:nth-child(even):not(.base) td{background:#fafbfd;}
+table.grid tbody tr:hover td{background:#eef5ff;}
+table.grid tfoot td{padding:11px 13px;font-weight:800;color:var(--navy);background:#e7eef8;border-top:2px solid #cdd8e8;}
 tbody.click tr{cursor:pointer;}
-tbody.click tr:hover td{background:#fafcff;}
-tbody tr.base td{background:#fff7e6;}
+tbody tr.base td{background:#fff5e0 !important;box-shadow:inset 0 0 0 9999px rgba(212,162,74,.06);}
 tbody tr.base td:first-child::before{content:"★ ";color:var(--gold);}
-.bar{display:flex;align-items:center;gap:9px;margin-bottom:7px;font-size:12px;}
-.bar .bl{width:26px;text-align:right;font-weight:800;}
-.bar .bt{flex:1;background:#eef1f5;border-radius:6px;height:20px;overflow:hidden;position:relative;}
-.bar .bf{height:100%;border-radius:6px;}
-.bar .bv{position:absolute;right:8px;top:0;line-height:20px;font-weight:700;color:#fff;font-size:10.5px;}
-.center{text-align:center;color:var(--muted);padding:40px;}
-.activebar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:10px;padding:9px 11px;background:#f7f9fc;border:1px solid var(--line);border-radius:10px;font-size:12px;}
-.activebar .t{font-size:10.5px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-right:2px;}
-.apill{border-radius:999px;padding:3px 11px;font-weight:700;font-size:11.5px;background:#eaf1fc;color:#1b66b3;border:1px solid #cfe2fa;}
+.tablewrap{border:1px solid #e3e9f2;border-radius:13px;overflow:auto;box-shadow:0 1px 3px rgba(15,37,64,.05);}
+.hgroup{display:flex;flex-direction:column;gap:7px;padding-right:14px;border-right:1px dashed var(--line);}
+.hgroup:last-child{border-right:none;}
+.hgroup .glab{font-size:10px;font-weight:800;color:var(--navy);text-transform:uppercase;letter-spacing:.4px;}
+.hrow{display:flex;gap:7px;align-items:center;flex-wrap:wrap;}
+.apill{border-radius:999px;padding:3px 11px;font-weight:700;font-size:11.5px;background:#eaf1fc;color:#1b66b3;border:1px solid #cfe2fa;display:inline-block;}
 .apill.src{background:#fff7e6;color:#8a5a12;border-color:#f1d99a;}
-.apill.price{background:#eaf6f0;color:#0f6e56;border-color:#bfe3d3;}
-.apill.net{background:#eeedfe;color:#3c3489;border-color:#d6d2f6;}
-.aclear{margin-left:auto;font-size:11.5px;color:var(--blue);cursor:pointer;font-weight:700;}
+.note{background:#fffdf6;border:1px solid #f1d99a;border-left:4px solid var(--gold);border-radius:10px;padding:11px 14px;font-size:12.6px;color:#6b5320;margin:0 0 14px;}
+.tbtn{border:1px solid var(--navy);background:#fff;color:var(--navy);border-radius:999px;padding:9px 18px;font-weight:800;font-size:13.5px;cursor:pointer;}
+.tbtn.on{background:var(--navy);color:#fff;}
+.tbtn .cnt{display:inline-block;background:var(--gold);color:var(--navy);border-radius:50%;min-width:19px;height:19px;line-height:19px;text-align:center;font-size:11px;margin-left:6px;padding:0 5px;}
 </style>
 </head>
 <body>
 <div class="wrap">
   <div class="topbar">
     <span class="title">Sales &amp; Calculations</span>
-    <span class="lockchip">🔒 Sale Lot access</span>
     <div class="fx">
-      <div><div class="r" id="fxRate">₹—</div><div class="sub">USD → INR</div></div>
-      <div style="border-left:1px solid rgba(255,255,255,.22);padding-left:12px"><div class="r" id="fxCny">¥—</div><div class="sub">USD → CNY</div></div>
-      <div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end"><button onclick="fetchForex()">↻ Fetch latest</button><div class="sub" id="fxWhen" style="white-space:nowrap">—</div></div>
+      <div><div class="sub">USD → INR</div><input id="fxInr" type="number" step="0.01" oninput="manualFx()" style="width:92px;height:32px;text-align:right;font-weight:800;background:#fff;color:var(--ink);border:none;border-radius:7px;font-size:15px"></div>
+      <div class="sep"><div class="sub">USD → CNY</div><input id="fxCny" type="number" step="0.01" oninput="manualFx()" style="width:80px;height:32px;text-align:right;font-weight:800;background:#fff;color:var(--ink);border:none;border-radius:7px;font-size:15px"></div>
+      <div class="sep" style="display:flex;flex-direction:column;gap:5px;align-items:flex-end"><button onclick="fetchForex()">↻ Fetch live</button><div class="sub" id="fxWhen">—</div></div>
     </div>
   </div>
-  <div id="app"><div class="center">Loading live stock…</div></div>
+
+  <div class="note" id="loadNote">Loading live stock…</div>
+
+  <div id="app" style="display:none">
+  <div style="display:flex;gap:8px;margin-bottom:14px">
+    <button class="tbtn on" id="tabStock" onclick="setTab('stock')">📊 Stock calculator</button>
+    <button class="tbtn" id="tabSel" onclick="setTab('selected')">✓ Selected blocks from stock <span class="cnt" id="selCount">0</span></button>
+  </div>
+
+  <!-- 1. SOURCE + FILTERS + TWO-CATEGORY PRICING -->
+  <div class="card">
+    <div class="ct">📥 1 · Source &amp; filters <span class="sub" id="srcSub">pick stock or a BI — one or more filters combine</span></div>
+    <div class="hbar">
+      <div class="hgroup" id="srcGroup">
+        <div class="glab">Source</div>
+        <div class="hrow" id="srcChips">
+          <span class="chip on" data-src="stock" onclick="setSrc('stock')">Quarry stock</span>
+          <span class="chip" data-src="bi" onclick="setSrc('bi')">Buyer Inspection</span>
+        </div>
+        <div id="biBox" style="display:none;margin-top:2px">
+          <div style="display:flex;gap:6px;align-items:center">
+            <select id="biSel" onchange="loadBI()"></select>
+            <button class="chip" style="cursor:pointer;padding:6px 11px;border-color:var(--blue);color:var(--blue)" title="View BI report" onclick="viewBI()">👁 View report</button>
+          </div>
+          <div id="biInfo" style="font-size:11.5px;color:var(--navy);font-weight:700;margin-top:5px"></div>
+        </div>
+      </div>
+      <div class="hgroup">
+        <div class="glab">Grade <span style="font-weight:500;color:var(--muted)">(none = all)</span></div>
+        <div class="hrow" id="gradeChips"></div>
+      </div>
+      <div class="hgroup">
+        <div class="glab">Pit <span style="font-weight:500;color:var(--muted)">(none = all)</span></div>
+        <div class="hrow" id="pitChips"></div>
+      </div>
+      <div class="hgroup">
+        <div class="glab">Threshold size <span style="font-weight:500;color:var(--muted)">L×W×H</span></div>
+        <div class="hrow">
+          <span class="chip on" data-z="all" onclick="setSize('all')">Both</span>
+          <span class="chip" data-z="big" onclick="setSize('big')">Threshold big size</span>
+          <span class="chip" data-z="small" onclick="setSize('small')">Threshold small size</span>
+          <span style="display:inline-flex;gap:3px;align-items:center;margin-left:4px">
+            <input type="number" id="tL" value="180" style="width:52px" oninput="calc()"><span>×</span>
+            <input type="number" id="tW" value="100" style="width:52px" oninput="calc()"><span>×</span>
+            <input type="number" id="tH" value="100" style="width:52px" oninput="calc()"></span>
+        </div>
+      </div>
+      <div class="hgroup">
+        <div class="glab">Net allowance <span style="font-weight:500;color:var(--muted)">threshold tested on net size</span></div>
+        <div class="hrow">
+          <label style="display:flex;align-items:center;gap:6px;font-weight:700;color:var(--navy);font-size:12.5px"><input type="checkbox" id="netOn" style="width:15px;height:15px" onchange="calc()"> Apply net</label>
+          <select id="allowSel" style="height:32px" onchange="calc()"><option value="5">5 cm/side</option><option value="10" selected>10 cm/side</option><option value="15">15 cm/side</option></select>
+          <span style="font-size:11px;color:var(--muted)" id="netHint"></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="hbar" style="margin-top:14px;padding-top:14px;border-top:1px dashed var(--line)">
+      <div><label class="fl" style="color:var(--green)">Threshold big size — price $/CBM</label><input type="number" id="pBig" value="1300" step="50" style="width:160px" oninput="calc()"></div>
+      <div><label class="fl" style="color:#c9871f">Threshold small size — price $/CBM</label><input type="number" id="pSmall" value="950" step="50" style="width:160px" oninput="calc()"></div>
+      <div style="flex:1"></div>
+    </div>
+
+    <div style="margin-top:14px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+      <span style="font-size:10.5px;font-weight:800;color:var(--muted);text-transform:uppercase">Active</span>
+      <span id="pillBar"></span>
+      <span style="margin-left:auto;font-size:11.5px;color:var(--blue);cursor:pointer;font-weight:700" onclick="clearF()">✕ Clear filters</span>
+    </div>
+  </div>
+
+  <!-- 2. GRADE x THRESHOLD STOCK BREAKDOWN -->
+  <div class="card" style="border:2px solid var(--navy)">
+    <div class="ct">📊 2 · Stock right now — grade × threshold <span class="sub" id="valSub"></span></div>
+    <div style="font-size:11.5px;color:var(--muted);margin-bottom:8px">Every grade split by the ≥/&lt; threshold (tested on <b>net</b> size when the allowance is on): blocks &amp; CBM available now, valued at the big/small prices ($, ₹, $/ton). Bottom row = grand-total volume &amp; value.</div>
+    <div class="tablewrap"><table class="grid">
+      <thead><tr><th>Grade</th><th>Thr big blk</th><th>Thr big CBM</th><th>Thr small blk</th><th>Thr small CBM</th><th>Total blk</th><th>Total CBM</th><th>Value ($)</th><th>Value (₹)</th><th>$ / ton</th></tr></thead>
+      <tbody id="gradeVal"></tbody>
+      <tfoot><tr id="gradeTot" style="font-weight:800;background:#f5f8fc"></tr></tfoot>
+    </table></div>
+    <hr style="border:none;border-top:2px solid #d5deec;margin:20px 0 0">
+    <div style="font-size:12px;font-weight:800;color:var(--navy);margin:14px 0 6px">Pit-wise — how much stock, sizes &amp; grades each pit is holding now</div>
+    <div class="tablewrap"><table class="grid">
+      <thead><tr><th>Pit</th><th>Blocks</th><th>CBM</th><th>Thr big blk</th><th>Thr small blk</th><th>Grade mix</th><th>Value ($)</th></tr></thead>
+      <tbody id="pitVal"></tbody>
+      <tfoot><tr id="pitTot" style="font-weight:800;background:#f5f8fc"></tr></tfoot>
+    </table></div>
+  </div>
+
+  <!-- 3. RESULT — unified, selection-driven -->
+  <div class="card hero">
+    <div class="ct">🧮 3 · Result — your selection valued across sale tonnages <span class="sub">click a row for the ★ baseline</span></div>
+    <div class="hbar" style="margin-bottom:6px">
+      <div><label class="fl">Specific gravity</label><input type="number" id="dmg" value="2.60" step="0.05" style="width:100px" oninput="calc()"></div>
+      <div><label class="fl">Sale tonnages (t/CBM) <span style="color:var(--muted);font-weight:500">· 5 = benchmark</span></label><input type="text" id="rates" value="5, 5.5, 6, 6.5, 7" style="width:200px" oninput="calc()"></div>
+      <div style="margin-left:auto;text-align:right"><div class="fl">Selection · gross tonnage</div><div style="font-size:19px;font-weight:800;color:var(--navy)" id="realW">—</div></div>
+    </div>
+    <div id="feedInfo" style="font-size:12px;color:var(--muted);margin:8px 0"></div>
+    <div style="font-size:11.5px;color:var(--muted);margin-bottom:6px">Gross tonnage ÷ sale tonnage = <b>sale volume (CBM)</b>; sale volume × price = value; <b>price/ton</b> = price per CBM ÷ sale tonnage. Diffs vs the ★ benchmark (default sale tonnage 5).</div>
+    <div class="tablewrap"><table class="grid">
+      <thead><tr><th>Sale tonnage (t/CBM)</th><th>Price/ton ($)</th><th>Sale volume (CBM)</th><th>Diff (CBM)</th><th>Value ($)</th><th>Value (₹)</th><th>Value (¥)</th><th>Diff ($)</th><th>Diff (₹)</th></tr></thead>
+      <tbody class="click" id="qBody"></tbody>
+    </table></div>
+  </div>
+
+  <!-- 4. BLOCK LIST + REVERSE ALLOWANCE (Selected tab only) -->
+  <div class="card" id="blkCard">
+    <div class="ct">🧱 Blocks — tick to select <span class="sub" id="blkSub"></span></div>
+    <div class="hbar" style="margin-bottom:10px;background:#fbfcfe;border:1px solid var(--line);border-radius:10px;padding:10px 12px">
+      <div style="font-size:12px;font-weight:700;color:var(--navy)">Reverse allowance — benchmark sale tonnage <b>5</b> → target
+        <select id="tgt" style="height:30px;margin-left:6px" onchange="calc()">
+          <option>5.5</option><option selected>6</option><option>6.5</option><option>7</option>
+        </select>
+      </div>
+      <div style="margin-left:auto;font-size:12px;color:var(--muted)" id="allowTot">—</div>
+    </div>
+    <div class="tablewrap" style="max-height:320px"><table class="grid">
+      <thead><tr><th style="width:34px;text-align:center"><input type="checkbox" id="selAll" onclick="toggleAllSel(this)" title="Select all listed"></th><th>Block</th><th>Grade</th><th>L×W×H</th><th>CBM</th><th>Category</th><th>Price $/CBM</th><th>Value ($)</th><th>Discount (CBM)</th><th>Allowance/side (cm)</th></tr></thead>
+      <tbody id="blkBody"></tbody>
+    </table></div>
+    <div style="font-size:11.5px;color:var(--muted);margin-top:8px">Discount (CBM) = block gross tonnage × (1/5 − 1/target) — the billable volume you give up by selling at the target tonnage instead of 5. Allowance/side = that CBM difference spread across all three faces = ΔV ÷ 2·(L·W + W·H + L·H).</div>
+  </div>
+  </div><!-- /app -->
+
+  <!-- FLOATING QUICK CALC POPUP -->
+  <button id="qcFab" onclick="openQC()" style="position:fixed;right:22px;bottom:22px;z-index:1000;background:var(--gold);color:#3a2a05;border:none;border-radius:26px;padding:13px 20px;font-weight:800;font-size:14px;box-shadow:0 6px 18px rgba(0,0,0,.28);cursor:pointer">⚡ Quick calc</button>
+  <div id="qcModal" style="display:none;position:fixed;inset:0;background:rgba(15,37,64,.55);z-index:1001;align-items:flex-start;justify-content:center;padding:40px 16px;overflow:auto">
+    <div style="background:#fff;width:100%;max-width:780px;border-radius:16px;overflow:hidden">
+      <div style="background:var(--navy);color:#fff;padding:14px 18px;display:flex;justify-content:space-between;align-items:center">
+        <span style="font-weight:700;font-size:16px">⚡ Quick calculator <span style="font-size:12px;color:#bcd0e6;font-weight:400">— standalone, no filters: type a volume &amp; price</span></span>
+        <span style="cursor:pointer;font-size:20px" onclick="closeQC()">✕</span>
+      </div>
+      <div style="padding:18px">
+        <div class="hbar" style="margin-bottom:8px">
+          <div><label class="fl">Gross volume (CBM)</label><input type="number" id="qcVol" value="6" step="0.1" style="width:110px" oninput="quickCalc()"></div>
+          <div><label class="fl">or L×W×H (cm) — enables allowance</label><div style="display:flex;gap:3px;align-items:center"><input type="number" id="qcL" value="220" placeholder="L" style="width:56px;height:36px" oninput="quickCalc()"><span>×</span><input type="number" id="qcW" value="170" placeholder="W" style="width:56px;height:36px" oninput="quickCalc()"><span>×</span><input type="number" id="qcH" value="120" placeholder="H" style="width:56px;height:36px" oninput="quickCalc()"></div></div>
+          <div><label class="fl">Price / CBM ($)</label><input type="number" id="qcPrice" value="1200" step="50" style="width:100px" oninput="quickCalc()"></div>
+          <div><label class="fl">Specific gravity</label><input type="number" id="qcSG" value="2.60" step="0.05" style="width:90px" oninput="quickCalc()"></div>
+          <div><label class="fl">Sale tonnages</label><input type="text" id="qcRates" value="5, 5.5, 6, 6.5, 7" style="width:150px" oninput="quickCalc()"></div>
+        </div>
+        <div class="hbar" style="margin-bottom:8px">
+          <div><label class="fl">USD → INR</label><input type="number" id="qcInr" value="86.00" step="0.01" style="width:100px" oninput="quickCalc()"></div>
+          <div><label class="fl">USD → CNY</label><input type="number" id="qcCny" value="7.15" step="0.01" style="width:100px" oninput="quickCalc()"></div>
+          <div style="margin-left:auto;text-align:right"><div class="fl">Gross tonnage</div><div style="font-size:18px;font-weight:800;color:var(--navy)" id="qcReal">—</div></div>
+        </div>
+        <div style="font-size:11.5px;color:var(--muted);margin-bottom:6px">No stock/filters — a fast volume × price sweep. Forex is editable. Enter L×W×H to also reverse-calculate the allowance/side each sale tonnage implies (vs the ★ benchmark). Click a row for the ★ baseline.</div>
+        <div class="tablewrap"><table class="grid">
+          <thead><tr><th>Sale tonnage (t/CBM)</th><th>Price/ton ($)</th><th>Sale volume (CBM)</th><th>Diff (CBM)</th><th>Value ($)</th><th>Value (₹)</th><th>Value (¥)</th><th>Diff ($)</th><th>Diff (₹)</th><th>Discount (CBM)</th><th>Allowance/side (cm)</th></tr></thead>
+          <tbody class="click" id="qcBody"></tbody>
+        </table></div>
+      </div>
+    </div>
+  </div>
+
 </div>
+
 <script>
-var USD_INR=95.05, USD_CNY=6.80, fxWhen="not fetched";
-function fmtR(n){return "₹"+Math.round(n).toLocaleString("en-IN");}
-function fmtD(n){return "$"+Math.round(n).toLocaleString("en-US");}
-function renderFx(){document.getElementById("fxRate").textContent="₹"+USD_INR.toFixed(2);document.getElementById("fxCny").textContent="¥"+USD_CNY.toFixed(2);document.getElementById("fxWhen").textContent=fxWhen;}
+/* ---------- forex ---------- */
+var USD_INR=86.00, USD_CNY=7.15, fxWhen="not fetched";
+function renderFx(){document.getElementById("fxInr").value=USD_INR.toFixed(2);document.getElementById("fxCny").value=USD_CNY.toFixed(2);document.getElementById("fxWhen").textContent=fxWhen;}
+function manualFx(){var i=+document.getElementById("fxInr").value,c=+document.getElementById("fxCny").value;if(i>0)USD_INR=i;if(c>0)USD_CNY=c;fxWhen="manual entry";document.getElementById("fxWhen").textContent=fxWhen;calc();}
 function fetchForex(){document.getElementById("fxWhen").textContent="fetching…";
   fetch("https://open.er-api.com/v6/latest/USD").then(function(r){return r.json();}).then(function(j){
-    if(j&&j.rates&&j.rates.INR){USD_INR=j.rates.INR;if(j.rates.CNY)USD_CNY=j.rates.CNY;fxWhen="live · "+new Date().toLocaleString();renderFx();if(window._ready)calc();}else throw 0;
-  }).catch(function(){fxWhen="offline — using ₹95.05";renderFx();});}
-function num(id){var e=document.getElementById(id);return e&&e.value!==""?+e.value:0;}
+    if(j&&j.rates&&j.rates.INR){USD_INR=j.rates.INR;if(j.rates.CNY)USD_CNY=j.rates.CNY;fxWhen="✓ live · fetched "+new Date().toLocaleString();renderFx();calc();}else throw 0;
+  }).catch(function(){fxWhen="⚠ offline — using ₹86 / ¥7.15 · "+new Date().toLocaleString();renderFx();});}
+
+/* ---------- live data ---------- */
+function apiList(dt,fields,filters){var u="/api/method/frappe.client.get_list?doctype="+encodeURIComponent(dt)+"&fields="+encodeURIComponent(JSON.stringify(fields))+"&limit_page_length=0";if(filters)u+="&filters="+encodeURIComponent(JSON.stringify(filters));return fetch(u,{credentials:"include",headers:{Accept:"application/json"}}).then(function(r){return r.json();}).then(function(j){return j.message||[];});}
+function apiGet(dt,name){return fetch("/api/method/frappe.client.get?doctype="+encodeURIComponent(dt)+"&name="+encodeURIComponent(name),{credentials:"include",headers:{Accept:"application/json"}}).then(function(r){return r.json();}).then(function(j){return j.message||{};});}
 var GCOL={A:"#1D9E75",B:"#2F80ED",B1:"#7F77DD",B2:"#534AB7",C:"#EF9F27",D:"#D85A30"};
 function gcol(g){return GCOL[g]||"#9aa3ad";}
-
-/* ---- live data ---- */
-function apiList(dt,fields){return fetch("/api/method/frappe.client.get_list?doctype="+encodeURIComponent(dt)+"&fields="+encodeURIComponent(JSON.stringify(fields))+"&limit_page_length=0",{credentials:"include",headers:{Accept:"application/json"}}).then(function(r){return r.json();}).then(function(j){return j.message||[];});}
-function apiGet(dt,name){return fetch("/api/method/frappe.client.get?doctype="+encodeURIComponent(dt)+"&name="+encodeURIComponent(name),{credentials:"include",headers:{Accept:"application/json"}}).then(function(r){return r.json();}).then(function(j){return j.message||{};});}
-var B=[], byNo={}, GRADES=[], LOTS=[], SHIPPED={}, QILIST=[], BILIST=[];
-function inStock(b){return /in stock|buyer marked/i.test(b.status||"");}
-async function load(){
-  var qb=await apiList("Quarry Block",["name","block_number","status","granite_quality_grade","length_gross","width_gross","height_gross","gross_volume"]);
-  B=(qb||[]).map(function(b){var L=+b.length_gross||0,W=+b.width_gross||0,H=+b.height_gross||0;return {no:String(b.block_number||b.name),grade:((b.granite_quality_grade||"—")+"").trim()||"—",L:L,W:W,H:H,vol:+b.gross_volume||(L*W*H/1e6),status:b.status||""};});
-  B.forEach(function(b){b.mt=b.vol*2.6;byNo[b.no]=b;});
-  var gs={};B.forEach(function(b){if(b.grade&&b.grade!=="—")gs[b.grade]=1;});["A","B","C","D"].forEach(function(g){gs[g]=1;});
-  GRADES=Object.keys(gs).sort();
-  try{var esl=await apiList("Export Shipment Lot",["name","status"]);LOTS=esl.map(function(l){return l.name;});esl.forEach(function(l){if(/ship|export/i.test(l.status||""))SHIPPED[l.name]=1;});}catch(e){}
-  try{QILIST=(await apiList("Quarry Inspection",["name"])).map(function(x){return x.name;});}catch(e){}
-  try{BILIST=(await apiList("Buyer Inspection",["name"])).map(function(x){return x.name;});}catch(e){}
+var STOCK=[], byNo={}, GRADES=[], PITS=[], BILIST=[], BIcache={}, curBI=[];
+function pitLabel(p){return (p===null||p===undefined||(""+p).trim()==="")?"Unassigned":("Pit "+p);}
+async function loadData(){
+  var qb=await apiList("Quarry Block",["name","block_number","granite_quality_grade","pit","length_gross","width_gross","height_gross","gross_volume","export_block_no"],[["status","in",["In Stock","Buyer Marked"]]]);
+  STOCK=(qb||[]).map(function(b){var L=+b.length_gross||0,W=+b.width_gross||0,H=+b.height_gross||0;return {no:String(b.block_number||b.name),name:b.name,grade:((b.granite_quality_grade||"—")+"").trim()||"—",pit:pitLabel(b.pit),L:L,W:W,H:H,vol:+b.gross_volume||(L*W*H/1e6),exp:b.export_block_no||""};});
+  byNo={}; STOCK.forEach(function(b){byNo[b.no]=b;});
+  var gset={}; STOCK.forEach(function(b){gset[b.grade]=1;});
+  var gorder=["A","B","B1","B2","C","D"]; GRADES=gorder.filter(function(g){return gset[g];}); Object.keys(gset).sort().forEach(function(g){if(GRADES.indexOf(g)<0)GRADES.push(g);});
+  var pset={}; STOCK.forEach(function(b){pset[b.pit]=1;});
+  PITS=Object.keys(pset).sort(function(a,b){if(a==="Unassigned")return 1;if(b==="Unassigned")return -1;return (parseInt((a.match(/\d+/)||[0])[0],10))-(parseInt((b.match(/\d+/)||[0])[0],10));});
+  BILIST=((await apiList("Buyer Inspection",["name"]))||[]).map(function(x){return x.name;});
 }
-/* find a doc's block child table (rows carrying dimensions / a block link) */
-function extractRows(doc){var tf=null;Object.keys(doc).forEach(function(k){var a=doc[k];if(Array.isArray(a)&&a.length&&typeof a[0]==="object"){var r=a[0];if(("length_gross" in r)||("gross_volume" in r)||(("block" in r)&&("cbm" in r||"width" in r||"width_gross" in r)))tf=k;}});
+function extractBIRows(doc){
+  var tf=null;Object.keys(doc).forEach(function(k){var a=doc[k];if(Array.isArray(a)&&a.length&&typeof a[0]==="object"){var r=a[0];if((("block" in r)||("block_number_input" in r))&&(("length_gross" in r)||("granite_quality_grade" in r)))tf=tf||k;}});
   if(!tf)return [];
-  return doc[tf].map(function(r){var no=String(r.block||r.quarry_block_no||r.block_no||"");var bm=byNo[no]||{};
-    var L=+r.length_gross||+r.length||bm.L||0,W=+r.width_gross||+r.width||bm.W||0,H=+r.height_gross||+r.height||bm.H||0;
-    return {no:no,grade:((r.granite_quality_grade||bm.grade||"—")+"").trim()||"—",L:L,W:W,H:H,vol:+r.gross_volume||+r.cbm||bm.vol||(L*W*H/1e6),mt:+r.net_tonnage||0};});}
+  return doc[tf].map(function(r){var no=String(r.block_number_input||r.block||"");var bm=byNo[no]||{};var L=+r.length_gross||bm.L||0,W=+r.width_gross||bm.W||0,H=+r.height_gross||bm.H||0;return {no:no,name:r.block||no,grade:((r.granite_quality_grade||bm.grade||"—")+"").trim()||"—",pit:bm.pit||"Unassigned",L:L,W:W,H:H,vol:+r.gross_volume||bm.vol||(L*W*H/1e6),exp:r.export_block_no||bm.exp||""};});
+}
+function loadBI(){var nm=document.getElementById("biSel").value;if(!nm){curBI=[];calc();return;}if(BIcache[nm]){curBI=BIcache[nm];calc();return;}document.getElementById("biInfo").textContent="Loading BI…";apiGet("Buyer Inspection",nm).then(function(doc){curBI=extractBIRows(doc);BIcache[nm]=curBI;calc();}).catch(function(){document.getElementById("biInfo").textContent="Could not load this BI.";});}
+function viewBI(){
+  var nm=document.getElementById("biSel").value; if(!nm)return;
+  var fmt=encodeURIComponent("Buyer Inspection - Report");
+  var url="/printview?doctype=Buyer%20Inspection&name="+encodeURIComponent(nm)+"&format="+fmt+"&no_letterhead=0&trigger_print=0";
+  var pdf="/api/method/frappe.utils.print_format.download_pdf?doctype=Buyer%20Inspection&name="+encodeURIComponent(nm)+"&format="+fmt+"&no_letterhead=0";
+  var ov=document.createElement('div'); ov.setAttribute('data-ov','1');
+  ov.style.cssText='position:fixed;inset:0;background:rgba(15,37,64,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
+  ov.innerHTML='<div style="background:#fff;width:100%;max-width:940px;height:88%;border-radius:14px;overflow:hidden;display:flex;flex-direction:column">'
+   +'<div style="background:var(--navy);color:#fff;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;font-weight:700">Buyer Inspection · '+nm+' <span style="display:flex;align-items:center;gap:16px"><a href="'+pdf+'" target="_blank" style="color:var(--gold);text-decoration:none;font-size:13px;font-weight:600">Download PDF</a><span style="cursor:pointer;font-size:18px" onclick="this.closest(\'[data-ov]\').remove()">✕</span></span></div>'
+   +'<iframe src="'+url+'" style="flex:1;border:0;width:100%;background:#fff"></iframe></div>';
+  ov.onclick=function(e){if(e.target===ov)ov.remove();};
+  document.body.appendChild(ov);
+}
 
-/* ---- state ---- */
-var input="stock", gradeSet={}, sizeF="all", sBase=null, qBase=null, selBlk={}, current=[];
-async function loadSource(){
-  if(input==="stock")current=B.filter(inStock);
-  else if(input==="sel")current=B.slice();
-  else if(input==="qi"||input==="bi"){var dt=input==="qi"?"Quarry Inspection":"Buyer Inspection";var nm=document.getElementById("sel"+input).value;current=nm?extractRows(await apiGet(dt,nm)):[];}
-  else if(input==="lot"||input==="exp"){var nm2=document.getElementById("sel"+input).value;current=nm2?(function(d){return (d.blocks||[]).map(function(r){var no=String(r.block_no||r.block||"");var bm=byNo[no]||{};return {no:no,grade:(bm.grade||"—"),L:+r.length||bm.L||0,W:+r.width||bm.W||0,H:+r.height||bm.H||0,vol:+r.cbm||bm.vol||0,mt:+r.net_tonnage||0};});})(await apiGet("Export Shipment Lot",nm2)):[];}
+/* ---------- state ---------- */
+var src="stock", gradeSet={}, pitSet={}, sizeF="all", qBase=null, selBlk={}, tab="stock";
+function setTab(t){
+  tab=t;
+  document.getElementById("tabStock").classList.toggle("on",t==="stock");
+  document.getElementById("tabSel").classList.toggle("on",t==="selected");
+  document.getElementById("srcGroup").style.display=(t==="selected")?"none":"";
+  document.getElementById("srcSub").textContent=(t==="selected")?"showing only the blocks you ticked (from quarry stock)":"pick stock or a BI — one or more filters combine";
   calc();
 }
-
-function appHTML(){
-  var gp=GRADES.map(function(g){return '<div class="f"><label><span class="gdot" style="background:'+gcol(g)+'"></span>'+g+'</label><input type="number" id="p_'+g+'" value="1200" step="50" style="width:76px" oninput="calc()"></div>';}).join("");
-  var gc=GRADES.map(function(g){return '<span class="chip" data-g="'+g+'" onclick="togGrade(\''+g+'\')">'+g+'</span>';}).join("");
-  var lotOpts=LOTS.map(function(x){return '<option>'+x+'</option>';}).join("");
-  var expOpts=LOTS.filter(function(x){return SHIPPED[x];}).map(function(x){return '<option>'+x+'</option>';}).join("")||'<option value="">— none shipped —</option>';
-  var qiOpts=QILIST.map(function(x){return '<option>'+x+'</option>';}).join("");
-  var biOpts=BILIST.map(function(x){return '<option>'+x+'</option>';}).join("");
-  return ''
-+'<div class="card hero"><div class="ct">🧮 Quick calculator <span class="sub">just a gross volume &amp; price — sweeps the sale rates</span></div>'
-+'<div class="terms" style="margin-top:12px">'
-+'<div class="f"><label>Gross volume (CBM)</label><input type="number" id="qVol" value="60" step="1" style="width:120px" oninput="calcAll()"></div>'
-+'<div class="f"><label>Price / CBM ($)</label><input type="number" id="qPrice" value="1200" step="50" style="width:110px" oninput="calcAll()"></div>'
-+'<div class="f"><label>DMG factor</label><input type="number" id="dmg" value="2.60" step="0.05" style="width:90px" oninput="calcAll()"></div>'
-+'<div class="f"><label>Cost / CBM (₹, opt.)</label><input type="number" id="cost" value="0" step="100" style="width:120px" oninput="calcAll()"></div>'
-+'<div class="f"><label>Sale rates (t/CBM)</label><input type="text" id="rates" value="5.5, 6, 6.5, 7" style="width:170px" oninput="calcAll()"></div></div>'
-+'<div class="realline">Volume × DMG = <b id="qReal">—</b> · <span style="color:var(--gold);font-weight:700">click a row</span> to baseline Δ · DMG / cost / rates shared below</div>'
-+'<div class="tablewrap"><table class="grid"><thead><tr><th>Rate t/CBM</th><th>Sale CBM</th><th>Sale tons</th><th>Value ($)</th><th>Value (₹)</th><th>Difference (₹)</th><th>Δ ($)</th></tr></thead><tbody class="click" id="qBody"></tbody></table></div></div>'
-+'<div class="cols"><div>'
-+'<div class="card"><div class="ct">⚙ Common filters</div>'
-+'<div class="grp"><div class="glab">Grade prices ($/CBM)</div><div class="row">'+gp+'</div>'
-+'<div class="row" style="margin-top:10px"><div class="f"><label>≥ threshold price</label><input type="number" id="pHi" value="1300" step="50" style="width:96px" oninput="calc()"></div>'
-+'<div class="f"><label>&lt; threshold price</label><input type="number" id="pLo" value="900" step="50" style="width:96px" oninput="calc()"></div>'
-+'<div class="f"><label>Threshold L×W×H (cm)</label><div style="display:flex;gap:4px;align-items:center"><input type="number" id="dL" value="180" style="width:56px" oninput="calc()"><span>×</span><input type="number" id="dW" value="100" style="width:56px" oninput="calc()"><span>×</span><input type="number" id="dH" value="100" style="width:56px" oninput="calc()"></div></div></div></div>'
-+'<div class="grp" style="border-top:1px dashed var(--line);padding-top:12px">'
-+'<div class="row"><span class="lbl">Grade</span>'+gc+'<span class="hint" style="align-self:center">none = all</span></div>'
-+'<div class="row" style="margin-top:10px"><span class="lbl">Size</span><span class="chip on" data-z="all" onclick="setSizeF(\'all\')">All</span><span class="chip" data-z="hi" onclick="setSizeF(\'hi\')">≥ thr</span><span class="chip" data-z="lo" onclick="setSizeF(\'lo\')">&lt; thr</span></div>'
-+'<div class="row" style="margin-top:10px"><label style="display:flex;align-items:center;gap:7px;font-weight:700;color:var(--navy);font-size:12.5px"><input type="checkbox" id="netOn" style="width:16px;height:16px" onchange="calc()"> Net</label><div class="f"><label>Allowance (cm/side)</label><select id="allowSel" onchange="calc()"><option value="0">none</option><option value="5">5</option><option value="7.5">7.5</option><option value="10" selected>10</option><option value="12.5">12.5</option><option value="15">15</option></select></div><div class="hint" id="netHint" style="align-self:center"></div></div></div></div>'
-+'<div class="card"><div class="ct">📥 Input — pick one</div><div style="margin-top:12px">'
-+'<div class="inopt on" data-in="stock" onclick="setInput(\'stock\')"><div class="dot"></div><div class="nm">Quarry stock</div><span class="hint">In Stock / Buyer Marked</span></div>'
-+'<div class="inopt" data-in="qi" onclick="setInput(\'qi\')"><div class="dot"></div><div class="nm">QI</div><select id="selqi" style="min-width:150px" onclick="event.stopPropagation()" onchange="loadSource()">'+qiOpts+'</select></div>'
-+'<div class="inopt" data-in="bi" onclick="setInput(\'bi\')"><div class="dot"></div><div class="nm">BI</div><select id="selbi" style="min-width:150px" onclick="event.stopPropagation()" onchange="loadSource()">'+biOpts+'</select></div>'
-+'<div class="inopt" data-in="lot" onclick="setInput(\'lot\')"><div class="dot"></div><div class="nm">Export Shipment Lot</div><select id="sellot" style="min-width:150px" onclick="event.stopPropagation()" onchange="loadSource()">'+lotOpts+'</select></div>'
-+'<div class="inopt" data-in="exp" onclick="setInput(\'exp\')"><div class="dot"></div><div class="nm">Exported / Shipped</div><select id="selexp" style="min-width:150px" onclick="event.stopPropagation()" onchange="loadSource()">'+expOpts+'</select></div>'
-+'<div class="inopt" data-in="sel" onclick="setInput(\'sel\')"><div class="dot"></div><div class="nm">Selected blocks</div><span class="hint">tick in table below</span></div>'
-+'</div></div></div>'
-+'<div class="right"><div class="card"><div class="ct">📦 Result — calculating: <span id="resSrc" style="color:var(--gold);font-weight:800;font-size:13px">—</span> <span class="sub" id="resSub"></span></div>'
-+'<div class="activebar" id="activeBar"></div>'
-+'<div class="realline">Basis: <b id="info">—</b> · real weight = <b id="real">—</b> · <span style="color:var(--gold);font-weight:700">click a row</span> to baseline Δ</div>'
-+'<div class="tablewrap"><table class="grid"><thead><tr><th>Rate t/CBM</th><th>Sale CBM</th><th>Sale tons</th><th>Value ($)</th><th>Value (₹)</th><th>Difference (₹)</th><th>Δ ($)</th></tr></thead><tbody class="click" id="body"></tbody></table></div></div>'
-+'<div class="card"><div class="ct">📊 Stock by grade</div><div id="chart" style="margin-top:12px"></div><div class="hint" id="chartTot" style="margin-top:6px"></div></div></div></div>'
-+'<div class="card" style="margin-top:16px"><div class="ct">🧱 Blocks — tick to calculate on a selection <span class="sub">from current source + filters · none ticked = all</span></div>'
-+'<div class="tablewrap" style="max-height:340px"><table class="grid"><thead><tr><th style="text-align:center;width:34px"><input type="checkbox" id="selAll" onclick="toggleAll(this)"></th><th>Block</th><th>Grade</th><th>Gross L×W×H</th><th>Net L×W×H</th><th>CBM</th><th>Value ($)</th></tr></thead><tbody id="blockBody"></tbody></table></div></div>';
-}
-
-var FIELD={qi:1,bi:1,lot:1,exp:1};
+function toggleBlk(no){ if(selBlk[no])delete selBlk[no]; else selBlk[no]=1; calc(); }
+function toggleAllSel(cb){ (window._listed||[]).forEach(function(b){ if(cb.checked)selBlk[b.no]=1; else delete selBlk[b.no]; }); calc(); }
+function num(id){var e=document.getElementById(id);return e&&e.value!==""?+e.value:0;}
 function ratesArr(){return (document.getElementById("rates").value||"").split(/[\s,]+/).map(parseFloat).filter(function(x){return x>0;});}
-function renderGrid(vol,priced,tbId,curBase,setter){
-  var dmg=num("dmg"),cost=num("cost"),fx=USD_INR,baseVal=curBase?((dmg/curBase)*priced):null;
-  document.getElementById(tbId).innerHTML=ratesArr().map(function(r){
-    var saleCBM=vol*dmg/r, saleTons=vol*dmg, valUSD=(dmg/r)*priced, valINR=valUSD*fx, diffINR=valINR-(saleCBM*cost);
-    var d=(baseVal!=null)?(valUSD-baseVal):null;
-    var dCell=(d==null)?'<span style="color:#9aa3ad">—</span>':('<span style="font-weight:700;color:'+(d>=0?'#1D9E75':'#c0392b')+'">'+(d>=0?'+':'')+fmtD(d)+'</span>');
-    return '<tr class="'+(curBase===r?'base':'')+'" onclick="'+setter+'('+r+')"><td style="font-weight:700">'+r+'</td><td>'+saleCBM.toFixed(3)+'</td><td>'+saleTons.toFixed(2)+'</td><td style="font-weight:700">'+fmtD(valUSD)+'</td><td>'+fmtR(valINR)+'</td><td>'+((cost>0)?fmtR(diffINR):'<span style="color:#9aa3ad">—</span>')+'</td><td>'+dCell+'</td></tr>';
-  }).join("")||'<tr><td colspan="7" style="text-align:center;color:#9aa3ad;padding:14px">Nothing to calculate.</td></tr>';
-}
-function setQBase(r){qBase=(qBase===r)?null:r;calcQuick();}
-function calcQuick(){var v=num("qVol");document.getElementById("qReal").textContent=(v*num("dmg")).toFixed(2)+" t";renderGrid(v,v*num("qPrice"),"qBody",qBase,"setQBase");}
-function setInput(v){input=v;document.querySelectorAll('[data-in]').forEach(function(b){b.classList.toggle("on",b.getAttribute("data-in")===v);});loadSource();}
-function togGrade(g){if(gradeSet[g])delete gradeSet[g];else gradeSet[g]=1;document.querySelector('[data-g="'+g+'"]').classList.toggle("on",!!gradeSet[g]);calc();}
-function setSizeF(z){sizeF=z;document.querySelectorAll('[data-z]').forEach(function(b){b.classList.toggle("on",b.getAttribute("data-z")===z);});calc();}
-function setSBase(r){sBase=(sBase===r)?null:r;calc();}
-function toggleBlk(no){if(selBlk[no])delete selBlk[no];else selBlk[no]=1;calc();}
-function toggleAll(cb){var l=window._flist||[];l.forEach(function(b){if(cb.checked)selBlk[b.no]=1;else delete selBlk[b.no];});calc();}
 function allowVal(){return document.getElementById("netOn").checked?(+document.getElementById("allowSel").value||0):0;}
-function eff(b){var a=allowVal();var nL=Math.max(0,b.L-2*a),nW=Math.max(0,b.W-2*a),nH=Math.max(0,b.H-2*a);return {L:nL,W:nW,H:nH,vol:nL*nW*nH/1e6};}
-function meets(b){var e=eff(b);return e.L>=num("dL")&&e.W>=num("dW")&&e.H>=num("dH");}
-function priceFor(g){if(sizeF!=="all")return (sizeF==="lo")?num("pLo"):num("pHi");var p=num("p_"+g);return p||num("p_A");}
-function calc(){
-  if(!window._ready)return;
-  var a=allowVal(),dL=num("dL"),dW=num("dW"),dH=num("dH"),hint=document.getElementById("netHint");
-  if(hint){if(a>0)hint.innerHTML="220×170×120 → <b>"+(220-2*a)+"×"+(170-2*a)+"×"+(120-2*a)+"</b> net";else hint.textContent="net off";}
-  var gA=Object.keys(gradeSet);
-  var list=current.filter(function(b){return gA.length===0||gradeSet[b.grade];});
-  if(sizeF==="hi")list=list.filter(meets);else if(sizeF==="lo")list=list.filter(function(b){return !meets(b);});
-  window._flist=list;
-  var chosen=list.filter(function(b){return selBlk[b.no];});
-  var use=chosen.length?chosen:list;
-  var vol=use.reduce(function(s,b){return s+eff(b).vol;},0);
-  var priced=use.reduce(function(s,b){return s+eff(b).vol*priceFor(b.grade);},0);
-  var name=input==="stock"?"Quarry stock":input==="sel"?"Selected blocks":(input.toUpperCase()+" "+(document.getElementById("sel"+input)?document.getElementById("sel"+input).value:""));
-  var parts=[];if(gA.length)parts.push("grade "+gA.join("+"));
-  if(sizeF!=="all")parts.push(sizeF==="hi"?("≥"+dL+"×"+dW+"×"+dH):("<"+dL+"×"+dW+"×"+dH));
-  if(a>0)parts.push("net −"+a+"cm/side");
-  if(chosen.length)parts.push(chosen.length+" of "+list.length+" ticked");
-  parts.push(sizeF!=="all"?"threshold price":"grade price");
-  document.getElementById("resSrc").textContent=name;
-  document.getElementById("resSub").textContent="· "+vol.toFixed(1)+" CBM";
-  var ap=['<span class="apill src">📍 '+name+'</span>'];
-  ap.push('<span class="apill">Grade: '+(gA.length?gA.join("+"):"all")+'</span>');
-  ap.push('<span class="apill">Size: '+(sizeF==="all"?"all":(sizeF==="hi"?"≥ thr":"< thr"))+'</span>');
-  if(a>0)ap.push('<span class="apill net">Net −'+a+'cm/side</span>');
-  if(chosen.length)ap.push('<span class="apill">Ticked: '+chosen.length+'</span>');
-  ap.push('<span class="apill price">Price by: '+(sizeF!=="all"?"threshold":"grade")+'</span>');
-  document.getElementById("activeBar").innerHTML='<span class="t">Active</span>'+ap.join(" ")+'<span class="aclear" onclick="clearFilters()">✕ Clear filters</span>';
-  document.getElementById("info").textContent=use.length+" blocks · "+parts.join(" · ");
-  document.getElementById("real").textContent=(vol*num("dmg")).toFixed(2)+" t";
-  renderGrid(vol,priced,"body",sBase,"setSBase");
-  var bb=document.getElementById("blockBody");
-  if(bb){bb.innerHTML=list.slice(0,500).map(function(b){var e=eff(b);return '<tr'+(selBlk[b.no]?' style="background:#fff7e6"':'')+'><td style="text-align:center"><input type="checkbox" '+(selBlk[b.no]?'checked':'')+' onclick="toggleBlk(\''+b.no+'\')"></td><td style="font-weight:700">'+b.no+'</td><td>'+b.grade+'</td><td>'+b.L+'×'+b.W+'×'+b.H+'</td><td>'+(a>0?(e.L+'×'+e.W+'×'+e.H):'—')+'</td><td>'+e.vol.toFixed(2)+'</td><td>'+fmtD(e.vol*priceFor(b.grade))+'</td></tr>';}).join("")||'<tr><td colspan="7" style="text-align:center;color:#9aa3ad;padding:12px">No blocks for this source / filter.</td></tr>';}
-  chart();
-}
-function calcAll(){calcQuick();calc();}
-function clearFilters(){gradeSet={};document.querySelectorAll('[data-g]').forEach(function(b){b.classList.remove("on");});sizeF="all";document.querySelectorAll('[data-z]').forEach(function(b){b.classList.toggle("on",b.getAttribute("data-z")==="all");});document.getElementById("netOn").checked=false;selBlk={};var sa=document.getElementById("selAll");if(sa)sa.checked=false;calc();}
-function chart(){var s=B.filter(inStock),by={};GRADES.forEach(function(g){by[g]=0;});s.forEach(function(b){if(by[b.grade]==null)by[b.grade]=0;by[b.grade]++;});
-  var ks=Object.keys(by),max=Math.max.apply(null,ks.map(function(g){return by[g];}).concat([1]));
-  document.getElementById("chart").innerHTML=ks.map(function(g){var n=by[g]||0;return '<div class="bar"><div class="bl">'+g+'</div><div class="bt"><div class="bf" style="width:'+Math.max(4,n/max*100)+'%;background:'+gcol(g)+'"></div><div class="bv">'+n+'</div></div></div>';}).join("");
-  document.getElementById("chartTot").textContent=s.length+" blocks · "+s.reduce(function(a,b){return a+b.vol;},0).toFixed(1)+" CBM in stock";}
+function eff(b){var a=allowVal();return {L:Math.max(0,b.L-2*a),W:Math.max(0,b.W-2*a),H:Math.max(0,b.H-2*a)};}
+function isBig(b){var e=eff(b);return e.L>=num("tL")&&e.W>=num("tW")&&e.H>=num("tH");}
+function allowPerSide(L,W,H,dVcbm){var area=2*(L*W+W*H+L*H);return (area>0&&dVcbm>0)?(dVcbm*1e6/area):0;}
 
+function setSrc(s){src=s;document.querySelectorAll('[data-src]').forEach(function(c){c.classList.toggle("on",c.getAttribute("data-src")===s);});document.getElementById("biBox").style.display=(s==="bi")?"":"none";if(s==="bi"){loadBI();}else{calc();}}
+function togGrade(g){if(gradeSet[g])delete gradeSet[g];else gradeSet[g]=1;document.querySelector('[data-g="'+g+'"]').classList.toggle("on",!!gradeSet[g]);calc();}
+function togPit(p){if(pitSet[p])delete pitSet[p];else pitSet[p]=1;document.querySelector('[data-p="'+p+'"]').classList.toggle("on",!!pitSet[p]);calc();}
+function setSize(z){sizeF=z;document.querySelectorAll('[data-z]').forEach(function(c){c.classList.toggle("on",c.getAttribute("data-z")===z);});calc();}
+function clearF(){gradeSet={};pitSet={};document.querySelectorAll('[data-g],[data-p]').forEach(function(c){c.classList.remove("on");});setSize("all");calc();}
+function setQBase(r){qBase=(qBase===r)?null:r;calc();}
+
+/* ---------- standalone quick calc popup ---------- */
+var qcBase=null;
+function openQC(){document.getElementById("qcModal").style.display="flex";quickCalc();}
+function closeQC(){document.getElementById("qcModal").style.display="none";}
+function setQcBase(r){qcBase=(qcBase===r)?null:r;quickCalc();}
+function quickCalc(){
+  var L=+document.getElementById("qcL").value||0, W=+document.getElementById("qcW").value||0, H=+document.getElementById("qcH").value||0;
+  var hasDims=(L>0&&W>0&&H>0);
+  var vol = hasDims ? +(L*W*H/1e6).toFixed(3) : (+document.getElementById("qcVol").value||0);
+  if(hasDims) document.getElementById("qcVol").value=vol;
+  var price=+document.getElementById("qcPrice").value||0, sg=+document.getElementById("qcSG").value||0;
+  var INR=+document.getElementById("qcInr").value||USD_INR, CNY=+document.getElementById("qcCny").value||USD_CNY;
+  var priced=vol*price, gt=vol*sg;
+  document.getElementById("qcReal").textContent=gt.toFixed(2)+" t";
+  var rates=(document.getElementById("qcRates").value||"").split(/[\s,]+/).map(parseFloat).filter(function(x){return x>0;});
+  if(qcBase===null&&rates.length)qcBase=(rates.indexOf(5)>-1?5:rates[0]);
+  var baseVal=(qcBase>0)?(sg/qcBase)*priced:0, baseINR=baseVal*INR, baseCBM=(qcBase>0)?vol*sg/qcBase:0;
+  document.getElementById("qcBody").innerHTML=rates.map(function(r){
+    var scbm=vol*sg/r, valUSD=(sg/r)*priced, valINR=valUSD*INR, valCNY=valUSD*CNY, pt=gt>0?valUSD/gt:0;
+    var dCBM=scbm-baseCBM, dUSD=valUSD-baseVal, dINR=valINR-baseINR, on=Math.abs(r-qcBase)<1e-9;
+    var disc=vol*sg*(1/qcBase - 1/r);
+    var discCell=(Math.abs(disc)<0.005)?'<span style="color:#9aa3ad">—</span>':'<span style="color:#c0392b;font-weight:700">−'+disc.toFixed(3)+'</span>';
+    var allowCell = hasDims ? '<span style="font-weight:700">'+(disc>0?allowPerSide(L,W,H,disc).toFixed(1)+' cm':'0.0 cm')+'</span>' : '<span style="color:#9aa3ad">enter L×W×H</span>';
+    function dc(v,cur,dec){if(Math.abs(v)<(dec?0.005:0.5))return '<span style="color:#9aa3ad">—</span>';var pos=v>=0;var mag=dec?Math.abs(v).toFixed(2):Math.abs(Math.round(v)).toLocaleString();return '<span style="font-weight:700;color:'+(pos?'#1D9E75':'#c0392b')+'">'+(pos?'+':'−')+cur+mag+'</span>';}
+    return '<tr class="'+(on?'base':'')+'" onclick="setQcBase('+r+')"><td style="font-weight:700">'+r+'</td><td>$'+pt.toFixed(1)+'</td><td style="font-weight:700">'+scbm.toFixed(2)+'</td><td>'+dc(dCBM,"",true)+'</td><td style="font-weight:700">$'+Math.round(valUSD).toLocaleString()+'</td><td>₹'+Math.round(valINR).toLocaleString("en-IN")+'</td><td>¥'+Math.round(valCNY).toLocaleString()+'</td><td>'+dc(dUSD,"$")+'</td><td>'+dc(dINR,"₹")+'</td><td>'+discCell+'</td><td>'+allowCell+'</td></tr>';
+  }).join("")||'<tr><td colspan="11" style="text-align:center;color:#9aa3ad;padding:14px">Enter sale tonnages.</td></tr>';
+}
+
+/* ---------- selection ---------- */
+function applyFilters(pool){
+  var gA=Object.keys(gradeSet), pA=Object.keys(pitSet);
+  return pool.filter(function(b){
+    if(gA.length&&!gradeSet[b.grade])return false;
+    if(pA.length&&!pitSet[b.pit])return false;
+    if(sizeF==="big"&&!isBig(b))return false;
+    if(sizeF==="small"&&isBig(b))return false;
+    return true;
+  });
+}
+function selectedBlocks(){
+  var pool = (tab==="selected") ? STOCK.filter(function(b){return selBlk[b.no];}) : ((src==="stock")?STOCK:curBI);
+  return applyFilters(pool);
+}
+function candidateBlocks(){ return applyFilters(STOCK); }
+function priceFor(b){return isBig(b)?num("pBig"):num("pSmall");}
+
+/* ---------- main calc ---------- */
+function calc(){
+  if(!window._loaded)return;
+  document.getElementById("selCount").textContent=Object.keys(selBlk).length;
+  var _a=allowVal();
+  document.getElementById("netHint").innerHTML=_a>0?("e.g. 200 → <b>"+(200-2*_a)+"</b> net"):"net off — gross size";
+  document.getElementById("biInfo").innerHTML='📋 <b>'+curBI.length+' blocks</b> · total volume <b>'+curBI.reduce(function(s,b){return s+b.vol;},0).toFixed(2)+' CBM</b>';
+  var sel=selectedBlocks();
+  var big=sel.filter(isBig), small=sel.filter(function(b){return !isBig(b);});
+  var volBig=big.reduce(function(s,b){return s+b.vol;},0), volSmall=small.reduce(function(s,b){return s+b.vol;},0);
+  var valBig=volBig*num("pBig"), valSmall=volSmall*num("pSmall");
+  var volAll=volBig+volSmall, valAll=valBig+valSmall;
+  var blended=volAll>0?valAll/volAll:0;
+
+  var gA=Object.keys(gradeSet);
+  var srcName=(src==="stock"?"Quarry stock":"BI "+document.getElementById("biSel").value);
+  var pills=['<span class="apill src">📍 '+srcName+'</span>'];
+  pills.push('<span class="apill">Grade: '+(gA.length?gA.join("+"):"all")+'</span>');
+  pills.push('<span class="apill">Size: '+(sizeF==="all"?"both":(sizeF==="big"?"≥ thr":"< thr"))+'</span>');
+  document.getElementById("pillBar").innerHTML=pills.join(" ");
+
+  document.getElementById("blkCard").style.display=(tab==="selected")?"":"none";
+  var tableList=(tab==="selected")?candidateBlocks():sel;
+  window._listed=tableList;
+  var SG=num("dmg"), tgt=+document.getElementById("tgt").value, r0=5, af=(1/r0 - 1/tgt);
+  var totDisc=0;
+  var tlVol=tableList.reduce(function(s,b){return s+b.vol;},0);
+  var tickedN=tableList.filter(function(b){return selBlk[b.no];}).length;
+  document.getElementById("blkSub").textContent="· "+tableList.length+" candidate blocks · "+tlVol.toFixed(1)+" CBM · "+tickedN+" ticked";
+  document.getElementById("blkBody").innerHTML=tableList.map(function(b){
+    var bg=isBig(b);
+    var disc=b.vol*SG*af; if(disc>0)totDisc+=disc;
+    var a=allowPerSide(b.L,b.W,b.H,disc);
+    var ck=selBlk[b.no];
+    return '<tr'+(ck?' style="background:#fff7e6"':'')+'><td style="text-align:center"><input type="checkbox" '+(ck?'checked':'')+' onclick="toggleBlk(\''+b.no+'\')"></td><td style="font-weight:700">'+b.no+'</td><td><span class="gdot" style="background:'+gcol(b.grade)+'"></span>'+b.grade+'</td><td>'+b.L+'×'+b.W+'×'+b.H+'</td><td>'+b.vol.toFixed(2)+'</td><td style="text-align:left"><span style="color:'+(bg?'var(--green)':'#c9871f')+';font-weight:700">'+(bg?'Threshold big':'Threshold small')+'</span></td><td>$'+priceFor(b)+'</td><td style="font-weight:700">$'+Math.round(b.vol*priceFor(b)).toLocaleString()+'</td><td style="color:#c0392b;font-weight:700">−'+disc.toFixed(3)+'</td><td style="font-weight:700">'+a.toFixed(1)+' cm</td></tr>';
+  }).join("")||'<tr><td colspan="10" style="text-align:center;color:#9aa3ad;padding:14px">'+(tab==="selected"?"No blocks match — adjust filters or tick blocks.":"No blocks match these filters.")+'</td></tr>';
+  document.getElementById("allowTot").innerHTML='Total discount vs benchmark 5: <b style="color:#c0392b">'+totDisc.toFixed(2)+' CBM</b> over '+tableList.length+' blocks';
+
+  var pool=(tab==="selected")?STOCK.filter(function(b){return selBlk[b.no];}):((src==="stock")?STOCK:curBI);
+  document.getElementById("valSub").textContent="· "+(tab==="selected"?"Selected from stock":srcName)+" · big @$"+num("pBig")+" / small @$"+num("pSmall");
+  var gord=GRADES.slice(); pool.forEach(function(b){if(gord.indexOf(b.grade)<0)gord.push(b.grade);});
+  var TB=0,TBc=0,TS=0,TSc=0,TVal=0,TGt=0;
+  document.getElementById("gradeVal").innerHTML=gord.map(function(g){
+    var gb=pool.filter(function(b){return b.grade===g;}); if(!gb.length)return "";
+    var bigs=gb.filter(isBig), smalls=gb.filter(function(b){return !isBig(b);});
+    var bc=bigs.reduce(function(s,b){return s+b.vol;},0), sc=smalls.reduce(function(s,b){return s+b.vol;},0);
+    var val=bc*num("pBig")+sc*num("pSmall"), gt=(bc+sc)*SG, pt=gt>0?val/gt:0;
+    TB+=bigs.length;TBc+=bc;TS+=smalls.length;TSc+=sc;TVal+=val;TGt+=gt;
+    return '<tr><td style="font-weight:700"><span class="gdot" style="background:'+gcol(g)+'"></span>'+g+'</td><td>'+bigs.length+'</td><td>'+bc.toFixed(1)+'</td><td>'+smalls.length+'</td><td>'+sc.toFixed(1)+'</td><td style="font-weight:700">'+gb.length+'</td><td style="font-weight:700">'+(bc+sc).toFixed(1)+'</td><td style="font-weight:700">$'+Math.round(val).toLocaleString()+'</td><td>₹'+Math.round(val*USD_INR).toLocaleString("en-IN")+'</td><td>$'+pt.toFixed(1)+'</td></tr>';
+  }).join("")||'<tr><td colspan="10" style="text-align:center;color:#9aa3ad;padding:12px">No stock.</td></tr>';
+  var Tpt=TGt>0?TVal/TGt:0;
+  document.getElementById("gradeTot").innerHTML='<td>All grades</td><td>'+TB+'</td><td>'+TBc.toFixed(1)+'</td><td>'+TS+'</td><td>'+TSc.toFixed(1)+'</td><td>'+(TB+TS)+'</td><td>'+(TBc+TSc).toFixed(1)+'</td><td>$'+Math.round(TVal).toLocaleString()+'</td><td>₹'+Math.round(TVal*USD_INR).toLocaleString("en-IN")+'</td><td>$'+Tpt.toFixed(1)+'</td>';
+
+  var pord=PITS.slice(); pool.forEach(function(b){if(pord.indexOf(b.pit)<0)pord.push(b.pit);});
+  var PB=0,PBc=0,PVal=0;
+  document.getElementById("pitVal").innerHTML=pord.map(function(p){
+    var pb=pool.filter(function(b){return b.pit===p;}); if(!pb.length)return "";
+    var bigs=pb.filter(isBig).length, smalls=pb.length-bigs;
+    var cbm=pb.reduce(function(s,b){return s+b.vol;},0), val=pb.reduce(function(s,b){return s+b.vol*priceFor(b);},0);
+    var gm={}; pb.forEach(function(b){gm[b.grade]=(gm[b.grade]||0)+1;});
+    var mix=gord.filter(function(g){return gm[g];}).map(function(g){return '<span class="gdot" style="background:'+gcol(g)+'"></span>'+g+' '+gm[g];}).join(" &nbsp; ");
+    PB+=pb.length;PBc+=cbm;PVal+=val;
+    return '<tr><td style="font-weight:700">'+p+'</td><td style="font-weight:700">'+pb.length+'</td><td style="font-weight:700">'+cbm.toFixed(1)+'</td><td>'+bigs+'</td><td>'+smalls+'</td><td style="text-align:left;font-size:11.5px">'+mix+'</td><td style="font-weight:700">$'+Math.round(val).toLocaleString()+'</td></tr>';
+  }).join("")||'<tr><td colspan="7" style="text-align:center;color:#9aa3ad;padding:12px">No stock.</td></tr>';
+  document.getElementById("pitTot").innerHTML='<td>All pits</td><td>'+PB+'</td><td>'+PBc.toFixed(1)+'</td><td colspan="2"></td><td></td><td>$'+Math.round(PVal).toLocaleString()+'</td>';
+
+  var vol=volAll, priced=valAll;
+  document.getElementById("feedInfo").innerHTML="Selection: <b>"+sel.length+" blocks · "+volAll.toFixed(1)+" CBM</b> · value <b>$"+Math.round(valAll).toLocaleString()+"</b> (≥thr @$"+num("pBig")+" / &lt;thr @$"+num("pSmall")+") · blended $"+Math.round(blended)+"/CBM";
+  document.getElementById("realW").textContent=(vol*num("dmg")).toFixed(1)+" t";
+
+  var dmg=num("dmg"), rates=ratesArr();
+  if(qBase===null&&rates.length)qBase=(rates.indexOf(5)>-1?5:rates[0]);
+  var grossTon=vol*dmg;
+  var baseVal=(qBase>0)?(dmg/qBase)*priced:0;
+  var baseINR=baseVal*USD_INR;
+  var baseCBM=(qBase>0)?vol*dmg/qBase:0;
+  document.getElementById("qBody").innerHTML=rates.map(function(r){
+    var saleCBM=vol*dmg/r, valUSD=(dmg/r)*priced, valINR=valUSD*USD_INR, valCNY=valUSD*USD_CNY;
+    var pTon=grossTon>0?valUSD/grossTon:0;
+    var dCBM=saleCBM-baseCBM, dUSD=valUSD-baseVal, dINR=valINR-baseINR, on=Math.abs(r-qBase)<1e-9;
+    function dc(v,cur,dec){if(Math.abs(v)<(dec?0.005:0.5))return '<span style="color:#9aa3ad">—</span>';var pos=v>=0;var mag=dec?Math.abs(v).toFixed(2):Math.abs(Math.round(v)).toLocaleString();return '<span style="font-weight:700;color:'+(pos?'#1D9E75':'#c0392b')+'">'+(pos?'+':'−')+cur+mag+'</span>';}
+    return '<tr class="'+(on?'base':'')+'" onclick="setQBase('+r+')"><td style="font-weight:700">'+r+'</td><td>$'+pTon.toFixed(1)+'</td><td style="font-weight:700">'+saleCBM.toFixed(2)+'</td><td>'+dc(dCBM,"",true)+'</td><td style="font-weight:700">$'+Math.round(valUSD).toLocaleString()+'</td><td>₹'+Math.round(valINR).toLocaleString("en-IN")+'</td><td>¥'+Math.round(valCNY).toLocaleString()+'</td><td>'+dc(dUSD,"$")+'</td><td>'+dc(dINR,"₹")+'</td></tr>';
+  }).join("")||'<tr><td colspan="9" style="text-align:center;color:#9aa3ad;padding:14px">Enter sale tonnages.</td></tr>';
+}
+
+/* ---------- init ---------- */
 (async function(){
-  renderFx();fetchForex();
-  try{await load();}catch(e){document.getElementById("app").innerHTML='<div class="center">Could not load stock ('+(e&&e.message||e)+'). Open while logged into ERPNext.</div>';return;}
-  document.getElementById("app").innerHTML=appHTML();
-  window._ready=true;current=B.filter(inStock);calcAll();
+  renderFx(); fetchForex();
+  try{ await loadData(); }
+  catch(e){ document.getElementById("loadNote").textContent="Could not load stock ("+((e&&e.message)||e)+"). Open this page while logged in to ERPNext."; return; }
+  document.getElementById("gradeChips").innerHTML=GRADES.map(function(g){return '<span class="chip" data-g="'+g+'" onclick="togGrade(\''+g+'\')"><span class="gdot" style="background:'+gcol(g)+'"></span>'+g+'</span>';}).join("");
+  document.getElementById("pitChips").innerHTML=PITS.map(function(p){return '<span class="chip" data-p="'+p+'" onclick="togPit(\''+p.replace(/'/g,"\\'")+'\')">'+p+'</span>';}).join("");
+  document.getElementById("biSel").innerHTML=BILIST.map(function(x){return '<option>'+x+'</option>';}).join("")||'<option value="">— no Buyer Inspections —</option>';
+  document.getElementById("loadNote").style.display="none";
+  document.getElementById("app").style.display="";
+  window._loaded=true;
+  calc();
 })();
 </script>
 </body>
