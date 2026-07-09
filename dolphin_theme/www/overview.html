@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dolphin — Overview &amp; Journey</title>
+<style>
+:root{--navy:#0F2540;--gold:#D4A24A;--blue:#2490ef;--ink:#1c2430;--muted:#5f6b7a;--line:#e7ebf1;--bg:#eef1f6;--green:#1D9E75;}
+*{box-sizing:border-box;}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--ink);font-size:14px;-webkit-font-smoothing:antialiased;}
+.wrap{max-width:1120px;margin:0 auto;padding:18px;}
+.topbar{background:var(--navy);border-radius:14px;padding:16px 20px;color:#fff;margin-bottom:14px;}
+.topbar .title{font-size:18px;font-weight:700;}
+.topbar .sub{font-size:12.5px;color:#bcd0e6;margin-top:2px;}
+.card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:18px;margin-bottom:14px;}
+.ct{font-size:12px;font-weight:800;color:var(--navy);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;}
+.ct .sub{font-weight:500;text-transform:none;letter-spacing:0;color:var(--muted);font-size:12px;}
+.pipe{display:flex;gap:9px;align-items:stretch;overflow:auto;padding-bottom:4px;}
+.stage{flex:1;min-width:128px;background:#f5f8fc;border:1px solid var(--line);border-radius:12px;padding:12px;}
+.stage .h{font-size:10.5px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.3px;}
+.stage .n{font-size:25px;font-weight:800;color:var(--navy);line-height:1.1;}
+.stage .c{font-size:11.5px;color:var(--muted);}
+.arrow{align-self:center;color:var(--gold);font-weight:800;}
+.stage.ship{background:var(--navy);}
+.stage.ship .h{color:var(--gold);} .stage.ship .n{color:#fff;} .stage.ship .c{color:#bcd0e6;}
+.seg{display:flex;gap:14px;flex-wrap:wrap;}
+.segbar{flex:1;min-width:220px;}
+.segbar .lab{display:flex;justify-content:space-between;font-size:12px;font-weight:700;}
+.segbar .track{background:#eef1f5;border-radius:6px;height:16px;margin-top:4px;overflow:hidden;}
+.segbar .fill{height:100%;border-radius:6px;}
+.tag{font-size:10.5px;font-weight:800;color:#fff;border-radius:6px;padding:2px 8px;display:inline-block;margin:2px 3px 0 0;}
+.sbx{display:flex;gap:8px;margin-bottom:6px;}
+.sbx input{flex:1;height:40px;border:1px solid #d8dee6;border-radius:9px;padding:0 12px;font-size:14.5px;}
+.hint{font-size:11.5px;color:var(--muted);margin-bottom:10px;}
+/* journey (from trace-block) */
+.journey{display:flex;gap:0;overflow-x:auto;padding:6px 2px 2px;}
+.stg{flex:1 0 138px;min-width:138px;position:relative;padding:0 6px;}
+.stg .node{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;border:2px solid #cfd4dc;background:#fff;color:#aeb6c1;position:relative;z-index:2;}
+.stg.done .node{border-color:#0f6e56;background:#0f6e56;color:#fff;}
+.stg.cur .node{border-color:var(--gold);background:var(--gold);color:#3a2a05;box-shadow:0 0 0 4px #f6ecd6;}
+.stg .bar{position:absolute;top:17px;left:calc(50% + 17px);right:calc(-50% + 17px);height:3px;background:#e2e6ec;z-index:1;}
+.stg.done .bar{background:#0f6e56;}
+.stg:last-child .bar{display:none;}
+.stg .lbl{font-size:11px;text-transform:uppercase;letter-spacing:.03em;color:#8a929c;margin-top:9px;}
+.stg .val{font-weight:700;font-size:14px;margin-top:1px;word-break:break-word;}
+.stg .val.pend{color:#b3bac4;font-weight:500;}
+.stg a.eye{display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:3px 9px;border-radius:11px;border:1px solid #185fa5;color:#185fa5;text-decoration:none;margin-top:6px;}
+.bcard{background:#fbfcfe;border:1px solid var(--line);border-radius:12px;padding:16px;margin-top:8px;}
+.bhead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px;}
+.bno{font-size:20px;font-weight:800;} .meta{font-size:12px;color:var(--muted);}
+.badge{font-size:12px;padding:3px 12px;border-radius:12px;font-weight:700;margin-left:auto;}
+.empty{padding:22px;text-align:center;color:#9aa3ad;}
+.note{background:#fffdf6;border:1px solid #f1d99a;border-left:4px solid var(--gold);border-radius:10px;padding:11px 14px;font-size:12.6px;color:#6b5320;margin:0 0 14px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar"><div class="title">Overview &amp; Journey</div><div class="sub">Dolphin International · bird's-eye of every block's stage, size &amp; grade — plus a full journey trace</div></div>
+  <div class="note" id="loadNote">Loading live stock…</div>
+  <div id="app" style="display:none">
+
+  <div class="card">
+    <div class="ct">🚢 Pipeline — bird's-eye <span class="sub">every block by its current stage</span></div>
+    <div class="pipe" id="pipe"></div>
+  </div>
+
+  <div class="card">
+    <div class="ct">📐 In-stock — size &amp; grade <span class="sub" id="segSub"></span></div>
+    <div class="seg" id="seg"></div>
+    <div style="margin-top:14px" id="gmix"></div>
+  </div>
+
+  <div class="card">
+    <div class="ct">🧭 Trace a block <span class="sub">quarry block number or export number → full journey</span></div>
+    <div class="sbx"><input id="q" placeholder="Quarry block number or export number…"></div>
+    <div class="hint">Quarry block number works up to Delivery Challan · export number works from At Port onward.</div>
+    <div id="result"><div class="empty">Enter a block number above.</div></div>
+  </div>
+
+  </div>
+</div>
+<script>
+function apiList(fields,filters){var u="/api/method/frappe.client.get_list?doctype=Quarry Block&fields="+encodeURIComponent(JSON.stringify(fields))+"&limit_page_length=0";if(filters)u+="&filters="+encodeURIComponent(JSON.stringify(filters));return fetch(u,{credentials:"include",headers:{Accept:"application/json"}}).then(function(r){return r.json();}).then(function(j){return j.message||[];});}
+function esc(s){return (s==null?'':(''+s)).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+var GCOL={A:"#1D9E75",B:"#2F80ED",B1:"#7F77DD",B2:"#534AB7",C:"#EF9F27",D:"#D85A30"};
+function gcol(g){return GCOL[g]||"#9aa3ad";}
+var TL=180,TW=100,TH=100;
+
+/* ---- pipeline + segmentation ---- */
+var STAGES=[["In Stock","In Stock","#1D9E75"],["Buyer Marked","Buyer Marked","#2F80ED"],["In Delivery Challan","In DC","#7F77DD"],["Dispatched/Transported","Dispatched","#534AB7"],["At Port","At Port","#D4A24A"],["Shipped","Shipped","#0f6e56"],["Sold","Sold","#5f6b7a"]];
+function num(v){return +v||0;}
+function build(B){
+  // pipeline
+  var byStatus={}, cbmByStatus={};
+  B.forEach(function(b){var s=b.status||"—";byStatus[s]=(byStatus[s]||0)+1;cbmByStatus[s]=(cbmByStatus[s]||0)+num(b.gross_volume);});
+  // At Port includes yard variant
+  byStatus["At Port"]=(byStatus["At Port"]||0)+(byStatus["At Bannikoppa Station yard"]||0);
+  cbmByStatus["At Port"]=(cbmByStatus["At Port"]||0)+(cbmByStatus["At Bannikoppa Station yard"]||0);
+  var html="";
+  STAGES.forEach(function(st,i){
+    var n=byStatus[st[0]]||0, cbm=cbmByStatus[st[0]]||0;
+    var ship=(st[0]==="Shipped"||st[0]==="Sold");
+    if(i>0)html+='<div class="arrow">→</div>';
+    html+='<div class="stage'+(ship?' ship':'')+'" style="border-top:3px solid '+st[2]+'"><div class="h">'+st[1]+'</div><div class="n">'+n+'</div><div class="c">'+cbm.toFixed(0)+' CBM</div></div>';
+  });
+  document.getElementById("pipe").innerHTML=html;
+
+  // in-stock size + grade
+  var stock=B.filter(function(b){return /in stock|buyer marked/i.test(b.status||"");});
+  function big(b){return num(b.length_gross)>=TL&&num(b.width_gross)>=TW&&num(b.height_gross)>=TH;}
+  var bigs=stock.filter(big), smalls=stock.filter(function(b){return !big(b);});
+  var bC=bigs.reduce(function(s,b){return s+num(b.gross_volume);},0), sC=smalls.reduce(function(s,b){return s+num(b.gross_volume);},0);
+  var tot=stock.length||1;
+  document.getElementById("segSub").textContent="· "+stock.length+" blocks · threshold "+TL+"×"+TW+"×"+TH;
+  document.getElementById("seg").innerHTML=''
+   +'<div class="segbar"><div class="lab"><span>≥ threshold (big)</span><span>'+bigs.length+' · '+bC.toFixed(0)+' CBM</span></div><div class="track"><div class="fill" style="width:'+(bigs.length/tot*100).toFixed(1)+'%;background:var(--green)"></div></div></div>'
+   +'<div class="segbar"><div class="lab"><span>&lt; threshold (small)</span><span>'+smalls.length+' · '+sC.toFixed(0)+' CBM</span></div><div class="track"><div class="fill" style="width:'+(smalls.length/tot*100).toFixed(1)+'%;background:#EF9F27"></div></div></div>';
+  var gm={};stock.forEach(function(b){var g=((b.granite_quality_grade||"—")+"").trim()||"—";gm[g]=(gm[g]||0)+1;});
+  var order=["A","B","B1","B2","C","D"];var gk=order.filter(function(g){return gm[g];});Object.keys(gm).sort().forEach(function(g){if(gk.indexOf(g)<0)gk.push(g);});
+  document.getElementById("gmix").innerHTML='<div style="font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;margin-bottom:5px">Grade mix (in stock)</div>'+gk.map(function(g){return '<span class="tag" style="background:'+gcol(g)+'">'+g+' · '+gm[g]+'</span>';}).join("");
+}
+
+/* ---- journey (from trace-block) ---- */
+var SC={'In Stock':['#eaf3de','#3b6d11'],'Buyer Marked':['#faeeda','#854f0b'],'In Delivery Challan':['#e6f1fb','#0c447c'],'Dispatched/Transported':['#e6f1fb','#0c447c'],'At Port':['#eeedfe','#3c3489'],'At Bannikoppa Station yard':['#eeedfe','#3c3489'],'Shipped':['#e1f5ee','#0f6e56'],'Sold':['#f1efe8','#444441']};
+var RANK={'In Stock':0,'Buyer Marked':1,'In Delivery Challan':2,'Dispatched/Transported':3,'At Port':4,'At Bannikoppa Station yard':4,'Shipped':5,'Sold':6};
+var FL=['name','block_number','export_block_no','status','delivery_challan','buyer_inspection','source_quarry_inspection','granite_quality_grade','length_gross','width_gross','height_gross','gross_volume'];
+function apiFind(filters){return apiList(FL,filters);}
+function pdf(dt,nm,fmt){return '/api/method/frappe.utils.print_format.download_pdf?doctype='+encodeURIComponent(dt)+'&name='+encodeURIComponent(nm)+'&format='+encodeURIComponent(fmt)+'&no_letterhead=0';}
+function eye(dt,nm,fmt){return nm?'<a class="eye" href="'+pdf(dt,nm,fmt)+'" target="_blank">👁 PDF</a>':'';}
+function stage(cls,icon,label,val,pend,extra){return '<div class="stg '+cls+'"><div class="bar"></div><div class="node">'+icon+'</div><div class="lbl">'+label+'</div><div class="val'+(pend?' pend':'')+'">'+val+'</div>'+(extra||'')+'</div>';}
+function journey(b){
+  var rank=(b.status in RANK)?RANK[b.status]:0;
+  var qno=esc(b.block_number||b.name), xno=b.export_block_no?esc(b.export_block_no):'not yet';
+  function st(idx){return rank>idx?'done':(rank===idx?'cur':'');}
+  function dc(idx,doc){return doc?'done':st(idx);}
+  var s=[];
+  s.push(stage(rank>0?'done':'cur','●','Quarried',qno,false));
+  s.push(stage(dc(0,b.source_quarry_inspection),'QI','Quarry Insp.',b.source_quarry_inspection?qno:'not yet',!b.source_quarry_inspection,eye('Quarry Inspection',b.source_quarry_inspection,'Quarry Inspection - Report')));
+  s.push(stage(dc(1,b.buyer_inspection),'BI','Buyer Insp.',b.buyer_inspection?qno:'not yet',!b.buyer_inspection,eye('Buyer Inspection',b.buyer_inspection,'Buyer Inspection - Report')));
+  s.push(stage(dc(2,b.delivery_challan),'DC','Delivery Challan',b.delivery_challan?qno:'not yet',!b.delivery_challan,eye('Delivery Challan',b.delivery_challan,'Dolphin Delivery Challan')));
+  s.push(stage(st(3),'🚛','Transported',(rank>=3?xno:'not yet'),rank<3,false));
+  s.push(stage(st(4),'⚓','At Port',(rank>=4?xno:'not yet'),rank<4,false));
+  s.push(stage(rank>=5?'done':'','🚢','Shipped',(rank>=5?xno:'not yet'),rank<5,false));
+  return '<div class="journey">'+s.join('')+'</div>';
+}
+function render(q,bl){
+  var R=document.getElementById('result');
+  if(!bl.length){R.innerHTML='<div class="empty">No block <b>'+esc(q)+'</b> found. Try the other number (quarry vs export).</div>';return;}
+  R.innerHTML=bl.map(function(b){
+    var sc=SC[b.status]||['#f1efe8','#444441'];
+    var dim=(b.length_gross||'')+'×'+(b.width_gross||'')+'×'+(b.height_gross||'');
+    var cbm=b.gross_volume?(' · '+(+b.gross_volume).toFixed(2)+' CBM'):'';
+    return '<div class="bcard"><div class="bhead"><span class="bno">Block '+esc(b.block_number||b.name)+'</span>'+(b.export_block_no?'<span class="meta">export '+esc(b.export_block_no)+'</span>':'')+'<span class="badge" style="background:'+sc[0]+';color:'+sc[1]+'">📍 '+esc(b.status||'')+'</span></div><div class="meta">'+esc(b.granite_quality_grade||'')+(dim!=='××'?(' · '+dim+cbm):'')+'</div>'+journey(b)+'</div>';
+  }).join('');
+}
+var t=null;
+function go(){var q=document.getElementById('q').value.trim();if(!q){document.getElementById('result').innerHTML='<div class="empty">Enter a block number above.</div>';return;}
+  apiFind([['block_number','=',q]]).then(function(bl){if(bl.length)return bl;return apiFind([['export_block_no','=',q]]);}).then(function(bl){if(bl.length)return bl;return apiFind([['name','=',q]]);}).then(function(bl){render(q,bl);}).catch(function(e){document.getElementById('result').innerHTML='<div class="empty">Error: '+esc(e.message)+'</div>';});
+}
+
+/* ---- init ---- */
+(async function(){
+  try{
+    var B=await apiList(["name","block_number","status","granite_quality_grade","length_gross","width_gross","height_gross","gross_volume"]);
+    build(B);
+    document.getElementById("loadNote").style.display="none";
+    document.getElementById("app").style.display="";
+    document.getElementById('q').addEventListener('input',function(){clearTimeout(t);t=setTimeout(go,350);});
+  }catch(e){ document.getElementById("loadNote").textContent="Could not load ("+((e&&e.message)||e)+"). Open while logged in to ERPNext."; }
+})();
+</script>
+</body>
+</html>
