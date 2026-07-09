@@ -65,10 +65,11 @@ tbody tr.base td:first-child::before{content:"★ ";color:var(--gold);}
   <div style="display:flex;gap:8px;margin-bottom:14px">
     <button class="tbtn on" id="tabStock" onclick="setTab('stock')">📊 Stock calculator</button>
     <button class="tbtn" id="tabSel" onclick="setTab('selected')">✓ Selected blocks from stock <span class="cnt" id="selCount">0</span></button>
+    <button class="tbtn" id="tabQuick" onclick="setTab('quick')">⚡ Quick calc</button>
   </div>
 
   <!-- 1. SOURCE + FILTERS + TWO-CATEGORY PRICING -->
-  <div class="card">
+  <div class="card" id="card1">
     <div class="ct">📥 1 · Source &amp; filters <span class="sub" id="srcSub">pick stock or a BI — one or more filters combine</span></div>
     <div class="hbar">
       <div class="hgroup" id="srcGroup">
@@ -129,7 +130,7 @@ tbody tr.base td:first-child::before{content:"★ ";color:var(--gold);}
   </div>
 
   <!-- 2. GRADE x THRESHOLD STOCK BREAKDOWN -->
-  <div class="card" style="border:2px solid var(--navy)">
+  <div class="card" id="card2" style="border:2px solid var(--navy)">
     <div class="ct">📊 2 · Stock right now — grade × threshold <span class="sub" id="valSub"></span></div>
     <div style="font-size:11.5px;color:var(--muted);margin-bottom:8px">Every grade split by the ≥/&lt; threshold (tested on <b>net</b> size when the allowance is on): blocks &amp; CBM available now, valued at the big/small prices ($, ₹, $/ton). Bottom row = grand-total volume &amp; value.</div>
     <div class="tablewrap"><table class="grid">
@@ -147,7 +148,7 @@ tbody tr.base td:first-child::before{content:"★ ";color:var(--gold);}
   </div>
 
   <!-- 3. RESULT — unified, selection-driven -->
-  <div class="card hero">
+  <div class="card hero" id="card3">
     <div class="ct">🧮 3 · Result — your selection valued across sale tonnages <span class="sub">click a row for the ★ baseline</span></div>
     <div class="hbar" style="margin-bottom:6px">
       <div><label class="fl">Specific gravity</label><input type="number" id="dmg" value="2.60" step="0.05" style="width:100px" oninput="calc()"></div>
@@ -179,44 +180,37 @@ tbody tr.base td:first-child::before{content:"★ ";color:var(--gold);}
     </table></div>
     <div style="font-size:11.5px;color:var(--muted);margin-top:8px">Discount (CBM) = block gross tonnage × (1/5 − 1/target) — the billable volume you give up by selling at the target tonnage instead of 5. Allowance/side = that CBM difference spread across all three faces = ΔV ÷ 2·(L·W + W·H + L·H).</div>
   </div>
-  </div><!-- /app -->
-
-  <!-- FLOATING QUICK CALC POPUP -->
-  <button id="qcFab" onclick="openQC()" style="position:fixed;right:22px;bottom:22px;z-index:1000;background:var(--gold);color:#3a2a05;border:none;border-radius:26px;padding:13px 20px;font-weight:800;font-size:14px;box-shadow:0 6px 18px rgba(0,0,0,.28);cursor:pointer">⚡ Quick calc</button>
-  <div id="qcModal" style="display:none;position:fixed;inset:0;background:rgba(15,37,64,.55);z-index:1001;align-items:flex-start;justify-content:center;padding:40px 16px;overflow:auto">
-    <div style="background:#fff;width:100%;max-width:780px;border-radius:16px;overflow:hidden">
-      <div style="background:var(--navy);color:#fff;padding:14px 18px;display:flex;justify-content:space-between;align-items:center">
-        <span style="font-weight:700;font-size:16px">⚡ Quick calculator <span style="font-size:12px;color:#bcd0e6;font-weight:400">— standalone, no filters: type a volume &amp; price</span></span>
-        <span style="cursor:pointer;font-size:20px" onclick="closeQC()">✕</span>
-      </div>
-      <div style="padding:18px">
-        <div class="hbar" style="margin-bottom:8px">
-          <div><label class="fl">Gross volume (CBM)</label><input type="number" id="qcVol" value="6" step="0.1" style="width:110px" oninput="quickCalc()"></div>
-          <div><label class="fl">or L×W×H (cm) — enables allowance</label><div style="display:flex;gap:3px;align-items:center"><input type="number" id="qcL" value="220" placeholder="L" style="width:56px;height:36px" oninput="quickCalc()"><span>×</span><input type="number" id="qcW" value="170" placeholder="W" style="width:56px;height:36px" oninput="quickCalc()"><span>×</span><input type="number" id="qcH" value="120" placeholder="H" style="width:56px;height:36px" oninput="quickCalc()"></div></div>
-          <div><label class="fl">Price / CBM ($)</label><input type="number" id="qcPrice" value="1200" step="50" style="width:100px" oninput="quickCalc()"></div>
-          <div><label class="fl">Specific gravity</label><input type="number" id="qcSG" value="2.60" step="0.05" style="width:90px" oninput="quickCalc()"></div>
-          <div><label class="fl">Sale tonnages</label><input type="text" id="qcRates" value="5, 5.5, 6, 6.5, 7" style="width:150px" oninput="quickCalc()"></div>
-        </div>
-        <div class="hbar" style="margin-bottom:8px">
-          <div><label class="fl">USD → INR</label><input type="number" id="qcInr" value="86.00" step="0.01" style="width:100px" oninput="quickCalc()"></div>
-          <div><label class="fl">USD → CNY</label><input type="number" id="qcCny" value="7.15" step="0.01" style="width:100px" oninput="quickCalc()"></div>
-          <div style="margin-left:auto;text-align:right"><div class="fl">Gross tonnage</div><div style="font-size:18px;font-weight:800;color:var(--navy)" id="qcReal">—</div></div>
-        </div>
-        <div style="font-size:11.5px;color:var(--muted);margin-bottom:6px">No stock/filters — a fast volume × price sweep. Forex is editable. Enter L×W×H to also reverse-calculate the allowance/side each sale tonnage implies (vs the ★ benchmark). Click a row for the ★ baseline.</div>
-        <div class="tablewrap"><table class="grid">
-          <thead><tr><th>Sale tonnage (t/CBM)</th><th>Price/ton ($)</th><th>Sale volume (CBM)</th><th>Diff (CBM)</th><th>Value ($)</th><th>Value (₹)</th><th>Value (¥)</th><th>Diff ($)</th><th>Diff (₹)</th><th>Discount (CBM)</th><th>Allowance/side (cm)</th></tr></thead>
-          <tbody class="click" id="qcBody"></tbody>
-        </table></div>
-      </div>
+  <!-- QUICK CALC TAB -->
+  <div class="card hero" id="quickCard" style="display:none">
+    <div class="ct">⚡ Quick calculator <span class="sub">standalone — a fast volume × price sweep, no stock or filters</span></div>
+    <div class="hbar" style="margin-bottom:10px">
+      <div><label class="fl">Gross volume (CBM)</label><input type="number" id="qcVol" value="6" step="0.1" style="width:130px" oninput="quickCalc()"></div>
+      <div><label class="fl">or block L×W×H (cm) — optional</label><div style="display:flex;gap:3px;align-items:center"><input type="number" id="qcL" placeholder="L" style="width:62px;height:36px" oninput="quickCalc()"><span>×</span><input type="number" id="qcW" placeholder="W" style="width:62px;height:36px" oninput="quickCalc()"><span>×</span><input type="number" id="qcH" placeholder="H" style="width:62px;height:36px" oninput="quickCalc()"></div></div>
+      <div><label class="fl">Price / CBM ($)</label><input type="number" id="qcPrice" value="1200" step="50" style="width:110px" oninput="quickCalc()"></div>
+      <div><label class="fl">Specific gravity</label><input type="number" id="qcSG" value="2.60" step="0.05" style="width:100px" oninput="quickCalc()"></div>
+      <div><label class="fl">Sale tonnages (t/CBM) <span style="color:var(--muted);font-weight:500">· 5 = benchmark</span></label><input type="text" id="qcRates" value="5, 5.5, 6, 6.5, 7" style="width:180px" oninput="quickCalc()"></div>
     </div>
+    <div class="hbar" style="margin-bottom:10px;padding-top:12px;border-top:1px dashed var(--line)">
+      <div><label class="fl">USD → INR</label><input type="number" id="qcInr" value="86.00" step="0.01" style="width:100px" oninput="quickCalc()"></div>
+      <div><label class="fl">USD → CNY</label><input type="number" id="qcCny" value="7.15" step="0.01" style="width:100px" oninput="quickCalc()"></div>
+      <div><label class="fl">Net allowance <span style="color:var(--muted);font-weight:500">(needs L×W×H)</span></label><div style="display:flex;align-items:center;gap:8px;height:36px"><label style="display:flex;align-items:center;gap:6px;font-weight:700;color:var(--navy);font-size:12.5px"><input type="checkbox" id="qcNetOn" style="width:15px;height:15px" onchange="quickCalc()"> Apply net</label><select id="qcAllowSel" style="height:32px" onchange="quickCalc()"><option value="5">5 cm/side</option><option value="10" selected>10 cm/side</option><option value="15">15 cm/side</option></select></div></div>
+      <div><label class="fl">Threshold size (L×W×H)</label><div style="display:flex;gap:3px;align-items:center;height:36px"><input type="number" id="qcTL" value="180" style="width:54px" oninput="quickCalc()"><span>×</span><input type="number" id="qcTW" value="100" style="width:54px" oninput="quickCalc()"><span>×</span><input type="number" id="qcTH" value="100" style="width:54px" oninput="quickCalc()"></div></div>
+      <div style="margin-left:auto;text-align:right"><div class="fl">Gross tonnage · category</div><div style="font-size:18px;font-weight:800;color:var(--navy)"><span id="qcReal">—</span> <span id="qcCat" style="font-size:12.5px;font-weight:800"></span></div></div>
+    </div>
+    <div style="font-size:11.5px;color:var(--muted);margin-bottom:6px">Type a volume (or a block's L×W×H) and price → sweeps the sale tonnages. Forex is editable. With L×W×H you also get the <b>net size</b> (allowance), the <b>big/small</b> category vs the threshold, and the <b>allowance/side</b> each sale tonnage implies (vs the ★ benchmark 5). Click a row for the ★ baseline.</div>
+    <div class="tablewrap"><table class="grid">
+      <thead><tr><th>Sale tonnage (t/CBM)</th><th>Price/ton ($)</th><th>Sale volume (CBM)</th><th>Diff (CBM)</th><th>Value ($)</th><th>Value (₹)</th><th>Value (¥)</th><th>Diff ($)</th><th>Diff (₹)</th><th>Discount (CBM)</th><th>Allowance/side (cm)</th></tr></thead>
+      <tbody class="click" id="qcBody"></tbody>
+    </table></div>
   </div>
+  </div><!-- /app -->
 
 </div>
 
 <script>
 /* ---------- forex ---------- */
 var USD_INR=86.00, USD_CNY=7.15, fxWhen="not fetched";
-function renderFx(){document.getElementById("fxInr").value=USD_INR.toFixed(2);document.getElementById("fxCny").value=USD_CNY.toFixed(2);document.getElementById("fxWhen").textContent=fxWhen;}
+function renderFx(){document.getElementById("fxInr").value=USD_INR.toFixed(2);document.getElementById("fxCny").value=USD_CNY.toFixed(2);document.getElementById("fxWhen").textContent=fxWhen;var qi=document.getElementById("qcInr"),qc=document.getElementById("qcCny");if(qi)qi.value=USD_INR.toFixed(2);if(qc)qc.value=USD_CNY.toFixed(2);if(typeof tab!=="undefined"&&tab==="quick"&&document.getElementById("qcBody"))quickCalc();}
 function manualFx(){var i=+document.getElementById("fxInr").value,c=+document.getElementById("fxCny").value;if(i>0)USD_INR=i;if(c>0)USD_CNY=c;fxWhen="manual entry";document.getElementById("fxWhen").textContent=fxWhen;calc();}
 function fetchForex(){document.getElementById("fxWhen").textContent="fetching…";
   fetch("https://open.er-api.com/v6/latest/USD").then(function(r){return r.json();}).then(function(j){
@@ -266,6 +260,13 @@ function setTab(t){
   tab=t;
   document.getElementById("tabStock").classList.toggle("on",t==="stock");
   document.getElementById("tabSel").classList.toggle("on",t==="selected");
+  document.getElementById("tabQuick").classList.toggle("on",t==="quick");
+  var isQuick=(t==="quick");
+  document.getElementById("card1").style.display=isQuick?"none":"";
+  document.getElementById("card2").style.display=isQuick?"none":"";
+  document.getElementById("card3").style.display=isQuick?"none":"";
+  document.getElementById("quickCard").style.display=isQuick?"":"none";
+  if(isQuick){ document.getElementById("blkCard").style.display="none"; quickCalc(); return; }
   document.getElementById("srcGroup").style.display=(t==="selected")?"none":"";
   document.getElementById("srcSub").textContent=(t==="selected")?"showing only the blocks you ticked (from quarry stock)":"pick stock or a BI — one or more filters combine";
   calc();
@@ -286,10 +287,8 @@ function setSize(z){sizeF=z;document.querySelectorAll('[data-z]').forEach(functi
 function clearF(){gradeSet={};pitSet={};document.querySelectorAll('[data-g],[data-p]').forEach(function(c){c.classList.remove("on");});setSize("all");calc();}
 function setQBase(r){qBase=(qBase===r)?null:r;calc();}
 
-/* ---------- standalone quick calc popup ---------- */
+/* ---------- standalone quick calc (tab) ---------- */
 var qcBase=null;
-function openQC(){document.getElementById("qcModal").style.display="flex";quickCalc();}
-function closeQC(){document.getElementById("qcModal").style.display="none";}
 function setQcBase(r){qcBase=(qcBase===r)?null:r;quickCalc();}
 function quickCalc(){
   var L=+document.getElementById("qcL").value||0, W=+document.getElementById("qcW").value||0, H=+document.getElementById("qcH").value||0;
@@ -300,6 +299,16 @@ function quickCalc(){
   var INR=+document.getElementById("qcInr").value||USD_INR, CNY=+document.getElementById("qcCny").value||USD_CNY;
   var priced=vol*price, gt=vol*sg;
   document.getElementById("qcReal").textContent=gt.toFixed(2)+" t";
+  // net allowance → classify big/small on NET size vs threshold (only meaningful with dims)
+  var a=(document.getElementById("qcNetOn").checked)?(+document.getElementById("qcAllowSel").value||0):0;
+  var catEl=document.getElementById("qcCat");
+  if(hasDims){
+    var nL=Math.max(0,L-2*a), nW=Math.max(0,W-2*a), nH=Math.max(0,H-2*a);
+    var tL=+document.getElementById("qcTL").value||0, tW=+document.getElementById("qcTW").value||0, tH=+document.getElementById("qcTH").value||0;
+    var big=(nL>=tL&&nW>=tW&&nH>=tH);
+    catEl.textContent="· "+(big?"big":"small")+(a>0?" (net "+nL+"×"+nW+"×"+nH+")":"");
+    catEl.style.color=big?"#1D9E75":"#c9871f";
+  } else { catEl.textContent=""; }
   var rates=(document.getElementById("qcRates").value||"").split(/[\s,]+/).map(parseFloat).filter(function(x){return x>0;});
   if(qcBase===null&&rates.length)qcBase=(rates.indexOf(5)>-1?5:rates[0]);
   var baseVal=(qcBase>0)?(sg/qcBase)*priced:0, baseINR=baseVal*INR, baseCBM=(qcBase>0)?vol*sg/qcBase:0;
