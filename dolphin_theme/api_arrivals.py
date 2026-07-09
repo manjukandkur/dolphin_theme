@@ -1710,6 +1710,7 @@ def create_shipping_from_lot(lot=None):
     for fld, val in (("shipping_mark", mark), ("marks_nos", mark),
                      ("export_consignee", d.get("export_consignee")),
                      ("voyage_no", d.get("vessel")), ("bl_no", d.get("bl_no")),
+                     ("lot_title", d.get("lot_title")), ("lot_description", d.get("lot_description")),
                      ("goods_description", "Granite - Roughly Trimmed Blocks"),
                      ("currency", "USD"), ("tax_treatment", "Export under LUT (No GST)"),
                      ("rate_basis", "Per Kg"), ("country_of_origin", "INDIA"),
@@ -1849,3 +1850,81 @@ def backfill_bi_export():
     frappe.db.commit()
     return {"total_rows": total, "had_before": had, "filled_now": filled,
             "no_block_key": no_key, "no_qb_match": no_match, "has_after": had + filled}
+
+
+@frappe.whitelist()
+def mark_lot_exported(lot=None):
+    """Move a lot + its blocks to Exported (status Shipped) once the Bill of Lading
+    number is present on the linked Shipping Document. Refuses without a B/L, so
+    nothing is marked exported before the port issues the B/L and the invoice is
+    printed with it."""
+    if not lot:
+        frappe.throw("No lot given.")
+    d = frappe.get_doc("Export Shipment Lot", lot)
+    sd_name = d.get("shipping_document")
+    bl = ""
+    if sd_name and frappe.db.exists("Shipping Document", sd_name):
+        bl = _s(frappe.db.get_value("Shipping Document", sd_name, "bl_no"))
+    if not bl:
+        frappe.throw("Enter the Bill of Lading number on the Shipping Document (from the port) before marking the lot as Exported.")
+    if d.meta.has_field("status"):
+        d.status = "Shipped"
+    d.save(ignore_permissions=True)
+    tf = _lot_table_field(d)
+    n = 0
+    for r in (d.get(tf) or []):
+        bno = r.get("block")
+        if bno and frappe.db.exists("Quarry Block", bno):
+            frappe.db.set_value("Quarry Block", bno, "status", "Shipped", update_modified=False)
+            n += 1
+    frappe.db.commit()
+    return {"lot": d.name, "status": "Shipped", "blocks_marked": n, "bl_no": bl}
+
+
+@frappe.whitelist()
+def return_blocks_from_lot(lot=None, blocks=None):
+    """Return blocks from a lot back to 'ready for export' (Quarry Block -> At Port)
+    and drop them from the lot table + the linked Shipping Document.
+      - blocks empty -> return ALL (full unlink undo, also clears the SD link).
+      - blocks given -> return only those (partial, like DC / BI)."""
+    if not lot:
+        frappe.throw("No lot given.")
+    import json
+    want = set()
+    if blocks:
+        want = set(str(x) for x in (blocks if isinstance(blocks, list) else json.loads(blocks)))
+    d = frappe.get_doc("Export Shipment Lot", lot)
+    tf = _lot_table_field(d)
+    rows = d.get(tf) or []
+    keep, returned = [], []
+    for r in rows:
+        bno = r.get("block")
+        match = (not want) or (str(bno) in want) or (str(r.get("block_no")) in want) or (str(r.get("export_block_no")) in want)
+        (returned if match else keep).append(r)
+    kept_dicts = [r.as_dict() for r in keep]
+    d.set(tf, [])
+    for rd in kept_dicts:
+        d.append(tf, rd)
+    if d.meta.has_field("block_count"):
+        d.block_count = len(kept_dicts)
+    d.save(ignore_permissions=True)
+    ret_ids = []
+    for r in returned:
+        bno = r.get("block")
+        ret_ids.append(bno)
+        if bno and frappe.db.exists("Quarry Block", bno):
+            frappe.db.set_value("Quarry Block", bno, "status", "At Port", update_modified=False)
+    sd_name = d.get("shipping_document")
+    if sd_name and frappe.db.exists("Shipping Document", sd_name):
+        sd = frappe.get_doc("Shipping Document", sd_name)
+        keep_sd = [x.as_dict() for x in (sd.get("blocks") or []) if x.get("block") not in ret_ids]
+        sd.set("blocks", [])
+        for xd in keep_sd:
+            sd.append("blocks", xd)
+        if sd.meta.has_field("block_count"):
+            sd.block_count = len(keep_sd)
+        sd.save(ignore_permissions=True)
+        if not keep_sd and not want and d.meta.has_field("shipping_document"):
+            d.db_set("shipping_document", None)
+    frappe.db.commit()
+    return {"lot": d.name, "returned": len(returned), "remaining": len(kept_dicts)}
