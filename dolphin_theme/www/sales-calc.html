@@ -77,6 +77,7 @@ tbody tr.base td:first-child::before{content:"★ ";color:var(--gold);}
         <div class="hrow" id="srcChips">
           <span class="chip on" data-src="stock" onclick="setSrc('stock')">Quarry stock</span>
           <span class="chip" data-src="bi" onclick="setSrc('bi')">Buyer Inspection</span>
+          <span class="chip" data-src="lot" onclick="setSrc('lot')">Export Shipment Lot</span>
         </div>
         <div id="biBox" style="display:none;margin-top:2px">
           <div style="display:flex;gap:6px;align-items:center">
@@ -84,6 +85,13 @@ tbody tr.base td:first-child::before{content:"★ ";color:var(--gold);}
             <button class="chip" style="cursor:pointer;padding:6px 11px;border-color:var(--blue);color:var(--blue)" title="View BI report" onclick="viewBI()">👁 View report</button>
           </div>
           <div id="biInfo" style="font-size:11.5px;color:var(--navy);font-weight:700;margin-top:5px"></div>
+        </div>
+        <div id="lotBox" style="display:none;margin-top:2px">
+          <div style="display:flex;gap:6px;align-items:center">
+            <select id="lotSel" onchange="loadLot()"></select>
+            <button class="chip" style="cursor:pointer;padding:6px 11px;border-color:var(--blue);color:var(--blue)" title="Open export shipment lot" onclick="openLot()">👁 Open lot</button>
+          </div>
+          <div id="lotInfo" style="font-size:11.5px;color:var(--navy);font-weight:700;margin-top:5px"></div>
         </div>
       </div>
       <div class="hgroup">
@@ -188,6 +196,7 @@ tbody tr.base td:first-child::before{content:"★ ";color:var(--gold);}
       <div><label class="fl">or block L×W×H (cm) — optional</label><div style="display:flex;gap:3px;align-items:center"><input type="number" id="qcL" placeholder="L" style="width:62px;height:36px" oninput="quickCalc()"><span>×</span><input type="number" id="qcW" placeholder="W" style="width:62px;height:36px" oninput="quickCalc()"><span>×</span><input type="number" id="qcH" placeholder="H" style="width:62px;height:36px" oninput="quickCalc()"></div></div>
       <div><label class="fl">Price / CBM ($)</label><input type="number" id="qcPrice" value="1200" step="50" style="width:110px" oninput="quickCalc()"></div>
       <div><label class="fl">Specific gravity</label><input type="number" id="qcSG" value="2.60" step="0.05" style="width:100px" oninput="quickCalc()"></div>
+      <div><label class="fl">Grade <span style="color:var(--muted);font-weight:500">(optional)</span></label><input type="text" id="qcGrade" placeholder="A / B / C…" style="width:90px" oninput="quickCalc()"></div>
       <div><label class="fl">Sale tonnages (t/CBM) <span style="color:var(--muted);font-weight:500">· 5 = benchmark</span></label><input type="text" id="qcRates" value="5, 5.5, 6, 6.5, 7" style="width:180px" oninput="quickCalc()"></div>
     </div>
     <div class="hbar" style="margin-bottom:10px;padding-top:12px;border-top:1px dashed var(--line)">
@@ -196,6 +205,16 @@ tbody tr.base td:first-child::before{content:"★ ";color:var(--gold);}
       <div><label class="fl">Net allowance <span style="color:var(--muted);font-weight:500">(needs L×W×H)</span></label><div style="display:flex;align-items:center;gap:8px;height:36px"><label style="display:flex;align-items:center;gap:6px;font-weight:700;color:var(--navy);font-size:12.5px"><input type="checkbox" id="qcNetOn" style="width:15px;height:15px" onchange="quickCalc()"> Apply net</label><select id="qcAllowSel" style="height:32px" onchange="quickCalc()"><option value="5">5 cm/side</option><option value="10" selected>10 cm/side</option><option value="15">15 cm/side</option></select></div></div>
       <div><label class="fl">Threshold size (L×W×H)</label><div style="display:flex;gap:3px;align-items:center;height:36px"><input type="number" id="qcTL" value="180" style="width:54px" oninput="quickCalc()"><span>×</span><input type="number" id="qcTW" value="100" style="width:54px" oninput="quickCalc()"><span>×</span><input type="number" id="qcTH" value="100" style="width:54px" oninput="quickCalc()"></div></div>
       <div style="margin-left:auto;text-align:right"><div class="fl">Gross tonnage · category</div><div style="font-size:18px;font-weight:800;color:var(--navy)"><span id="qcReal">—</span> <span id="qcCat" style="font-size:12.5px;font-weight:800"></span></div></div>
+    </div>
+    <!-- value breakdown panel -->
+    <div id="qcBreak" class="hbar" style="margin:8px 0 14px;padding:14px 16px;background:#f7f9fc;border:1px solid var(--line);border-radius:12px;gap:22px;row-gap:12px"></div>
+    <!-- grade / size split -->
+    <div style="margin-bottom:14px">
+      <div style="font-size:12px;font-weight:800;color:var(--navy);margin:0 0 6px">Grade / size split <span style="font-weight:500;color:var(--muted)">— this block, at the ★ benchmark</span></div>
+      <div class="tablewrap"><table class="grid">
+        <thead><tr><th>Grade</th><th>Size</th><th>Gross CBM</th><th>Net CBM</th><th>Gross tonnage</th><th>Value ($)</th><th>Value (₹)</th></tr></thead>
+        <tbody id="qcSplitBody"></tbody>
+      </table></div>
     </div>
     <div style="font-size:11.5px;color:var(--muted);margin-bottom:6px">Type a volume (or a block's L×W×H) and price → sweeps the sale tonnages. Forex is editable. With L×W×H you also get the <b>net size</b> (allowance), the <b>big/small</b> category vs the threshold, and the <b>allowance/side</b> each sale tonnage implies (vs the ★ benchmark 5). Click a row for the ★ baseline.</div>
     <div class="tablewrap"><table class="grid">
@@ -222,7 +241,7 @@ function apiList(dt,fields,filters){var u="/api/method/frappe.client.get_list?do
 function apiGet(dt,name){return fetch("/api/method/frappe.client.get?doctype="+encodeURIComponent(dt)+"&name="+encodeURIComponent(name),{credentials:"include",headers:{Accept:"application/json"}}).then(function(r){return r.json();}).then(function(j){return j.message||{};});}
 var GCOL={A:"#1D9E75",B:"#2F80ED",B1:"#7F77DD",B2:"#534AB7",C:"#EF9F27",D:"#D85A30"};
 function gcol(g){return GCOL[g]||"#9aa3ad";}
-var STOCK=[], byNo={}, GRADES=[], PITS=[], BILIST=[], BIcache={}, curBI=[];
+var STOCK=[], byNo={}, GRADES=[], PITS=[], BILIST=[], BIcache={}, curBI=[], LOTLIST=[], LOTcache={}, curLot=[];
 function pitLabel(p){return (p===null||p===undefined||(""+p).trim()==="")?"Unassigned":("Pit "+p);}
 async function loadData(){
   var qb=await apiList("Quarry Block",["name","block_number","granite_quality_grade","pit","length_gross","width_gross","height_gross","gross_volume","export_block_no"],[["status","in",["In Stock","Buyer Marked"]]]);
@@ -233,6 +252,7 @@ async function loadData(){
   var pset={}; STOCK.forEach(function(b){pset[b.pit]=1;});
   PITS=Object.keys(pset).sort(function(a,b){if(a==="Unassigned")return 1;if(b==="Unassigned")return -1;return (parseInt((a.match(/\d+/)||[0])[0],10))-(parseInt((b.match(/\d+/)||[0])[0],10));});
   BILIST=((await apiList("Buyer Inspection",["name"]))||[]).map(function(x){return x.name;});
+  LOTLIST=((await apiList("Export Shipment Lot",["name","lot_title"]))||[]);
 }
 function extractBIRows(doc){
   var tf=null;Object.keys(doc).forEach(function(k){var a=doc[k];if(Array.isArray(a)&&a.length&&typeof a[0]==="object"){var r=a[0];if((("block" in r)||("block_number_input" in r))&&(("length_gross" in r)||("granite_quality_grade" in r)))tf=tf||k;}});
@@ -240,6 +260,23 @@ function extractBIRows(doc){
   return doc[tf].map(function(r){var no=String(r.block_number_input||r.block||"");var bm=byNo[no]||{};var L=+r.length_gross||bm.L||0,W=+r.width_gross||bm.W||0,H=+r.height_gross||bm.H||0;return {no:no,name:r.block||no,grade:((r.granite_quality_grade||bm.grade||"—")+"").trim()||"—",pit:bm.pit||"Unassigned",L:L,W:W,H:H,vol:+r.gross_volume||bm.vol||(L*W*H/1e6),exp:r.export_block_no||bm.exp||""};});
 }
 function loadBI(){var nm=document.getElementById("biSel").value;if(!nm){curBI=[];calc();return;}if(BIcache[nm]){curBI=BIcache[nm];calc();return;}document.getElementById("biInfo").textContent="Loading BI…";apiGet("Buyer Inspection",nm).then(function(doc){curBI=extractBIRows(doc);BIcache[nm]=curBI;calc();}).catch(function(){document.getElementById("biInfo").textContent="Could not load this BI.";});}
+function basePool(){return src==="stock"?STOCK:(src==="lot"?curLot:curBI);}
+function openLot(){var nm=document.getElementById("lotSel").value;if(nm)window.open("/app/export-shipment-lot/"+encodeURIComponent(nm),"_blank");}
+function loadLot(){
+  var nm=document.getElementById("lotSel").value;
+  if(!nm){curLot=[];calc();return;}
+  if(LOTcache[nm]){curLot=LOTcache[nm];calc();return;}
+  document.getElementById("lotInfo").textContent="Loading lot…";
+  apiGet("Export Shipment Lot",nm).then(function(doc){
+    var rows=(doc.blocks||[]).map(function(r){var L=+r.length||0,W=+r.width||0,H=+r.height||0;return {no:String(r.block_no||r.block||""),name:r.block,grade:((r.grade||"")+"").trim(),pit:"",L:L,W:W,H:H,vol:+r.cbm||(L*W*H/1e6),exp:r.export_block_no||"",_bn:r.block};});
+    var names=rows.map(function(r){return r._bn;}).filter(Boolean);
+    apiList("Quarry Block",["name","granite_quality_grade","pit"],[["name","in",names]]).then(function(qbs){
+      var map={};(qbs||[]).forEach(function(q){map[q.name]={grade:((q.granite_quality_grade||"")+"").trim(),pit:pitLabel(q.pit)};});
+      rows.forEach(function(r){var q=map[r._bn]||{};if(!r.grade)r.grade=q.grade||"—";r.pit=q.pit||"Unassigned";});
+      curLot=rows;LOTcache[nm]=rows;calc();
+    }).catch(function(){rows.forEach(function(r){if(!r.grade)r.grade="—";r.pit="Unassigned";});curLot=rows;LOTcache[nm]=rows;calc();});
+  }).catch(function(){document.getElementById("lotInfo").textContent="Could not load this lot.";});
+}
 function viewBI(){
   var nm=document.getElementById("biSel").value; if(!nm)return;
   var fmt=encodeURIComponent("Buyer Inspection - Report");
@@ -280,7 +317,7 @@ function eff(b){var a=allowVal();return {L:Math.max(0,b.L-2*a),W:Math.max(0,b.W-
 function isBig(b){var e=eff(b);return e.L>=num("tL")&&e.W>=num("tW")&&e.H>=num("tH");}
 function allowPerSide(L,W,H,dVcbm){var area=2*(L*W+W*H+L*H);return (area>0&&dVcbm>0)?(dVcbm*1e6/area):0;}
 
-function setSrc(s){src=s;document.querySelectorAll('[data-src]').forEach(function(c){c.classList.toggle("on",c.getAttribute("data-src")===s);});document.getElementById("biBox").style.display=(s==="bi")?"":"none";if(s==="bi"){loadBI();}else{calc();}}
+function setSrc(s){src=s;document.querySelectorAll('[data-src]').forEach(function(c){c.classList.toggle("on",c.getAttribute("data-src")===s);});document.getElementById("biBox").style.display=(s==="bi")?"":"none";document.getElementById("lotBox").style.display=(s==="lot")?"":"none";if(s==="bi"){loadBI();}else if(s==="lot"){loadLot();}else{calc();}}
 function togGrade(g){if(gradeSet[g])delete gradeSet[g];else gradeSet[g]=1;document.querySelector('[data-g="'+g+'"]').classList.toggle("on",!!gradeSet[g]);calc();}
 function togPit(p){if(pitSet[p])delete pitSet[p];else pitSet[p]=1;document.querySelector('[data-p="'+p+'"]').classList.toggle("on",!!pitSet[p]);calc();}
 function setSize(z){sizeF=z;document.querySelectorAll('[data-z]').forEach(function(c){c.classList.toggle("on",c.getAttribute("data-z")===z);});calc();}
@@ -321,6 +358,27 @@ function quickCalc(){
     function dc(v,cur,dec){if(Math.abs(v)<(dec?0.005:0.5))return '<span style="color:#9aa3ad">—</span>';var pos=v>=0;var mag=dec?Math.abs(v).toFixed(2):Math.abs(Math.round(v)).toLocaleString();return '<span style="font-weight:700;color:'+(pos?'#1D9E75':'#c0392b')+'">'+(pos?'+':'−')+cur+mag+'</span>';}
     return '<tr class="'+(on?'base':'')+'" onclick="setQcBase('+r+')"><td style="font-weight:700">'+r+'</td><td>$'+pt.toFixed(1)+'</td><td style="font-weight:700">'+scbm.toFixed(2)+'</td><td>'+dc(dCBM,"",true)+'</td><td style="font-weight:700">$'+Math.round(valUSD).toLocaleString()+'</td><td>₹'+Math.round(valINR).toLocaleString("en-IN")+'</td><td>¥'+Math.round(valCNY).toLocaleString()+'</td><td>'+dc(dUSD,"$")+'</td><td>'+dc(dINR,"₹")+'</td><td>'+discCell+'</td><td>'+allowCell+'</td></tr>';
   }).join("")||'<tr><td colspan="11" style="text-align:center;color:#9aa3ad;padding:14px">Enter sale tonnages.</td></tr>';
+  // ----- value breakdown panel + grade/size split -----
+  var netVol = (hasDims && a>0) ? +(nL*nW*nH/1e6).toFixed(3) : vol;
+  var perTon = gt>0 ? baseVal/gt : 0;
+  var catTxt = hasDims ? (big?"Big":"Small") : "—";
+  var catCol = hasDims ? (big?"#1D9E75":"#c9871f") : "var(--muted)";
+  var netTxt = hasDims ? ((a>0?nL:L)+"×"+(a>0?nW:W)+"×"+(a>0?nH:H)) : "—";
+  function tile(lbl,val,color){return '<div style="min-width:104px"><div style="font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.3px">'+lbl+'</div><div style="font-size:16px;font-weight:800;color:'+(color||"var(--navy)")+'">'+val+'</div></div>';}
+  document.getElementById("qcBreak").innerHTML =
+    tile("Gross volume", vol.toFixed(3)+" CBM") +
+    tile("Net volume", netVol.toFixed(3)+" CBM") +
+    tile("Gross tonnage", gt.toFixed(2)+" t") +
+    tile("Category", catTxt, catCol) +
+    tile("Net size (cm)", netTxt) +
+    tile("Price / CBM", "$"+price.toLocaleString()) +
+    tile("Value @★"+(qcBase||"—"), "$"+Math.round(baseVal).toLocaleString()) +
+    tile("Value (₹)", "₹"+Math.round(baseVal*INR).toLocaleString("en-IN")) +
+    tile("Value (¥)", "¥"+Math.round(baseVal*CNY).toLocaleString()) +
+    tile("$ / ton", "$"+perTon.toFixed(1));
+  var g=(document.getElementById("qcGrade").value||"").trim()||"—";
+  document.getElementById("qcSplitBody").innerHTML =
+    '<tr><td style="font-weight:700">'+g+'</td><td style="font-weight:700;color:'+catCol+'">'+catTxt+'</td><td>'+vol.toFixed(2)+'</td><td>'+netVol.toFixed(2)+'</td><td style="font-weight:700">'+gt.toFixed(2)+' t</td><td style="font-weight:700">$'+Math.round(baseVal).toLocaleString()+'</td><td>₹'+Math.round(baseVal*INR).toLocaleString("en-IN")+'</td></tr>';
 }
 
 /* ---------- selection ---------- */
@@ -335,7 +393,7 @@ function applyFilters(pool){
   });
 }
 function selectedBlocks(){
-  var pool = (tab==="selected") ? STOCK.filter(function(b){return selBlk[b.no];}) : ((src==="stock")?STOCK:curBI);
+  var pool = (tab==="selected") ? STOCK.filter(function(b){return selBlk[b.no];}) : basePool();
   return applyFilters(pool);
 }
 function candidateBlocks(){ return applyFilters(STOCK); }
@@ -348,6 +406,7 @@ function calc(){
   var _a=allowVal();
   document.getElementById("netHint").innerHTML=_a>0?("e.g. 200 → <b>"+(200-2*_a)+"</b> net"):"net off — gross size";
   document.getElementById("biInfo").innerHTML='📋 <b>'+curBI.length+' blocks</b> · total volume <b>'+curBI.reduce(function(s,b){return s+b.vol;},0).toFixed(2)+' CBM</b>';
+  var _le=document.getElementById("lotInfo"); if(_le) _le.innerHTML='📦 <b>'+curLot.length+' blocks</b> · total volume <b>'+curLot.reduce(function(s,b){return s+b.vol;},0).toFixed(2)+' CBM</b>';
   var sel=selectedBlocks();
   var big=sel.filter(isBig), small=sel.filter(function(b){return !isBig(b);});
   var volBig=big.reduce(function(s,b){return s+b.vol;},0), volSmall=small.reduce(function(s,b){return s+b.vol;},0);
@@ -356,7 +415,7 @@ function calc(){
   var blended=volAll>0?valAll/volAll:0;
 
   var gA=Object.keys(gradeSet);
-  var srcName=(src==="stock"?"Quarry stock":"BI "+document.getElementById("biSel").value);
+  var srcName=(src==="stock"?"Quarry stock":(src==="lot"?("Lot "+document.getElementById("lotSel").value):("BI "+document.getElementById("biSel").value)));
   var pills=['<span class="apill src">📍 '+srcName+'</span>'];
   pills.push('<span class="apill">Grade: '+(gA.length?gA.join("+"):"all")+'</span>');
   pills.push('<span class="apill">Size: '+(sizeF==="all"?"both":(sizeF==="big"?"≥ thr":"< thr"))+'</span>');
@@ -379,7 +438,7 @@ function calc(){
   }).join("")||'<tr><td colspan="10" style="text-align:center;color:#9aa3ad;padding:14px">'+(tab==="selected"?"No blocks match — adjust filters or tick blocks.":"No blocks match these filters.")+'</td></tr>';
   document.getElementById("allowTot").innerHTML='Total discount vs benchmark 5: <b style="color:#c0392b">'+totDisc.toFixed(2)+' CBM</b> over '+tableList.length+' blocks';
 
-  var pool=(tab==="selected")?STOCK.filter(function(b){return selBlk[b.no];}):((src==="stock")?STOCK:curBI);
+  var pool=(tab==="selected")?STOCK.filter(function(b){return selBlk[b.no];}):basePool();
   document.getElementById("valSub").textContent="· "+(tab==="selected"?"Selected from stock":srcName)+" · big @$"+num("pBig")+" / small @$"+num("pSmall");
   var gord=GRADES.slice(); pool.forEach(function(b){if(gord.indexOf(b.grade)<0)gord.push(b.grade);});
   var TB=0,TBc=0,TS=0,TSc=0,TVal=0,TGt=0;
@@ -434,6 +493,7 @@ function calc(){
   document.getElementById("gradeChips").innerHTML=GRADES.map(function(g){return '<span class="chip" data-g="'+g+'" onclick="togGrade(\''+g+'\')"><span class="gdot" style="background:'+gcol(g)+'"></span>'+g+'</span>';}).join("");
   document.getElementById("pitChips").innerHTML=PITS.map(function(p){return '<span class="chip" data-p="'+p+'" onclick="togPit(\''+p.replace(/'/g,"\\'")+'\')">'+p+'</span>';}).join("");
   document.getElementById("biSel").innerHTML=BILIST.map(function(x){return '<option>'+x+'</option>';}).join("")||'<option value="">— no Buyer Inspections —</option>';
+  document.getElementById("lotSel").innerHTML='<option value="">— pick an export lot —</option>'+LOTLIST.map(function(x){return '<option value="'+x.name+'">'+(x.lot_title||x.name)+'</option>';}).join("");
   document.getElementById("loadNote").style.display="none";
   document.getElementById("app").style.display="";
   window._loaded=true;
