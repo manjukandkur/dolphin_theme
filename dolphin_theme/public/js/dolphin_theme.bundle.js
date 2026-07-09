@@ -92,7 +92,7 @@ frappe.provide("dolphin");
       "#dolphin-sidemenu .di-sm-row.di-active .di-sm-new{color:" + GOLD + ";}" +
       "#dolphin-sidemenu .di-sm-empty{padding:10px 12px;font-size:11px;color:#9fb0c4;font-style:italic;}" +
       /* ---- Day31: scrollable menu body (fixes no-scroll bug) ---- */
-      "#dolphin-sidemenu .di-sm-body{max-height:calc(100vh - 150px);overflow-y:auto;overflow-x:hidden;}" +
+      "#dolphin-sidemenu .di-sm-body{max-height:calc(100vh - 210px);overflow-y:auto;overflow-x:hidden;}" +
       "#dolphin-sidemenu .di-sm-body::-webkit-scrollbar{width:8px;}" +
       "#dolphin-sidemenu .di-sm-body::-webkit-scrollbar-track{background:transparent;}" +
       "#dolphin-sidemenu .di-sm-body::-webkit-scrollbar-thumb{background:rgba(212,162,74,.45);border-radius:4px;}" +
