@@ -94,23 +94,23 @@
     <div class="tab" data-t="recon">Reconciliation</div>
     <div class="tab" data-t="lots">Shipment Lots</div>
   </div>
-  <div class="pane on" id="p-stock">
-    <div class="bal" id="bal"></div>
-    <div class="tb">
-      <span class="vtog on" id="v-blk">&#9636; All transported</span><span class="vtog" id="v-dc">&#8693; Group by DC</span>
-      <input id="q" placeholder="Search block / DC / BI / consignee / mark" style="flex:1;min-width:150px">
-      <span class="imp" id="impbtn">&#8593; Import .xls</span><span class="gh" id="addbtn">+ Add at port</span><span class="gh" id="openbtn">&#9638; Opening stock</span>
-    </div>
-    <div class="frow" id="flrow">
-      <span class="fl on" data-f="await">Awaiting arrival</span><span class="fl" data-f="all">All</span><span class="fl" data-f="port">At port</span>
-      <span class="fl" data-f="lot">In lot</span><span class="fl" data-f="flag">Needs attention</span><span class="fl" data-f="excess">Excess</span><span class="fl" data-f="load">Loaded</span>
-    </div>
-    <div class="impbar" id="impbar">
+  <div class="impbar" id="impbar">
       <b style="color:#8a5a12;font-size:13px">&#8593; Import arrivals .xls</b>
       <input type="file" id="impfile" accept=".xls,.xlsx">
       <button class="bbtn pri" id="impgo">Parse &amp; upsert</button><button class="bbtn" id="impx">Close</button>
       <span class="s">Confirms awaiting blocks &#8594; At Port, updates existing (no duplicate), and lists anything with no challan as Excess. Optional &#8212; DC-wise Move to At Port skips it entirely.</span>
       <span class="s" id="impmsg" style="display:none"></span>
+    </div>
+  <div class="pane on" id="p-stock">
+    <div class="bal" id="bal"></div>
+    <div class="tb">
+      <span class="vtog on" id="v-blk">&#9636; All transported</span><span class="vtog" id="v-dc">&#8693; Group by DC</span>
+      <input id="q" placeholder="Search block / DC / BI / consignee / mark" style="flex:1;min-width:150px">
+      <span class="gh" id="addbtn">+ Add at port</span><span class="gh" id="openbtn">&#9638; Opening stock</span>
+    </div>
+    <div class="frow" id="flrow">
+      <span class="fl on" data-f="await">Awaiting arrival</span><span class="fl" data-f="all">All</span><span class="fl" data-f="port">At port</span>
+      <span class="fl" data-f="lot">In lot</span><span class="fl" data-f="flag">Needs attention</span><span class="fl" data-f="excess">Excess</span><span class="fl" data-f="load">Loaded</span>
     </div>
     <div class="bulk" id="bulk">
       <span><b id="bn">0</b> selected</span>
@@ -237,8 +237,8 @@ function renderSrc(m){
   m.innerHTML='<div class="sub" style="padding:14px 2px">Loading sources...</div>';
   post('dolphin_theme.api_arrivals.xls_source',{}).then(function(j){
     var list=(j.message||[]);
-    if(!list.length){m.innerHTML='<div class="sub" style="padding:16px 2px">No imported arrival files yet.</div>';return;}
-    var h='';
+    if(!list.length){m.innerHTML='<div style="padding:10px 2px 14px"><span class="imp" id="srcimp">&#8593; Import arrivals .xls</span></div><div class="sub" style="padding:6px 2px">No imported arrival files yet.</div>';var __se=m.querySelector('#srcimp');if(__se)__se.addEventListener('click',toggleImp);return;}
+    var h='<div style="padding:10px 2px 14px"><span class="imp" id="srcimp">&#8593; Import arrivals .xls</span></div>';
     list.forEach(function(s){
       var email=(s.provenance==='email');
       var badge='<span class="pill '+(email?'p-port':'p-await')+'">'+(email?'Arrivals email':'Direct import')+'</span>';
@@ -251,6 +251,7 @@ function renderSrc(m){
       h+='<div style="display:flex;align-items:center;gap:10px;padding:10px 4px;border-bottom:1px solid #eef2f6"><span class="eye" data-arr="'+esc(s.arrival)+'" style="cursor:pointer">'+U(email?9993:8593)+'</span><div style="flex:1"><div>'+nm+' <span class="sub">'+DOT+' '+esc(s.sheet||'')+' '+DOT+' '+s.rows+' rows</span></div><div class="sub">'+badge+' '+who+'</div></div>'+act+'<span class="sub" style="margin-left:8px">'+esc(s.date||'')+'</span></div>';
     });
     m.innerHTML=h;
+    var __si=m.querySelector('#srcimp');if(__si)__si.addEventListener('click',toggleImp);
     m.querySelectorAll('[data-arr]').forEach(function(x){x.addEventListener('click',function(){openArrivalXls(x.dataset.arr);});});
   }).catch(function(){m.innerHTML='<div class="sub" style="padding:16px 2px">XLS source view needs the latest backend. Deploy pending.</div>';});
 }
@@ -402,7 +403,7 @@ document.querySelectorAll('#flrow .fl').forEach(function(f){f.addEventListener('
 $('v-blk').addEventListener('click',function(){VMODE='blk';this.classList.add('on');$('v-dc').classList.remove('on');$('flrow').style.display='';closePanel();renderStock();});
 $('v-dc').addEventListener('click',function(){VMODE='dc';this.classList.add('on');$('v-blk').classList.remove('on');$('flrow').style.display='none';closePanel();renderDC();});
 $('q').addEventListener('input',function(){Q=this.value.trim().toLowerCase();renderStock();});
-$('impbtn').addEventListener('click',toggleImp);$('impbtn2').addEventListener('click',function(){tab('stock');toggleImp();});var __sy=$('syncbtn');if(__sy)__sy.addEventListener('click',function(){msg('Checking for new mail…');post('dolphin_theme.api_arrivals.sync_arrivals_email',{}).then(function(){msg('Checked — refreshing');loadAll();}).catch(function(){msg('Sync failed',1);});});$('impx').addEventListener('click',toggleImp);$('impgo').addEventListener('click',doImport);
+var __ib=$('impbtn');if(__ib)__ib.addEventListener('click',toggleImp);$('impbtn2').addEventListener('click',function(){tab('recon');RSUB='src';renderRecon();toggleImp();});var __sy=$('syncbtn');if(__sy)__sy.addEventListener('click',function(){msg('Checking for new mail…');post('dolphin_theme.api_arrivals.sync_arrivals_email',{}).then(function(){msg('Checked — refreshing');loadAll();}).catch(function(){msg('Sync failed',1);});});$('impx').addEventListener('click',toggleImp);$('impgo').addEventListener('click',doImport);
 $('addbtn').addEventListener('click',function(){var b=prompt('Add block at port - enter: block, L, W, H (cm)');if(!b)return;var p=b.split(/[\s,]+/);post('dolphin_theme.api_arrivals.move_to_at_port',{blocks:[{block_no:p[0]}]}).then(function(){msg('Added '+p[0]+' at port');loadAll();});});
 $('openbtn').addEventListener('click',function(){toggleImp();msg('Opening stock: paste/import via the .xls box, or use + Add at port for one block',0);});
 loadAll();
@@ -444,7 +445,7 @@ ov.addEventListener('click',function(e){if(e.target===ov)closePanel();});
 function closePanel(){var ov=$('__ov');if(ov){ov.className='pop';ov.innerHTML='';}}
 
 
-function openArrivalXls(name){var ov=$('__ov');if(!ov){ov=document.createElement('div');ov.id='__ov';document.body.appendChild(ov);}ov.className='pop on';ov.innerHTML='<div class="popbox"><div class="pophd"><b style="flex:1;font-size:13px">'+esc(name)+' · source XLS</b><span class="rb" id="__cl">✕ Close</span></div><div id="__xg" style="padding:12px;overflow:auto;max-height:76vh"><div class="sub">Loading sheet…</div></div></div>';var cl=ov.querySelector('#__cl');if(cl)cl.addEventListener('click',closePanel);ov.addEventListener('click',function(e){if(e.target===ov)closePanel();});fetch('/api/method/dolphin_theme.api_arrivals.arrival_xls_grid?arrival='+encodeURIComponent(name),{credentials:'include'}).then(function(r){return r.json();}).then(function(j){var m=(j&&j.message)||{};var box=document.getElementById('__xg');if(!box)return;if(m.error){box.innerHTML='<div class="sub" style="color:#a32d2d">'+esc(m.error)+'</div>';return;}var g=m.grid||[],tg=m.tags||[];if(!g.length){box.innerHTML='<div class="sub">Empty sheet</div>';return;}var col={parsed:'#eaf3de',skip:'#f1efe8',head:'#eceae3',pre:'#ffffff'};var h='<div class="sub" style="margin-bottom:8px">Sheet <b>'+esc(m.sheet||'')+'</b>'+(m.file?' · <a href="'+esc(m.file)+'" target="_blank" style="color:#2490ef">&#8595; Download original .xls</a>':'')+' · '+((m.counts&&m.counts.parsed)||0)+' parsed · '+((m.counts&&m.counts.skipped)||0)+' skipped</div><table style="border-collapse:collapse;font-size:11px;font-family:monospace">';var CO=m.colors||[],hasC=!!m.has_colors;g.forEach(function(row,ri){var rowbg=hasC?'#ffffff':(col[tg[ri]]||'#ffffff');var crow=CO[ri]||[];h+='<tr><td style="border:.5px solid #d3d1c7;padding:2px 6px;color:#8a8880;background:#fbfbf9">'+(ri+1)+'</td>';row.forEach(function(cv,ci){var bg=(crow[ci]||rowbg);h+='<td style="border:.5px solid #d3d1c7;padding:2px 6px;white-space:nowrap;background:'+bg+'">'+esc(cv==null?'':cv)+'</td>';});h+='</tr>';});h+='</table><div class="sub" style="margin-top:8px"><span style="background:#eaf3de;padding:1px 6px">parsed</span> <span style="background:#f1efe8;padding:1px 6px">skipped</span></div>';box.innerHTML=h;}).catch(function(){var box=document.getElementById('__xg');if(box)box.innerHTML='<div class="sub" style="color:#a32d2d">Could not load sheet (endpoint may still be deploying).</div>';});}
+function openArrivalXls(name){var ov=$('__ov');if(!ov){ov=document.createElement('div');ov.id='__ov';document.body.appendChild(ov);}ov.className='pop on';ov.innerHTML='<div class="popbox"><div class="pophd"><b style="flex:1;font-size:13px">'+esc(name)+' · source XLS</b><span class="rb" id="__prt">'+U(128424)+' Print / PDF</span><span class="rb" id="__cl">✕ Close</span></div><div id="__xg" style="padding:12px;overflow:auto;max-height:76vh"><div class="sub">Loading sheet…</div></div></div>';var cl=ov.querySelector('#__cl');if(cl)cl.addEventListener('click',closePanel);var prt=ov.querySelector('#__prt');if(prt)prt.addEventListener('click',function(){var g=document.getElementById('__xg');if(!g)return;var w=window.open('','_blank');if(!w)return;w.document.write('<html><head><title>'+esc(name)+'</title><style>table{border-collapse:collapse;font-family:monospace;font-size:11px}td{border:.5px solid #999;padding:2px 6px;white-space:nowrap}</style></head><body><h3>'+esc(name)+'</h3>'+g.innerHTML+'</body></html>');w.document.close();w.focus();setTimeout(function(){w.print();},300);});ov.addEventListener('click',function(e){if(e.target===ov)closePanel();});fetch('/api/method/dolphin_theme.api_arrivals.arrival_xls_grid?arrival='+encodeURIComponent(name),{credentials:'include'}).then(function(r){return r.json();}).then(function(j){var m=(j&&j.message)||{};var box=document.getElementById('__xg');if(!box)return;if(m.error){box.innerHTML='<div class="sub" style="color:#a32d2d">'+esc(m.error)+'</div>';return;}var g=m.grid||[],tg=m.tags||[];if(!g.length){box.innerHTML='<div class="sub">Empty sheet</div>';return;}var col={parsed:'#eaf3de',skip:'#f1efe8',head:'#eceae3',pre:'#ffffff'};var h='<div class="sub" style="margin-bottom:8px">Sheet <b>'+esc(m.sheet||'')+'</b>'+(m.file?' · <a href="'+esc(m.file)+'" target="_blank" style="color:#2490ef">&#8595; Download original .xls</a>':'')+' · '+((m.counts&&m.counts.parsed)||0)+' parsed · '+((m.counts&&m.counts.skipped)||0)+' skipped</div><table style="border-collapse:collapse;font-size:11px;font-family:monospace">';var CO=m.colors||[],hasC=!!m.has_colors;g.forEach(function(row,ri){var rowbg=hasC?'#ffffff':(col[tg[ri]]||'#ffffff');var crow=CO[ri]||[];h+='<tr><td style="border:.5px solid #d3d1c7;padding:2px 6px;color:#8a8880;background:#fbfbf9">'+(ri+1)+'</td>';row.forEach(function(cv,ci){var bg=(crow[ci]||rowbg);h+='<td style="border:.5px solid #d3d1c7;padding:2px 6px;white-space:nowrap;background:'+bg+'">'+esc(cv==null?'':cv)+'</td>';});h+='</tr>';});h+='</table><div class="sub" style="margin-top:8px"><span style="background:#eaf3de;padding:1px 6px">parsed</span> <span style="background:#f1efe8;padding:1px 6px">skipped</span></div>';box.innerHTML=h;}).catch(function(){var box=document.getElementById('__xg');if(box)box.innerHTML='<div class="sub" style="color:#a32d2d">Could not load sheet (endpoint may still be deploying).</div>';});}
 
 function addHeaderNav(){
   if(window.self!==window.top) return; /* embedded in desk page -> desk provides nav */
