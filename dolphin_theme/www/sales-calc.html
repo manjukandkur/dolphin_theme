@@ -8,7 +8,7 @@
 :root{--navy:#0F2540;--gold:#D4A24A;--blue:#2490ef;--ink:#1c2430;--muted:#5f6b7a;--line:#e7ebf1;--bg:#eef1f6;--green:#1D9E75;--red:#c0392b;}
 *{box-sizing:border-box;}
 body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--ink);font-size:14px;-webkit-font-smoothing:antialiased;}
-.wrap{max-width:1180px;margin:0 auto;padding:18px;}
+.wrap{max-width:none;margin:0 auto;padding:18px;}
 .topbar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;background:var(--navy);border-radius:14px;padding:14px 18px;color:#fff;margin-bottom:14px;}
 .topbar .title{font-size:17px;font-weight:700;}
 .fx{margin-left:auto;display:inline-flex;align-items:center;gap:14px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);border-radius:12px;padding:8px 14px;}
@@ -46,6 +46,9 @@ tbody tr.base td:first-child::before{content:"★ ";color:var(--gold);}
 .tbtn{border:1px solid var(--navy);background:#fff;color:var(--navy);border-radius:999px;padding:9px 18px;font-weight:800;font-size:13.5px;cursor:pointer;}
 .tbtn.on{background:var(--navy);color:#fff;}
 .tbtn .cnt{display:inline-block;background:var(--gold);color:var(--navy);border-radius:50%;min-width:19px;height:19px;line-height:19px;text-align:center;font-size:11px;margin-left:6px;padding:0 5px;}
+.fxflash{margin-bottom:14px;border-radius:12px;padding:10px 16px;font-size:13px;font-weight:700;color:#0b4a34;background:#e5f7ef;border:1px solid #b7e6d1;border-left:4px solid var(--green);display:none;}
+.fxflash.show{display:block;animation:fxpulse 1.6s ease;}
+@keyframes fxpulse{0%{background:#c9f0dd;transform:scale(1.005);}100%{background:#e5f7ef;transform:scale(1);}}
 </style>
 </head>
 <body>
@@ -59,6 +62,7 @@ tbody tr.base td:first-child::before{content:"★ ";color:var(--gold);}
     </div>
   </div>
 
+  <div class="fxflash" id="fxFlash"></div>
   <div class="note" id="loadNote">Loading live stock…</div>
 
   <div id="app" style="display:none">
@@ -122,13 +126,28 @@ tbody tr.base td:first-child::before{content:"★ ";color:var(--gold);}
           <span style="font-size:11px;color:var(--muted)" id="netHint"></span>
         </div>
       </div>
+      <div class="hgroup">
+        <div class="glab">Check by size? <span style="font-weight:500;color:var(--muted)">A/B/C size class</span></div>
+        <div class="hrow">
+          <label style="display:flex;align-items:center;gap:6px;font-weight:700;color:var(--navy);font-size:12.5px"><input type="checkbox" id="sizeChk" style="width:15px;height:15px" onchange="toggleSizeChk()"> Show size class</label>
+          <div id="sizeBox" style="display:none;align-items:center;gap:8px;flex-wrap:wrap">
+            <select id="spSel" style="height:32px" onchange="loadProfile()"></select>
+            <span style="font-size:11px;color:var(--muted)">A ≥</span>
+            <span style="display:inline-flex;gap:2px;align-items:center"><input type="number" id="aL" value="220" style="width:46px;height:32px" oninput="calc()"><span>×</span><input type="number" id="aW" value="100" style="width:46px;height:32px" oninput="calc()"><span>×</span><input type="number" id="aH" value="0" style="width:46px;height:32px" oninput="calc()"></span>
+            <span style="font-size:11px;color:var(--muted)">B ≥</span>
+            <span style="display:inline-flex;gap:2px;align-items:center"><input type="number" id="bL" value="180" style="width:46px;height:32px" oninput="calc()"><span>×</span><input type="number" id="bW" value="80" style="width:46px;height:32px" oninput="calc()"><span>×</span><input type="number" id="bH" value="0" style="width:46px;height:32px" oninput="calc()"></span>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div class="hbar" style="margin-top:14px;padding-top:14px;border-top:1px dashed var(--line)">
-      <div><label class="fl" style="color:var(--green)">Threshold big size — price $/CBM</label><input type="number" id="pBig" value="1300" step="50" style="width:160px" oninput="calc()"></div>
-      <div><label class="fl" style="color:#c9871f">Threshold small size — price $/CBM</label><input type="number" id="pSmall" value="950" step="50" style="width:160px" oninput="calc()"></div>
+      <div><label class="fl" style="color:var(--green)">Fallback big price $/CBM <span style="color:var(--muted);font-weight:500">grades not in master</span></label><input type="number" id="pBig" value="1300" step="50" style="width:180px" oninput="calc()"></div>
+      <div><label class="fl" style="color:#c9871f">Fallback small price $/CBM <span style="color:var(--muted);font-weight:500">grades not in master</span></label><input type="number" id="pSmall" value="950" step="50" style="width:180px" oninput="calc()"></div>
+      <div style="align-self:flex-end"><span style="font-size:11.5px;color:var(--blue);cursor:pointer;font-weight:700" onclick="window.open('/app/grade-price','_blank')">⚙ Edit Grade Price master ↗</span></div>
       <div style="flex:1"></div>
     </div>
+    <div style="margin-top:8px;font-size:11px;color:var(--muted)">Prices &amp; sale tonnage come from the <b>Grade Price</b> master per grade × size. The two fields above only apply to grades missing from the master.</div>
 
     <div style="margin-top:14px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
       <span style="font-size:10.5px;font-weight:800;color:var(--muted);text-transform:uppercase">Active</span>
@@ -188,39 +207,34 @@ tbody tr.base td:first-child::before{content:"★ ";color:var(--gold);}
     </table></div>
     <div style="font-size:11.5px;color:var(--muted);margin-top:8px">Discount (CBM) = block gross tonnage × (1/5 − 1/target) — the billable volume you give up by selling at the target tonnage instead of 5. Allowance/side = that CBM difference spread across all three faces = ΔV ÷ 2·(L·W + W·H + L·H).</div>
   </div>
-  <!-- QUICK CALC TAB -->
+  <!-- SALE LOT BRIDGE (Selected tab only) -->
+  <div class="card" id="lotBridgeCard" style="border:1px dashed var(--gold)">
+    <div class="ct">📦 Sale Lot bridge <span class="sub">turn a selection into a Sale Lot · open or create operational lots</span></div>
+    <div class="hbar" style="margin-bottom:10px;align-items:center">
+      <button class="tbtn" onclick="copySelBlocks()">⧉ Copy selected block numbers <span class="cnt" id="lotSelCnt">0</span></button>
+      <button class="tbtn" onclick="window.open('/app/sale-lot/new','_blank')">＋ New Sale Lot</button>
+      <button class="tbtn" onclick="window.open('/app/sale-lot','_blank')">📋 Open Sale Lot list</button>
+      <span id="lotCopyMsg" style="font-size:12px;color:var(--green);font-weight:700"></span>
+    </div>
+    <div style="font-size:11.5px;color:var(--muted);margin-bottom:8px">Tick blocks above, copy their numbers, then paste into a new Sale Lot's block table. (Pricing/margin stays out of scope here — that's the accounts department's job.)</div>
+    <div id="lotBridgeList" style="font-size:12.5px;color:var(--muted)">Loading recent Sale Lots…</div>
+  </div>
+  <!-- QUICK CALC TAB (grade-mix slice engine) -->
   <div class="card hero" id="quickCard" style="display:none">
-    <div class="ct">⚡ Quick calculator <span class="sub">standalone — a fast volume × price sweep, no stock or filters</span></div>
-    <div class="hbar" style="margin-bottom:10px">
-      <div><label class="fl">Gross volume (CBM)</label><input type="number" id="qcVol" value="6" step="0.1" style="width:130px" oninput="quickCalc()"></div>
-      <div><label class="fl">or block L×W×H (cm) — optional</label><div style="display:flex;gap:3px;align-items:center"><input type="number" id="qcL" placeholder="L" style="width:62px;height:36px" oninput="quickCalc()"><span>×</span><input type="number" id="qcW" placeholder="W" style="width:62px;height:36px" oninput="quickCalc()"><span>×</span><input type="number" id="qcH" placeholder="H" style="width:62px;height:36px" oninput="quickCalc()"></div></div>
-      <div><label class="fl">Price / CBM ($)</label><input type="number" id="qcPrice" value="1200" step="50" style="width:110px" oninput="quickCalc()"></div>
-      <div><label class="fl">Specific gravity</label><input type="number" id="qcSG" value="2.60" step="0.05" style="width:100px" oninput="quickCalc()"></div>
-      <div><label class="fl">Grade <span style="color:var(--muted);font-weight:500">(optional)</span></label><input type="text" id="qcGrade" placeholder="A / B / C…" style="width:90px" oninput="quickCalc()"></div>
-      <div><label class="fl">Sale tonnages (t/CBM) <span style="color:var(--muted);font-weight:500">· 5 = benchmark</span></label><input type="text" id="qcRates" value="5, 5.5, 6, 6.5, 7" style="width:180px" oninput="quickCalc()"></div>
+    <div class="ct">⚡ Quick calc — grade mix <span class="sub">standalone · type a mix of grades × sizes (CBM each); price &amp; sale tonnage auto-fill from the Grade Price master — edit any cell to override</span></div>
+    <div class="hbar" style="margin-bottom:12px">
+      <div><label class="fl">USD → INR</label><input type="number" id="qcInr" value="86.00" step="0.01" style="width:100px" oninput="qcRender()"></div>
+      <div><label class="fl">USD → CNY</label><input type="number" id="qcCny" value="7.15" step="0.01" style="width:100px" oninput="qcRender()"></div>
+      <div><label class="fl">Specific gravity</label><input type="number" id="qcSG" value="2.60" step="0.05" style="width:100px" oninput="qcRender()"></div>
+      <div style="margin-left:auto;align-self:flex-end"><button class="chip" style="border-color:var(--navy);color:var(--navy);cursor:pointer;font-weight:800" onclick="qcAddRow()">＋ Add grade slice</button></div>
     </div>
-    <div class="hbar" style="margin-bottom:10px;padding-top:12px;border-top:1px dashed var(--line)">
-      <div><label class="fl">USD → INR</label><input type="number" id="qcInr" value="86.00" step="0.01" style="width:100px" oninput="quickCalc()"></div>
-      <div><label class="fl">USD → CNY</label><input type="number" id="qcCny" value="7.15" step="0.01" style="width:100px" oninput="quickCalc()"></div>
-      <div><label class="fl">Net allowance <span style="color:var(--muted);font-weight:500">(needs L×W×H)</span></label><div style="display:flex;align-items:center;gap:8px;height:36px"><label style="display:flex;align-items:center;gap:6px;font-weight:700;color:var(--navy);font-size:12.5px"><input type="checkbox" id="qcNetOn" style="width:15px;height:15px" onchange="quickCalc()"> Apply net</label><select id="qcAllowSel" style="height:32px" onchange="quickCalc()"><option value="5">5 cm/side</option><option value="10" selected>10 cm/side</option><option value="15">15 cm/side</option></select></div></div>
-      <div><label class="fl">Threshold size (L×W×H)</label><div style="display:flex;gap:3px;align-items:center;height:36px"><input type="number" id="qcTL" value="180" style="width:54px" oninput="quickCalc()"><span>×</span><input type="number" id="qcTW" value="100" style="width:54px" oninput="quickCalc()"><span>×</span><input type="number" id="qcTH" value="100" style="width:54px" oninput="quickCalc()"></div></div>
-      <div style="margin-left:auto;text-align:right"><div class="fl">Gross tonnage · category</div><div style="font-size:18px;font-weight:800;color:var(--navy)"><span id="qcReal">—</span> <span id="qcCat" style="font-size:12.5px;font-weight:800"></span></div></div>
-    </div>
-    <!-- value breakdown panel -->
-    <div id="qcBreak" class="hbar" style="margin:8px 0 14px;padding:14px 16px;background:#f7f9fc;border:1px solid var(--line);border-radius:12px;gap:22px;row-gap:12px"></div>
-    <!-- grade / size split -->
-    <div style="margin-bottom:14px">
-      <div style="font-size:12px;font-weight:800;color:var(--navy);margin:0 0 6px">Grade / size split <span style="font-weight:500;color:var(--muted)">— this block, at the ★ benchmark</span></div>
-      <div class="tablewrap"><table class="grid">
-        <thead><tr><th>Grade</th><th>Size</th><th>Gross CBM</th><th>Net CBM</th><th>Gross tonnage</th><th>Value ($)</th><th>Value (₹)</th></tr></thead>
-        <tbody id="qcSplitBody"></tbody>
-      </table></div>
-    </div>
-    <div style="font-size:11.5px;color:var(--muted);margin-bottom:6px">Type a volume (or a block's L×W×H) and price → sweeps the sale tonnages. Forex is editable. With L×W×H you also get the <b>net size</b> (allowance), the <b>big/small</b> category vs the threshold, and the <b>allowance/side</b> each sale tonnage implies (vs the ★ benchmark 5). Click a row for the ★ baseline.</div>
     <div class="tablewrap"><table class="grid">
-      <thead><tr><th>Sale tonnage (t/CBM)</th><th>Price/ton ($)</th><th>Sale volume (CBM)</th><th>Diff (CBM)</th><th>Value ($)</th><th>Value (₹)</th><th>Value (¥)</th><th>Diff ($)</th><th>Diff (₹)</th><th>Discount (CBM)</th><th>Allowance/side (cm)</th></tr></thead>
-      <tbody class="click" id="qcBody"></tbody>
+      <thead><tr><th>Grade</th><th>Size</th><th>Gross CBM</th><th>Price $/CBM</th><th>Sale tonnage</th><th>Gross tonnage</th><th>Sale volume (CBM)</th><th>Value ($)</th><th>Value (₹)</th><th>Value (¥)</th><th></th></tr></thead>
+      <tbody id="qcMixBody"></tbody>
+      <tfoot><tr id="qcMixTot" style="font-weight:800;background:#e7eef8"></tr></tfoot>
     </table></div>
+    <div id="qcSummary" class="hbar" style="margin:14px 0 4px;padding:14px 16px;background:#f7f9fc;border:1px solid var(--line);border-radius:12px;gap:22px;row-gap:12px"></div>
+    <div style="font-size:11.5px;color:var(--muted);margin-top:8px">Each slice: sale volume = gross CBM × SG ÷ sale tonnage; value = sale volume × price. Price &amp; sale tonnage pre-fill from the <b>Grade Price</b> master for the chosen grade &amp; size; a red-tinted price cell means that grade isn't in the master (fallback used). Blended = total value ÷ total gross CBM.</div>
   </div>
   </div><!-- /app -->
 
@@ -229,12 +243,13 @@ tbody tr.base td:first-child::before{content:"★ ";color:var(--gold);}
 <script>
 /* ---------- forex ---------- */
 var USD_INR=86.00, USD_CNY=7.15, fxWhen="not fetched";
-function renderFx(){document.getElementById("fxInr").value=USD_INR.toFixed(2);document.getElementById("fxCny").value=USD_CNY.toFixed(2);document.getElementById("fxWhen").textContent=fxWhen;var qi=document.getElementById("qcInr"),qc=document.getElementById("qcCny");if(qi)qi.value=USD_INR.toFixed(2);if(qc)qc.value=USD_CNY.toFixed(2);if(typeof tab!=="undefined"&&tab==="quick"&&document.getElementById("qcBody"))quickCalc();}
+function flashFx(msg){var el=document.getElementById("fxFlash");if(!el)return;el.innerHTML=msg||('💱 Forex &nbsp;·&nbsp; USD → INR <b>₹'+USD_INR.toFixed(2)+'</b> &nbsp;·&nbsp; USD → CNY <b>¥'+USD_CNY.toFixed(2)+'</b> &nbsp;<span style="color:#3a7a5f;font-weight:600">('+fxWhen+')</span>');el.classList.remove("show");void el.offsetWidth;el.classList.add("show");}
+function renderFx(){document.getElementById("fxInr").value=USD_INR.toFixed(2);document.getElementById("fxCny").value=USD_CNY.toFixed(2);document.getElementById("fxWhen").textContent=fxWhen;var qi=document.getElementById("qcInr"),qc=document.getElementById("qcCny");if(qi)qi.value=USD_INR.toFixed(2);if(qc)qc.value=USD_CNY.toFixed(2);if(typeof tab!=="undefined"&&tab==="quick"&&document.getElementById("qcMixBody"))quickCalc();}
 function manualFx(){var i=+document.getElementById("fxInr").value,c=+document.getElementById("fxCny").value;if(i>0)USD_INR=i;if(c>0)USD_CNY=c;fxWhen="manual entry";document.getElementById("fxWhen").textContent=fxWhen;calc();}
 function fetchForex(){document.getElementById("fxWhen").textContent="fetching…";
   fetch("https://open.er-api.com/v6/latest/USD").then(function(r){return r.json();}).then(function(j){
-    if(j&&j.rates&&j.rates.INR){USD_INR=j.rates.INR;if(j.rates.CNY)USD_CNY=j.rates.CNY;fxWhen="✓ live · fetched "+new Date().toLocaleString();renderFx();calc();}else throw 0;
-  }).catch(function(){fxWhen="⚠ offline — using ₹86 / ¥7.15 · "+new Date().toLocaleString();renderFx();});}
+    if(j&&j.rates&&j.rates.INR){USD_INR=j.rates.INR;if(j.rates.CNY)USD_CNY=j.rates.CNY;fxWhen="✓ live · fetched "+new Date().toLocaleString();renderFx();flashFx();calc();}else throw 0;
+  }).catch(function(){fxWhen="⚠ offline — using ₹86 / ¥7.15 · "+new Date().toLocaleString();renderFx();flashFx();});}
 
 /* ---------- live data ---------- */
 function apiList(dt,fields,filters){var u="/api/method/frappe.client.get_list?doctype="+encodeURIComponent(dt)+"&fields="+encodeURIComponent(JSON.stringify(fields))+"&limit_page_length=0";if(filters)u+="&filters="+encodeURIComponent(JSON.stringify(filters));return fetch(u,{credentials:"include",headers:{Accept:"application/json"}}).then(function(r){return r.json();}).then(function(j){return j.message||[];});}
@@ -242,6 +257,12 @@ function apiGet(dt,name){return fetch("/api/method/frappe.client.get?doctype="+e
 var GCOL={A:"#1D9E75",B:"#2F80ED",B1:"#7F77DD",B2:"#534AB7",C:"#EF9F27",D:"#D85A30"};
 function gcol(g){return GCOL[g]||"#9aa3ad";}
 var STOCK=[], byNo={}, GRADES=[], PITS=[], BILIST=[], BIcache={}, curBI=[], LOTLIST=[], LOTcache={}, curLot=[];
+/* ---------- pricing master (Grade Price) + Size Profiles ---------- */
+var GP={};          // grade -> {big, small, ton}
+var SPROFILES=[];   // [{name, def, aL,aW,aH, bL,bW,bH}]
+function gpBig(g){return (GP[g]&&GP[g].big>0)?GP[g].big:num("pBig");}
+function gpSmall(g){return (GP[g]&&GP[g].small>0)?GP[g].small:num("pSmall");}
+function gpTon(g){return (GP[g]&&GP[g].ton>0)?GP[g].ton:0;}
 function pitLabel(p){return (p===null||p===undefined||(""+p).trim()==="")?"Unassigned":("Pit "+p);}
 async function loadData(){
   var qb=await apiList("Quarry Block",["name","block_number","granite_quality_grade","pit","length_gross","width_gross","height_gross","gross_volume","export_block_no"],[["status","in",["In Stock","Buyer Marked"]]]);
@@ -253,6 +274,17 @@ async function loadData(){
   PITS=Object.keys(pset).sort(function(a,b){if(a==="Unassigned")return 1;if(b==="Unassigned")return -1;return (parseInt((a.match(/\d+/)||[0])[0],10))-(parseInt((b.match(/\d+/)||[0])[0],10));});
   BILIST=((await apiList("Buyer Inspection",["name"]))||[]).map(function(x){return x.name;});
   LOTLIST=((await apiList("Export Shipment Lot",["name","lot_title"]))||[]);
+  // Grade Price master → GP map (per-grade Big/Small price + per-grade sale tonnage)
+  try{
+    var gp=await apiList("Grade Price",["grade","price_big","price_small","sale_tonnage","active"]);
+    GP={};(gp||[]).forEach(function(r){if(r.active===0)return;GP[(r.grade||"").trim()]={big:+r.price_big||0,small:+r.price_small||0,ton:+r.sale_tonnage||0};});
+  }catch(e){GP={};}
+  // Size Profiles (optional doctype) → A/B/C cutoffs; graceful fallback to a built-in Standard
+  try{
+    var sp=await apiList("Size Profile",["name","is_default","a_min_length","a_min_width","a_min_height","b_min_length","b_min_width","b_min_height"]);
+    SPROFILES=(sp||[]).map(function(r){return {name:r.name,def:!!r.is_default,aL:+r.a_min_length||0,aW:+r.a_min_width||0,aH:+r.a_min_height||0,bL:+r.b_min_length||0,bW:+r.b_min_width||0,bH:+r.b_min_height||0};});
+  }catch(e){SPROFILES=[];}
+  if(!SPROFILES.length) SPROFILES=[{name:"Standard",def:true,aL:220,aW:100,aH:0,bL:180,bW:80,bH:0}];
 }
 function extractBIRows(doc){
   var tf=null;Object.keys(doc).forEach(function(k){var a=doc[k];if(Array.isArray(a)&&a.length&&typeof a[0]==="object"){var r=a[0];if((("block" in r)||("block_number_input" in r))&&(("length_gross" in r)||("granite_quality_grade" in r)))tf=tf||k;}});
@@ -303,7 +335,7 @@ function setTab(t){
   document.getElementById("card2").style.display=isQuick?"none":"";
   document.getElementById("card3").style.display=isQuick?"none":"";
   document.getElementById("quickCard").style.display=isQuick?"":"none";
-  if(isQuick){ document.getElementById("blkCard").style.display="none"; quickCalc(); return; }
+  if(isQuick){ document.getElementById("blkCard").style.display="none"; document.getElementById("lotBridgeCard").style.display="none"; flashFx(); quickCalc(); return; }
   document.getElementById("srcGroup").style.display=(t==="selected")?"none":"";
   document.getElementById("srcSub").textContent=(t==="selected")?"showing only the blocks you ticked (from quarry stock)":"pick stock or a BI — one or more filters combine";
   calc();
@@ -316,6 +348,12 @@ function allowVal(){return document.getElementById("netOn").checked?(+document.g
 function eff(b){var a=allowVal();return {L:Math.max(0,b.L-2*a),W:Math.max(0,b.W-2*a),H:Math.max(0,b.H-2*a)};}
 function isBig(b){var e=eff(b);return e.L>=num("tL")&&e.W>=num("tW")&&e.H>=num("tH");}
 function allowPerSide(L,W,H,dVcbm){var area=2*(L*W+W*H+L*H);return (area>0&&dVcbm>0)?(dVcbm*1e6/area):0;}
+/* ---------- size class (A/B/C) via Size Profile ---------- */
+function sizeChkOn(){var e=document.getElementById("sizeChk");return !!(e&&e.checked);}
+function toggleSizeChk(){document.getElementById("sizeBox").style.display=sizeChkOn()?"inline-flex":"none";calc();}
+function loadProfile(){var nm=document.getElementById("spSel").value;var p=(SPROFILES||[]).filter(function(x){return x.name===nm;})[0];if(!p)return;document.getElementById("aL").value=p.aL;document.getElementById("aW").value=p.aW;document.getElementById("aH").value=p.aH;document.getElementById("bL").value=p.bL;document.getElementById("bW").value=p.bW;document.getElementById("bH").value=p.bH;calc();}
+var SCOL={A:"#1D9E75",B:"#2F80ED",C:"#EF9F27"};
+function sizeCat(b){var e=eff(b);if(e.L>=num("aL")&&e.W>=num("aW")&&e.H>=num("aH"))return "A";if(e.L>=num("bL")&&e.W>=num("bW")&&e.H>=num("bH"))return "B";return "C";}
 
 function setSrc(s){src=s;document.querySelectorAll('[data-src]').forEach(function(c){c.classList.toggle("on",c.getAttribute("data-src")===s);});document.getElementById("biBox").style.display=(s==="bi")?"":"none";document.getElementById("lotBox").style.display=(s==="lot")?"":"none";if(s==="bi"){loadBI();}else if(s==="lot"){loadLot();}else{calc();}}
 function togGrade(g){if(gradeSet[g])delete gradeSet[g];else gradeSet[g]=1;document.querySelector('[data-g="'+g+'"]').classList.toggle("on",!!gradeSet[g]);calc();}
@@ -324,61 +362,53 @@ function setSize(z){sizeF=z;document.querySelectorAll('[data-z]').forEach(functi
 function clearF(){gradeSet={};pitSet={};document.querySelectorAll('[data-g],[data-p]').forEach(function(c){c.classList.remove("on");});setSize("all");calc();}
 function setQBase(r){qBase=(qBase===r)?null:r;calc();}
 
-/* ---------- standalone quick calc (tab) ---------- */
-var qcBase=null;
-function setQcBase(r){qcBase=(qcBase===r)?null:r;quickCalc();}
-function quickCalc(){
-  var L=+document.getElementById("qcL").value||0, W=+document.getElementById("qcW").value||0, H=+document.getElementById("qcH").value||0;
-  var hasDims=(L>0&&W>0&&H>0);
-  var vol = hasDims ? +(L*W*H/1e6).toFixed(3) : (+document.getElementById("qcVol").value||0);
-  if(hasDims) document.getElementById("qcVol").value=vol;
-  var price=+document.getElementById("qcPrice").value||0, sg=+document.getElementById("qcSG").value||0;
+/* ---------- standalone quick calc — grade-mix slice engine ---------- */
+var QCMIX=[{grade:"",size:"big",cbm:6,price:null,ton:null}];
+function qcGrades(){var g=GRADES.slice();Object.keys(GP).forEach(function(k){if(g.indexOf(k)<0)g.push(k);});if(!g.length)g=["A","B","B1","B2","C","D"];return g;}
+function qcAddRow(){var g=qcGrades();QCMIX.push({grade:g[0]||"",size:"big",cbm:0,price:null,ton:null});qcRender();}
+function qcDelRow(i){QCMIX.splice(i,1);if(!QCMIX.length)QCMIX.push({grade:(qcGrades()[0]||""),size:"big",cbm:0,price:null,ton:null});qcRender();}
+function qcSet(i,f,v){var r=QCMIX[i];if(!r)return;if(f==="cbm")r.cbm=+v||0;else if(f==="price")r.price=(v===""?null:+v);else if(f==="ton")r.ton=(v===""?null:+v);else if(f==="grade"){r.grade=v;r.price=null;r.ton=null;}else if(f==="size"){r.size=v;r.price=null;r.ton=null;}qcRender();}
+function qcAutoPrice(r){if(r.price!=null)return r.price;var g=GP[r.grade];if(g&&(r.size==="big"?g.big:g.small)>0)return r.size==="big"?g.big:g.small;return r.size==="big"?num("pBig"):num("pSmall");}
+function qcAutoTon(r){if(r.ton!=null)return r.ton;var g=GP[r.grade];if(g&&g.ton>0)return g.ton;return 5;}
+function quickCalc(){qcRender();}
+function qcRender(){
+  var body=document.getElementById("qcMixBody");if(!body)return;
+  var SG=+document.getElementById("qcSG").value||2.6;
   var INR=+document.getElementById("qcInr").value||USD_INR, CNY=+document.getElementById("qcCny").value||USD_CNY;
-  var priced=vol*price, gt=vol*sg;
-  document.getElementById("qcReal").textContent=gt.toFixed(2)+" t";
-  // net allowance → classify big/small on NET size vs threshold (only meaningful with dims)
-  var a=(document.getElementById("qcNetOn").checked)?(+document.getElementById("qcAllowSel").value||0):0;
-  var catEl=document.getElementById("qcCat");
-  if(hasDims){
-    var nL=Math.max(0,L-2*a), nW=Math.max(0,W-2*a), nH=Math.max(0,H-2*a);
-    var tL=+document.getElementById("qcTL").value||0, tW=+document.getElementById("qcTW").value||0, tH=+document.getElementById("qcTH").value||0;
-    var big=(nL>=tL&&nW>=tW&&nH>=tH);
-    catEl.textContent="· "+(big?"big":"small")+(a>0?" (net "+nL+"×"+nW+"×"+nH+")":"");
-    catEl.style.color=big?"#1D9E75":"#c9871f";
-  } else { catEl.textContent=""; }
-  var rates=(document.getElementById("qcRates").value||"").split(/[\s,]+/).map(parseFloat).filter(function(x){return x>0;});
-  if(qcBase===null&&rates.length)qcBase=(rates.indexOf(5)>-1?5:rates[0]);
-  var baseVal=(qcBase>0)?(sg/qcBase)*priced:0, baseINR=baseVal*INR, baseCBM=(qcBase>0)?vol*sg/qcBase:0;
-  document.getElementById("qcBody").innerHTML=rates.map(function(r){
-    var scbm=vol*sg/r, valUSD=(sg/r)*priced, valINR=valUSD*INR, valCNY=valUSD*CNY, pt=gt>0?valUSD/gt:0;
-    var dCBM=scbm-baseCBM, dUSD=valUSD-baseVal, dINR=valINR-baseINR, on=Math.abs(r-qcBase)<1e-9;
-    var disc=vol*sg*(1/qcBase - 1/r);
-    var discCell=(Math.abs(disc)<0.005)?'<span style="color:#9aa3ad">—</span>':'<span style="color:#c0392b;font-weight:700">−'+disc.toFixed(3)+'</span>';
-    var allowCell = hasDims ? '<span style="font-weight:700">'+(disc>0?allowPerSide(L,W,H,disc).toFixed(1)+' cm':'0.0 cm')+'</span>' : '<span style="color:#9aa3ad">enter L×W×H</span>';
-    function dc(v,cur,dec){if(Math.abs(v)<(dec?0.005:0.5))return '<span style="color:#9aa3ad">—</span>';var pos=v>=0;var mag=dec?Math.abs(v).toFixed(2):Math.abs(Math.round(v)).toLocaleString();return '<span style="font-weight:700;color:'+(pos?'#1D9E75':'#c0392b')+'">'+(pos?'+':'−')+cur+mag+'</span>';}
-    return '<tr class="'+(on?'base':'')+'" onclick="setQcBase('+r+')"><td style="font-weight:700">'+r+'</td><td>$'+pt.toFixed(1)+'</td><td style="font-weight:700">'+scbm.toFixed(2)+'</td><td>'+dc(dCBM,"",true)+'</td><td style="font-weight:700">$'+Math.round(valUSD).toLocaleString()+'</td><td>₹'+Math.round(valINR).toLocaleString("en-IN")+'</td><td>¥'+Math.round(valCNY).toLocaleString()+'</td><td>'+dc(dUSD,"$")+'</td><td>'+dc(dINR,"₹")+'</td><td>'+discCell+'</td><td>'+allowCell+'</td></tr>';
-  }).join("")||'<tr><td colspan="11" style="text-align:center;color:#9aa3ad;padding:14px">Enter sale tonnages.</td></tr>';
-  // ----- value breakdown panel + grade/size split -----
-  var netVol = (hasDims && a>0) ? +(nL*nW*nH/1e6).toFixed(3) : vol;
-  var perTon = gt>0 ? baseVal/gt : 0;
-  var catTxt = hasDims ? (big?"Big":"Small") : "—";
-  var catCol = hasDims ? (big?"#1D9E75":"#c9871f") : "var(--muted)";
-  var netTxt = hasDims ? ((a>0?nL:L)+"×"+(a>0?nW:W)+"×"+(a>0?nH:H)) : "—";
-  function tile(lbl,val,color){return '<div style="min-width:104px"><div style="font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.3px">'+lbl+'</div><div style="font-size:16px;font-weight:800;color:'+(color||"var(--navy)")+'">'+val+'</div></div>';}
-  document.getElementById("qcBreak").innerHTML =
-    tile("Gross volume", vol.toFixed(3)+" CBM") +
-    tile("Net volume", netVol.toFixed(3)+" CBM") +
-    tile("Gross tonnage", gt.toFixed(2)+" t") +
-    tile("Category", catTxt, catCol) +
-    tile("Net size (cm)", netTxt) +
-    tile("Price / CBM", "$"+price.toLocaleString()) +
-    tile("Value @★"+(qcBase||"—"), "$"+Math.round(baseVal).toLocaleString()) +
-    tile("Value (₹)", "₹"+Math.round(baseVal*INR).toLocaleString("en-IN")) +
-    tile("Value (¥)", "¥"+Math.round(baseVal*CNY).toLocaleString()) +
-    tile("$ / ton", "$"+perTon.toFixed(1));
-  var g=(document.getElementById("qcGrade").value||"").trim()||"—";
-  document.getElementById("qcSplitBody").innerHTML =
-    '<tr><td style="font-weight:700">'+g+'</td><td style="font-weight:700;color:'+catCol+'">'+catTxt+'</td><td>'+vol.toFixed(2)+'</td><td>'+netVol.toFixed(2)+'</td><td style="font-weight:700">'+gt.toFixed(2)+' t</td><td style="font-weight:700">$'+Math.round(baseVal).toLocaleString()+'</td><td>₹'+Math.round(baseVal*INR).toLocaleString("en-IN")+'</td></tr>';
+  var gopts=qcGrades();
+  var TCBM=0,TGT=0,TSV=0,TVAL=0;
+  body.innerHTML=QCMIX.map(function(r,i){
+    if(gopts.indexOf(r.grade)<0)r.grade=gopts[0]||"";
+    var price=qcAutoPrice(r), ton=qcAutoTon(r), inMaster=!!(GP[r.grade]&&(r.size==="big"?GP[r.grade].big:GP[r.grade].small)>0);
+    var gt=r.cbm*SG, sv=ton>0?gt/ton:0, val=sv*price;
+    TCBM+=r.cbm;TGT+=gt;TSV+=sv;TVAL+=val;
+    var pStyle="width:90px;height:30px;text-align:right"+(inMaster?"":";background:#fff3f2;border-color:#f0b7b2");
+    var gsel='<select onchange="qcSet('+i+',\'grade\',this.value)" style="height:30px">'+gopts.map(function(g){return '<option'+(g===r.grade?' selected':'')+'>'+g+'</option>';}).join("")+'</select>';
+    var ssel='<select onchange="qcSet('+i+',\'size\',this.value)" style="height:30px"><option value="big"'+(r.size==="big"?' selected':'')+'>Big</option><option value="small"'+(r.size==="small"?' selected':'')+'>Small</option></select>';
+    return '<tr><td style="text-align:left"><span class="gdot" style="background:'+gcol(r.grade)+'"></span>'+gsel+'</td>'
+      +'<td>'+ssel+'</td>'
+      +'<td><input type="number" value="'+r.cbm+'" step="0.1" style="width:80px;height:30px;text-align:right" oninput="qcSet('+i+',\'cbm\',this.value)"></td>'
+      +'<td><input type="number" value="'+price+'" step="50" style="'+pStyle+'"'+(inMaster?"":' title="grade not in Grade Price master — fallback price used"')+' oninput="qcSet('+i+',\'price\',this.value)"></td>'
+      +'<td><input type="number" value="'+ton+'" step="0.1" style="width:72px;height:30px;text-align:right" oninput="qcSet('+i+',\'ton\',this.value)"></td>'
+      +'<td>'+gt.toFixed(2)+' t</td>'
+      +'<td style="font-weight:700">'+sv.toFixed(2)+'</td>'
+      +'<td style="font-weight:700">$'+Math.round(val).toLocaleString()+'</td>'
+      +'<td>₹'+Math.round(val*INR).toLocaleString("en-IN")+'</td>'
+      +'<td>¥'+Math.round(val*CNY).toLocaleString()+'</td>'
+      +'<td style="text-align:center"><span style="cursor:pointer;color:#c0392b;font-weight:800" title="remove slice" onclick="qcDelRow('+i+')">✕</span></td></tr>';
+  }).join("")||'<tr><td colspan="11" style="text-align:center;color:#9aa3ad;padding:14px">Add a grade slice to begin.</td></tr>';
+  var blended=TCBM>0?TVAL/TCBM:0;
+  document.getElementById("qcMixTot").innerHTML='<td style="text-align:left">Total</td><td></td><td>'+TCBM.toFixed(2)+'</td><td colspan="2" style="text-align:right;font-weight:600;color:var(--navy)">blended $'+Math.round(blended).toLocaleString()+'/CBM</td><td>'+TGT.toFixed(2)+' t</td><td>'+TSV.toFixed(2)+'</td><td>$'+Math.round(TVAL).toLocaleString()+'</td><td>₹'+Math.round(TVAL*INR).toLocaleString("en-IN")+'</td><td>¥'+Math.round(TVAL*CNY).toLocaleString()+'</td><td></td>';
+  function tile(lbl,val,color){return '<div style="min-width:120px"><div style="font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.3px">'+lbl+'</div><div style="font-size:16px;font-weight:800;color:'+(color||"var(--navy)")+'">'+val+'</div></div>';}
+  document.getElementById("qcSummary").innerHTML=
+    tile("Slices",QCMIX.length+"")+
+    tile("Total gross CBM",TCBM.toFixed(2))+
+    tile("Total gross tonnage",TGT.toFixed(2)+" t")+
+    tile("Total sale volume",TSV.toFixed(2)+" CBM")+
+    tile("Blended price","$"+Math.round(blended).toLocaleString()+"/CBM")+
+    tile("Total value ($)","$"+Math.round(TVAL).toLocaleString(),"var(--green)")+
+    tile("Total value (₹)","₹"+Math.round(TVAL*INR).toLocaleString("en-IN"))+
+    tile("Total value (¥)","¥"+Math.round(TVAL*CNY).toLocaleString());
 }
 
 /* ---------- selection ---------- */
@@ -397,7 +427,27 @@ function selectedBlocks(){
   return applyFilters(pool);
 }
 function candidateBlocks(){ return applyFilters(STOCK); }
-function priceFor(b){return isBig(b)?num("pBig"):num("pSmall");}
+function priceFor(b){return isBig(b)?gpBig(b.grade):gpSmall(b.grade);}
+
+/* ---------- Sale Lot bridge (operational) ---------- */
+function copySelBlocks(){
+  var nums=Object.keys(selBlk), msg=document.getElementById("lotCopyMsg");
+  if(!nums.length){msg.textContent="No blocks ticked above.";setTimeout(function(){msg.textContent="";},2500);return;}
+  var txt=nums.join(", ");
+  function done(){msg.textContent="✓ Copied "+nums.length+" block numbers";setTimeout(function(){msg.textContent="";},3000);}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(txt).then(done).catch(fallback);}else{fallback();}
+  function fallback(){var ta=document.createElement("textarea");ta.value=txt;document.body.appendChild(ta);ta.select();try{document.execCommand("copy");done();}catch(e){msg.textContent="Copy failed — "+txt;}ta.remove();}
+}
+function loadSaleLots(){
+  var el=document.getElementById("lotBridgeList"); if(!el)return;
+  apiList("Sale Lot",["name","buyer","sale_type","total_sale_cbm","total_agreed_tonnage"]).then(function(rows){
+    rows=(rows||[]).slice(0,20);
+    if(!rows.length){el.textContent="No Sale Lots yet — use ＋ New Sale Lot to create one.";return;}
+    el.innerHTML='<div class="tablewrap"><table class="grid"><thead><tr><th>Lot</th><th>Buyer</th><th>Type</th><th>Sale CBM</th><th>Agreed tonnage</th></tr></thead><tbody class="click">'+
+      rows.map(function(x){return '<tr onclick="window.open(\'/app/sale-lot/'+encodeURIComponent(x.name)+'\',\'_blank\')"><td style="font-weight:700;text-align:left">'+x.name+'</td><td style="text-align:left">'+(x.buyer||"—")+'</td><td style="text-align:left">'+(x.sale_type||"")+'</td><td>'+(+x.total_sale_cbm||0).toFixed(2)+'</td><td>'+(+x.total_agreed_tonnage||0).toFixed(2)+'</td></tr>';}).join("")+
+      '</tbody></table></div>';
+  }).catch(function(){el.textContent="Could not load Sale Lots (need read permission).";});
+}
 
 /* ---------- main calc ---------- */
 function calc(){
@@ -410,8 +460,8 @@ function calc(){
   var sel=selectedBlocks();
   var big=sel.filter(isBig), small=sel.filter(function(b){return !isBig(b);});
   var volBig=big.reduce(function(s,b){return s+b.vol;},0), volSmall=small.reduce(function(s,b){return s+b.vol;},0);
-  var valBig=volBig*num("pBig"), valSmall=volSmall*num("pSmall");
-  var volAll=volBig+volSmall, valAll=valBig+valSmall;
+  var volAll=volBig+volSmall;
+  var valAll=sel.reduce(function(s,b){return s+b.vol*priceFor(b);},0);  // per-grade × size price
   var blended=volAll>0?valAll/volAll:0;
 
   var gA=Object.keys(gradeSet);
@@ -422,6 +472,8 @@ function calc(){
   document.getElementById("pillBar").innerHTML=pills.join(" ");
 
   document.getElementById("blkCard").style.display=(tab==="selected")?"":"none";
+  document.getElementById("lotBridgeCard").style.display=(tab==="selected")?"":"none";
+  document.getElementById("lotSelCnt").textContent=Object.keys(selBlk).length;
   var tableList=(tab==="selected")?candidateBlocks():sel;
   window._listed=tableList;
   var SG=num("dmg"), tgt=+document.getElementById("tgt").value, r0=5, af=(1/r0 - 1/tgt);
@@ -434,19 +486,20 @@ function calc(){
     var disc=b.vol*SG*af; if(disc>0)totDisc+=disc;
     var a=allowPerSide(b.L,b.W,b.H,disc);
     var ck=selBlk[b.no];
-    return '<tr'+(ck?' style="background:#fff7e6"':'')+'><td style="text-align:center"><input type="checkbox" '+(ck?'checked':'')+' onclick="toggleBlk(\''+b.no+'\')"></td><td style="font-weight:700">'+b.no+'</td><td><span class="gdot" style="background:'+gcol(b.grade)+'"></span>'+b.grade+'</td><td>'+b.L+'×'+b.W+'×'+b.H+'</td><td>'+b.vol.toFixed(2)+'</td><td style="text-align:left"><span style="color:'+(bg?'var(--green)':'#c9871f')+';font-weight:700">'+(bg?'Threshold big':'Threshold small')+'</span></td><td>$'+priceFor(b)+'</td><td style="font-weight:700">$'+Math.round(b.vol*priceFor(b)).toLocaleString()+'</td><td style="color:#c0392b;font-weight:700">−'+disc.toFixed(3)+'</td><td style="font-weight:700">'+a.toFixed(1)+' cm</td></tr>';
+    var scPart=sizeChkOn()?(' <span style="font-weight:800;color:'+(SCOL[sizeCat(b)]||"#9aa3ad")+'">· '+sizeCat(b)+'</span>'):'';
+    return '<tr'+(ck?' style="background:#fff7e6"':'')+'><td style="text-align:center"><input type="checkbox" '+(ck?'checked':'')+' onclick="toggleBlk(\''+b.no+'\')"></td><td style="font-weight:700">'+b.no+'</td><td><span class="gdot" style="background:'+gcol(b.grade)+'"></span>'+b.grade+'</td><td>'+b.L+'×'+b.W+'×'+b.H+'</td><td>'+b.vol.toFixed(2)+'</td><td style="text-align:left"><span style="color:'+(bg?'var(--green)':'#c9871f')+';font-weight:700">'+(bg?'Threshold big':'Threshold small')+'</span>'+scPart+'</td><td>$'+priceFor(b)+'</td><td style="font-weight:700">$'+Math.round(b.vol*priceFor(b)).toLocaleString()+'</td><td style="color:#c0392b;font-weight:700">−'+disc.toFixed(3)+'</td><td style="font-weight:700">'+a.toFixed(1)+' cm</td></tr>';
   }).join("")||'<tr><td colspan="10" style="text-align:center;color:#9aa3ad;padding:14px">'+(tab==="selected"?"No blocks match — adjust filters or tick blocks.":"No blocks match these filters.")+'</td></tr>';
   document.getElementById("allowTot").innerHTML='Total discount vs benchmark 5: <b style="color:#c0392b">'+totDisc.toFixed(2)+' CBM</b> over '+tableList.length+' blocks';
 
   var pool=(tab==="selected")?STOCK.filter(function(b){return selBlk[b.no];}):basePool();
-  document.getElementById("valSub").textContent="· "+(tab==="selected"?"Selected from stock":srcName)+" · big @$"+num("pBig")+" / small @$"+num("pSmall");
+  document.getElementById("valSub").textContent="· "+(tab==="selected"?"Selected from stock":srcName)+" · priced per grade × size (Grade Price master · fallback big $"+num("pBig")+" / small $"+num("pSmall")+")";
   var gord=GRADES.slice(); pool.forEach(function(b){if(gord.indexOf(b.grade)<0)gord.push(b.grade);});
   var TB=0,TBc=0,TS=0,TSc=0,TVal=0,TGt=0;
   document.getElementById("gradeVal").innerHTML=gord.map(function(g){
     var gb=pool.filter(function(b){return b.grade===g;}); if(!gb.length)return "";
     var bigs=gb.filter(isBig), smalls=gb.filter(function(b){return !isBig(b);});
     var bc=bigs.reduce(function(s,b){return s+b.vol;},0), sc=smalls.reduce(function(s,b){return s+b.vol;},0);
-    var val=bc*num("pBig")+sc*num("pSmall"), gt=(bc+sc)*SG, pt=gt>0?val/gt:0;
+    var val=bc*gpBig(g)+sc*gpSmall(g), gt=(bc+sc)*SG, pt=gt>0?val/gt:0;
     TB+=bigs.length;TBc+=bc;TS+=smalls.length;TSc+=sc;TVal+=val;TGt+=gt;
     return '<tr><td style="font-weight:700"><span class="gdot" style="background:'+gcol(g)+'"></span>'+g+'</td><td>'+bigs.length+'</td><td>'+bc.toFixed(1)+'</td><td>'+smalls.length+'</td><td>'+sc.toFixed(1)+'</td><td style="font-weight:700">'+gb.length+'</td><td style="font-weight:700">'+(bc+sc).toFixed(1)+'</td><td style="font-weight:700">$'+Math.round(val).toLocaleString()+'</td><td>₹'+Math.round(val*USD_INR).toLocaleString("en-IN")+'</td><td>$'+pt.toFixed(1)+'</td></tr>';
   }).join("")||'<tr><td colspan="10" style="text-align:center;color:#9aa3ad;padding:12px">No stock.</td></tr>';
@@ -467,7 +520,7 @@ function calc(){
   document.getElementById("pitTot").innerHTML='<td>All pits</td><td>'+PB+'</td><td>'+PBc.toFixed(1)+'</td><td colspan="2"></td><td></td><td>$'+Math.round(PVal).toLocaleString()+'</td>';
 
   var vol=volAll, priced=valAll;
-  document.getElementById("feedInfo").innerHTML="Selection: <b>"+sel.length+" blocks · "+volAll.toFixed(1)+" CBM</b> · value <b>$"+Math.round(valAll).toLocaleString()+"</b> (≥thr @$"+num("pBig")+" / &lt;thr @$"+num("pSmall")+") · blended $"+Math.round(blended)+"/CBM";
+  document.getElementById("feedInfo").innerHTML="Selection: <b>"+sel.length+" blocks · "+volAll.toFixed(1)+" CBM</b> · value <b>$"+Math.round(valAll).toLocaleString()+"</b> (priced per grade × size) · blended $"+Math.round(blended)+"/CBM";
   document.getElementById("realW").textContent=(vol*num("dmg")).toFixed(1)+" t";
 
   var dmg=num("dmg"), rates=ratesArr();
@@ -494,6 +547,11 @@ function calc(){
   document.getElementById("pitChips").innerHTML=PITS.map(function(p){return '<span class="chip" data-p="'+p+'" onclick="togPit(\''+p.replace(/'/g,"\\'")+'\')">'+p+'</span>';}).join("");
   document.getElementById("biSel").innerHTML=BILIST.map(function(x){return '<option>'+x+'</option>';}).join("")||'<option value="">— no Buyer Inspections —</option>';
   document.getElementById("lotSel").innerHTML='<option value="">— pick an export lot —</option>'+LOTLIST.map(function(x){return '<option value="'+x.name+'">'+(x.lot_title||x.name)+'</option>';}).join("");
+  var _def=(SPROFILES.filter(function(p){return p.def;})[0]||SPROFILES[0]||{}).name||"";
+  document.getElementById("spSel").innerHTML=SPROFILES.map(function(p){return '<option'+(p.name===_def?' selected':'')+'>'+p.name+'</option>';}).join("");
+  if(_def)loadProfile();
+  loadSaleLots();
+  flashFx();
   document.getElementById("loadNote").style.display="none";
   document.getElementById("app").style.display="";
   window._loaded=true;
