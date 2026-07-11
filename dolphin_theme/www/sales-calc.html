@@ -107,47 +107,53 @@ tbody tr.base td:first-child::before{content:"★ ";color:var(--gold);}
         <div class="hrow" id="pitChips"></div>
       </div>
       <div class="hgroup">
-        <div class="glab">Threshold size <span style="font-weight:500;color:var(--muted)">L×W×H</span></div>
+        <div class="glab">Size mode <span style="font-weight:500;color:var(--muted)">one or the other</span></div>
+        <div class="hrow">
+          <span class="chip on" id="modeThr" onclick="setSizeMode('thr')">Threshold</span>
+          <span class="chip" id="modeCls" onclick="setSizeMode('cls')">Size class A/B/C</span>
+        </div>
+      </div>
+      <div class="hgroup" id="thrGroup">
+        <div class="glab">Threshold size <span style="font-weight:500;color:var(--muted)">net ≥ = big · smaller A → C</span></div>
         <div class="hrow">
           <span class="chip on" data-z="all" onclick="setSize('all')">Both</span>
-          <span class="chip" data-z="big" onclick="setSize('big')">Threshold big size</span>
-          <span class="chip" data-z="small" onclick="setSize('small')">Threshold small size</span>
-          <span style="display:inline-flex;gap:3px;align-items:center;margin-left:4px">
-            <input type="number" id="tL" value="180" style="width:52px" oninput="calc()"><span>×</span>
-            <input type="number" id="tW" value="100" style="width:52px" oninput="calc()"><span>×</span>
-            <input type="number" id="tH" value="100" style="width:52px" oninput="calc()"></span>
+          <span class="chip" data-z="big" onclick="setSize('big')">Big</span>
+          <span class="chip" data-z="small" onclick="setSize('small')">Small</span>
+          <span style="display:inline-flex;gap:5px;align-items:center;margin-left:4px">
+            <input type="number" id="tL" value="180" style="width:72px" oninput="calc()"><span>×</span>
+            <input type="number" id="tW" value="100" style="width:72px" oninput="calc()"><span>×</span>
+            <input type="number" id="tH" value="100" style="width:72px" oninput="calc()"></span>
+        </div>
+      </div>
+      <div class="hgroup" id="clsGroup" style="display:none">
+        <div class="glab">Size class cut-offs <span style="font-weight:500;color:var(--muted)">A = big · smaller A → C</span></div>
+        <div class="hrow">
+          <select id="spSel" style="height:32px" onchange="loadProfile()"></select>
+          <span style="font-size:11px;color:var(--muted)">A ≥</span>
+          <span style="display:inline-flex;gap:3px;align-items:center"><input type="number" id="aL" value="220" style="width:60px;height:32px" oninput="calc()"><span>×</span><input type="number" id="aW" value="100" style="width:60px;height:32px" oninput="calc()"><span>×</span><input type="number" id="aH" value="0" style="width:60px;height:32px" oninput="calc()"></span>
+          <span style="font-size:11px;color:var(--muted)">B ≥</span>
+          <span style="display:inline-flex;gap:3px;align-items:center"><input type="number" id="bL" value="180" style="width:60px;height:32px" oninput="calc()"><span>×</span><input type="number" id="bW" value="80" style="width:60px;height:32px" oninput="calc()"><span>×</span><input type="number" id="bH" value="0" style="width:60px;height:32px" oninput="calc()"></span>
         </div>
       </div>
       <div class="hgroup">
-        <div class="glab">Net allowance <span style="font-weight:500;color:var(--muted)">threshold tested on net size</span></div>
+        <div class="glab">Net allowance <span style="font-weight:500;color:var(--muted)">size tested on net</span></div>
         <div class="hrow">
           <label style="display:flex;align-items:center;gap:6px;font-weight:700;color:var(--navy);font-size:12.5px"><input type="checkbox" id="netOn" style="width:15px;height:15px" onchange="calc()"> Apply net</label>
           <select id="allowSel" style="height:32px" onchange="calc()"><option value="5">5 cm/side</option><option value="10" selected>10 cm/side</option><option value="15">15 cm/side</option></select>
           <span style="font-size:11px;color:var(--muted)" id="netHint"></span>
         </div>
       </div>
-      <div class="hgroup">
-        <div class="glab">Check by size? <span style="font-weight:500;color:var(--muted)">A/B/C size class</span></div>
-        <div class="hrow">
-          <label style="display:flex;align-items:center;gap:6px;font-weight:700;color:var(--navy);font-size:12.5px"><input type="checkbox" id="sizeChk" style="width:15px;height:15px" onchange="toggleSizeChk()"> Show size class</label>
-          <div id="sizeBox" style="display:none;align-items:center;gap:8px;flex-wrap:wrap">
-            <select id="spSel" style="height:32px" onchange="loadProfile()"></select>
-            <span style="font-size:11px;color:var(--muted)">A ≥</span>
-            <span style="display:inline-flex;gap:2px;align-items:center"><input type="number" id="aL" value="220" style="width:46px;height:32px" oninput="calc()"><span>×</span><input type="number" id="aW" value="100" style="width:46px;height:32px" oninput="calc()"><span>×</span><input type="number" id="aH" value="0" style="width:46px;height:32px" oninput="calc()"></span>
-            <span style="font-size:11px;color:var(--muted)">B ≥</span>
-            <span style="display:inline-flex;gap:2px;align-items:center"><input type="number" id="bL" value="180" style="width:46px;height:32px" oninput="calc()"><span>×</span><input type="number" id="bW" value="80" style="width:46px;height:32px" oninput="calc()"><span>×</span><input type="number" id="bH" value="0" style="width:46px;height:32px" oninput="calc()"></span>
-          </div>
-        </div>
-      </div>
     </div>
 
-    <div class="hbar" style="margin-top:14px;padding-top:14px;border-top:1px dashed var(--line)">
-      <div><label class="fl" style="color:var(--green)">Fallback big price $/CBM <span style="color:var(--muted);font-weight:500">grades not in master</span></label><input type="number" id="pBig" value="1300" step="50" style="width:180px" oninput="calc()"></div>
-      <div><label class="fl" style="color:#c9871f">Fallback small price $/CBM <span style="color:var(--muted);font-weight:500">grades not in master</span></label><input type="number" id="pSmall" value="950" step="50" style="width:180px" oninput="calc()"></div>
+    <div class="hbar" style="margin-top:14px;padding-top:14px;border-top:1px dashed var(--line);align-items:flex-start">
+      <div style="flex:1">
+        <label class="fl">Grade prices $/CBM <span style="color:var(--muted);font-weight:500">one price per grade · C = small size of A</span></label>
+        <div class="hrow" id="gradePrices" style="margin-top:2px"></div>
+      </div>
       <div style="align-self:flex-end"><span style="font-size:11.5px;color:var(--blue);cursor:pointer;font-weight:700" onclick="window.open('/app/grade-price','_blank')">⚙ Edit Grade Price master ↗</span></div>
-      <div style="flex:1"></div>
     </div>
-    <div style="margin-top:8px;font-size:11px;color:var(--muted)">Prices &amp; sale tonnage come from the <b>Grade Price</b> master per grade × size. The two fields above only apply to grades missing from the master.</div>
+    <input type="hidden" id="pBig" value="1300"><input type="hidden" id="pSmall" value="950">
+    <div style="margin-top:8px;font-size:11px;color:var(--muted)">Each block is priced by its grade. A block with <b>no grade defaults to A</b>; an A block whose net size is below the threshold is re-classified as <b>C</b> (small A). Defaults pre-filled from the <b>Grade Price</b> master.</div>
 
     <div style="margin-top:14px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
       <span style="font-size:10.5px;font-weight:800;color:var(--muted);text-transform:uppercase">Active</span>
@@ -158,17 +164,17 @@ tbody tr.base td:first-child::before{content:"★ ";color:var(--gold);}
 
   <!-- 2. GRADE x THRESHOLD STOCK BREAKDOWN -->
   <div class="card" id="card2" style="border:2px solid var(--navy)">
-    <div class="ct">📊 2 · Stock right now — grade × threshold <span class="sub" id="valSub"></span></div>
-    <div style="font-size:11.5px;color:var(--muted);margin-bottom:8px">Every grade split by the ≥/&lt; threshold (tested on <b>net</b> size when the allowance is on): blocks &amp; CBM available now, valued at the big/small prices ($, ₹, $/ton). Bottom row = grand-total volume &amp; value.</div>
+    <div class="ct">📊 2 · Stock right now — grade × size <span class="sub" id="valSub"></span></div>
+    <div style="font-size:11.5px;color:var(--muted);margin-bottom:8px">Each grade split into <b>Big</b> (net size ≥ threshold) and <b>C size</b> (small — below threshold), priced at that grade's Big / Small price from the <b>Grade Price</b> master. Blocks with no grade count as <b>A</b>. Bottom row = grand-total volume &amp; value.</div>
     <div class="tablewrap"><table class="grid">
-      <thead><tr><th>Grade</th><th>Thr big blk</th><th>Thr big CBM</th><th>Thr small blk</th><th>Thr small CBM</th><th>Total blk</th><th>Total CBM</th><th>Value ($)</th><th>Value (₹)</th><th>$ / ton</th></tr></thead>
+      <thead><tr><th>Grade</th><th>Big blk</th><th>Big CBM</th><th>C-size blk</th><th>C-size CBM</th><th>Total blk</th><th>Total CBM</th><th>Sale t/CBM</th><th>Value ($)</th><th>Value (₹)</th><th>$ / ton</th></tr></thead>
       <tbody id="gradeVal"></tbody>
       <tfoot><tr id="gradeTot" style="font-weight:800;background:#f5f8fc"></tr></tfoot>
     </table></div>
     <hr style="border:none;border-top:2px solid #d5deec;margin:20px 0 0">
     <div style="font-size:12px;font-weight:800;color:var(--navy);margin:14px 0 6px">Pit-wise — how much stock, sizes &amp; grades each pit is holding now</div>
     <div class="tablewrap"><table class="grid">
-      <thead><tr><th>Pit</th><th>Blocks</th><th>CBM</th><th>Thr big blk</th><th>Thr small blk</th><th>Grade mix</th><th>Value ($)</th></tr></thead>
+      <thead><tr><th>Pit</th><th>Blocks</th><th>CBM</th><th>Big blk</th><th>C-size blk</th><th>Grade mix</th><th>Value ($)</th></tr></thead>
       <tbody id="pitVal"></tbody>
       <tfoot><tr id="pitTot" style="font-weight:800;background:#f5f8fc"></tr></tfoot>
     </table></div>
@@ -346,11 +352,20 @@ function num(id){var e=document.getElementById(id);return e&&e.value!==""?+e.val
 function ratesArr(){return (document.getElementById("rates").value||"").split(/[\s,]+/).map(parseFloat).filter(function(x){return x>0;});}
 function allowVal(){return document.getElementById("netOn").checked?(+document.getElementById("allowSel").value||0):0;}
 function eff(b){var a=allowVal();return {L:Math.max(0,b.L-2*a),W:Math.max(0,b.W-2*a),H:Math.max(0,b.H-2*a)};}
-function isBig(b){var e=eff(b);return e.L>=num("tL")&&e.W>=num("tW")&&e.H>=num("tH");}
+function isBig(b){if(sizeMode==="cls")return sizeCat(b)==="A";var e=eff(b);return e.L>=num("tL")&&e.W>=num("tW")&&e.H>=num("tH");}
 function allowPerSide(L,W,H,dVcbm){var area=2*(L*W+W*H+L*H);return (area>0&&dVcbm>0)?(dVcbm*1e6/area):0;}
-/* ---------- size class (A/B/C) via Size Profile ---------- */
-function sizeChkOn(){var e=document.getElementById("sizeChk");return !!(e&&e.checked);}
-function toggleSizeChk(){document.getElementById("sizeBox").style.display=sizeChkOn()?"inline-flex":"none";calc();}
+/* ---------- size mode: threshold OR size class — mutually exclusive (default threshold) ---------- */
+var sizeMode="thr";
+function sizeChkOn(){return sizeMode==="cls";}
+function setSizeMode(m){sizeMode=m;
+  document.getElementById("modeThr").classList.toggle("on",m==="thr");
+  document.getElementById("modeCls").classList.toggle("on",m==="cls");
+  document.getElementById("thrGroup").style.display=(m==="thr")?"":"none";
+  document.getElementById("clsGroup").style.display=(m==="cls")?"":"none";
+  calc();}
+/* pricing grade: a block with no grade defaults to A; a small A is a C size (priced at A's small price) */
+var ORDERG=["A","B","B1","B2","C","D"];
+function pricingGrade(b){var g=((b.grade||"")+"").trim();return (GP[g]||ORDERG.indexOf(g)>=0)?g:"A";}
 function loadProfile(){var nm=document.getElementById("spSel").value;var p=(SPROFILES||[]).filter(function(x){return x.name===nm;})[0];if(!p)return;document.getElementById("aL").value=p.aL;document.getElementById("aW").value=p.aW;document.getElementById("aH").value=p.aH;document.getElementById("bL").value=p.bL;document.getElementById("bW").value=p.bW;document.getElementById("bH").value=p.bH;calc();}
 var SCOL={A:"#1D9E75",B:"#2F80ED",C:"#EF9F27"};
 function sizeCat(b){var e=eff(b);if(e.L>=num("aL")&&e.W>=num("aW")&&e.H>=num("aH"))return "A";if(e.L>=num("bL")&&e.W>=num("bW")&&e.H>=num("bH"))return "B";return "C";}
@@ -427,7 +442,10 @@ function selectedBlocks(){
   return applyFilters(pool);
 }
 function candidateBlocks(){ return applyFilters(STOCK); }
-function priceFor(b){return isBig(b)?gpBig(b.grade):gpSmall(b.grade);}
+function priceFor(b){var g=pricingGrade(b);return isBig(b)?gpBig(g):gpSmall(g);}
+/* sale price & sale tonnage always go together: value = gross tonnage ÷ grade sale tonnage × price */
+function saleTonOf(g){var t=gpTon(g);return t>0?t:5;}
+function valueOf(b){var g=pricingGrade(b),SG=num("dmg")||2.6,ton=saleTonOf(g);return b.vol*SG/ton*priceFor(b);}
 
 /* ---------- Sale Lot bridge (operational) ---------- */
 function copySelBlocks(){
@@ -461,7 +479,8 @@ function calc(){
   var big=sel.filter(isBig), small=sel.filter(function(b){return !isBig(b);});
   var volBig=big.reduce(function(s,b){return s+b.vol;},0), volSmall=small.reduce(function(s,b){return s+b.vol;},0);
   var volAll=volBig+volSmall;
-  var valAll=sel.reduce(function(s,b){return s+b.vol*priceFor(b);},0);  // per-grade × size price
+  var valAll=sel.reduce(function(s,b){return s+b.vol*priceFor(b);},0);   // gross $/CBM basis (card 3 sweep)
+  var valNow=sel.reduce(function(s,b){return s+valueOf(b);},0);          // value at each grade's sale tonnage
   var blended=volAll>0?valAll/volAll:0;
 
   var gA=Object.keys(gradeSet);
@@ -487,31 +506,32 @@ function calc(){
     var a=allowPerSide(b.L,b.W,b.H,disc);
     var ck=selBlk[b.no];
     var scPart=sizeChkOn()?(' <span style="font-weight:800;color:'+(SCOL[sizeCat(b)]||"#9aa3ad")+'">· '+sizeCat(b)+'</span>'):'';
-    return '<tr'+(ck?' style="background:#fff7e6"':'')+'><td style="text-align:center"><input type="checkbox" '+(ck?'checked':'')+' onclick="toggleBlk(\''+b.no+'\')"></td><td style="font-weight:700">'+b.no+'</td><td><span class="gdot" style="background:'+gcol(b.grade)+'"></span>'+b.grade+'</td><td>'+b.L+'×'+b.W+'×'+b.H+'</td><td>'+b.vol.toFixed(2)+'</td><td style="text-align:left"><span style="color:'+(bg?'var(--green)':'#c9871f')+';font-weight:700">'+(bg?'Threshold big':'Threshold small')+'</span>'+scPart+'</td><td>$'+priceFor(b)+'</td><td style="font-weight:700">$'+Math.round(b.vol*priceFor(b)).toLocaleString()+'</td><td style="color:#c0392b;font-weight:700">−'+disc.toFixed(3)+'</td><td style="font-weight:700">'+a.toFixed(1)+' cm</td></tr>';
+    return '<tr'+(ck?' style="background:#fff7e6"':'')+'><td style="text-align:center"><input type="checkbox" '+(ck?'checked':'')+' onclick="toggleBlk(\''+b.no+'\')"></td><td style="font-weight:700">'+b.no+'</td><td><span class="gdot" style="background:'+gcol(b.grade)+'"></span>'+b.grade+'</td><td>'+b.L+'×'+b.W+'×'+b.H+'</td><td>'+b.vol.toFixed(2)+'</td><td style="text-align:left"><span style="color:'+(bg?'var(--green)':'#c9871f')+';font-weight:700">'+(bg?'Big':'C size')+'</span>'+scPart+'</td><td>$'+priceFor(b)+'</td><td style="font-weight:700">$'+Math.round(valueOf(b)).toLocaleString()+'</td><td style="color:#c0392b;font-weight:700">−'+disc.toFixed(3)+'</td><td style="font-weight:700">'+a.toFixed(1)+' cm</td></tr>';
   }).join("")||'<tr><td colspan="10" style="text-align:center;color:#9aa3ad;padding:14px">'+(tab==="selected"?"No blocks match — adjust filters or tick blocks.":"No blocks match these filters.")+'</td></tr>';
   document.getElementById("allowTot").innerHTML='Total discount vs benchmark 5: <b style="color:#c0392b">'+totDisc.toFixed(2)+' CBM</b> over '+tableList.length+' blocks';
 
   var pool=(tab==="selected")?STOCK.filter(function(b){return selBlk[b.no];}):basePool();
-  document.getElementById("valSub").textContent="· "+(tab==="selected"?"Selected from stock":srcName)+" · priced per grade × size (Grade Price master · fallback big $"+num("pBig")+" / small $"+num("pSmall")+")";
-  var gord=GRADES.slice(); pool.forEach(function(b){if(gord.indexOf(b.grade)<0)gord.push(b.grade);});
+  document.getElementById("valSub").textContent="· "+(tab==="selected"?"Selected from stock":srcName)+" · priced per grade (Big / C size) from the Grade Price master";
+  var gord=ORDERG.slice(); pool.forEach(function(b){var g=pricingGrade(b);if(gord.indexOf(g)<0)gord.push(g);});
   var TB=0,TBc=0,TS=0,TSc=0,TVal=0,TGt=0;
   document.getElementById("gradeVal").innerHTML=gord.map(function(g){
-    var gb=pool.filter(function(b){return b.grade===g;}); if(!gb.length)return "";
+    var gb=pool.filter(function(b){return pricingGrade(b)===g;}); if(!gb.length)return "";
     var bigs=gb.filter(isBig), smalls=gb.filter(function(b){return !isBig(b);});
     var bc=bigs.reduce(function(s,b){return s+b.vol;},0), sc=smalls.reduce(function(s,b){return s+b.vol;},0);
-    var val=bc*gpBig(g)+sc*gpSmall(g), gt=(bc+sc)*SG, pt=gt>0?val/gt:0;
+    var ton=saleTonOf(g);
+    var val=(bc*gpBig(g)+sc*gpSmall(g))*SG/ton, gt=(bc+sc)*SG, pt=gt>0?val/gt:0;
     TB+=bigs.length;TBc+=bc;TS+=smalls.length;TSc+=sc;TVal+=val;TGt+=gt;
-    return '<tr><td style="font-weight:700"><span class="gdot" style="background:'+gcol(g)+'"></span>'+g+'</td><td>'+bigs.length+'</td><td>'+bc.toFixed(1)+'</td><td>'+smalls.length+'</td><td>'+sc.toFixed(1)+'</td><td style="font-weight:700">'+gb.length+'</td><td style="font-weight:700">'+(bc+sc).toFixed(1)+'</td><td style="font-weight:700">$'+Math.round(val).toLocaleString()+'</td><td>₹'+Math.round(val*USD_INR).toLocaleString("en-IN")+'</td><td>$'+pt.toFixed(1)+'</td></tr>';
-  }).join("")||'<tr><td colspan="10" style="text-align:center;color:#9aa3ad;padding:12px">No stock.</td></tr>';
+    return '<tr><td style="font-weight:700"><span class="gdot" style="background:'+gcol(g)+'"></span>'+g+'</td><td>'+bigs.length+'</td><td>'+bc.toFixed(1)+'</td><td>'+smalls.length+'</td><td>'+sc.toFixed(1)+'</td><td style="font-weight:700">'+gb.length+'</td><td style="font-weight:700">'+(bc+sc).toFixed(1)+'</td><td>'+ton.toFixed(1)+'</td><td style="font-weight:700">$'+Math.round(val).toLocaleString()+'</td><td>₹'+Math.round(val*USD_INR).toLocaleString("en-IN")+'</td><td>$'+pt.toFixed(1)+'</td></tr>';
+  }).join("")||'<tr><td colspan="11" style="text-align:center;color:#9aa3ad;padding:12px">No stock.</td></tr>';
   var Tpt=TGt>0?TVal/TGt:0;
-  document.getElementById("gradeTot").innerHTML='<td>All grades</td><td>'+TB+'</td><td>'+TBc.toFixed(1)+'</td><td>'+TS+'</td><td>'+TSc.toFixed(1)+'</td><td>'+(TB+TS)+'</td><td>'+(TBc+TSc).toFixed(1)+'</td><td>$'+Math.round(TVal).toLocaleString()+'</td><td>₹'+Math.round(TVal*USD_INR).toLocaleString("en-IN")+'</td><td>$'+Tpt.toFixed(1)+'</td>';
+  document.getElementById("gradeTot").innerHTML='<td>All grades</td><td>'+TB+'</td><td>'+TBc.toFixed(1)+'</td><td>'+TS+'</td><td>'+TSc.toFixed(1)+'</td><td>'+(TB+TS)+'</td><td>'+(TBc+TSc).toFixed(1)+'</td><td>—</td><td>$'+Math.round(TVal).toLocaleString()+'</td><td>₹'+Math.round(TVal*USD_INR).toLocaleString("en-IN")+'</td><td>$'+Tpt.toFixed(1)+'</td>';
 
   var pord=PITS.slice(); pool.forEach(function(b){if(pord.indexOf(b.pit)<0)pord.push(b.pit);});
   var PB=0,PBc=0,PVal=0;
   document.getElementById("pitVal").innerHTML=pord.map(function(p){
     var pb=pool.filter(function(b){return b.pit===p;}); if(!pb.length)return "";
     var bigs=pb.filter(isBig).length, smalls=pb.length-bigs;
-    var cbm=pb.reduce(function(s,b){return s+b.vol;},0), val=pb.reduce(function(s,b){return s+b.vol*priceFor(b);},0);
+    var cbm=pb.reduce(function(s,b){return s+b.vol;},0), val=pb.reduce(function(s,b){return s+valueOf(b);},0);
     var gm={}; pb.forEach(function(b){gm[b.grade]=(gm[b.grade]||0)+1;});
     var mix=gord.filter(function(g){return gm[g];}).map(function(g){return '<span class="gdot" style="background:'+gcol(g)+'"></span>'+g+' '+gm[g];}).join(" &nbsp; ");
     PB+=pb.length;PBc+=cbm;PVal+=val;
@@ -520,7 +540,7 @@ function calc(){
   document.getElementById("pitTot").innerHTML='<td>All pits</td><td>'+PB+'</td><td>'+PBc.toFixed(1)+'</td><td colspan="2"></td><td></td><td>$'+Math.round(PVal).toLocaleString()+'</td>';
 
   var vol=volAll, priced=valAll;
-  document.getElementById("feedInfo").innerHTML="Selection: <b>"+sel.length+" blocks · "+volAll.toFixed(1)+" CBM</b> · value <b>$"+Math.round(valAll).toLocaleString()+"</b> (priced per grade × size) · blended $"+Math.round(blended)+"/CBM";
+  document.getElementById("feedInfo").innerHTML="Selection: <b>"+sel.length+" blocks · "+volAll.toFixed(1)+" CBM</b> · value <b>$"+Math.round(valNow).toLocaleString()+"</b> (each grade at its master price × sale tonnage) · avg $"+Math.round(blended)+"/CBM";
   document.getElementById("realW").textContent=(vol*num("dmg")).toFixed(1)+" t";
 
   var dmg=num("dmg"), rates=ratesArr();
@@ -550,6 +570,12 @@ function calc(){
   var _def=(SPROFILES.filter(function(p){return p.def;})[0]||SPROFILES[0]||{}).name||"";
   document.getElementById("spSel").innerHTML=SPROFILES.map(function(p){return '<option'+(p.name===_def?' selected':'')+'>'+p.name+'</option>';}).join("");
   if(_def)loadProfile();
+  var _pgo=["A","B","B1","B2","C","D (Rejected)","Unshaped"];
+  var _pgk=_pgo.filter(function(k){return GP[k];}).concat(Object.keys(GP).filter(function(k){return _pgo.indexOf(k)<0;}));
+  document.getElementById("gradePrices").innerHTML=(_pgk.length?_pgk:["A","B","B1","B2","C"]).map(function(g){
+    var gg=GP[g]||{},bp=gg.big||0,sp=gg.small||0,tn=gg.ton||0;
+    return '<span style="display:inline-flex;flex-direction:column;gap:1px;padding:6px 11px;border:1px solid var(--line);border-radius:10px;background:#f7f9fc"><span style="font-size:11px;font-weight:800;color:var(--navy)"><span class="gdot" style="background:'+gcol(g)+'"></span>'+g+'</span><span style="font-size:12px;font-weight:700">$'+bp+' <span style="color:var(--muted);font-weight:500">big</span> / $'+sp+' <span style="color:var(--muted);font-weight:500">C</span></span><span style="font-size:10px;color:var(--muted)">'+tn.toFixed(1)+' t/CBM sale tonnage</span></span>';
+  }).join("");
   loadSaleLots();
   flashFx();
   document.getElementById("loadNote").style.display="none";
