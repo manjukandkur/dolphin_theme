@@ -133,13 +133,14 @@ tbody tr.base td:first-child::before{content:"★ ";color:var(--gold);}
   <!-- SELL-AT BY GRADE (new tab) -->
   <div id="saWrap" style="display:none">
     <div class="card hero">
-      <div class="ct">🎯 Sell-at by grade <span class="sub">source · start tonnage · same engine as Quick calc, on real blocks</span></div>
+      <div class="ct">🎯 Sell-at by grade <span class="sub">source · start tonnage · per-grade thresholds, prices &amp; allowance</span></div>
       <div class="hbar" style="align-items:center;gap:9px">
         <span class="chip on" data-sa="stock" onclick="saSetSrc('stock')">📊 Quarry stock</span>
         <span class="chip" data-sa="qi" onclick="saSetSrc('qi')">🪨 Quarry Inspection</span>
         <span class="chip" data-sa="bi" onclick="saSetSrc('bi')">🔎 Buyer Inspection</span>
-        <span class="chip" data-sa="lot" onclick="saSetSrc('lot')">📦 Export lot</span>
         <span class="chip" data-sa="port" onclick="saSetSrc('port')">⚓ At port</span>
+        <span class="chip" data-sa="lot" onclick="saSetSrc('lot')">📦 Export lot</span>
+        <span class="chip" data-sa="sel" onclick="saSetSrc('sel')">✓ Selected blocks</span>
         <select id="saBiSel" style="display:none;height:30px" onchange="saLoadBI()"></select>
         <select id="saLotSel" style="display:none;height:30px" onchange="saLoadLot()"></select>
         <select id="saQiSel" style="display:none;height:30px" onchange="saLoadQI()"></select>
@@ -148,18 +149,25 @@ tbody tr.base td:first-child::before{content:"★ ";color:var(--gold);}
       </div>
       <div id="saPending" style="display:none;font-size:11.5px;color:#8a5a12;margin-top:8px;background:#fffdf6;border:1px solid #f1d99a;border-radius:8px;padding:8px 11px"></div>
     </div>
-    <div class="card">
-      <div class="ct">📐 Standard threshold — cm <span class="sub">≥ bigger · ≤ smaller · tested on net dims when allowance on</span></div>
-      <div class="hbar" style="gap:6px;align-items:center;font-weight:700;color:var(--muted)">L×W×H <input id="saTL" type="number" value="180" style="width:58px" oninput="saRender()">×<input id="saTW" type="number" value="100" style="width:58px" oninput="saRender()">×<input id="saTH" type="number" value="100" style="width:58px" oninput="saRender()"> cm</div>
+    <div class="card" style="border:2px solid var(--navy)">
+      <div class="ct">1 · Per-grade setup <span class="sub">tick On to include · allowance · rule · each grade its own threshold L×W×H · price · sale tonnage</span></div>
+      <div class="tablewrap"><table class="grid">
+        <thead><tr><th style="text-align:center">On</th><th>Grade</th><th style="text-align:center;background:#fbf1dc;color:#8a5a12">Allow?</th><th style="background:#fbf1dc;color:#8a5a12">Allowance cm/side</th><th>Rule</th><th style="background:#eef5ff">Thr L</th><th style="background:#eef5ff">W</th><th style="background:#eef5ff">H</th><th>Price $/CBM</th><th style="background:#eaf1fc">Sale t</th></tr></thead>
+        <tbody id="saSetup"></tbody>
+      </table></div>
     </div>
     <div class="card" style="border:2px solid var(--navy)">
-      <div class="ct">Per-grade — price, rule, allowance &amp; sell-at <span class="sub">A/B/B1/D ≥ standard · C ≤ · pick a sale tonnage per grade</span></div>
+      <div class="ct">2 · Result — by category <span class="sub" id="saSelNote"></span></div>
       <div class="tablewrap"><table class="grid">
-        <thead><tr><th>Grade</th><th>Price</th><th>Rule</th><th>Blocks in/total</th><th>CBM in</th><th>Net CBM</th><th>Allow?</th><th>cm</th><th style="background:#eaf1fc">Sale t</th><th>Sale vol</th><th>Value ($)</th><th>Value (₹)</th><th style="background:#fbf1dc;color:#8a5a12">Allow cm/side</th></tr></thead>
+        <thead><tr><th>Grade</th><th>Threshold</th><th>Blocks in/total</th><th>CBM in</th><th>Net CBM</th><th style="background:#eaf1fc">Sale t</th><th>Sale vol</th><th>Value ($)</th><th>Value (₹)</th><th style="background:#fbf1dc;color:#8a5a12">Allow cm/side</th></tr></thead>
         <tbody id="saGrade"></tbody>
         <tfoot><tr id="saGradeFoot"></tr></tfoot>
       </table></div>
-      <div style="font-size:11px;color:var(--muted);margin-top:7px">A block counts toward its grade only if its size passes that grade's rule (≥ standard for A/B/B1/D, ≤ for C). Net CBM = after allowance trim; sale vol = Net × Start ÷ Sale t; allowance = base + extra freed by the tonnage.</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:7px">A block counts toward a grade only if it passes that grade's own threshold rule (≥ = big, ≤ = small), tested on net dims when allowance is on. Net CBM = after the allowance trim; sale vol = Net × Start ÷ Sale t; allowance = base + extra freed by the tonnage. Totals &amp; pit-wise cover only the On categories.</div>
+    </div>
+    <div class="card" style="border:2px solid var(--gold)">
+      <div class="ct">📍 Pit-wise — selected categories <span class="sub">blocks · CBM · value each pit holds (in-size blocks of the On categories)</span></div>
+      <div class="tablewrap"><table class="grid"><thead><tr><th>Pit</th><th>Blocks</th><th>Gross CBM</th><th>Net CBM</th><th>Sale vol</th><th>Value ($)</th><th>Value (₹)</th><th>Grade mix</th></tr></thead><tbody id="saPit"></tbody><tfoot><tr id="saPitFoot"></tr></tfoot></table></div>
     </div>
     <div class="card">
       <div class="ct">🔍 Volume search <span class="sub">across all grades &amp; pits</span></div>
@@ -181,7 +189,7 @@ tbody tr.base td:first-child::before{content:"★ ";color:var(--gold);}
       <div class="tablewrap"><table class="grid"><thead><tr id="saVbPHead"></tr></thead><tbody id="saVbP"></tbody><tfoot><tr id="saVbPFoot"></tr></tfoot></table></div>
     </div>
     <div class="card hero">
-      <div class="ct">Σ Totals <span class="sub" id="saSelNote"></span></div>
+      <div class="ct">Σ Totals <span class="sub" id="saSelNote2"></span></div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(105px,1fr));gap:10px">
         <div><div class="fl">Blocks</div><div style="font-size:17px;font-weight:800" id="saTB">—</div></div>
         <div><div class="fl">Net CBM</div><div style="font-size:17px;font-weight:800" id="saTNet">—</div></div>
@@ -784,22 +792,22 @@ function qkSelT(i,t){qkRows[i].sel=t;qkRender();}
 function qkAdd(){qkRows.push({on:true,g:"A",vol:0,p:QK_DEFP["A"],blocks:1,allow:true,al:5,sel:qkStart()});qkRender();}
 
 /* ---------- Sell-at by grade (new tab) ---------- */
+window.SALESCALC_BUILD="sellat-b2";
 var saSrc="stock", saBI=[], saLotArr=[], saQI=[], saPortArr=[], saSET={};
 var SA_ORDER=["A","B","B1","B2","C","D"], SA_TON=[5,5.5,6,6.5,7,7.5,8], SA_ALO=[5,10,15,20];
-var SA_DEF={A:{price:1300,op:">=",sel:6.5},B:{price:1150,op:">=",sel:7},B1:{price:1050,op:">=",sel:7},B2:{price:1000,op:">=",sel:7},C:{price:900,op:"<=",sel:6},D:{price:600,op:">=",sel:6}};
+var SA_DEF={A:{price:1300,op:"ge",sel:6.5,tL:180,tW:100,tH:100},B:{price:1150,op:"ge",sel:7,tL:180,tW:100,tH:100},B1:{price:1050,op:"ge",sel:7,tL:180,tW:100,tH:100},B2:{price:1000,op:"ge",sel:7,tL:180,tW:100,tH:100},C:{price:900,op:"le",sel:6,tL:180,tW:100,tH:100},D:{price:600,op:"ge",sel:6,tL:180,tW:100,tH:100}};
 function saDefPrice(g){return (GP[g]&&GP[g].big>0)?GP[g].big:((SA_DEF[g]&&SA_DEF[g].price)||1000);}
-function saPoolArr(){return saSrc==="bi"?saBI:(saSrc==="lot"?saLotArr:(saSrc==="qi"?saQI:(saSrc==="port"?saPortArr:(saSrc==="stock"?STOCK:[]))));}
+function saPoolArr(){return saSrc==="bi"?saBI:(saSrc==="lot"?saLotArr:(saSrc==="qi"?saQI:(saSrc==="port"?saPortArr:(saSrc==="sel"?STOCK.filter(function(b){return selBlk[b.no];}):(saSrc==="stock"?STOCK:[])))));}
 function saStartV(){var v=+document.getElementById("saStart").value;return v>0?v:4.5;}
-function saTN(id,d){var v=+document.getElementById(id).value;return v>0?v:d;}
-function saEnsure(g){if(!saSET[g]){var d=SA_DEF[g]||{op:">=",sel:6.5};saSET[g]={price:saDefPrice(g),op:d.op||">=",sel:d.sel||6.5,allow:true,al:5};}}
+function saEnsure(g){if(!saSET[g]){var d=SA_DEF[g]||{op:"ge",sel:6.5,tL:180,tW:100,tH:100};saSET[g]={price:saDefPrice(g),op:d.op||"ge",sel:d.sel||6.5,tL:d.tL||180,tW:d.tW||100,tH:d.tH||100,allow:true,al:5,on:true};}}
 function saDims(b,al){return {L:Math.max(0,(+b.L||0)-2*al),W:Math.max(0,(+b.W||0)-2*al),H:Math.max(0,(+b.H||0)-2*al)};}
 function saHasDims(b){return (+b.L||0)>0&&(+b.W||0)>0&&(+b.H||0)>0;}
 function saNetVol(b,al){if(saHasDims(b)){var d=saDims(b,al);return d.L*d.W*d.H/1e6;}var s=Math.cbrt(b.vol||0),ns=Math.max(0,s-2*al/100);return Math.pow(ns,3);}
-function saBig(b,al){if(saHasDims(b)){var d=saDims(b,al);return d.L>=saTN("saTL",180)&&d.W>=saTN("saTW",100)&&d.H>=saTN("saTH",100);}return (b.vol||0)>=(saTN("saTL",180)*saTN("saTW",100)*saTN("saTH",100)/1e6);}
-function saPass(b,s){var big=saBig(b,s.allow?s.al:0);return s.op===">="?big:!big;}
+function saBig(b,s){var al=s.allow?s.al:0;if(saHasDims(b)){var d=saDims(b,al);return d.L>=s.tL&&d.W>=s.tW&&d.H>=s.tH;}var side=Math.max(0,Math.cbrt(b.vol||0)*100-2*al);return side>=s.tL&&side>=s.tW&&side>=s.tH;}
+function saPass(b,s){var big=saBig(b,s);return s.op==="ge"?big:!big;}
 function saMoney(x,sym){var p=x<0?("-"+sym):sym;return p+Math.abs(Math.round(x)).toLocaleString(sym==="₹"?"en-IN":"en-US");}
 function saTonOpts(sel){return SA_TON.map(function(t){return '<option value="'+t+'"'+(t==sel?' selected':'')+'>'+t+' t</option>';}).join("");}
-function saOpOpts(sel){return [">=","<="].map(function(o){return '<option'+(o===sel?' selected':'')+'>'+o+'</option>';}).join("");}
+function saOpOpts(sel){return [["ge","≥ big"],["le","≤ small"]].map(function(o){return '<option value="'+o[0]+'"'+(o[0]===sel?' selected':'')+'>'+o[1]+'</option>';}).join("");}
 function saAlOpts(sel){return SA_ALO.map(function(a){return '<option value="'+a+'"'+(a==sel?' selected':'')+'>'+a+'</option>';}).join("");}
 function saGradeOf(b){var g=((b.grade||"")+"").trim();if(g==="D (Rejected)")g="D";return (g===""||g==="—")?"A":g;}
 function saGradesIn(pool){var set={};pool.forEach(function(b){set[saGradeOf(b)]=1;});var arr=SA_ORDER.filter(function(g){return set[g];});Object.keys(set).sort().forEach(function(g){if(arr.indexOf(g)<0)arr.push(g);});return arr;}
@@ -814,13 +822,25 @@ function saLoadQI(){var nm=document.getElementById("saQiSel").value;if(!nm){saQI
 function saLoadPort(){apiList("Quarry Block",["name","block_number","granite_quality_grade","pit","length_gross","width_gross","height_gross","gross_volume"],[["status","=","At Port"]]).then(function(qb){saPortArr=(qb||[]).map(function(b){var L=+b.length_gross||0,W=+b.width_gross||0,H=+b.height_gross||0;return {no:String(b.block_number||b.name),grade:((b.granite_quality_grade||"—")+"").trim()||"—",pit:pitLabel(b.pit),L:L,W:W,H:H,vol:+b.gross_volume||(L*W*H/1e6)};});saRender();}).catch(function(){saPortArr=[];saRender();});}
 function saLoadBI(){var nm=document.getElementById("saBiSel").value;if(!nm){saBI=[];saRender();return;}apiGet("Buyer Inspection",nm).then(function(doc){saBI=extractBIRows(doc);saRender();}).catch(function(){saBI=[];saRender();});}
 function saLoadLot(){var nm=document.getElementById("saLotSel").value;if(!nm){saLotArr=[];saRender();return;}apiGet("Export Shipment Lot",nm).then(function(doc){saLotArr=(doc.blocks||[]).map(function(r){var L=+r.length||0,W=+r.width||0,H=+r.height||0;return {no:String(r.block_no||r.block||""),grade:((r.grade||"—")+"").trim()||"—",pit:"Unassigned",L:L,W:W,H:H,vol:+r.cbm||(L*W*H/1e6)};});saRender();}).catch(function(){saLotArr=[];saRender();});}
-function saSet(g,k,v){saEnsure(g);saSET[g][k]=(k==="allow")?v:((k==="op")?v:+v);saRender();}
+function saSet(g,k,v){saEnsure(g);saSET[g][k]=(k==="allow"||k==="on")?v:((k==="op")?v:+v);saRender();}
 function saRender(){
   if(!window._loaded||!document.getElementById("saGrade"))return;
   var pool=saPoolArr(), st=saStartV(), inr=USD_INR;
   var TN=pool.length, TV=pool.reduce(function(s,b){return s+(b.vol||0);},0);
   document.getElementById("saWhole").textContent=TN+" blk · "+TV.toFixed(0)+" CBM";
   var grades=saGradesIn(pool); grades.forEach(saEnsure);
+  document.getElementById("saSetup").innerHTML=grades.map(function(g){var s=saSET[g];
+    return '<tr'+(s.on?'':' style="opacity:.4"')+'><td style="text-align:center"><input type="checkbox" '+(s.on?'checked':'')+' onclick="saSet(\''+g+'\',\'on\',this.checked)"></td>'
+      +'<td style="font-weight:700"><span class="gdot" style="background:'+gcol(g)+'"></span>'+g+'</td>'
+      +'<td style="text-align:center;background:#fbf1dc"><input type="checkbox" '+(s.allow?'checked':'')+' onclick="saSet(\''+g+'\',\'allow\',this.checked)"></td>'
+      +'<td style="background:#fbf1dc">'+(s.allow?'<select onchange="saSet(\''+g+'\',\'al\',this.value)" style="height:26px;width:64px">'+saAlOpts(s.al)+'</select>':'—')+'</td>'
+      +'<td style="text-align:left"><select onchange="saSet(\''+g+'\',\'op\',this.value)" style="height:26px;width:74px">'+saOpOpts(s.op)+'</select></td>'
+      +'<td style="background:#eef5ff"><input type="number" value="'+s.tL+'" style="width:48px;height:26px;text-align:right" oninput="saSet(\''+g+'\',\'tL\',this.value)"></td>'
+      +'<td style="background:#eef5ff"><input type="number" value="'+s.tW+'" style="width:48px;height:26px;text-align:right" oninput="saSet(\''+g+'\',\'tW\',this.value)"></td>'
+      +'<td style="background:#eef5ff"><input type="number" value="'+s.tH+'" style="width:48px;height:26px;text-align:right" oninput="saSet(\''+g+'\',\'tH\',this.value)"></td>'
+      +'<td><input type="number" value="'+s.price+'" style="width:64px;height:26px;text-align:right" oninput="saSet(\''+g+'\',\'price\',this.value)"></td>'
+      +'<td style="background:#eaf1fc"><select onchange="saSet(\''+g+'\',\'sel\',this.value)" style="height:26px;font-weight:700">'+saTonOpts(s.sel)+'</select></td></tr>';
+  }).join("");
   var gSel=document.getElementById("saG"), gkey=grades.join();
   if(gSel.getAttribute("data-k")!==gkey){var cv=gSel.value;gSel.innerHTML='<option value="all">All grades</option>'+grades.map(function(g){return '<option>'+g+'</option>';}).join("");gSel.value=(cv&&(cv==="all"||grades.indexOf(cv)>=0))?cv:"all";gSel.setAttribute("data-k",gkey);}
   var pSel=document.getElementById("saP");
@@ -839,28 +859,32 @@ function saRender(){
   document.getElementById("saVbPHead").innerHTML='<th>Band</th><th>Blocks</th>'+vbP.map(function(p){return '<th>'+p+'</th>';}).join("");
   document.getElementById("saVbP").innerHTML=vbBands.map(function(bn){var bb=pool.filter(function(b){var v=b.vol||0;return v>=bn[0]&&v<bn[1];});return '<tr'+(bn[3]?' style="background:#fdf8ee"':'')+'><td style="font-weight:700">'+bn[2]+' CBM</td><td style="font-weight:700">'+bb.length+'</td>'+vbP.map(function(p){var n=bb.filter(function(b){return b.pit===p;}).length;return '<td>'+(n||'—')+'</td>';}).join("")+'</tr>';}).join("");
   document.getElementById("saVbPFoot").innerHTML='<td>All</td><td>'+pool.length+'</td>'+vbP.map(function(p){return '<td>'+pool.filter(function(b){return b.pit===p;}).length+'</td>';}).join("");
-  var GN=0,GG=0,GNet=0,GSale=0,GVal=0,awW=0,awB=0;
+  var GN=0,GG=0,GNet=0,GSale=0,GVal=0,awW=0,awB=0,inc=[];
   document.getElementById("saGrade").innerHTML=grades.map(function(g){
     var mine=pool.filter(function(b){return saGradeOf(b)===g;}); var s=saSET[g];
     var inB=mine.filter(function(b){return saPass(b,s);});
     var cbm=inB.reduce(function(a,b){return a+(b.vol||0);},0);
     var net=inB.reduce(function(a,b){return a+saNetVol(b,s.allow?s.al:0);},0);
-    var ratio=st/s.sel, sale=net*ratio, val=net*s.price*ratio;
-    var awSum=0; inB.forEach(function(b){var nv=saNetVol(b,s.allow?s.al:0);var dV=nv*(1-ratio);var d=saDims(b,s.allow?s.al:0);var surf=saHasDims(b)?2*(d.L*d.W+d.W*d.H+d.L*d.H):(6*Math.pow(Math.cbrt(nv)*100,2));var ex=(surf>0&&dV>0)?dV*1e6/surf:0;awSum+=(s.allow?(s.al+ex):ex);});
+    var ratio=st/s.sel, sale=net*ratio, val=net*s.price*ratio, awSum=0;
+    inB.forEach(function(b){var nv=saNetVol(b,s.allow?s.al:0);var dV=nv*(1-ratio);var d=saDims(b,s.allow?s.al:0);var surf=saHasDims(b)?2*(d.L*d.W+d.W*d.H+d.L*d.H):(6*Math.pow(Math.cbrt(nv)*100,2));var ex=(surf>0&&dV>0)?dV*1e6/surf:0;awSum+=(s.allow?(s.al+ex):ex);if(s.on)inc.push({pit:b.pit,g:g,gross:(b.vol||0),nv:nv,sale:nv*ratio,val:nv*s.price*ratio});});
     var awAvg=inB.length?awSum/inB.length:0;
-    GN+=inB.length;GG+=cbm;GNet+=net;GSale+=sale;GVal+=val;if(s.allow&&inB.length){awW+=awSum;awB+=inB.length;}
-    return '<tr><td style="font-weight:700"><span class="gdot" style="background:'+gcol(g)+'"></span>'+g+'</td>'
-      +'<td><input type="number" value="'+s.price+'" style="width:64px;height:26px;text-align:right" oninput="saSet(\''+g+'\',\'price\',this.value)"></td>'
-      +'<td style="text-align:left"><select onchange="saSet(\''+g+'\',\'op\',this.value)" style="height:26px;width:52px">'+saOpOpts(s.op)+'</select></td>'
-      +'<td>'+inB.length+' / '+mine.length+'</td><td>'+cbm.toFixed(1)+'</td><td style="font-weight:700">'+net.toFixed(1)+'</td>'
-      +'<td style="text-align:center"><input type="checkbox" '+(s.allow?'checked':'')+' onclick="saSet(\''+g+'\',\'allow\',this.checked)"></td>'
-      +'<td>'+(s.allow?'<select onchange="saSet(\''+g+'\',\'al\',this.value)" style="height:26px">'+saAlOpts(s.al)+'</select>':'—')+'</td>'
-      +'<td style="background:#eef5ff"><select onchange="saSet(\''+g+'\',\'sel\',this.value)" style="height:26px;font-weight:700">'+saTonOpts(s.sel)+'</select></td>'
-      +'<td style="font-weight:700">'+sale.toFixed(1)+'</td><td style="font-weight:700">'+saMoney(val,"$")+'</td><td>'+saMoney(val*inr,"₹")+'</td>'
+    if(s.on){GN+=inB.length;GG+=cbm;GNet+=net;GSale+=sale;GVal+=val;if(s.allow&&inB.length){awW+=awSum;awB+=inB.length;}}
+    return '<tr'+(s.on?'':' style="opacity:.4"')+'><td style="font-weight:700"><span class="gdot" style="background:'+gcol(g)+'"></span>'+g+'</td>'
+      +'<td style="color:'+(s.op==="ge"?"#1D9E75":"#c9871f")+';font-weight:700">'+(s.op==="ge"?"≥":"≤")+' '+s.tL+'×'+s.tW+'×'+s.tH+'</td>'
+      +'<td style="font-weight:700">'+inB.length+' / '+mine.length+'</td><td>'+cbm.toFixed(1)+'</td><td style="font-weight:700">'+net.toFixed(1)+'</td>'
+      +'<td style="background:#eef5ff;font-weight:700">'+s.sel+' t</td><td style="font-weight:700">'+sale.toFixed(1)+'</td>'
+      +'<td style="font-weight:700">'+saMoney(val,"$")+'</td><td>'+saMoney(val*inr,"₹")+'</td>'
       +'<td style="font-weight:700;color:#8a5a12;background:#fdf8ee">'+(s.allow?awAvg.toFixed(1)+' cm':'—')+'</td></tr>';
-  }).join("")||'<tr><td colspan="13" style="text-align:center;color:#9aa3ad;padding:12px">No blocks in this source'+((saSrc==="qi"||saSrc==="port")?" (connect the data source above)":"")+'.</td></tr>';
-  document.getElementById("saGradeFoot").innerHTML='<td>All</td><td colspan="2"></td><td>'+GN+' in</td><td>'+GG.toFixed(1)+'</td><td>'+GNet.toFixed(1)+'</td><td colspan="2"></td><td></td><td>'+GSale.toFixed(1)+'</td><td>'+saMoney(GVal,"$")+'</td><td>'+saMoney(GVal*inr,"₹")+'</td><td style="color:#8a5a12">'+(awB?(awW/awB).toFixed(1):0)+' cm</td>';
-  document.getElementById("saSelNote").textContent=grades.length?("· "+grades.map(function(g){return g+" @ "+saSET[g].sel;}).join(" · ")):"";
+  }).join("")||'<tr><td colspan="10" style="text-align:center;color:#9aa3ad;padding:12px">No blocks in this source'+((saSrc==="qi")?" (pick a QI above)":(saSrc==="sel"?" (tick blocks on the Selected blocks tab)":""))+'.</td></tr>';
+  document.getElementById("saGradeFoot").innerHTML='<td>Selected</td><td></td><td>'+GN+' in</td><td>'+GG.toFixed(1)+'</td><td>'+GNet.toFixed(1)+'</td><td></td><td>'+GSale.toFixed(1)+'</td><td>'+saMoney(GVal,"$")+'</td><td>'+saMoney(GVal*inr,"₹")+'</td><td style="color:#8a5a12">'+(awB?(awW/awB).toFixed(1):0)+' cm</td>';
+  var pits={}; inc.forEach(function(x){var p=pits[x.pit]||(pits[x.pit]={n:0,gross:0,nv:0,sale:0,val:0,mix:{}});p.n++;p.gross+=x.gross;p.nv+=x.nv;p.sale+=x.sale;p.val+=x.val;p.mix[x.g]=(p.mix[x.g]||0)+1;});
+  var pord=Object.keys(pits).sort();
+  var PN=0,PG=0,PNv=0,PS=0,PV=0;
+  document.getElementById("saPit").innerHTML=pord.map(function(p){var d=pits[p];PN+=d.n;PG+=d.gross;PNv+=d.nv;PS+=d.sale;PV+=d.val;var mix=SA_ORDER.filter(function(g){return d.mix[g];}).map(function(g){return '<span class="gdot" style="background:'+gcol(g)+'"></span>'+g+' '+d.mix[g];}).join(" &nbsp; ");return '<tr><td style="font-weight:700">'+p+'</td><td style="font-weight:700">'+d.n+'</td><td>'+d.gross.toFixed(1)+'</td><td style="font-weight:700">'+d.nv.toFixed(1)+'</td><td>'+d.sale.toFixed(1)+'</td><td style="font-weight:700">'+saMoney(d.val,"$")+'</td><td>'+saMoney(d.val*inr,"₹")+'</td><td style="text-align:left;font-size:11.5px">'+mix+'</td></tr>';}).join("")||'<tr><td colspan="8" style="text-align:center;color:#9aa3ad;padding:12px">No blocks in selected categories.</td></tr>';
+  document.getElementById("saPitFoot").innerHTML='<td>All pits</td><td>'+PN+'</td><td>'+PG.toFixed(1)+'</td><td>'+PNv.toFixed(1)+'</td><td>'+PS.toFixed(1)+'</td><td>'+saMoney(PV,"$")+'</td><td>'+saMoney(PV*inr,"₹")+'</td><td></td>';
+  var onG=grades.filter(function(g){return saSET[g].on;});
+  var note=onG.length?("· "+onG.map(function(g){return g+" @ "+saSET[g].sel;}).join(" · ")):"";
+  document.getElementById("saSelNote").textContent=note; document.getElementById("saSelNote2").textContent=note;
   document.getElementById("saTB").textContent=GN;
   document.getElementById("saTNet").textContent=GNet.toFixed(0)+" CBM";
   document.getElementById("saTVol").textContent=GSale.toFixed(0)+" CBM";
