@@ -94,18 +94,40 @@ tbody tr.base td:first-child::before{content:"★ ";color:var(--gold);}
     <button class="tbtn" id="tabSellAt" onclick="setTab('sellat')">🎯 Sell-at by grade</button>
   </div>
 
-  <!-- QUICK CALC — type your own blocks; feeds the same engine (shown only on Quick calc) -->
-  <div class="card hero" id="quickCard" style="display:none">
-    <div class="ct">⚡ Quick calc — type your own blocks <span class="sub">grade + L×W×H (or CBM); the grade × size, sale-tonnage sweep &amp; reverse-allowance cards below use these exactly like real stock</span></div>
-    <div class="hbar" style="margin-bottom:10px">
-      <button class="chip" style="border-color:var(--navy);color:var(--navy);cursor:pointer;font-weight:800" onclick="qAddRow()">＋ Add block</button>
-      <span style="font-size:11.5px;color:var(--muted)">Grade blank → A. CBM auto-fills from L×W×H, or type CBM and leave dims blank. Set threshold / prices / SG / sale tonnages in the cards below.</span>
+  <!-- QUICK CALC — sell-at decision by grade (redesigned, by volume) -->
+  <div id="quickCard" style="display:none">
+    <style>
+    #quickCard .gc{background:#fbf1dc;color:#8a5a12;}
+    #quickCard tr.qpick td{background:#eaf1fc;} #quickCard tr.qpick td:first-child::before{content:"✓ ";color:#2490ef;font-weight:800;}
+    #quickCard tr.qoff td{opacity:.42;}
+    #quickCard .pos{color:#1D9E75;font-weight:700;} #quickCard .neg{color:#c0392b;font-weight:700;}
+    #quickCard .metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:10px;}
+    #quickCard .blkhdr{display:flex;align-items:center;gap:8px;margin:6px 0;font-size:13px;font-weight:800;color:var(--navy);}
+    #quickCard .blkhdr .bs{font-weight:500;color:var(--muted);font-size:11.5px;}
+    </style>
+    <div class="card hero">
+      <div class="ct">⚡ Quick calc — sell-at decision by grade <span class="sub">grade · gross volume · price · blocks · per-grade allowance → net vol · sale-tonnage sweep</span>
+        <span style="margin-left:auto;display:inline-flex;align-items:center;gap:6px;background:#eaf1fc;padding:5px 11px;border-radius:8px;color:#1b66b3;font-weight:800">Start <input id="qkStart" type="number" step="0.5" value="4.5" style="width:56px;height:30px" oninput="qkRender()"> t/CBM · ₹/$ <input id="qkInr" type="number" step="0.01" value="95.55" style="width:60px;height:30px" oninput="qkRender()"></span>
+      </div>
+      <div class="tablewrap"><table class="grid">
+        <thead><tr><th style="text-align:center;width:32px">On</th><th>Grade</th><th>Gross vol</th><th>Price $/CBM</th><th>Blocks</th><th style="text-align:center">Allow?</th><th class="gc">Allowance cm/side</th><th class="gc">Net vol</th></tr></thead>
+        <tbody id="qkRows"></tbody>
+        <tfoot><tr><td colspan="8" style="text-align:left"><span class="chip" style="border-color:var(--navy);color:var(--navy);cursor:pointer;font-weight:800" onclick="qkAdd()">＋ Add grade</span></td></tr></tfoot>
+      </table></div>
     </div>
-    <div class="tablewrap"><table class="grid">
-      <thead><tr><th style="width:30px">#</th><th>Grade</th><th>L</th><th>W</th><th>H</th><th>CBM</th><th>Size</th><th>Price $/CBM</th><th>Sale t</th><th>Value ($)</th><th style="width:30px"></th></tr></thead>
-      <tbody id="qRows"></tbody>
-      <tfoot><tr id="qFoot" style="font-weight:800;background:#e7eef8"></tr></tfoot>
-    </table></div>
+    <div id="qkBlocks"></div>
+    <div class="card" style="border:2px solid var(--gold)">
+      <div class="ct">Σ Totals <span class="sub" id="qkSelNote"></span></div>
+      <div class="metrics">
+        <div><div class="fl">Net vol (start)</div><div style="font-size:18px;font-weight:800;color:var(--navy)" id="qkTNet">—</div></div>
+        <div><div class="fl">Sale volume</div><div style="font-size:18px;font-weight:800;color:var(--navy)" id="qkTVol">—</div></div>
+        <div><div class="fl">Value ($)</div><div style="font-size:18px;font-weight:800;color:var(--blue)" id="qkTVal">—</div></div>
+        <div><div class="fl">Diff value ($)</div><div style="font-size:18px;font-weight:800;color:var(--red)" id="qkTDVal">—</div></div>
+        <div><div class="fl">Diff value (₹)</div><div style="font-size:18px;font-weight:800;color:var(--red)" id="qkTDInr">—</div></div>
+        <div><div class="fl">Avg allowance/side</div><div style="font-size:18px;font-weight:800;color:#8a5a12" id="qkTAllow">—</div></div>
+      </div>
+      <div style="font-size:11.5px;color:var(--muted);margin-top:8px;line-height:1.5">Diff value = value at your selected tonnages minus value at the Start tonnage. Allowance cm/side = entered base + extra freed by the higher tonnage. Blocks are used only for the allowance.</div>
+    </div>
   </div>
 
   <!-- SELL-AT BY GRADE (new tab) -->
@@ -436,6 +458,7 @@ function setTab(t){
   var isQuick=(t==="quick"), isSell=(t==="sellat");
   document.getElementById("saWrap").style.display=isSell?"":"none";
   if(isSell){["card1","card2","card3","revCard","quickCard","blkCard","lotBridgeCard"].forEach(function(id){document.getElementById(id).style.display="none";});saRender();return;}
+  if(isQuick){["card1","card2","card3","revCard","saWrap","blkCard","lotBridgeCard"].forEach(function(id){document.getElementById(id).style.display="none";});document.getElementById("quickCard").style.display="";var qi=document.getElementById("qkInr");if(qi&&USD_INR>0)qi.value=USD_INR.toFixed(2);flashFx();qkRender();return;}
   document.getElementById("card1").style.display="";
   document.getElementById("card2").style.display="";
   document.getElementById("card3").style.display="";
@@ -690,6 +713,75 @@ function calc(){
 
   if(src==="quick") qUpdateDerived();
 }
+
+/* ---------- Quick calc — sell-at decision by grade (by volume) ---------- */
+var QK_GRADES=["A","B","B1","C","D"];
+var QK_DEFP={"A":1300,"B":1150,"B1":1050,"C":900,"D":600};
+var QK_ALO=[5,10,15,20];
+var qkRows=[
+  {on:true,g:"A",vol:200,p:1300,blocks:55,allow:true,al:5,sel:6.5},
+  {on:true,g:"B1",vol:120,p:1050,blocks:40,allow:true,al:5,sel:7},
+  {on:true,g:"C",vol:80,p:900,blocks:40,allow:true,al:5,sel:6}
+];
+function qkNum(id,d){var e=document.getElementById(id);var v=e?+e.value:NaN;return (isNaN(v)||v<=0)?d:v;}
+function qkStart(){return qkNum("qkStart",4.5);}
+function qkInrV(){return qkNum("qkInr",USD_INR);}
+function qkMoney(x,sym){var s=x<0?("-"+sym):sym;return s+Math.abs(Math.round(x)).toLocaleString(sym==="₹"?"en-IN":"en-US");}
+function qkSigned(x){var v=Math.round(x*10)/10;return (v>0?"+":"")+v.toFixed(1);}
+function qkNetVol(r){if(!r.allow||r.al<=0||r.blocks<=0)return r.vol;var avg=r.vol/r.blocks,s=Math.cbrt(avg),ns=Math.max(0,s-2*r.al/100);return r.blocks*Math.pow(ns,3);}
+function qkExtraCm(r,t){var st=qkStart(),base=qkNetVol(r);if(!r.allow||t<=st||r.blocks<=0||base<=0)return 0;var s=Math.cbrt(base/r.blocks);return s*(1-Math.cbrt(st/t))/2*100;}
+function qkSteps(){var st=qkStart(),a=[];for(var t=st;t<=8.0001;t=Math.round((t+0.5)*100)/100)a.push(Math.round(t*100)/100);return a;}
+function qkGradeOpts(sel){return QK_GRADES.map(function(g){return '<option'+(g===sel?' selected':'')+'>'+g+'</option>';}).join("");}
+function qkAlOpts(sel){return QK_ALO.map(function(a){return '<option value="'+a+'"'+(a==sel?' selected':'')+'>'+a+' cm</option>';}).join("");}
+function qkRender(){
+  if(!document.getElementById("qkRows"))return;
+  document.getElementById("qkRows").innerHTML=qkRows.map(function(r,i){
+    var alCell=r.allow?'<select onchange="qkSet('+i+',\'al\',this.value)" style="height:28px;width:82px">'+qkAlOpts(r.al)+'</select>':'<span style="color:#9aa3ad">—</span>';
+    var blkStyle=r.allow?'':'opacity:.4';
+    return '<tr'+(r.on?'':' class="qoff"')+'>'
+      +'<td style="text-align:center"><input type="checkbox" '+(r.on?'checked':'')+' onclick="qkSet('+i+',\'on\',this.checked)" style="width:15px;height:15px"></td>'
+      +'<td style="text-align:left"><select onchange="qkSetGrade('+i+',this.value)" style="height:28px;width:110px">'+qkGradeOpts(r.g)+'</select></td>'
+      +'<td><input type="number" value="'+r.vol+'" style="width:70px;height:28px;text-align:right" oninput="qkSet('+i+',\'vol\',this.value)"></td>'
+      +'<td><input type="number" value="'+r.p+'" style="width:76px;height:28px;text-align:right" oninput="qkSet('+i+',\'p\',this.value)"></td>'
+      +'<td style="'+blkStyle+'"><input type="number" value="'+r.blocks+'" '+(r.allow?'':'disabled')+' style="width:54px;height:28px;text-align:right" oninput="qkSet('+i+',\'blocks\',this.value)"></td>'
+      +'<td style="text-align:center" class="gc"><input type="checkbox" '+(r.allow?'checked':'')+' onclick="qkSet('+i+',\'allow\',this.checked)" style="width:15px;height:15px"></td>'
+      +'<td class="gc">'+alCell+'</td>'
+      +'<td class="gc" style="font-weight:800">'+qkNetVol(r).toFixed(1)+'</td></tr>';
+  }).join("")||'<tr><td colspan="8" style="text-align:center;color:#9aa3ad;padding:14px">Add a grade to begin.</td></tr>';
+  var st=qkStart(),inr=qkInrV(),steps=qkSteps(),html="";
+  qkRows.forEach(function(r,idx){
+    if(!r.on)return;
+    var base=qkNetVol(r),baseVal=base*r.p;
+    var bodyr=steps.map(function(t){
+      var ratio=st/t,vol=base*ratio,val=base*r.p*ratio,isB=Math.abs(t-st)<1e-9,isSel=Math.abs(t-r.sel)<1e-9;
+      var diffVol=vol-base,dVal=val-baseVal,cs=qkExtraCm(r,t),cls=isSel?"qpick":(isB?"base":"");
+      return '<tr class="'+cls+'" onclick="qkSelT('+idx+','+t+')">'
+        +'<td style="font-weight:700">'+t+' t/CBM</td><td style="font-weight:700">'+vol.toFixed(1)+'</td>'
+        +'<td class="'+(isB?'':(diffVol<0?'neg':'pos'))+'">'+(isB?'—':qkSigned(diffVol))+'</td>'
+        +'<td style="font-weight:700">'+qkMoney(val,"$")+'</td>'
+        +'<td class="'+(isB?'':'neg')+'">'+(isB?'—':qkMoney(dVal,"$"))+'</td>'
+        +'<td class="'+(isB?'':'neg')+'">'+(isB?'—':qkMoney(dVal*inr,"₹"))+'</td>'
+        +'<td class="gc" style="font-weight:700">'+(r.allow?(cs>0?(r.al+' + '+cs.toFixed(1)+' = '+(r.al+cs).toFixed(1)+' cm'):(r.al.toFixed(1)+' cm')):'—')+'</td></tr>';
+    }).join("");
+    html+='<div class="card"><div class="blkhdr"><span class="gdot" style="background:'+gcol(r.g)+'"></span>Grade '+r.g
+      +'<span class="bs">net '+base.toFixed(1)+' CBM · $'+r.p+'/CBM · '+r.blocks+' blocks · selected '+r.sel+' t/CBM</span></div>'
+      +'<div class="tablewrap"><table class="grid"><thead><tr><th>Sale tonnage</th><th>Sale volume (CBM)</th><th>Diff in CBM (±)</th><th>Value ($)</th><th>Diff value ($)</th><th>Diff value (₹)</th><th class="gc">≈ allowance cm/side</th></tr></thead><tbody class="click">'+bodyr+'</tbody></table></div></div>';
+  });
+  document.getElementById("qkBlocks").innerHTML=html||'<div class="card" style="text-align:center;color:#9aa3ad">Tick a grade On to see its comparison.</div>';
+  var on=qkRows.filter(function(r){return r.on;}),net=0,sv=0,val=0,bv=0,allowW=0,blk=0;
+  on.forEach(function(r){var b=qkNetVol(r),ratio=st/r.sel;net+=b;sv+=b*ratio;val+=b*r.p*ratio;bv+=b*r.p;if(r.allow&&r.blocks>0){allowW+=(r.al+qkExtraCm(r,r.sel))*r.blocks;blk+=r.blocks;}});
+  document.getElementById("qkSelNote").textContent=on.length?("· "+on.map(function(r){return r.g+" @ "+r.sel;}).join(" · ")):"";
+  document.getElementById("qkTNet").textContent=net.toFixed(1)+" CBM";
+  document.getElementById("qkTVol").textContent=sv.toFixed(1)+" CBM";
+  document.getElementById("qkTVal").textContent=qkMoney(val,"$");
+  document.getElementById("qkTDVal").textContent=qkMoney(val-bv,"$");
+  document.getElementById("qkTDInr").textContent=qkMoney((val-bv)*inr,"₹");
+  document.getElementById("qkTAllow").textContent=(blk>0?(allowW/blk).toFixed(1):"0")+" cm";
+}
+function qkSet(i,k,v){if(!qkRows[i])return;qkRows[i][k]=(k==="on"||k==="allow")?v:((v===""||isNaN(+v))?0:+v);qkRender();}
+function qkSetGrade(i,g){qkRows[i].g=g;qkRows[i].p=QK_DEFP[g]||qkRows[i].p;qkRender();}
+function qkSelT(i,t){qkRows[i].sel=t;qkRender();}
+function qkAdd(){qkRows.push({on:true,g:"A",vol:0,p:QK_DEFP["A"],blocks:1,allow:true,al:5,sel:qkStart()});qkRender();}
 
 /* ---------- Sell-at by grade (new tab) ---------- */
 var saSrc="stock", saBI=[], saLotArr=[], saQI=[], saPortArr=[], saSET={};
