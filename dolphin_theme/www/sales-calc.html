@@ -120,6 +120,7 @@ tbody tr.base td:first-child::before{content:"★ ";color:var(--gold);}
         <span class="chip" data-sa="port" onclick="saSetSrc('port')">⚓ At port</span>
         <select id="saBiSel" style="display:none;height:30px" onchange="saLoadBI()"></select>
         <select id="saLotSel" style="display:none;height:30px" onchange="saLoadLot()"></select>
+        <select id="saQiSel" style="display:none;height:30px" onchange="saLoadQI()"></select>
         <span style="display:inline-flex;align-items:center;gap:6px;background:#eaf1fc;padding:5px 11px;border-radius:8px;color:#1b66b3;font-weight:800">Start <input id="saStart" type="number" step="0.5" value="4.5" style="width:56px;height:30px" oninput="saRender()"> t/CBM</span>
         <span style="margin-left:auto;text-align:right"><div class="fl">Source total</div><div style="font-size:17px;font-weight:800;color:var(--navy)" id="saWhole">—</div></span>
       </div>
@@ -354,7 +355,7 @@ function apiList(dt,fields,filters){var u="/api/method/frappe.client.get_list?do
 function apiGet(dt,name){return fetch("/api/method/frappe.client.get?doctype="+encodeURIComponent(dt)+"&name="+encodeURIComponent(name),{credentials:"include",headers:{Accept:"application/json"}}).then(function(r){return r.json();}).then(function(j){return j.message||{};});}
 var GCOL={A:"#1D9E75",B:"#2F80ED",B1:"#7F77DD",B2:"#534AB7",C:"#EF9F27",D:"#D85A30"};
 function gcol(g){return GCOL[g]||"#9aa3ad";}
-var STOCK=[], byNo={}, GRADES=[], PITS=[], BILIST=[], BIcache={}, curBI=[], LOTLIST=[], LOTcache={}, curLot=[], curQuick=[];
+var STOCK=[], byNo={}, GRADES=[], PITS=[], BILIST=[], BIcache={}, curBI=[], LOTLIST=[], LOTcache={}, curLot=[], curQuick=[], QILIST=[];
 /* ---------- pricing master (Grade Price) + Size Profiles ---------- */
 var GP={};          // grade -> {big, small, ton}
 var SPROFILES=[];   // [{name, def, aL,aW,aH, bL,bW,bH}]
@@ -374,6 +375,7 @@ async function loadData(){
   PITS=Object.keys(pset).sort(function(a,b){if(a==="Unassigned")return 1;if(b==="Unassigned")return -1;return (parseInt((a.match(/\d+/)||[0])[0],10))-(parseInt((b.match(/\d+/)||[0])[0],10));});
   BILIST=((await apiList("Buyer Inspection",["name"]))||[]).map(function(x){return x.name;});
   LOTLIST=((await apiList("Export Shipment Lot",["name","lot_title"]))||[]);
+  try{ QILIST=((await apiList("Quarry Inspection",["name"]))||[]).map(function(x){return x.name;}); }catch(e){ QILIST=[]; }
   // Grade Price master → GP map (per-grade Big/Small price + per-grade sale tonnage)
   try{
     var gp=await apiList("Grade Price",["grade","price_big","price_small","sale_tonnage","active"]);
@@ -690,11 +692,11 @@ function calc(){
 }
 
 /* ---------- Sell-at by grade (new tab) ---------- */
-var saSrc="stock", saBI=[], saLotArr=[], saSET={};
+var saSrc="stock", saBI=[], saLotArr=[], saQI=[], saPortArr=[], saSET={};
 var SA_ORDER=["A","B","B1","B2","C","D"], SA_TON=[5,5.5,6,6.5,7,7.5,8], SA_ALO=[5,10,15,20];
 var SA_DEF={A:{price:1300,op:">=",sel:6.5},B:{price:1150,op:">=",sel:7},B1:{price:1050,op:">=",sel:7},B2:{price:1000,op:">=",sel:7},C:{price:900,op:"<=",sel:6},D:{price:600,op:">=",sel:6}};
 function saDefPrice(g){return (GP[g]&&GP[g].big>0)?GP[g].big:((SA_DEF[g]&&SA_DEF[g].price)||1000);}
-function saPoolArr(){return saSrc==="bi"?saBI:(saSrc==="lot"?saLotArr:(saSrc==="stock"?STOCK:[]));}
+function saPoolArr(){return saSrc==="bi"?saBI:(saSrc==="lot"?saLotArr:(saSrc==="qi"?saQI:(saSrc==="port"?saPortArr:(saSrc==="stock"?STOCK:[]))));}
 function saStartV(){var v=+document.getElementById("saStart").value;return v>0?v:4.5;}
 function saTN(id,d){var v=+document.getElementById(id).value;return v>0?v:d;}
 function saEnsure(g){if(!saSET[g]){var d=SA_DEF[g]||{op:">=",sel:6.5};saSET[g]={price:saDefPrice(g),op:d.op||">=",sel:d.sel||6.5,allow:true,al:5};}}
@@ -711,11 +713,12 @@ function saGradesIn(pool){var set={};pool.forEach(function(b){set[b.grade]=1;});
 function saSetSrc(s){saSrc=s;document.querySelectorAll('[data-sa]').forEach(function(c){c.classList.toggle("on",c.getAttribute("data-sa")===s);});
   document.getElementById("saBiSel").style.display=(s==="bi")?"":"none";
   document.getElementById("saLotSel").style.display=(s==="lot")?"":"none";
-  var pd=document.getElementById("saPending");
-  if(s==="qi"||s==="port"){pd.style.display="";pd.textContent=(s==="qi"?"Quarry Inspection":"At port")+" — confirm the doctype/field to wire this source; the same setup applies once connected.";}
-  else pd.style.display="none";
+  document.getElementById("saQiSel").style.display=(s==="qi")?"":"none";
+  document.getElementById("saPending").style.display="none";
   document.getElementById("saP").removeAttribute("data-src");
-  if(s==="bi"){saLoadBI();return;} if(s==="lot"){saLoadLot();return;} saRender();}
+  if(s==="bi"){saLoadBI();return;} if(s==="lot"){saLoadLot();return;} if(s==="qi"){saLoadQI();return;} if(s==="port"){saLoadPort();return;} saRender();}
+function saLoadQI(){var nm=document.getElementById("saQiSel").value;if(!nm){saQI=[];saRender();return;}apiGet("Quarry Inspection",nm).then(function(doc){saQI=extractBIRows(doc);saRender();}).catch(function(){saQI=[];saRender();});}
+function saLoadPort(){apiList("Quarry Block",["name","block_number","granite_quality_grade","pit","length_gross","width_gross","height_gross","gross_volume"],[["status","=","At Port"]]).then(function(qb){saPortArr=(qb||[]).map(function(b){var L=+b.length_gross||0,W=+b.width_gross||0,H=+b.height_gross||0;return {no:String(b.block_number||b.name),grade:((b.granite_quality_grade||"—")+"").trim()||"—",pit:pitLabel(b.pit),L:L,W:W,H:H,vol:+b.gross_volume||(L*W*H/1e6)};});saRender();}).catch(function(){saPortArr=[];saRender();});}
 function saLoadBI(){var nm=document.getElementById("saBiSel").value;if(!nm){saBI=[];saRender();return;}apiGet("Buyer Inspection",nm).then(function(doc){saBI=extractBIRows(doc);saRender();}).catch(function(){saBI=[];saRender();});}
 function saLoadLot(){var nm=document.getElementById("saLotSel").value;if(!nm){saLotArr=[];saRender();return;}apiGet("Export Shipment Lot",nm).then(function(doc){saLotArr=(doc.blocks||[]).map(function(r){var L=+r.length||0,W=+r.width||0,H=+r.height||0;return {no:String(r.block_no||r.block||""),grade:((r.grade||"—")+"").trim()||"—",pit:"Unassigned",L:L,W:W,H:H,vol:+r.cbm||(L*W*H/1e6)};});saRender();}).catch(function(){saLotArr=[];saRender();});}
 function saSet(g,k,v){saEnsure(g);saSET[g][k]=(k==="allow")?v:((k==="op")?v:+v);saRender();}
@@ -784,6 +787,7 @@ function saRender(){
   document.getElementById("lotSel").innerHTML='<option value="">— pick an export lot —</option>'+LOTLIST.map(function(x){return '<option value="'+x.name+'">'+(x.lot_title||x.name)+'</option>';}).join("");
   document.getElementById("saBiSel").innerHTML='<option value="">— pick a BI —</option>'+BILIST.map(function(x){return '<option>'+x+'</option>';}).join("");
   document.getElementById("saLotSel").innerHTML='<option value="">— pick a lot —</option>'+LOTLIST.map(function(x){return '<option value="'+x.name+'">'+(x.lot_title||x.name)+'</option>';}).join("");
+  document.getElementById("saQiSel").innerHTML='<option value="">— pick a QI —</option>'+QILIST.map(function(x){return '<option>'+x+'</option>';}).join("");
   var _def=(SPROFILES.filter(function(p){return p.def;})[0]||SPROFILES[0]||{}).name||"";
   document.getElementById("spSel").innerHTML=SPROFILES.map(function(p){return '<option'+(p.name===_def?' selected':'')+'>'+p.name+'</option>';}).join("");
   if(_def)loadProfile();
