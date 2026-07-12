@@ -709,7 +709,8 @@ function saMoney(x,sym){var p=x<0?("-"+sym):sym;return p+Math.abs(Math.round(x))
 function saTonOpts(sel){return SA_TON.map(function(t){return '<option value="'+t+'"'+(t==sel?' selected':'')+'>'+t+' t</option>';}).join("");}
 function saOpOpts(sel){return [">=","<="].map(function(o){return '<option'+(o===sel?' selected':'')+'>'+o+'</option>';}).join("");}
 function saAlOpts(sel){return SA_ALO.map(function(a){return '<option value="'+a+'"'+(a==sel?' selected':'')+'>'+a+'</option>';}).join("");}
-function saGradesIn(pool){var set={};pool.forEach(function(b){set[b.grade]=1;});var arr=SA_ORDER.filter(function(g){return set[g];});Object.keys(set).sort().forEach(function(g){if(arr.indexOf(g)<0)arr.push(g);});return arr;}
+function saGradeOf(b){var g=((b.grade||"")+"").trim();if(g==="D (Rejected)")g="D";return (g===""||g==="—")?"A":g;}
+function saGradesIn(pool){var set={};pool.forEach(function(b){set[saGradeOf(b)]=1;});var arr=SA_ORDER.filter(function(g){return set[g];});Object.keys(set).sort().forEach(function(g){if(arr.indexOf(g)<0)arr.push(g);});return arr;}
 function saSetSrc(s){saSrc=s;document.querySelectorAll('[data-sa]').forEach(function(c){c.classList.toggle("on",c.getAttribute("data-sa")===s);});
   document.getElementById("saBiSel").style.display=(s==="bi")?"":"none";
   document.getElementById("saLotSel").style.display=(s==="lot")?"":"none";
@@ -733,7 +734,7 @@ function saRender(){
   var pSel=document.getElementById("saP");
   if(pSel.getAttribute("data-src")!==saSrc){var ps={};pool.forEach(function(b){ps[b.pit]=1;});pSel.innerHTML='<option value="all">All pits</option>'+Object.keys(ps).sort().map(function(p){return '<option>'+p+'</option>';}).join("");pSel.value="all";pSel.setAttribute("data-src",saSrc);}
   var op=document.getElementById("saOp").value, X=+document.getElementById("saV").value||0, gF=gSel.value, pF=pSel.value;
-  var m=pool.filter(function(b){if(gF!=="all"&&b.grade!==gF)return false;if(pF!=="all"&&b.pit!==pF)return false;var v=b.vol||0;return op==="ge"?v>=X:(op==="le"?v<=X:Math.abs(v-X)<=0.5);});
+  var m=pool.filter(function(b){if(gF!=="all"&&saGradeOf(b)!==gF)return false;if(pF!=="all"&&b.pit!==pF)return false;var v=b.vol||0;return op==="ge"?v>=X:(op==="le"?v<=X:Math.abs(v-X)<=0.5);});
   document.getElementById("saMatch").textContent=m.length+" blk · "+m.reduce(function(s,b){return s+(b.vol||0);},0).toFixed(1)+" CBM";
   var bins=[[0,1],[1,2],[2,3],[3,4],[4,5],[5,6],[6,99]];
   document.getElementById("saDist").innerHTML=bins.map(function(bn){var bb=pool.filter(function(b){var v=b.vol||0;return v>=bn[0]&&v<bn[1];});var cv=bb.reduce(function(s,b){return s+(b.vol||0);},0);return '<tr><td>'+(bn[1]>90?(bn[0]+"+"):(bn[0]+"–"+bn[1]))+' CBM</td><td style="font-weight:700">'+bb.length+'</td><td>'+cv.toFixed(1)+'</td><td>'+(bb.length?(cv/bb.length).toFixed(2):'—')+'</td></tr>';}).join("");
@@ -741,14 +742,14 @@ function saRender(){
   var vbBands=[[0,2,"< 2"],[2,3,"2–3",1],[3,4,"3–4",1],[4,5,"4–5",1],[5,99,"5+"]];
   var vbps={}; pool.forEach(function(b){vbps[b.pit]=1;}); var vbP=Object.keys(vbps).sort();
   document.getElementById("saVbGHead").innerHTML='<th>Band</th><th>Blocks</th>'+grades.map(function(g){return '<th><span class="gdot" style="background:'+gcol(g)+'"></span>'+g+'</th>';}).join("");
-  document.getElementById("saVbG").innerHTML=vbBands.map(function(bn){var bb=pool.filter(function(b){var v=b.vol||0;return v>=bn[0]&&v<bn[1];});return '<tr'+(bn[3]?' style="background:#fdf8ee"':'')+'><td style="font-weight:700">'+bn[2]+' CBM</td><td style="font-weight:700">'+bb.length+'</td>'+grades.map(function(g){var n=bb.filter(function(b){return b.grade===g;}).length;return '<td>'+(n||'—')+'</td>';}).join("")+'</tr>';}).join("");
-  document.getElementById("saVbGFoot").innerHTML='<td>All</td><td>'+pool.length+'</td>'+grades.map(function(g){return '<td>'+pool.filter(function(b){return b.grade===g;}).length+'</td>';}).join("");
+  document.getElementById("saVbG").innerHTML=vbBands.map(function(bn){var bb=pool.filter(function(b){var v=b.vol||0;return v>=bn[0]&&v<bn[1];});return '<tr'+(bn[3]?' style="background:#fdf8ee"':'')+'><td style="font-weight:700">'+bn[2]+' CBM</td><td style="font-weight:700">'+bb.length+'</td>'+grades.map(function(g){var n=bb.filter(function(b){return saGradeOf(b)===g;}).length;return '<td>'+(n||'—')+'</td>';}).join("")+'</tr>';}).join("");
+  document.getElementById("saVbGFoot").innerHTML='<td>All</td><td>'+pool.length+'</td>'+grades.map(function(g){return '<td>'+pool.filter(function(b){return saGradeOf(b)===g;}).length+'</td>';}).join("");
   document.getElementById("saVbPHead").innerHTML='<th>Band</th><th>Blocks</th>'+vbP.map(function(p){return '<th>'+p+'</th>';}).join("");
   document.getElementById("saVbP").innerHTML=vbBands.map(function(bn){var bb=pool.filter(function(b){var v=b.vol||0;return v>=bn[0]&&v<bn[1];});return '<tr'+(bn[3]?' style="background:#fdf8ee"':'')+'><td style="font-weight:700">'+bn[2]+' CBM</td><td style="font-weight:700">'+bb.length+'</td>'+vbP.map(function(p){var n=bb.filter(function(b){return b.pit===p;}).length;return '<td>'+(n||'—')+'</td>';}).join("")+'</tr>';}).join("");
   document.getElementById("saVbPFoot").innerHTML='<td>All</td><td>'+pool.length+'</td>'+vbP.map(function(p){return '<td>'+pool.filter(function(b){return b.pit===p;}).length+'</td>';}).join("");
   var GN=0,GG=0,GNet=0,GSale=0,GVal=0,awW=0,awB=0;
   document.getElementById("saGrade").innerHTML=grades.map(function(g){
-    var mine=pool.filter(function(b){return b.grade===g;}); var s=saSET[g];
+    var mine=pool.filter(function(b){return saGradeOf(b)===g;}); var s=saSET[g];
     var inB=mine.filter(function(b){return saPass(b,s);});
     var cbm=inB.reduce(function(a,b){return a+(b.vol||0);},0);
     var net=inB.reduce(function(a,b){return a+saNetVol(b,s.allow?s.al:0);},0);
