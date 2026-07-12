@@ -792,6 +792,7 @@ function qkSelT(i,t){qkRows[i].sel=t;qkRender();}
 function qkAdd(){qkRows.push({on:true,g:"A",vol:0,p:QK_DEFP["A"],blocks:1,allow:true,al:5,sel:qkStart()});qkRender();}
 
 /* ---------- Sell-at by grade (new tab) ---------- */
+window.SALESCALC_BUILD="sellat-b2";
 var saSrc="stock", saBI=[], saLotArr=[], saQI=[], saPortArr=[], saSET={};
 var SA_ORDER=["A","B","B1","B2","C","D"], SA_TON=[5,5.5,6,6.5,7,7.5,8], SA_ALO=[5,10,15,20];
 var SA_DEF={A:{price:1300,op:"ge",sel:6.5,tL:180,tW:100,tH:100},B:{price:1150,op:"ge",sel:7,tL:180,tW:100,tH:100},B1:{price:1050,op:"ge",sel:7,tL:180,tW:100,tH:100},B2:{price:1000,op:"ge",sel:7,tL:180,tW:100,tH:100},C:{price:900,op:"le",sel:6,tL:180,tW:100,tH:100},D:{price:600,op:"ge",sel:6,tL:180,tW:100,tH:100}};
