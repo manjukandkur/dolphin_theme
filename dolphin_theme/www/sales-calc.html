@@ -109,7 +109,7 @@ tbody tr.base td:first-child::before{content:"★ ";color:var(--gold);}
     </style>
     <div class="card hero">
       <div class="ct">⚡ Quick calc — sell-at decision by grade <span class="sub">grade · gross volume · price · blocks · per-grade allowance → net vol · sale-tonnage sweep</span>
-        <span style="margin-left:auto;display:inline-flex;align-items:center;gap:6px;background:#eaf1fc;padding:5px 11px;border-radius:8px;color:#1b66b3;font-weight:800">Specific gravity <input id="qkSG" type="number" step="any" inputmode="decimal" value="2.65" style="width:66px;height:30px" oninput="qkUpdate()"> · baseline <select id="qkBaseSel" style="height:30px;width:74px" onchange="qkSetBase(+this.value)"><option>5</option><option>5.5</option><option>6</option><option>6.5</option><option>7</option><option>7.5</option><option>8</option></select> t/CBM · ₹/$ <input id="qkInr" type="number" step="any" inputmode="decimal" value="95.55" style="width:66px;height:30px" oninput="qkUpdate()"></span>
+        <span style="margin-left:auto;display:inline-flex;align-items:center;gap:6px;background:#eaf1fc;padding:5px 11px;border-radius:8px;color:#1b66b3;font-weight:800">Specific gravity <input id="qkSG" type="number" step="any" inputmode="decimal" value="2.65" style="width:66px;height:30px" oninput="if(!(this.validity&&this.validity.badInput))qkUpdate()"> · baseline <select id="qkBaseSel" style="height:30px;width:74px" onchange="qkSetBase(+this.value)"><option>5</option><option>5.5</option><option>6</option><option>6.5</option><option>7</option><option>7.5</option><option>8</option></select> t/CBM · ₹/$ <input id="qkInr" type="number" step="any" inputmode="decimal" value="95.55" style="width:66px;height:30px" oninput="if(!(this.validity&&this.validity.badInput))qkUpdate()"></span>
       </div>
       <div class="tablewrap"><table class="grid">
         <thead><tr><th style="text-align:center;width:32px">On</th><th>Grade</th><th>Gross vol</th><th>Price $/CBM</th><th>Blocks</th><th style="text-align:center">Allow?</th><th class="gc">Allowance cm/side</th><th class="gc">Net vol</th></tr></thead>
@@ -316,7 +316,7 @@ tbody tr.base td:first-child::before{content:"★ ";color:var(--gold);}
   <div class="card hero" id="card3">
     <div class="ct">🧮 3 · Result — your selection valued across sale tonnages <span class="sub">click a row for the ★ baseline</span></div>
     <div class="hbar" style="margin-bottom:6px">
-      <div><label class="fl">Specific gravity</label><input type="number" id="dmg" value="2.65" step="any" inputmode="decimal" style="width:100px" oninput="calc()"></div>
+      <div><label class="fl">Specific gravity</label><input type="number" id="dmg" value="2.65" step="any" inputmode="decimal" style="width:100px" oninput="if(!(this.validity&&this.validity.badInput))calc()"></div>
       <div><label class="fl">Sale tonnages (t/CBM) <span style="color:var(--muted);font-weight:500">· 5 = benchmark</span></label><input type="text" id="rates" value="5, 5.5, 6, 6.5, 7" style="width:200px" oninput="calc()"></div>
       <div style="margin-left:auto;text-align:right"><div class="fl">Selection · gross tonnage</div><div style="font-size:19px;font-weight:800;color:var(--navy)" id="realW">—</div></div>
     </div>
@@ -758,9 +758,9 @@ function qkRender(){
     return '<tr'+(r.on?'':' class="qoff"')+'>'
       +'<td style="text-align:center"><input type="checkbox" '+(r.on?'checked':'')+' onclick="qkSetT('+i+',\'on\',this.checked)" style="width:17px;height:17px"></td>'
       +'<td style="text-align:left"><select onchange="qkSetGrade('+i+',this.value)" style="height:28px;width:110px">'+qkGradeOpts(r.g)+'</select></td>'
-      +'<td><input type="number" step="any" inputmode="decimal" value="'+r.vol+'" style="width:78px;height:28px;text-align:right" oninput="qkSet('+i+',\'vol\',this.value)"></td>'
-      +'<td><input type="number" step="any" inputmode="decimal" value="'+r.p+'" style="width:78px;height:28px;text-align:right" oninput="qkSet('+i+',\'p\',this.value)"></td>'
-      +'<td style="'+blkStyle+'"><input type="number" step="1" inputmode="numeric" value="'+r.blocks+'" '+(r.allow?'':'disabled')+' style="width:58px;height:28px;text-align:right" oninput="qkSet('+i+',\'blocks\',this.value)"></td>'
+      +'<td><input type="number" step="any" inputmode="decimal" value="'+r.vol+'" style="width:78px;height:28px;text-align:right" oninput="qkSet('+i+',\'vol\',this.value,this)"></td>'
+      +'<td><input type="number" step="any" inputmode="decimal" value="'+r.p+'" style="width:78px;height:28px;text-align:right" oninput="qkSet('+i+',\'p\',this.value,this)"></td>'
+      +'<td style="'+blkStyle+'"><input type="number" step="1" inputmode="numeric" value="'+r.blocks+'" '+(r.allow?'':'disabled')+' style="width:58px;height:28px;text-align:right" oninput="qkSet('+i+',\'blocks\',this.value,this)"></td>'
       +'<td style="text-align:center" class="gc"><input type="checkbox" '+(r.allow?'checked':'')+' onclick="qkSetT('+i+',\'allow\',this.checked)" style="width:17px;height:17px"></td>'
       +'<td class="gc">'+alCell+'</td>'
       +'<td class="gc" style="font-weight:800" id="qknv_'+i+'">'+qkNetVol(r).toFixed(2)+'</td></tr>';
@@ -808,14 +808,16 @@ function qkUpdate(){
   document.getElementById("qkTDInr").textContent=qkMoney((val-bv)*inr,"₹");
   document.getElementById("qkTAllow").textContent=(blk>0?(allowW/blk).toFixed(1):"0")+" cm";
 }
-function qkSet(i,k,v){if(!qkRows[i])return;qkRows[i][k]=(v===""||isNaN(+v))?0:+v;qkUpdate();}
+function qkSet(i,k,v,el){if(!qkRows[i])return;
+  if(el&&el.validity&&el.validity.badInput)return;
+  qkRows[i][k]=(v===""||isNaN(+v))?0:+v;qkUpdate();}
 function qkSetT(i,k,v){if(!qkRows[i])return;qkRows[i][k]=v;qkRender();}
 function qkSetGrade(i,g){qkRows[i].g=g;qkRows[i].p=QK_DEFP[g]||qkRows[i].p;qkRender();}
 function qkSelT(i,t){qkRows[i].sel=t;qkUpdate();}
 function qkAdd(){qkRows.push({on:true,g:"A",vol:0,p:QK_DEFP["A"],blocks:1,allow:true,al:5,sel:qkBaseT()});qkRender();}
 
 /* ---------- Sell-at by grade (new tab) ---------- */
-window.SALESCALC_BUILD="sellat-b2";
+window.SALESCALC_BUILD="sg-sweep-b1";
 var saSrc="stock", saBI=[], saLotArr=[], saQI=[], saPortArr=[], saSET={};
 var SA_ORDER=["A","B","B1","B2","C","D"], SA_TON=[5,5.5,6,6.5,7,7.5,8], SA_ALO=[5,10,15,20];
 var SA_DEF={A:{price:1300,op:"ge",sel:6.5,tL:180,tW:100,tH:100},B:{price:1150,op:"ge",sel:7,tL:180,tW:100,tH:100},B1:{price:1050,op:"ge",sel:7,tL:180,tW:100,tH:100},B2:{price:1000,op:"ge",sel:7,tL:180,tW:100,tH:100},C:{price:900,op:"le",sel:6,tL:180,tW:100,tH:100},D:{price:600,op:"ge",sel:6,tL:180,tW:100,tH:100}};
