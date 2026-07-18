@@ -136,7 +136,7 @@ tbody tr.base td:first-child::before{content:"★ ";color:var(--gold);}
   <!-- SELL-AT BY GRADE (new tab) -->
   <div id="saWrap" style="display:none">
     <div class="card hero">
-      <div class="ct">🎯 Sell-at by grade <span class="sub">source · start tonnage · per-grade thresholds, prices &amp; allowance</span></div>
+      <div class="ct">🎯 Sell-at by grade <span class="sub">source · specific gravity · per-grade thresholds, prices &amp; allowance</span></div>
       <div class="hbar" style="align-items:center;gap:9px">
         <span class="chip on" data-sa="stock" onclick="saSetSrc('stock')">📊 Quarry stock</span>
         <span class="chip" data-sa="qi" onclick="saSetSrc('qi')">🪨 Quarry Inspection</span>
@@ -147,7 +147,7 @@ tbody tr.base td:first-child::before{content:"★ ";color:var(--gold);}
         <select id="saBiSel" style="display:none;height:30px" onchange="saLoadBI()"></select>
         <select id="saLotSel" style="display:none;height:30px" onchange="saLoadLot()"></select>
         <select id="saQiSel" style="display:none;height:30px" onchange="saLoadQI()"></select>
-        <span style="display:inline-flex;align-items:center;gap:6px;background:#eaf1fc;padding:5px 11px;border-radius:8px;color:#1b66b3;font-weight:800">Start <input id="saStart" type="number" step="0.5" value="4.5" style="width:56px;height:30px" oninput="saRender()"> t/CBM</span>
+        <span style="display:inline-flex;align-items:center;gap:6px;background:#eaf1fc;padding:5px 11px;border-radius:8px;color:#1b66b3;font-weight:800">Specific gravity <input id="saStart" type="number" step="any" inputmode="decimal" value="2.65" style="width:66px;height:30px" oninput="if(!(this.validity&&this.validity.badInput))saUpdate()"></span>
         <span style="margin-left:auto;text-align:right"><div class="fl">Source total</div><div style="font-size:17px;font-weight:800;color:var(--navy)" id="saWhole">—</div></span>
       </div>
       <div id="saPending" style="display:none;font-size:11.5px;color:#8a5a12;margin-top:8px;background:#fffdf6;border:1px solid #f1d99a;border-radius:8px;padding:8px 11px"></div>
@@ -176,7 +176,7 @@ tbody tr.base td:first-child::before{content:"★ ";color:var(--gold);}
       <div class="ct">🔍 Volume search <span class="sub">across all grades &amp; pits</span></div>
       <div class="hbar" style="gap:8px;align-items:center">
         <select id="saOp" style="height:30px" onchange="saRender()"><option value="ge">≥ this size &amp; bigger</option><option value="le">≤ this size &amp; smaller</option><option value="ap" selected>≈ within ±0.5</option></select>
-        <input id="saV" type="number" step="0.1" value="2" style="width:66px;height:30px" oninput="saRender()"> <span style="color:var(--muted);font-weight:700">CBM</span>
+        <input id="saV" type="number" step="any" inputmode="decimal" value="2" style="width:66px;height:30px" oninput="if(!(this.validity&&this.validity.badInput))saUpdate()"> <span style="color:var(--muted);font-weight:700">CBM</span>
         <select id="saG" style="height:30px" onchange="saRender()"></select>
         <select id="saP" style="height:30px" onchange="saRender()"></select>
         <span style="margin-left:auto;text-align:right"><div class="fl">Matches</div><div style="font-size:17px;font-weight:800" id="saMatch">—</div></span>
@@ -252,9 +252,9 @@ tbody tr.base td:first-child::before{content:"★ ";color:var(--gold);}
           <span class="chip" data-z="big" onclick="setSize('big')">Big</span>
           <span class="chip" data-z="small" onclick="setSize('small')">Small</span>
           <span style="display:inline-flex;gap:5px;align-items:center;margin-left:4px">
-            <input type="number" step="any" inputmode="decimal" id="tL" value="180" style="width:72px" oninput="calc()"><span>×</span>
-            <input type="number" step="any" inputmode="decimal" id="tW" value="100" style="width:72px" oninput="calc()"><span>×</span>
-            <input type="number" step="any" inputmode="decimal" id="tH" value="100" style="width:72px" oninput="calc()"></span>
+            <input type="number" step="any" inputmode="decimal" id="tL" value="180" style="width:72px" oninput="if(!(this.validity&&this.validity.badInput))calc()"><span>×</span>
+            <input type="number" step="any" inputmode="decimal" id="tW" value="100" style="width:72px" oninput="if(!(this.validity&&this.validity.badInput))calc()"><span>×</span>
+            <input type="number" step="any" inputmode="decimal" id="tH" value="100" style="width:72px" oninput="if(!(this.validity&&this.validity.badInput))calc()"></span>
         </div>
       </div>
       <div class="hgroup" id="clsGroup" style="display:none">
@@ -262,9 +262,9 @@ tbody tr.base td:first-child::before{content:"★ ";color:var(--gold);}
         <div class="hrow">
           <select id="spSel" style="height:32px" onchange="loadProfile()"></select>
           <span style="font-size:11px;color:var(--muted)">A ≥</span>
-          <span style="display:inline-flex;gap:3px;align-items:center"><input type="number" step="any" inputmode="decimal" id="aL" value="220" style="width:60px;height:32px" oninput="calc()"><span>×</span><input type="number" step="any" inputmode="decimal" id="aW" value="100" style="width:60px;height:32px" oninput="calc()"><span>×</span><input type="number" step="any" inputmode="decimal" id="aH" value="0" style="width:60px;height:32px" oninput="calc()"></span>
+          <span style="display:inline-flex;gap:3px;align-items:center"><input type="number" step="any" inputmode="decimal" id="aL" value="220" style="width:60px;height:32px" oninput="if(!(this.validity&&this.validity.badInput))calc()"><span>×</span><input type="number" step="any" inputmode="decimal" id="aW" value="100" style="width:60px;height:32px" oninput="if(!(this.validity&&this.validity.badInput))calc()"><span>×</span><input type="number" step="any" inputmode="decimal" id="aH" value="0" style="width:60px;height:32px" oninput="if(!(this.validity&&this.validity.badInput))calc()"></span>
           <span style="font-size:11px;color:var(--muted)">B ≥</span>
-          <span style="display:inline-flex;gap:3px;align-items:center"><input type="number" step="any" inputmode="decimal" id="bL" value="180" style="width:60px;height:32px" oninput="calc()"><span>×</span><input type="number" step="any" inputmode="decimal" id="bW" value="80" style="width:60px;height:32px" oninput="calc()"><span>×</span><input type="number" step="any" inputmode="decimal" id="bH" value="0" style="width:60px;height:32px" oninput="calc()"></span>
+          <span style="display:inline-flex;gap:3px;align-items:center"><input type="number" step="any" inputmode="decimal" id="bL" value="180" style="width:60px;height:32px" oninput="if(!(this.validity&&this.validity.badInput))calc()"><span>×</span><input type="number" step="any" inputmode="decimal" id="bW" value="80" style="width:60px;height:32px" oninput="if(!(this.validity&&this.validity.badInput))calc()"><span>×</span><input type="number" step="any" inputmode="decimal" id="bH" value="0" style="width:60px;height:32px" oninput="if(!(this.validity&&this.validity.badInput))calc()"></span>
         </div>
       </div>
       <div class="hgroup">
@@ -317,7 +317,7 @@ tbody tr.base td:first-child::before{content:"★ ";color:var(--gold);}
     <div class="ct">🧮 3 · Result — your selection valued across sale tonnages <span class="sub">click a row for the ★ baseline</span></div>
     <div class="hbar" style="margin-bottom:6px">
       <div><label class="fl">Specific gravity</label><input type="number" id="dmg" value="2.65" step="any" inputmode="decimal" style="width:100px" oninput="if(!(this.validity&&this.validity.badInput))calc()"></div>
-      <div><label class="fl">Sale tonnages (t/CBM) <span style="color:var(--muted);font-weight:500">· 5 = benchmark</span></label><input type="text" id="rates" value="5, 5.5, 6, 6.5, 7" style="width:200px" oninput="calc()"></div>
+      <div><label class="fl">Sale tonnages (t/CBM) <span style="color:var(--muted);font-weight:500">· 5 = benchmark</span></label><input type="text" id="rates" value="5, 5.5, 6, 6.5, 7" style="width:200px" oninput="if(!(this.validity&&this.validity.badInput))calc()"></div>
       <div style="margin-left:auto;text-align:right"><div class="fl">Selection · gross tonnage</div><div style="font-size:19px;font-weight:800;color:var(--navy)" id="realW">—</div></div>
     </div>
     <div id="feedInfo" style="font-size:12px;color:var(--muted);margin:8px 0"></div>
@@ -817,13 +817,13 @@ function qkSelT(i,t){qkRows[i].sel=t;qkUpdate();}
 function qkAdd(){qkRows.push({on:true,g:"A",vol:0,p:QK_DEFP["A"],blocks:1,allow:true,al:5,sel:qkBaseT()});qkRender();}
 
 /* ---------- Sell-at by grade (new tab) ---------- */
-window.SALESCALC_BUILD="sg-sweep-b1";
+window.SALESCALC_BUILD="sg-allcalc-b1";
 var saSrc="stock", saBI=[], saLotArr=[], saQI=[], saPortArr=[], saSET={};
 var SA_ORDER=["A","B","B1","B2","C","D"], SA_TON=[5,5.5,6,6.5,7,7.5,8], SA_ALO=[5,10,15,20];
 var SA_DEF={A:{price:1300,op:"ge",sel:6.5,tL:180,tW:100,tH:100},B:{price:1150,op:"ge",sel:7,tL:180,tW:100,tH:100},B1:{price:1050,op:"ge",sel:7,tL:180,tW:100,tH:100},B2:{price:1000,op:"ge",sel:7,tL:180,tW:100,tH:100},C:{price:900,op:"le",sel:6,tL:180,tW:100,tH:100},D:{price:600,op:"ge",sel:6,tL:180,tW:100,tH:100}};
 function saDefPrice(g){return (GP[g]&&GP[g].big>0)?GP[g].big:((SA_DEF[g]&&SA_DEF[g].price)||1000);}
 function saPoolArr(){return saSrc==="bi"?saBI:(saSrc==="lot"?saLotArr:(saSrc==="qi"?saQI:(saSrc==="port"?saPortArr:(saSrc==="sel"?STOCK.filter(function(b){return selBlk[b.no];}):(saSrc==="stock"?STOCK:[])))));}
-function saStartV(){var v=+document.getElementById("saStart").value;return v>0?v:4.5;}
+function saStartV(){var v=+document.getElementById("saStart").value;return v>0?v:2.65;}
 function saEnsure(g){if(!saSET[g]){var d=SA_DEF[g]||{op:"ge",sel:6.5,tL:180,tW:100,tH:100};saSET[g]={price:saDefPrice(g),op:d.op||"ge",sel:d.sel||6.5,tL:d.tL||180,tW:d.tW||100,tH:d.tH||100,allow:true,al:5,on:true};}}
 function saDims(b,al){return {L:Math.max(0,(+b.L||0)-2*al),W:Math.max(0,(+b.W||0)-2*al),H:Math.max(0,(+b.H||0)-2*al)};}
 function saHasDims(b){return (+b.L||0)>0&&(+b.W||0)>0&&(+b.H||0)>0;}
@@ -847,12 +847,14 @@ function saLoadQI(){var nm=document.getElementById("saQiSel").value;if(!nm){saQI
 function saLoadPort(){apiList("Quarry Block",["name","block_number","granite_quality_grade","pit","length_gross","width_gross","height_gross","gross_volume"],[["status","=","At Port"]]).then(function(qb){saPortArr=(qb||[]).map(function(b){var L=+b.length_gross||0,W=+b.width_gross||0,H=+b.height_gross||0;return {no:String(b.block_number||b.name),grade:((b.granite_quality_grade||"—")+"").trim()||"—",pit:pitLabel(b.pit),L:L,W:W,H:H,vol:+b.gross_volume||(L*W*H/1e6)};});saRender();}).catch(function(){saPortArr=[];saRender();});}
 function saLoadBI(){var nm=document.getElementById("saBiSel").value;if(!nm){saBI=[];saRender();return;}apiGet("Buyer Inspection",nm).then(function(doc){saBI=extractBIRows(doc);saRender();}).catch(function(){saBI=[];saRender();});}
 function saLoadLot(){var nm=document.getElementById("saLotSel").value;if(!nm){saLotArr=[];saRender();return;}apiGet("Export Shipment Lot",nm).then(function(doc){saLotArr=(doc.blocks||[]).map(function(r){var L=+r.length||0,W=+r.width||0,H=+r.height||0;return {no:String(r.block_no||r.block||""),grade:((r.grade||"—")+"").trim()||"—",pit:"Unassigned",L:L,W:W,H:H,vol:+r.cbm||(L*W*H/1e6)};});saRender();}).catch(function(){saLotArr=[];saRender();});}
-function saSet(g,k,v){saEnsure(g);saSET[g][k]=(k==="allow"||k==="on")?v:((k==="op")?v:+v);saRender();}
-function saRender(){
+function saSet(g,k,v,el){saEnsure(g);
+  if(el&&el.validity&&el.validity.badInput)return;
+  saSET[g][k]=(k==="allow"||k==="on")?v:((k==="op")?v:+v);
+  if(k==="on"||k==="allow")saRender(); else saUpdate();}
+function saRender(){ saRenderRows(); saUpdate(); }
+function saRenderRows(){
   if(!window._loaded||!document.getElementById("saGrade"))return;
-  var pool=saPoolArr(), st=saStartV(), inr=USD_INR;
-  var TN=pool.length, TV=pool.reduce(function(s,b){return s+(b.vol||0);},0);
-  document.getElementById("saWhole").textContent=TN+" blk · "+TV.toFixed(0)+" CBM";
+  var pool=saPoolArr();
   var grades=saGradesIn(pool); grades.forEach(saEnsure);
   document.getElementById("saSetup").innerHTML=grades.map(function(g){var s=saSET[g];
     return '<tr'+(s.on?'':' style="opacity:.4"')+'><td style="text-align:center"><input type="checkbox" '+(s.on?'checked':'')+' onclick="saSet(\''+g+'\',\'on\',this.checked)"></td>'
@@ -860,12 +862,19 @@ function saRender(){
       +'<td style="text-align:center;background:#fbf1dc"><input type="checkbox" '+(s.allow?'checked':'')+' onclick="saSet(\''+g+'\',\'allow\',this.checked)"></td>'
       +'<td style="background:#fbf1dc">'+(s.allow?'<select onchange="saSet(\''+g+'\',\'al\',this.value)" style="height:26px;width:64px">'+saAlOpts(s.al)+'</select>':'—')+'</td>'
       +'<td style="text-align:left"><select onchange="saSet(\''+g+'\',\'op\',this.value)" style="height:26px;width:74px">'+saOpOpts(s.op)+'</select></td>'
-      +'<td style="background:#eef5ff"><input type="number" step="any" inputmode="decimal" value="'+s.tL+'" style="width:48px;height:26px;text-align:right" oninput="saSet(\''+g+'\',\'tL\',this.value)"></td>'
-      +'<td style="background:#eef5ff"><input type="number" step="any" inputmode="decimal" value="'+s.tW+'" style="width:48px;height:26px;text-align:right" oninput="saSet(\''+g+'\',\'tW\',this.value)"></td>'
-      +'<td style="background:#eef5ff"><input type="number" step="any" inputmode="decimal" value="'+s.tH+'" style="width:48px;height:26px;text-align:right" oninput="saSet(\''+g+'\',\'tH\',this.value)"></td>'
-      +'<td><input type="number" step="any" inputmode="decimal" value="'+s.price+'" style="width:64px;height:26px;text-align:right" oninput="saSet(\''+g+'\',\'price\',this.value)"></td>'
+      +'<td style="background:#eef5ff"><input type="number" step="any" inputmode="decimal" value="'+s.tL+'" style="width:48px;height:26px;text-align:right" oninput="saSet(\''+g+'\',\'tL\',this.value,this)"></td>'
+      +'<td style="background:#eef5ff"><input type="number" step="any" inputmode="decimal" value="'+s.tW+'" style="width:48px;height:26px;text-align:right" oninput="saSet(\''+g+'\',\'tW\',this.value,this)"></td>'
+      +'<td style="background:#eef5ff"><input type="number" step="any" inputmode="decimal" value="'+s.tH+'" style="width:48px;height:26px;text-align:right" oninput="saSet(\''+g+'\',\'tH\',this.value,this)"></td>'
+      +'<td><input type="number" step="any" inputmode="decimal" value="'+s.price+'" style="width:64px;height:26px;text-align:right" oninput="saSet(\''+g+'\',\'price\',this.value,this)"></td>'
       +'<td style="background:#eaf1fc"><select onchange="saSet(\''+g+'\',\'sel\',this.value)" style="height:26px;font-weight:700">'+saTonOpts(s.sel)+'</select></td></tr>';
   }).join("");
+}
+function saUpdate(){
+  if(!window._loaded||!document.getElementById("saGrade"))return;
+  var pool=saPoolArr(), st=saStartV(), inr=USD_INR;
+  var TN=pool.length, TV=pool.reduce(function(s,b){return s+(b.vol||0);},0);
+  document.getElementById("saWhole").textContent=TN+" blk · "+TV.toFixed(0)+" CBM";
+  var grades=saGradesIn(pool); grades.forEach(saEnsure);
   var gSel=document.getElementById("saG"), gkey=grades.join();
   if(gSel.getAttribute("data-k")!==gkey){var cv=gSel.value;gSel.innerHTML='<option value="all">All grades</option>'+grades.map(function(g){return '<option>'+g+'</option>';}).join("");gSel.value=(cv&&(cv==="all"||grades.indexOf(cv)>=0))?cv:"all";gSel.setAttribute("data-k",gkey);}
   var pSel=document.getElementById("saP");
@@ -936,9 +945,9 @@ function saRender(){
   document.getElementById("gradePrices").innerHTML=ORDERG.map(function(g){
     var m=gpMaster(g),bp=m.big||0,sp=m.small||0,tn=m.ton||0;
     return '<span class="gpcard"><span class="gph"><span class="gdot" style="background:'+gcol(g)+'"></span>'+g+'</span>'+
-      '<span class="gprow"><input type="number" id="pb_'+g+'" value="'+bp+'" step="25" title="Big price $/CBM" oninput="calc()"><span class="lab" style="color:var(--green)">big</span></span>'+
-      '<span class="gprow"><input type="number" id="ps_'+g+'" value="'+sp+'" step="25" title="C-size (small A) price $/CBM" oninput="calc()"><span class="lab" style="color:#c9871f">C</span></span>'+
-      '<span class="gprow"><input type="number" id="pt_'+g+'" value="'+tn+'" step="0.1" title="Sale tonnage t/CBM" oninput="calc()"><span class="lab" style="color:var(--muted)">t/CBM</span></span></span>';
+      '<span class="gprow"><input type="number" id="pb_'+g+'" value="'+bp+'" step="25" title="Big price $/CBM" oninput="if(!(this.validity&&this.validity.badInput))calc()"><span class="lab" style="color:var(--green)">big</span></span>'+
+      '<span class="gprow"><input type="number" id="ps_'+g+'" value="'+sp+'" step="25" title="C-size (small A) price $/CBM" oninput="if(!(this.validity&&this.validity.badInput))calc()"><span class="lab" style="color:#c9871f">C</span></span>'+
+      '<span class="gprow"><input type="number" id="pt_'+g+'" value="'+tn+'" step="any" inputmode="decimal" title="Sale tonnage t/CBM" oninput="if(!(this.validity&&this.validity.badInput))calc()"><span class="lab" style="color:var(--muted)">t/CBM</span></span></span>';
   }).join("");
   loadSaleLots();
   flashFx();
