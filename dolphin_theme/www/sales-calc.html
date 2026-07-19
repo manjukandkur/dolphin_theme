@@ -326,6 +326,7 @@ tbody tr.base td:first-child::before{content:"★ ";color:var(--gold);}
       <thead><tr><th>Sale tonnage (t/CBM)</th><th>Price/ton ($)</th><th>Sale volume (CBM)</th><th>Diff (CBM)</th><th style="background:#fbf1dc;color:#8a5a12">Avg free cm/side</th><th>Value ($)</th><th>Value (₹)</th><th>Value (¥)</th><th>Diff ($)</th><th>Diff (₹)</th></tr></thead>
       <tbody class="click" id="qBody"></tbody>
     </table></div>
+    <div id="stockGradeWrap" style="margin-top:12px"></div>
   </div>
 
   <!-- 3b. REVERSE ALLOWANCE — free size per side across the sweep -->
@@ -698,6 +699,35 @@ function calc(){
     return '<tr class="'+(on?'base':'')+'" onclick="setQBase('+r+')"><td style="font-weight:700">'+r+'</td><td>$'+pTon.toFixed(1)+'</td><td style="font-weight:700">'+saleCBM.toFixed(2)+'</td><td>'+dc(dCBM,"",true)+'</td><td style="background:#fdf8ee">'+avgCell+'</td><td style="font-weight:700">$'+Math.round(valUSD).toLocaleString()+'</td><td>₹'+Math.round(valINR).toLocaleString("en-IN")+'</td><td>¥'+Math.round(valCNY).toLocaleString()+'</td><td>'+dc(dUSD,"$")+'</td><td>'+dc(dINR,"₹")+'</td></tr>';
   }).join("")||'<tr><td colspan="10" style="text-align:center;color:#9aa3ad;padding:14px">Enter sale tonnages.</td></tr>';
 
+  /* ----- per-grade breakdown cards (below the aggregate) ----- */
+  (function(){
+    var wrap=document.getElementById("stockGradeWrap"); if(!wrap)return;
+    var SGv=dmg, steps=rates, bt=(qBase>0?qBase:5);
+    var gset=[]; sel.forEach(function(b){var g=pricingGrade(b); if(gset.indexOf(g)<0)gset.push(g);});
+    var ordered=ORDERG.filter(function(g){return gset.indexOf(g)>=0;}).concat(gset.filter(function(g){return ORDERG.indexOf(g)<0;}));
+    var cards=ordered.map(function(g){
+      var gb=sel.filter(function(b){return pricingGrade(b)===g;}); if(!gb.length)return "";
+      var volG=gb.reduce(function(s,b){return s+b.vol;},0);
+      var pricedG=gb.reduce(function(s,b){return s+b.vol*priceFor(b);},0);
+      var grossG=volG*SGv, ownTon=saleTonOf(g), baseCBM=grossG/bt, baseVal=(SGv/bt)*pricedG;
+      var rws=steps.map(function(t){
+        var saleCBM=grossG/t, val=(SGv/t)*pricedG, isB=Math.abs(t-bt)<1e-9, isSel=Math.abs(t-ownTon)<1e-9;
+        var dCBM=saleCBM-baseCBM, dVal=val-baseVal, af5=(1/5-1/t);
+        var avgCm=(af5>1e-9&&gb.length)?(gb.reduce(function(s,b){var dV=b.vol*SGv*af5;return s+(dV>0?allowPerSide(b.L,b.W,b.H,dV):0);},0)/gb.length):0;
+        var cls=isSel?"qpick":(isB?"base":"");
+        return '<tr class="'+cls+'" onclick="setQBase('+t+')"><td style="font-weight:700">'+t+' t/CBM</td>'
+          +'<td style="font-weight:700">'+saleCBM.toFixed(2)+'</td>'
+          +'<td class="'+(isB?"":(dCBM<0?"neg":"pos"))+'">'+(isB?"&mdash;":(dCBM>0?"+":"")+dCBM.toFixed(2))+'</td>'
+          +'<td style="font-weight:700">$'+Math.round(val).toLocaleString()+'</td>'
+          +'<td class="'+(isB?"":"neg")+'">'+(isB?"&mdash;":(dVal>=0?"+$":"-$")+Math.abs(Math.round(dVal)).toLocaleString())+'</td>'
+          +'<td class="'+(isB?"":"neg")+'">'+(isB?"&mdash;":(dVal>=0?"+₹":"-₹")+Math.abs(Math.round(dVal*USD_INR)).toLocaleString("en-IN"))+'</td>'
+          +'<td class="gc" style="font-weight:700">'+(avgCm>0?("+"+avgCm.toFixed(1)+" cm"):"&mdash;")+'</td></tr>';
+      }).join("");
+      return '<div class="card" style="margin-top:10px"><div class="blkhdr"><span class="gdot" style="background:'+gcol(g)+'"></span>Grade '+g+'<span class="bs">'+gb.length+' blocks &middot; gross '+volG.toFixed(1)+' CBM &middot; '+grossG.toFixed(1)+' t &middot; sale '+ownTon+' t/CBM</span></div><div class="tablewrap"><table class="grid"><thead><tr><th>Sale tonnage</th><th>Sale volume (CBM)</th><th>Diff in CBM (&plusmn;)</th><th>Value ($)</th><th>Diff value ($)</th><th>Diff value (₹)</th><th class="gc">&asymp; allowance cm/side</th></tr></thead><tbody class="click">'+rws+'</tbody></table></div></div>';
+    }).join("");
+    wrap.innerHTML=cards?('<div class="fl" style="margin:6px 0 2px">Per-grade breakdown <span style="color:var(--muted);font-weight:500">· each grade across the same sale tonnages · sums to the table above</span></div>'+cards):"";
+  })();
+
   /* ----- reverse allowance: per-block free size per side across the sweep ----- */
   (function(){
     var head=document.getElementById("revHead"); if(!head)return;
@@ -817,7 +847,7 @@ function qkSelT(i,t){qkRows[i].sel=t;qkUpdate();}
 function qkAdd(){qkRows.push({on:true,g:"A",vol:0,p:QK_DEFP["A"],blocks:1,allow:true,al:5,sel:qkBaseT()});qkRender();}
 
 /* ---------- Sell-at by grade (new tab) ---------- */
-window.SALESCALC_BUILD="sg-allcalc-b1";
+window.SALESCALC_BUILD="sg-allcalc-b2";
 var saSrc="stock", saBI=[], saLotArr=[], saQI=[], saPortArr=[], saSET={};
 var SA_ORDER=["A","B","B1","B2","C","D"], SA_TON=[5,5.5,6,6.5,7,7.5,8], SA_ALO=[5,10,15,20];
 var SA_DEF={A:{price:1300,op:"ge",sel:6.5,tL:180,tW:100,tH:100},B:{price:1150,op:"ge",sel:7,tL:180,tW:100,tH:100},B1:{price:1050,op:"ge",sel:7,tL:180,tW:100,tH:100},B2:{price:1000,op:"ge",sel:7,tL:180,tW:100,tH:100},C:{price:900,op:"le",sel:6,tL:180,tW:100,tH:100},D:{price:600,op:"ge",sel:6,tL:180,tW:100,tH:100}};
