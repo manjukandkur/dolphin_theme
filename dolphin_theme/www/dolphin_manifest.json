@@ -1,0 +1,14 @@
+{
+  "name": "Dolphin ERP",
+  "short_name": "Dolphin",
+  "description": "Dolphin International granite ERP",
+  "start_url": "/m?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0F2540",
+  "theme_color": "#0F2540",
+  "icons": [
+    { "src": "/dolphin_icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
