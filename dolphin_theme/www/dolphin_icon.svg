@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <rect width="512" height="512" fill="#0F2540"/>
+  <circle cx="256" cy="248" r="150" fill="none" stroke="#C9A44C" stroke-width="8" opacity="0.28"/>
+  <g transform="translate(256 232) scale(0.74) translate(-256 -240)">
+    <path d="M150 300 C150 220 210 168 292 168 C300 168 300 176 293 178 C232 196 202 246 210 300 C244 286 300 292 340 330 C300 336 262 330 232 348 C210 362 176 356 160 336 C152 326 150 314 150 300 Z" fill="#C9A44C"/>
+    <path d="M292 168 C320 150 352 152 372 172 C346 176 330 190 322 210 C310 192 300 178 292 178 Z" fill="#E4C87A"/>
+  </g>
+  <text x="256" y="398" font-family="Georgia, serif" font-size="80" font-weight="700" fill="#C9A44C" text-anchor="middle">DI</text>
+</svg>
