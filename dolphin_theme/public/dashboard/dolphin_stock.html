@@ -1,752 +1,289 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Dolphin International — Stock Dashboard</title>
+<title>Dolphin — Stock &amp; Reports</title>
 <style>
-:root{
---navy:#0F2540;--navy2:#1d3c61;--gold:#D4A24A;--blue:#2490ef;
---ink:#1c2430;--muted:#5f6b7a;--line:#e6eaf0;--bg:#eef1f6;--card:#fff;
---green:#1D9E75;
-}
-*{box-sizing:border-box;}
-body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--ink);font-size:14px;-webkit-font-smoothing:antialiased;}
-.wrap{max-width:1280px;margin:0 auto;padding:18px 18px 60px;}
-
-.top{display:flex;align-items:center;justify-content:space-between;gap:12px;
-background:linear-gradient(135deg,var(--navy),var(--navy2));border-radius:16px;
-padding:16px 22px;box-shadow:0 4px 18px rgba(15,37,64,.22);border-bottom:3px solid var(--gold);}
-.brand{display:flex;align-items:center;gap:14px;}
-.brand .logochip{background:#fff;border-radius:11px;padding:5px 8px;display:flex;align-items:center;box-shadow:0 1px 4px rgba(0,0,0,.18);}
-.brand img{height:40px;width:auto;display:block;}
-.brand h1{font-size:19px;margin:0;color:#fff;font-weight:600;letter-spacing:.2px;}
-.brand p{font-size:12px;margin:3px 0 0;color:#c7d4e4;}
-.tools{display:flex;gap:8px;}
-.btn{border:1px solid var(--line);background:#fff;border-radius:9px;padding:8px 14px;font-size:13px;cursor:pointer;color:var(--ink);font-weight:500;transition:.15s;}
-.btn:hover{background:#f0f3f7;}
-.btn.blue{background:var(--blue);color:#fff;border-color:var(--blue);}
-.btn.blue:hover{background:#1b7fd6;}
-.btn.ghost{background:rgba(255,255,255,.12);color:#fff;border-color:rgba(255,255,255,.3);}
-.btn.ghost:hover{background:rgba(255,255,255,.22);}
-
-.barrow{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:16px 0;}
-.tabs{display:inline-flex;background:#fff;border:1px solid var(--line);border-radius:999px;overflow:hidden;box-shadow:0 1px 3px rgba(15,37,64,.06);}
-.tabs button{border:0;padding:9px 24px;font-size:13.5px;cursor:pointer;background:#fff;color:var(--muted);font-weight:600;}
-.tabs button.on{background:var(--navy);color:#fff;}
-.ctrlbar{display:flex;align-items:center;gap:9px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:7px 14px;box-shadow:0 1px 3px rgba(15,37,64,.05);}
-.ctrlbar .cb-lab{font-size:12px;font-weight:700;color:var(--navy);}
-.ctrlbar .cb-note{font-size:11.5px;color:var(--muted);}
-.ctrlbar select{height:32px;border:1px solid var(--line);border-radius:8px;padding:0 8px;font-size:13px;font-weight:700;color:var(--navy);background:#fff;}
-
-.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin-bottom:16px;box-shadow:0 1px 3px rgba(15,37,64,.05);}
-.card h3{font-size:13px;margin:0 0 14px;color:var(--navy);font-weight:700;border-left:3px solid var(--gold);padding-left:10px;text-transform:uppercase;letter-spacing:.4px;}
-.card h3 .sub{font-weight:500;text-transform:none;letter-spacing:0;color:var(--muted);font-size:12px;margin-left:6px;}
-
-.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:14px;}
-.kpi{background:var(--card);border:1px solid var(--line);border-radius:13px;padding:14px 16px;box-shadow:0 1px 3px rgba(15,37,64,.06);border-top:3px solid var(--gold);}
-.kpi.val-kpi{border-top-color:var(--green);}
-.kpi .lab{font-size:11px;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px;}
-.kpi .val{font-size:26px;font-weight:700;color:var(--navy);line-height:1;}
-.kpi .val small{font-size:13px;font-weight:600;color:var(--muted);}
-
-.active{background:#fff;border:1px solid var(--line);border-left:4px solid var(--gold);border-radius:0 12px 12px 0;padding:12px 16px;margin-bottom:16px;box-shadow:0 1px 3px rgba(15,37,64,.05);}
-.active .headline{font-size:15px;color:var(--ink);font-weight:600;margin-bottom:9px;}
-.active .headline b{color:var(--navy);font-size:21px;}
-.active .headline .meta{color:var(--muted);font-weight:500;font-size:14px;}
-.active .reciperow{display:flex;align-items:center;flex-wrap:wrap;gap:7px;}
-.active .rlab{font-size:12px;color:var(--muted);font-weight:600;margin-right:2px;}
-.afchip{display:inline-flex;align-items:center;gap:6px;font-size:12px;background:#eaf2fd;color:#1b66b3;border:1px solid #cfe2fa;border-radius:999px;padding:4px 9px 4px 11px;font-weight:600;}
-.afchip .x{cursor:pointer;font-weight:700;opacity:.6;}
-.afchip .x:hover{opacity:1;}
-.afclear{font-size:12px;color:var(--blue);cursor:pointer;font-weight:700;margin-left:4px;}
-.afnone{font-size:13px;color:var(--muted);}
-
-.frow{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:8px;padding:7px 10px;border-left:3px solid transparent;border-radius:0 8px 8px 0;transition:.12s;}
-.frow.on{background:#eef5ff;border-left-color:var(--blue);}
-.frow .flab{font-size:12px;color:var(--muted);min-width:132px;font-weight:600;}
-.frow.on .flab{color:var(--navy);}
-.cnt{display:inline-block;background:var(--blue);color:#fff;border-radius:999px;padding:1px 8px;font-size:10.5px;margin-left:5px;font-weight:700;vertical-align:1px;}
-.chip{font-size:12px;padding:5px 12px;border-radius:999px;border:1px solid var(--line);background:#fff;color:var(--muted);cursor:pointer;font-weight:500;transition:.12s;}
-.chip:hover{border-color:#b9c4d4;}
-.chip.on{background:var(--navy);color:#fff;border-color:var(--navy);box-shadow:0 1px 4px rgba(15,37,64,.25);}
-input[type=number],input[type=date],select{height:34px;border:1px solid var(--line);border-radius:8px;padding:0 9px;font-size:13px;font-family:inherit;background:#fff;color:var(--ink);}
-input:focus,select:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(36,144,239,.12);}
-.seg{display:inline-flex;border:1px solid var(--line);border-radius:999px;overflow:hidden;}
-.seg button{border:0;padding:6px 13px;font-size:12px;cursor:pointer;background:#fff;color:var(--muted);font-weight:500;}
-.seg button.on{background:var(--navy);color:#fff;}
-
-/* negotiation */
-.negobar{display:flex;align-items:center;gap:16px;flex-wrap:wrap;background:linear-gradient(135deg,#0f3d2e,#15543f);border-radius:14px;padding:16px 20px;margin-bottom:16px;border-bottom:3px solid var(--green);}
-.negobar .nlab{color:#bfe9d6;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;}
-.negobar input{height:40px;width:150px;font-size:16px;font-weight:700;}
-.negobar .nval{margin-left:auto;text-align:right;}
-.negobar .nval .v{font-size:30px;font-weight:700;color:#fff;line-height:1;}
-.negobar .nval .l{font-size:11px;color:#bfe9d6;text-transform:uppercase;letter-spacing:.5px;}
-.negobar .nmeta{color:#bfe9d6;font-size:12.5px;}
-.negobar .nmeta b{color:#fff;}
-
-.sizebox{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;}
-.sizecard{border:1px solid var(--line);border-radius:11px;padding:12px 14px;background:#fbfcfe;}
-.sizecard .h{font-weight:700;margin-bottom:10px;display:flex;align-items:center;gap:7px;color:var(--navy);}
-.sizecard .dot{width:11px;height:11px;border-radius:3px;}
-.sizecard .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;}
-.sizecard label{font-size:10.5px;color:var(--muted);display:block;margin-bottom:3px;text-transform:uppercase;letter-spacing:.4px;}
-.sizecard input{width:100%;height:32px;}
-
-/* donut + legend */
-.bd-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;margin-bottom:6px;}
-.donutwrap{display:flex;align-items:center;gap:18px;border:1px solid var(--line);border-radius:12px;padding:14px 16px;background:#fbfcfe;}
-.donut{width:148px;height:148px;border-radius:50%;position:relative;flex:none;}
-.donut .hole{position:absolute;inset:27px;background:#fff;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;box-shadow:inset 0 0 0 1px #eef1f5;}
-.donut .dn{font-size:27px;font-weight:700;color:var(--navy);line-height:1;}
-.donut .dl{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-top:3px;}
-.donut .dt{font-weight:700;color:var(--navy);font-size:11px;margin:0 0 8px;}
-.legend{display:flex;flex-direction:column;gap:8px;flex:1;min-width:0;}
-.lgttl{font-size:12px;font-weight:700;color:var(--navy);margin-bottom:2px;}
-.lgrow{display:flex;align-items:center;gap:9px;font-size:12.5px;}
-.lgsw{width:12px;height:12px;border-radius:3px;flex:none;}
-.lgname{font-weight:700;min-width:62px;color:var(--ink);}
-.lgmeta{color:var(--muted);}
-.lgmeta b{color:var(--ink);font-weight:600;}
-
-/* bars */
-.charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:18px;margin-top:14px;}
-.chartgrp .gh{font-size:12px;font-weight:700;color:var(--navy);margin:2px 0 10px;}
-.bar{display:flex;align-items:center;gap:10px;margin-bottom:9px;font-size:12px;}
-.bar .bl{width:96px;color:var(--ink);text-align:right;flex:none;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.bar .bt{flex:1;background:#eef1f5;border-radius:6px;height:22px;overflow:hidden;position:relative;}
-.bar .bf{height:100%;border-radius:6px;min-width:3px;transition:width .4s ease;}
-.bar .bv{position:absolute;right:8px;top:0;line-height:22px;font-weight:700;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.25);font-size:11px;white-space:nowrap;}
-.bar .bv.dark{color:var(--ink);text-shadow:none;}
-
-.tablehead{display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;margin:4px 2px 8px;}
-.tablewrap{background:#fff;border:1px solid var(--line);border-radius:14px;overflow:auto;max-height:540px;box-shadow:0 1px 3px rgba(15,37,64,.05);}
-table{width:100%;border-collapse:collapse;font-size:12.5px;}
-th{text-align:left;padding:11px 12px;font-weight:700;color:var(--muted);background:#f5f8fc;border-bottom:1px solid var(--line);cursor:pointer;white-space:nowrap;position:sticky;top:0;font-size:11.5px;text-transform:uppercase;letter-spacing:.3px;}
-th:hover{color:var(--navy);}
-td{padding:9px 12px;border-bottom:1px solid #eef1f5;white-space:nowrap;}
-tbody tr:hover{background:#f7fafe;}
-.tag{font-size:11px;padding:2px 9px;border-radius:999px;font-weight:600;}
-.muted{color:var(--muted);font-size:12px;}
-.center{text-align:center;padding:38px;color:var(--muted);}
-.banner{background:#fff7e6;border:1px solid #f1d99a;color:#8a6212;border-radius:10px;padding:9px 14px;font-size:12.5px;margin-bottom:14px;font-weight:600;}
-.rep-pick{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px;}
-.rep-pick select{min-width:340px;max-width:100%;}
-.repfilt{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:10px 0 4px;padding:8px 10px;background:#f7fafe;border:1px solid var(--line);border-radius:10px;}
-.repfilt .rfl{font-size:11.5px;font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:.4px;margin-right:2px;}
+  :root{ --navy:#0F2540; --gold:#C9A44C; --paper:#F4F6F9; --card:#fff; --line:#e6eaf0; --ink:#12233b; --mut:#6b7a90; --acc:#185FA5; --accbg:#e9f1fb; }
+  *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body{ height:100%; }
+  body{ margin:0; background:var(--paper); color:var(--ink); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; font-size:14px; display:flex; flex-direction:column; overflow:hidden; }
+  .top{ flex:0 0 auto; background:var(--navy); color:#fff; padding:9px 16px; display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; }
+  .brand{ display:flex; align-items:center; gap:9px; font-weight:600; font-size:15px; }
+  .logo{ width:28px; height:28px; border-radius:8px; background:var(--gold); color:var(--navy); display:flex; align-items:center; justify-content:center; font-family:Georgia,serif; font-weight:700; font-size:13px; }
+  .badge{ background:rgba(255,255,255,.14); font-size:10.5px; padding:2px 8px; border-radius:20px; }
+  .stages{ flex:0 0 auto; display:flex; gap:6px; flex-wrap:wrap; padding:8px 16px 0; }
+  .tracebar{ flex:0 0 auto; display:flex; align-items:center; gap:10px; padding:8px 16px 0; }
+  #filterbanner{ flex:0 0 auto; background:var(--gold); color:var(--navy); font-weight:700; padding:11px 16px; margin:10px 16px 0; border-radius:10px; font-size:14.5px; align-items:center; gap:12px; flex-wrap:wrap; box-shadow:0 0 0 2px rgba(201,164,74,.4); }
+  .msearch{ display:flex; gap:10px; align-items:center; padding:10px 14px; border-bottom:1px solid var(--line); flex-wrap:wrap; }
+  .stage{ cursor:pointer; font-size:12.5px; padding:6px 13px; border-radius:20px; border:1px solid #c9d2de; background:#fff; }
+  .stage.on{ border-color:var(--acc); background:var(--accbg); color:var(--acc); font-weight:500; }
+  .position{ flex:0 0 auto; margin:9px 16px 4px; background:var(--navy); color:#fff; border-radius:11px; padding:9px 15px; display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap; }
+  .position .big{ font-size:17px; font-weight:600; } .position .sub{ font-size:12px; color:#cdd8e6; margin-top:2px; }
+  .position .kstrip{ display:flex; gap:16px; } .position .k .l{ font-size:10px; color:#9fb0c4; } .position .k .v{ font-size:16px; font-weight:600; }
+  .position .link{ cursor:pointer; text-decoration:underline; color:var(--gold); }
+  .dash{ flex:1 1 auto; display:flex; gap:12px; padding:6px 16px 14px; min-height:0; }
+  .pane{ background:var(--card); border:1px solid var(--line); border-radius:12px; display:flex; flex-direction:column; min-height:0; }
+  .pfilters{ flex:0 0 292px; } .pviews{ flex:1 1 auto; min-width:0; min-height:0; } .pchart{ flex:0 0 auto; margin:0 16px 12px; height:42vh; min-height:280px; }
+  .phead{ flex:0 0 auto; padding:9px 13px; border-bottom:1px solid var(--line); display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; }
+  .phead .t{ font-size:11px; text-transform:uppercase; letter-spacing:.5px; color:var(--mut); }
+  .pbody{ flex:1 1 auto; overflow:auto; padding:8px 13px; }
+  input,select{ height:29px; border:1px solid #cdd5df; border-radius:7px; padding:0 6px; font-size:12.5px; font-family:inherit; background:#fff; }
+  input[type=number]{ width:56px; } input[type=date]{ padding:0 4px; width:130px; }
+  .fgroup{ border-top:1px solid var(--line); padding:8px 0; } .fgroup:first-child{ border-top:none; }
+  .fhead{ display:flex; align-items:center; gap:8px; font-size:12.5px; font-weight:500; cursor:pointer; user-select:none; }
+  .fhead input[type=checkbox]{ width:16px; height:16px; accent-color:var(--acc); }
+  .finputs{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:8px; padding-left:24px; }
+  .fgroup.off .fhead{ color:var(--mut); font-weight:400; }
+  .fgroup.off .finputs{ opacity:.36; pointer-events:none; filter:grayscale(.35); }
+  .chip{ cursor:pointer; font-size:12.5px; border:1px solid #b7c3d2; background:#fff; color:var(--ink); border-radius:8px; padding:6px 13px; font-weight:600; display:inline-block; min-width:34px; text-align:center; margin:2px 3px 2px 0; box-shadow:0 1px 0 rgba(0,0,0,.04); }
+  .chip:hover{ border-color:var(--acc); }
+  .chip.on{ border-color:var(--acc); background:var(--acc); color:#fff; }
+  .sizerules{ display:flex; gap:6px; flex-wrap:wrap; } .sr{ border:1px solid var(--line); border-radius:7px; padding:5px 6px; } .sr .d{ display:flex; gap:3px; } .sr input{ width:44px; }
+  .segbox{ display:inline-flex; border:1px solid #c9d2de; border-radius:8px; overflow:hidden; }
+  .segbox span{ cursor:pointer; font-size:11.5px; padding:5px 11px; }
+  .segbox span.on{ background:var(--accbg); color:var(--acc); }
+  .btn{ cursor:pointer; font-size:11.5px; border:1px solid #c9d2de; background:#fff; border-radius:8px; padding:5px 10px; display:inline-flex; align-items:center; gap:5px; }
+  .btn.gold{ background:var(--gold); color:var(--navy); border-color:var(--gold); font-weight:600; }
+  .btn.primary{ background:var(--navy); color:#fff; border-color:var(--navy); }
+  table{ width:100%; border-collapse:collapse; font-size:12.5px; }
+  th{ background:#f2f5f9; text-align:left; padding:7px 11px; font-weight:500; position:sticky; top:0; } th.r,td.r{ text-align:right; }
+  td{ padding:6px 11px; border-top:1px solid var(--line); }
+  .eye{ cursor:pointer; color:var(--acc); }
+  .chart{ display:flex; align-items:flex-end; justify-content:space-around; gap:9px; height:100%; }
+  .col{ flex:1; min-width:0; max-width:150px; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; }
+  .bar{ width:100%; border-radius:8px 8px 0 0; overflow:hidden; display:flex; flex-direction:column; }
+  .slice{ font-size:9px; line-height:1.14; padding:2px 5px; overflow:hidden; display:flex; flex-direction:column; justify-content:center; cursor:default; }
+  .ov{ position:fixed; inset:0; background:rgba(15,37,64,.5); display:none; align-items:flex-start; justify-content:center; padding:24px 12px; z-index:50; overflow:auto; }
+  .ov.on{ display:flex; }
+  .modal{ background:#fff; border-radius:14px; max-width:960px; width:100%; overflow:hidden; }
+  .mhead{ background:var(--navy); color:#fff; padding:11px 15px; display:flex; justify-content:space-between; align-items:center; gap:10px; }
+  .x{ cursor:pointer; font-size:18px; }
+  .mbody{ max-height:76vh; overflow:auto; }
+  .muted{ color:var(--mut); font-size:12px; }
+  @media(max-width:900px){ body{ overflow:auto; } .dash{ flex-direction:column; } .pfilters,.pchart,.pviews{ flex:none; } .pchart{ height:340px; } .pane{ max-height:none; } }
+  @media print{ body{ overflow:visible; height:auto; } .noprint{ display:none !important; } .dash{ flex-direction:column; } .pane{ border:none; height:auto !important; } .pbody{ overflow:visible !important; } .pchart{ height:360px; } .slice,.bar,.position{ -webkit-print-color-adjust:exact; print-color-adjust:exact; } }
 </style>
 </head>
 <body>
-<div class="wrap">
 <div class="top">
-<div class="brand">
-<span class="logochip"><img src="/files/dolphin_logo_mono.png" alt="Dolphin International" onerror="this.parentNode.style.display='none'"></span>
-<div><h1>Dolphin International — stock dashboard</h1><p id="sub">Loading live stock…</p></div>
-</div>
-<div class="tools">
-<button class="btn ghost" id="reset">Reset filters</button>
-<button class="btn ghost" id="reload">Reload</button>
-</div>
+  <div class="brand"><div class="logo">DI</div> Dolphin — Stock &amp; Reports <span class="badge">management</span></div>
+  <div style="display:flex;align-items:center;gap:6px"><label style="color:#cdd8e6;font-size:12px">Specific gravity</label><input id="sg" type="number" step="0.01" value="2.65" style="width:74px"></div>
 </div>
 
-<div class="barrow">
-<div class="tabs">
-<button id="tabStock" class="on">Stock &amp; reports</button>
-<button id="tabNego">Sales negotiation</button>
-			<button id="tabDownloads">Downloads</button>
-</div>
-<div class="ctrlbar">
-<span class="cb-lab">Tonnage factor (DMG)</span>
-<select id="dmgSel"></select>
-<span class="cb-note">tonnage = volume × factor &nbsp;·&nbsp; volume = L × W × H ÷ 1,000,000</span>
-</div>
+<div class="stages" id="stages"></div>
+<div class="tracebar noprint"><span style="font-size:12px;color:var(--mut)">&#128269; Trace a block:</span><input id="traceq" placeholder="block no or export no, then Enter" style="width:250px" onkeydown="if(event.key==='Enter')traceBlock()"><button class="btn" onclick="traceBlock()">Trace</button></div>
+<div id="filterbanner" class="noprint" style="display:none"></div>
+<div class="position" id="position"></div>
+
+<div class="pane pchart">
+  <div class="phead"><span class="t" id="chartlbl">Grouped view</span>
+    <span style="display:flex;gap:8px;align-items:center"><span class="segbox" id="groupby"></span><span class="btn noprint" onclick="enlargeChart()" style="padding:4px 8px">&#9974; Enlarge</span></span></div>
+  <div class="pbody" style="padding:12px 12px 4px"><div class="chart" id="chart"></div></div>
 </div>
 
-<div id="bannerSlot"></div>
-<div id="app"><div class="center">Loading live stock data…</div></div>
+<div class="dash">
+  <!-- LEFT: filters -->
+  <div class="pane pfilters noprint">
+    <div class="phead"><span class="t">Filters — tick to enable</span></div>
+    <div class="pbody">
+      <div class="fgroup off" id="gPeriod"><label class="fhead"><input type="checkbox" id="cPeriod"> Date period</label>
+        <div class="finputs"><input id="from" type="date" value="2026-07-01"><span style="font-size:11px">to</span><input id="to" type="date" value="2026-07-23"></div></div>
+      <div class="fgroup off" id="gVol"><label class="fhead"><input type="checkbox" id="cVol"> Volume threshold</label>
+        <div class="finputs">≥<input id="vmin" type="number" step="0.1" placeholder="min">&lt;<input id="vmax" type="number" step="0.1" placeholder="max"><span class="muted">CBM</span></div></div>
+      <div class="fgroup off" id="gChk"><label class="fhead"><input type="checkbox" id="cChk"> Check by volume</label>
+        <div class="finputs"><input id="vchk" type="number" step="0.1" placeholder="3.2" style="width:66px"><span class="segbox"><span id="mAt" class="on">≥ least</span><span id="mAr">± around</span></span><span id="tolw" style="display:none">±<input id="tol" type="number" step="0.05" value="0.25" style="width:52px"></span></div></div>
+      <div class="fgroup off" id="gSize"><label class="fhead"><input type="checkbox" id="cSize"> Size (L/W/H → A/B/C)</label>
+        <div class="finputs"><div class="sizerules">
+          <div class="sr"><div style="font-size:10px;margin-bottom:2px">A</div><div class="d"><input id="aL" type="number" value="220"><input id="aW" type="number" value="100"><input id="aH" type="number" value="100"></div></div>
+          <div class="sr"><div style="font-size:10px;margin-bottom:2px">B</div><div class="d"><input id="bL" type="number" value="180"><input id="bW" type="number" value="80"><input id="bH" type="number" value="60"></div></div>
+          <div class="sr"><div style="font-size:10px;margin-bottom:2px">C</div><div class="d"><input id="cL" type="number" value="120"><input id="cW" type="number" value="60"><input id="cH" type="number" value="60"></div></div>
+        </div><div style="margin-top:6px" id="sizechips"></div></div></div>
+      <div class="fgroup off" id="gGrade"><label class="fhead"><input type="checkbox" id="cGrade"> Grade</label>
+        <div class="finputs"><span id="grades"></span></div></div>
+      <div class="fgroup off" id="gPit"><label class="fhead"><input type="checkbox" id="cPit"> Pit</label>
+        <div class="finputs"><span id="pits"></span></div></div>
+      <div class="fgroup off" id="gExtra" style="display:none"><label class="fhead"><input type="checkbox" id="cExtra"> <span id="extraLbl"></span></label>
+        <div class="finputs"><span id="extra"></span></div></div>
+    </div>
+  </div>
+
+  <!-- RIGHT: views -->
+  <div class="pane pviews">
+    <div class="phead"><span class="segbox"><span id="vSum" class="on">Summary</span><span id="vDet">Details</span></span>
+      <span style="display:flex;gap:6px"><span class="btn gold" onclick="openFull()">&#128065; Total stock</span><span class="btn primary noprint" onclick="window.print()">&#128196; PDF</span></span></div>
+    <div class="pbody" id="tblwrap"></div>
+  </div>
 </div>
+
+<div class="ov" id="ov"><div class="modal">
+  <div class="mhead"><span id="mtitle">Details</span><span style="display:flex;gap:12px;align-items:center"><span class="btn noprint" style="background:#fff" onclick="window.print()">&#128196; PDF</span><span class="x noprint" onclick="closeM()">&times;</span></span></div>
+  <div class="mbody" id="mbody"></div>
+</div></div>
 
 <script>
-(function(){
-/* ---------- palette ---------- */
-var SIZE_COLORS={"A":"#1D9E75","B":"#2F80ED","C":"#EF9F27","—":"#9aa3ad"};
-var GRADE_COLORS={"A":"#1D9E75","B":"#2F80ED","C":"#EF9F27","D":"#D85A30","B1":"#7F77DD","B2":"#534AB7","Unshaped":"#888780","—":"#b3bbc7"};
-var STATUS_COLORS={"In Stock":"#1D9E75","Buyer Marked":"#EF9F27","In Delivery Challan":"#2F80ED","Dispatched/Transported":"#D85A30","At Port":"#7F77DD","At Bannikoppa Station yard":"#534AB7","Shipped":"#888780"};
-var PIT_COLOR="#2490ef";
-function zcol(z){return SIZE_COLORS[z]||"#9aa3ad";}
-function gcol(g){return GRADE_COLORS[(g||"—").trim()]||"#888780";}
-function scol(s){return STATUS_COLORS[s]||"#888780";}
-function fmt(n){return (Math.round(n)).toLocaleString();}
-function cbm(n){return (Math.round(n*10)/10).toLocaleString();}
-function uniq(a){return [...new Set(a)].filter(function(x){return x!==null&&x!==undefined&&x!=="";});}
-function esc(s){return String(s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];});}
-
-/* ---------- size rules ---------- */
-var DEF_RULES={A:{L:220,W:100,H:100},B:{L:180,W:80,H:60},C:{L:120,W:60,H:60}};
-function loadRules(){try{var r=JSON.parse(localStorage.getItem("dolphin_size_rules"));return r&&r.A?r:DEF_RULES;}catch(e){return DEF_RULES;}}
-function saveRules(r){try{localStorage.setItem("dolphin_size_rules",JSON.stringify(r));}catch(e){}}
-var rules=loadRules();
-function sizeOf(b){var order=["A","B","C"];for(var i=0;i<order.length;i++){var k=order[i],r=rules[k];if(b.L>=(+r.L||0)&&b.W>=(+r.W||0)&&b.H>=(+r.H||0))return k;}return "—";}
-
-/* ---------- state ---------- */
-var blocks=[], blockMap={}, biList=[], qiList=[], biCache={}, qiCache={}, dmgFactors=[], factor=2.6, view="stock";
-var sel={grade:new Set(),size:new Set(),pit:new Set(),status:new Set()},
-vol={min:null,max:null}, dims={L:null,W:null,H:null,tol:10}, sizeMode="gte",
-period={from:null,to:null}, sort={key:"vol",dir:-1};
-function loadRate(){try{var r=+localStorage.getItem("dolphin_nego_rate");return r||0;}catch(e){return 0;}}
-var negoRate=loadRate();
-function tonOf(v){return v*factor;}
-function money(n){return "₹"+(Math.round(n)).toLocaleString("en-IN");}
-
-/* ---------- data layer ---------- */
-async function api(path){var r=await fetch(path,{credentials:"include",headers:{"Accept":"application/json"}});if(!r.ok)throw new Error("HTTP "+r.status);return (await r.json()).message;}
-function mapBlock(b){var o={id:b.block_number||b.name, key:String(b.name||b.block_number), pit:(b.pit==null||b.pit===""?"—":String(b.pit)),
-grade:((b.granite_quality_grade||"—")+"").trim()||"—", status:b.status||"—", date:b.date_produced||"",
-L:+b.length_gross||0, W:+b.width_gross||0, H:+b.height_gross||0, vol:+b.gross_volume||0};
-blockMap[o.key]=o; return o;}
-async function load(){
-if(window.SAMPLE){blocks=window.SAMPLE.blocks.map(mapBlock);biList=window.SAMPLE.biList;qiList=window.SAMPLE.qiList;biCache=window.SAMPLE.biDocs||{};qiCache=window.SAMPLE.qiDocs||{};dmgFactors=window.SAMPLE.dmg||[2.50,2.60,2.65,2.70,2.75,2.80];return;}
-var f=JSON.stringify(["name","block_number","length_gross","width_gross","height_gross","gross_volume","status","pit","granite_quality_grade","date_produced"]);
-var m=await api("/api/method/frappe.client.get_list?doctype=Quarry%20Block&fields="+encodeURIComponent(f)+"&limit_page_length=0&order_by=block_number%20asc");
-blocks=(m||[]).map(mapBlock);
-biList=await api("/api/method/frappe.client.get_list?doctype=Buyer%20Inspection&fields="+encodeURIComponent(JSON.stringify(["name","report_date","buyer","export_buyer","local_buyer","sale_type"]))+"&limit_page_length=0&order_by=report_date%20desc");
-qiList=await api("/api/method/frappe.client.get_list?doctype=Quarry%20Inspection&fields="+encodeURIComponent(JSON.stringify(["name","report_date","pit","prepared_by"]))+"&limit_page_length=0&order_by=report_date%20desc");
-try{var dl=await api("/api/method/frappe.client.get_list?doctype=DMG%20Tonnage%20Factor%20Master&fields="+encodeURIComponent(JSON.stringify(["name","factor_value"]))+"&limit_page_length=0&order_by=factor_value%20asc");
-dmgFactors=(dl||[]).map(function(d){return +d.factor_value||parseFloat(d.name);}).filter(function(x){return x;});}catch(e){}
-if(!dmgFactors.length)dmgFactors=[2.50,2.60,2.65,2.70,2.75,2.80];
-}
-function eachSized(){(workSet||blocks).forEach(function(b){b.size=sizeOf(b);});}
-
-/* ---------- source dataset: stock statuses OR a specific inspection ---------- */
-var srcKey="all", workSet=null;
-function curBlocks(){
- if(workSet) return workSet;
- if(srcKey==="marked") return blocks.filter(function(b){return b.status==="Buyer Marked";});
- if(srcKey==="instock") return blocks.filter(function(b){return b.status==="In Stock";});
- if(srcKey==="prodmonth"){var ym=new Date().toISOString().slice(0,7);return blocks.filter(function(b){return b.date&&String(b.date).slice(0,7)===ym;});}
- return blocks;
-}
-function blocksFromDoc(doc,dt){return childRows(doc).map(function(r,i){
- var L=+r.length_gross||0,W=+r.width_gross||0,H=+r.height_gross||0,vol=+r.gross_volume||(L*W*H/1e6);
- var key=String(r.block||r.quarry_block_no||i);
- var grade=((r.granite_quality_grade||(blockMap[key]&&blockMap[key].grade)||"—")+"").trim()||"—";
- var pit=(blockMap[key]&&blockMap[key].pit)||"—";
- return {id:r.block||r.quarry_block_no||("row"+(i+1)),key:key,pit:pit,grade:grade,status:"(in "+dt+")",date:doc.report_date||"",L:L,W:W,H:H,vol:vol};
-});}
-/* ---------- filtering ---------- */
-function dimOk(bv,q){if(q==null)return true;return sizeMode==="gte"?bv>=q:Math.abs(bv-q)<=(dims.tol==null?10:dims.tol);}
-function filtered(){return curBlocks().filter(function(b){
-if(sel.grade.size&&!sel.grade.has(b.grade))return false;
-if(sel.size.size&&!sel.size.has(b.size))return false;
-if(sel.pit.size&&!sel.pit.has(b.pit))return false;
-if(sel.status.size&&!sel.status.has(b.status))return false;
-if(vol.min!=null&&b.vol<vol.min)return false;
-if(vol.max!=null&&b.vol>vol.max)return false;
-if(!dimOk(b.L,dims.L)||!dimOk(b.W,dims.W)||!dimOk(b.H,dims.H))return false;
-if(period.from&&b.date&&b.date<period.from)return false;
-if(period.to&&b.date&&b.date>period.to)return false;
-return true;});}
-
-function activeList(){
-var a=[];
-sel.grade.forEach(function(v){a.push({t:"Grade",v:v,clr:function(){sel.grade.delete(v);}});});
-sel.size.forEach(function(v){a.push({t:"Size",v:v,clr:function(){sel.size.delete(v);}});});
-sel.pit.forEach(function(v){a.push({t:"Pit",v:v,clr:function(){sel.pit.delete(v);}});});
-sel.status.forEach(function(v){a.push({t:"",v:v,clr:function(){sel.status.delete(v);}});});
-if(vol.min!=null)a.push({t:"Vol ≥",v:vol.min,clr:function(){vol.min=null;}});
-if(vol.max!=null)a.push({t:"Vol ≤",v:vol.max,clr:function(){vol.max=null;}});
-["L","W","H"].forEach(function(d){if(dims[d]!=null)a.push({t:(sizeMode==="gte"?d+" ≥":d+" ±"),v:dims[d]+(sizeMode==="tol"?" ±"+dims.tol:""),clr:function(){dims[d]=null;}});});
-if(period.from)a.push({t:"From",v:period.from,clr:function(){period.from=null;}});
-if(period.to)a.push({t:"To",v:period.to,clr:function(){period.to=null;}});
-return a;
+var $=function(id){return document.getElementById(id);};
+var GRADES=['A','B','B1','B2','C','D','D (Rejected)','Unshaped','-'], PITS=['1','2','3','4','5','6','7','8','9','10','99','-'];
+var STAGES=[['stock','In stock','QI'],['bi','Buyer inspection','BI'],['disp','Dispatched','DC'],['port','At port','PA'],['lot','Export lot','ESL']];
+var STLABEL={stock:'In stock',bi:'Buyer insp',port:'At port',lot:'Export lot',disp:'Dispatched'};
+var BUY=['Xiamen','EC12','Fujian'], PORT=['Krishnapatnam','Chennai','Kakinada'], LOT=['ESL-020','ESL-021','ESL-022'];
+var BASE=['#378ADD','#EF9F27','#1D9E75','#7F77DD','#D4537E','#639922','#3FA9A0','#E07B39','#6E8CA0'];
+var DATA=[];
+// live data loaded by loadData()
+var state={stage:'stock',group:'stage',view:'sum',mode:'at',grades:new Set(),pits:new Set(),sizes:new Set(),extra:new Set(),drill:null};
+function apiGet(method,params){ var q=Object.keys(params||{}).map(function(k){return k+'='+encodeURIComponent(params[k]);}).join('&'); return fetch('/api/method/'+method+(q?'?'+q:''),{headers:{Accept:'application/json'},credentials:'same-origin'}).then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); }).then(function(j){return j.message;}); }
+function stageFromStatus(st){ if(st==='In Stock')return 'stock'; if(st==='Buyer Marked')return 'bi'; if(st==='In Delivery Challan'||st==='Dispatched/Transported')return 'disp'; if(st==='At Port'||st==='At Bannikoppa Station yard')return 'port'; if(st==='Shipped')return 'lot'; return 'stock'; }
+function loadData(){
+  var flds=JSON.stringify(['name','block_number','granite_quality_grade','granite_size_category','pit','length_gross','width_gross','height_gross','gross_volume','date_produced','status','export_block_no','buyer_marker','consignee']);
+  apiGet('frappe.client.get_list',{doctype:'Quarry Block',fields:flds,limit_page_length:0}).then(function(rows){
+    rows=rows||[];
+    // grade is stored on the Quarry Inspection child rows, not on Quarry Block -> build a block-no -> grade map
+    return apiGet('frappe.client.get_list',{doctype:'Quarry Inspection Block',parent:'Quarry Inspection',fields:JSON.stringify(['quarry_block_no','granite_quality_grade']),limit_page_length:0}).catch(function(){return [];}).then(function(gr){
+      var gradeMap={}; (gr||[]).forEach(function(x){ if(x.quarry_block_no!=null&&x.granite_quality_grade) gradeMap[String(x.quarry_block_no)]=x.granite_quality_grade; });
+    return apiGet('frappe.client.get_list',{doctype:'Shipment Lot Block',parent:'Export Shipment Lot',fields:JSON.stringify(['parent','block']),limit_page_length:0}).catch(function(){return [];}).then(function(lr){
+      var lotmap={}; (lr||[]).forEach(function(x){lotmap[x.block]=x.parent;});
+      DATA=rows.map(function(b){ var L=b.length_gross||0,W=b.width_gross||0,H=b.height_gross||0; var vol=b.gross_volume||Math.round(L*W*H/1e6*100)/100; var no=b.block_number||b.name; var gr=gradeMap[String(no)]||gradeMap[String(b.name)]||b.granite_quality_grade||'-';
+        return {_name:b.name,no:no,L:L,W:W,H:H,nL:L,nW:W,nH:H,vol:vol,netvol:vol,grade:gr,size:b.granite_size_category||'-',pit:(b.pit!=null&&b.pit!==''?String(b.pit):'-'),date:b.date_produced||'',exp:b.export_block_no||'',buyer:b.buyer_marker||'',port:b.consignee||'',lot:lotmap[b.name]||'',consignee:b.consignee||'',stage:stageFromStatus(b.status)}; });
+      var pset={}; DATA.forEach(function(b){pset[b.pit]=1;}); PITS=Object.keys(pset).sort(function(a,b){var na=+a,nb=+b; if(isNaN(na)||isNaN(nb))return String(a).localeCompare(String(b)); return na-nb;});
+      render();
+    });
+    });
+  }).catch(function(e){ var el=document.getElementById('tblwrap'); if(el) el.innerHTML='<div style=\"padding:20px;color:#a32d2d\">Could not load stock data \u2014 you may not have access, or you are not signed in. ('+((e&&e.message)||e)+')</div>'; var p=document.getElementById('position'); if(p) p.innerHTML='<div class=\"big\">Stock &amp; Reports</div><div class=\"sub\">Not loaded \u2014 sign in with a Dolphin account with access.</div>'; });
 }
 
-/* ---------- builders ---------- */
-function chip(dim,val){var on=sel[dim].has(val);return '<button class="chip'+(on?' on':'')+'" data-dim="'+dim+'" data-val="'+esc(val)+'">'+esc(val)+'</button>';}
-function kpi(l,v,cls){return '<div class="kpi'+(cls?' '+cls:'')+'"><div class="lab">'+l+'</div><div class="val">'+v+'</div></div>';}
-function frow(lab,inner,on,count){return '<div class="frow'+(on?' on':'')+'"><span class="flab">'+lab+(count?' <span class="cnt">'+count+'</span>':'')+'</span>'+inner+'</div>';}
+function sg(){return +$('sg').value||0;}
+function on(id){return $(id).checked;}
+function rule(p){return {L:+$(p+'L').value||0,W:+$(p+'W').value||0,H:+$(p+'H').value||0};}
+function classOf(b){var A=rule('a'),B=rule('b'),C=rule('c');var m=function(r){return b.L>=r.L&&b.W>=r.W&&b.H>=r.H;};return m(A)?'A':m(B)?'B':m(C)?'C':'-';}
+function volField(){return (state.stage==='bi'&&state.group!=='stage')?'netvol':'vol';}
+function extraDim(){return {stock:null,bi:'buyer',port:'port',lot:'lot'}[state.stage];}
+function extraVals(){var ed=extraDim(); if(!ed) return []; var s={}; DATA.forEach(function(b){ if(b.stage===state.stage && b[ed]) s[b[ed]]=1; }); return Object.keys(s).sort();}
+function srgb(hex,amt){var r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);var f=amt<0?0:255,p=Math.abs(amt);return [Math.round((f-r)*p)+r,Math.round((f-g)*p)+g,Math.round((f-b)*p)+b];}
+function css(a){return 'rgb('+a[0]+','+a[1]+','+a[2]+')';}
+function lum(a){return (0.299*a[0]+0.587*a[1]+0.114*a[2])/255;}
+function chips(host,vals,set){ $(host).innerHTML=vals.map(function(v){var k=isNaN(+v)?v:+v;var o=set.has(k);return '<span class="chip'+(o?' on':'')+'" data-v="'+v+'">'+v+'</span>';}).join(''); Array.prototype.forEach.call($(host).querySelectorAll('[data-v]'),function(el){el.onclick=function(){var raw=el.getAttribute('data-v');var v=isNaN(+raw)?raw:+raw;if(set.has(v))set.delete(v);else set.add(v);render();};}); }
 
-function statsBy(rows,keyFn,keys){var m={};(keys||[]).forEach(function(k){m[k]={count:0,vol:0};});rows.forEach(function(b){var k=keyFn(b);if(!m[k])m[k]={count:0,vol:0};m[k].count++;m[k].vol+=b.vol;});return m;}
-
-function donut(segs,total,centerNum,centerLab,title){
-var acc=0, stops=[];
-segs.forEach(function(s){if(!s.val)return;var a=total?s.val/total*360:0;stops.push(s.color+' '+acc.toFixed(2)+'deg '+(acc+a).toFixed(2)+'deg');acc+=a;});
-if(!stops.length)stops=['#eef1f5 0deg 360deg'];
-return '<div style="text-align:center"><div class="dt">'+(title||'')+'</div><div class="donut" style="background:conic-gradient('+stops.join(',')+')"><div class="hole"><div class="dn">'+centerNum+'</div><div class="dl">'+centerLab+'</div></div></div></div>';
-}
-function legendRows(keys,m,total,colfn,unit){
-return keys.filter(function(k){return m[k]&&m[k].count>0;}).map(function(k){
-var st=m[k],pct=total?Math.round(st.count/total*100):0;
-return '<div class="lgrow"><span class="lgsw" style="background:'+colfn(k)+'"></span><span class="lgname">'+esc(unit?unit+" "+k:k)+'</span>'+
-'<span class="lgmeta"><b>'+st.count+'</b> blocks · <b>'+cbm(st.vol)+'</b> CBM · '+pct+'%</span></div>';}).join("");
-}
-function donutCard(title,keys,m,total,colfn,unit){
-var segs=keys.map(function(k){return {val:m[k]?m[k].count:0,color:colfn(k)};});
-return '<div class="donutwrap">'+donut(segs,total,total,"blocks",title)+
-'<div class="legend"><div class="lgttl">'+title+'</div>'+legendRows(keys,m,total,colfn,unit)+'</div></div>';
-}
-function barGroup(title,keys,m,colfn,metric){
-var max=Math.max.apply(null,keys.map(function(k){return m[k]?m[k][metric]:0;}).concat([1]));
-return '<div class="chartgrp"><div class="gh">'+title+'</div>'+keys.filter(function(k){return m[k]&&m[k].count>0;}).map(function(k){
-var st=m[k],w=Math.max(st[metric]/max*100,2.5),col=colfn(k);
-var txt=st.count+' blk · '+cbm(st.vol)+' CBM';
-return '<div class="bar"><span class="bl">'+esc(k)+'</span><span class="bt"><span class="bf" style="width:'+w+'%;background:'+col+'"></span>'+
-'<span class="bv'+(w<42?' dark':'')+'" style="'+(w<42?'right:auto;left:'+(w+1.5)+'%;color:'+col:'')+'">'+txt+'</span></span></div>';}).join("")+'</div>';
-}
-
-/* ---------- shared filter cards (Stock + Negotiation) ---------- */
-function sizeRulesCardHTML(){
-return '<div class="card"><h3>Size rules <span class="sub">a block takes the largest size whose min L, W &amp; H it all meets</span></h3><div class="sizebox">'+
-["A","B","C"].map(function(k){var r=rules[k];return '<div class="sizecard"><div class="h"><span class="dot" style="background:'+zcol(k)+'"></span>Size '+k+'</div><div class="grid3">'+
-'<div><label>Min L</label><input type="number" data-z="'+k+'" data-d="L" value="'+(r.L||0)+'"></div>'+
-'<div><label>Min W</label><input type="number" data-z="'+k+'" data-d="W" value="'+(r.W||0)+'"></div>'+
-'<div><label>Min H</label><input type="number" data-z="'+k+'" data-d="H" value="'+(r.H||0)+'"></div></div></div>';}).join("")+
-'</div><div style="margin-top:12px"><button class="btn blue" id="applyRules">Apply size rules</button></div></div>';
-}
-function filtersCardHTML(grades,sizes,pits,statuses){
-return '<div class="card"><h3>Filters <span class="sub">highlighted rows are active</span></h3>'+
-frow("Period",'<input type="date" id="dFrom"> <span class="muted">to</span> <input type="date" id="dTo">',(period.from||period.to))+
-frow("Gross volume (CBM)",'≥ <input type="number" step="0.1" min="0" id="volMin" style="width:84px"> ≤ <input type="number" step="0.1" min="0" id="volMax" style="width:84px">',(vol.min!=null||vol.max!=null))+
-frow("Find by size (cm)",'<span class="seg"><button id="mGte" class="'+(sizeMode==="gte"?"on":"")+'">≥ At least</button><button id="mTol" class="'+(sizeMode==="tol"?"on":"")+'">± Around</button></span> '+
-'L <input type="number" id="dL" style="width:64px"> W <input type="number" id="dW" style="width:64px"> H <input type="number" id="dH" style="width:64px"> '+
-'<span id="tolW" style="'+(sizeMode==="tol"?"":"display:none")+'">± <input type="number" id="dTol" value="'+(dims.tol||10)+'" style="width:58px"> <span class="muted">cm</span></span>',(dims.L!=null||dims.W!=null||dims.H!=null))+
-frow("Grade",grades.map(function(g){return chip("grade",g);}).join(""),sel.grade.size>0,sel.grade.size)+
-frow("Size (A/B/C)",sizes.map(function(s){return chip("size",s);}).join(""),sel.size.size>0,sel.size.size)+
-frow("Pit",pits.map(function(p){return chip("pit",p);}).join(""),sel.pit.size>0,sel.pit.size)+
-frow("Status",statuses.map(function(s){return chip("status",s);}).join(""),sel.status.size>0,sel.status.size)+'</div>';
-}
-function activeCardHTML(n,total,v,ton){
-var af=activeList();
-var html='<div class="active"><div class="headline"><b>'+fmt(n)+'</b> of '+total+' blocks <span class="meta">· '+cbm(v)+' CBM · '+fmt(ton)+' t @ '+factor.toFixed(2)+'</span></div>';
-html+='<div class="reciperow"><span class="rlab">Filters:</span>';
-if(af.length){html+=af.map(function(x,i){return '<span class="afchip" data-ai="'+i+'">'+(x.t?x.t+' ':'')+esc(x.v)+' <span class="x" data-ai="'+i+'">×</span></span>';}).join("")+'<span class="afclear" id="afClear">Clear all</span>';}
-else{html+='<span class="afnone">none — showing every block</span>';}
-return html+'</div></div>';
-}
-
-/* ---------- STOCK + NEGOTIATION (shared render) ---------- */
-function renderStock(){
-eachSized();
-var nego=(view==="nego");
-var grades=uniq(blocks.map(function(b){return b.grade;})).sort();
-var sizes=["A","B","C","—"];
-var pits=uniq(blocks.map(function(b){return b.pit;})).sort(function(a,b){return (+a||999)-(+b||999);});
-var statuses=uniq(blocks.map(function(b){return b.status;}));
-var rows=filtered();
-var v=rows.reduce(function(s,b){return s+b.vol;},0), ton=tonOf(v);
-var inStock=rows.filter(function(b){return b.status==="In Stock";}).length;
-var n=rows.length, total=blocks.length;
-var value=ton*negoRate;
-
-var html='';
-
-/* source selector — one filter set, switchable dataset (stock statuses or a specific inspection) */
-html+='<div class="card" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 16px;"><span style="font-size:12px;font-weight:700;color:var(--navy)">Source</span><select id="srcSel" style="min-width:300px"></select><span class="muted" id="srcNote">same filters apply to whatever you pick</span></div>';
-
-/* negotiation bar */
-if(nego){
-html+='<div class="negobar"><span class="nlab">Rate per ton (₹)</span>'+
-'<input type="number" id="negoRate" min="0" step="100" value="'+(negoRate||"")+'" placeholder="0">'+
-'<span class="nmeta">Filter the blocks below to the buyer’s requirement, set a rate, and the deal value updates live.<br><b>'+fmt(n)+'</b> blocks · <b>'+cbm(v)+'</b> CBM · <b>'+fmt(ton)+'</b> t @ '+factor.toFixed(2)+'</span>'+
-'<div class="nval"><div class="v" id="negoVal">'+money(value)+'</div><div class="l">deal value @ ₹'+fmt(negoRate)+'/t</div></div></div>';
-}
-
-html+='<div class="kpis">'+kpi("Blocks shown",fmt(n))+kpi("In stock",fmt(inStock))+kpi("Volume (CBM)",cbm(v))+kpi("Tonnage @ "+factor.toFixed(2)+" (t)",fmt(ton))+
-(nego?kpi("Deal value",money(value),"val-kpi"):kpi("Avg vol / block",(n?(v/n).toFixed(1):"0")+' <small>CBM</small>'))+'</div>';
-
-html+=activeCardHTML(n,total,v,ton);
-html+=sizeRulesCardHTML();
-html+=filtersCardHTML(grades,sizes,pits,statuses);
-
-/* breakdown */
-var sizeM=statsBy(rows,function(b){return b.size;},sizes);
-var gradeM=statsBy(rows,function(b){return b.grade;},grades);
-var statusM=statsBy(rows,function(b){return b.status;},statuses);
-var pitM=statsBy(rows,function(b){return "Pit "+b.pit;},pits.map(function(p){return "Pit "+p;}));
-html+='<div class="card"><h3>Breakdown <span class="sub">of the '+fmt(n)+' shown blocks — count &amp; total volume</span></h3>'+
-'<div class="bd-grid">'+donutCard("By size",sizes,sizeM,n,zcol,"Size")+donutCard("By grade",grades,gradeM,n,gcol,"")+'</div>'+
-'<div class="charts">'+barGroup("By status",statuses,statusM,scol,"count")+barGroup("By pit",pits.map(function(p){return "Pit "+p;}),pitM,function(){return PIT_COLOR;},"count")+'</div></div>';
-
-/* volume buckets (cumulative ≥ bands) + this-month production mix */
-var bands=[["≥ 3 CBM",3],["≥ 2 CBM",2],["≥ 1.5 CBM",1.5],["≥ 1 CBM",1],["< 1 CBM",-1]];
-var bcounts=bands.map(function(b){return b[1]<0?rows.filter(function(x){return x.vol<1;}).length:rows.filter(function(x){return x.vol>=b[1];}).length;});
-var bmax=Math.max.apply(null,bcounts.concat([1]));
-html+='<div class="card"><h3>Volume buckets <span class="sub">how many of the shown blocks are above each size — and the small-block share</span></h3>';
-html+=bands.map(function(b,i){var c=bcounts[i],pct=n?Math.round(c/n*100):0,w=Math.max(c/bmax*100,2.5);
-return '<div class="bar"><span class="bl">'+b[0]+'</span><span class="bt"><span class="bf" style="width:'+w+'%;background:'+(b[1]<0?"#D85A30":"#2490ef")+'"></span><span class="bv'+(w<42?' dark':'')+'" style="'+(w<42?'right:auto;left:'+(w+1.5)+'%':'')+'">'+c+' · '+pct+'%</span></span></div>';}).join("");
-var smallPct=n?Math.round(rows.filter(function(x){return x.vol<1.5;}).length/n*100):0;
-html+='<div class="muted" style="margin-top:6px">Small blocks (&lt; 1.5 CBM): <b style="color:var(--color-text-primary)">'+smallPct+'%</b> of the '+fmt(n)+' shown</div></div>';
-
-/* table */
-html+='<div class="tablehead"><div class="muted" id="rc">'+n+' blocks</div><div class="muted">Click a column to sort</div></div>';
-html+='<div class="tablewrap"><table><thead id="th"></thead><tbody id="tb"></tbody></table></div>';
-
-document.getElementById("app").innerHTML=html;
-bindStock();renderTable(rows);restoreInputs();
-}
-function restoreInputs(){function set(id,v){var el=document.getElementById(id);if(el&&v!=null)el.value=v;}set("volMin",vol.min);set("volMax",vol.max);set("dL",dims.L);set("dW",dims.W);set("dH",dims.H);set("dTol",dims.tol);set("dFrom",period.from);set("dTo",period.to);}
-function num(id){var el=document.getElementById(id);return el&&el.value!==""?+el.value:null;}
-function bindStock(){
-var ss=document.getElementById("srcSel");
-if(ss){
- var o='<optgroup label="Stock"><option value="all">All blocks</option><option value="instock">In stock</option><option value="marked">Buyer-marked</option><option value="prodmonth">Production · this month</option></optgroup>';
- o+='<optgroup label="Buyer Inspections">'+biList.map(function(r){return '<option value="BI::'+esc(r.name)+'">'+esc(r.report_date||"")+' · '+esc(r.buyer||r.export_buyer||r.local_buyer||"—")+'</option>';}).join("")+'</optgroup>';
- o+='<optgroup label="Quarry Inspections">'+qiList.map(function(r){return '<option value="QI::'+esc(r.name)+'">'+esc(r.report_date||"")+' · pit '+esc(r.pit||"—")+'</option>';}).join("")+'</optgroup>';
- ss.innerHTML=o; ss.value=srcKey;
- ss.onchange=function(){var v=ss.value;
-  if(v.indexOf("::")>-1){var p=v.split("::");var dt=p[0]==="BI"?"Buyer Inspection":"Quarry Inspection";document.getElementById("srcNote").textContent="Loading…";getDoc(dt,p[1]).then(function(doc){workSet=blocksFromDoc(doc,dt);srcKey=v;renderStock();}).catch(function(){document.getElementById("srcNote").textContent="Could not load.";});}
-  else{workSet=null;srcKey=v;renderStock();}
- };
-}
-document.querySelectorAll("#app .chip").forEach(function(b){b.onclick=function(){var d=b.dataset.dim,v=b.dataset.val;sel[d].has(v)?sel[d].delete(v):sel[d].add(v);renderStock();};});
-["volMin","volMax","dL","dW","dH","dTol","dFrom","dTo"].forEach(function(id){var el=document.getElementById(id);if(el)el.addEventListener("change",function(){vol.min=num("volMin");vol.max=num("volMax");dims.L=num("dL");dims.W=num("dW");dims.H=num("dH");dims.tol=num("dTol");period.from=(document.getElementById("dFrom")||{}).value||null;period.to=(document.getElementById("dTo")||{}).value||null;renderStock();});});
-var mg=document.getElementById("mGte"),mt=document.getElementById("mTol");if(mg)mg.onclick=function(){sizeMode="gte";renderStock();};if(mt)mt.onclick=function(){sizeMode="tol";renderStock();};
-var ap=document.getElementById("applyRules");if(ap)ap.onclick=function(){document.querySelectorAll('.sizecard input').forEach(function(i){rules[i.dataset.z][i.dataset.d]=+i.value||0;});saveRules(rules);renderStock();};
-var nr=document.getElementById("negoRate");if(nr){nr.addEventListener("input",function(){negoRate=+nr.value||0;try{localStorage.setItem("dolphin_nego_rate",negoRate);}catch(e){}
-var rows=filtered();var ton=tonOf(rows.reduce(function(s,b){return s+b.vol;},0));
-var vv=document.getElementById("negoVal");if(vv)vv.textContent=money(ton*negoRate);
-var vk=document.querySelector(".val-kpi .val");if(vk)vk.textContent=money(ton*negoRate);});}
-var af=activeList();
-document.querySelectorAll(".afchip .x").forEach(function(x){x.onclick=function(e){e.stopPropagation();af[+x.dataset.ai].clr();renderStock();};});
-var afc=document.getElementById("afClear");if(afc)afc.onclick=function(){clearFilters();renderStock();};
-}
-function renderTable(rows){
-var nego=(view==="nego");
-var cols=[["id","Block"],["pit","Pit"],["grade","Grade"],["size","Size"],["dims","L×W×H"],["vol","Vol"],["ton","Tonnage"]];
-if(nego)cols.push(["value","Value"]);
-cols.push(["status","Status"]);cols.push(["date","Date"]);
-document.getElementById("th").innerHTML='<tr>'+cols.map(function(c){var ar=sort.key===c[0]?(sort.dir<0?" ▼":" ▲"):"";return '<th data-k="'+c[0]+'">'+c[1]+ar+'</th>';}).join("")+'</tr>';
-var sk=sort.key;if(sk==="dims"||sk==="ton"||sk==="value")sk="vol";
-var sorted=rows.slice().sort(function(a,b){var x=a[sk],y=b[sk];if(typeof x==="string"){return x<y?-sort.dir:x>y?sort.dir:0;}return (x-y)*sort.dir;});
-document.getElementById("rc").textContent=rows.length+" blocks";
-document.getElementById("tb").innerHTML=sorted.slice(0,400).map(function(b){
-var valCell=nego?'<td style="font-weight:700;color:#0f6e56">'+money(tonOf(b.vol)*negoRate)+'</td>':'';
-return '<tr><td style="font-weight:700">'+esc(b.id)+'</td><td>'+esc(b.pit)+'</td><td><span class="tag" style="background:'+gcol(b.grade)+'22;color:'+gcol(b.grade)+'">'+esc(b.grade)+'</span></td><td><span class="tag" style="background:'+zcol(b.size)+'22;color:'+zcol(b.size)+'">'+esc(b.size)+'</span></td><td class="muted">'+b.L+'×'+b.W+'×'+b.H+'</td><td>'+b.vol.toFixed(2)+'</td><td style="font-weight:700">'+tonOf(b.vol).toFixed(2)+'</td>'+valCell+'<td><span class="tag" style="background:'+scol(b.status)+'22;color:'+scol(b.status)+'">'+esc(b.status)+'</span></td><td class="muted">'+(b.date||"")+'</td></tr>';}).join("")||'<tr><td colspan="'+cols.length+'" class="center">No blocks match these filters.</td></tr>';
-document.querySelectorAll("#th th").forEach(function(th){th.onclick=function(){var k=th.dataset.k;if(sort.key===k)sort.dir*=-1;else{sort.key=k;sort.dir=(["grade","size","status","pit","id","date"].indexOf(k)>-1)?1:-1;}renderTable(filtered());};});
-}
-
-/* ---------- REPORTS (now with filters + rate) ---------- */
-var repSel={grade:new Set(),size:new Set()}, repRate=0, curReport=null;
-function renderReports(){
-eachSized();
-var html='<div class="card"><h3>Buyer Inspection <span class="sub">size / volume / grade a buyer purchased — incl. shipped &amp; dispatched</span></h3>'+
-'<div class="rep-pick"><select id="biSel"><option value="">Select a Buyer Inspection…</option>'+
-'<option value="__ALL__">★ All buyers combined ('+biList.length+' inspections)</option>'+
-biList.map(function(r){return '<option value="'+esc(r.name)+'">'+esc(r.report_date||"")+' · '+esc(r.buyer||r.export_buyer||r.local_buyer||"—")+' · '+esc(r.sale_type||"")+'</option>';}).join("")+
-'</select></div><div id="biOut" style="margin-top:14px"></div></div>'+
-'<div class="card"><h3>Quarry Inspection <span class="sub">size / volume / grade produced per inspection</span></h3>'+
-'<div class="rep-pick"><select id="qiSel"><option value="">Select a Quarry Inspection…</option>'+
-'<option value="__ALL__">★ All inspections combined ('+qiList.length+' inspections)</option>'+
-qiList.map(function(r){return '<option value="'+esc(r.name)+'">'+esc(r.report_date||"")+' · pit '+esc(r.pit||"—")+'</option>';}).join("")+
-'</select></div><div id="qiOut" style="margin-top:14px"></div></div>';
-document.getElementById("app").innerHTML=html;
-document.getElementById("biSel").onchange=function(){repSel={grade:new Set(),size:new Set()};route("Buyer Inspection",this.value,"biOut",biList);};
-document.getElementById("qiSel").onchange=function(){repSel={grade:new Set(),size:new Set()};route("Quarry Inspection",this.value,"qiOut",qiList);};
-}
-function route(dt,val,outId,list){var out=document.getElementById(outId);if(!val){out.innerHTML="";curReport=null;return;}if(val==="__ALL__")showCombined(dt,list,outId);else showReport(dt,val,outId);}
-function childRows(doc){if(Array.isArray(doc.block_rows))return doc.block_rows;for(var k in doc){if(Array.isArray(doc[k])&&doc[k].length&&typeof doc[k][0]==="object"&&("length_gross" in doc[k][0]||"gross_volume" in doc[k][0]||"quarry_block_no" in doc[k][0]))return doc[k];}return [];}
-function rowsFromDoc(doc){return childRows(doc).map(function(r){
-var L=+r.length_gross||0,W=+r.width_gross||0,H=+r.height_gross||0,vol=+r.gross_volume||(L*W*H/1e6);
-var key=String(r.block||r.quarry_block_no||"");
-var grade=((r.granite_quality_grade||(blockMap[key]&&blockMap[key].grade)||"—")+"").trim()||"—";
-return {size:sizeOf({L:L,W:W,H:H}),grade:grade,vol:vol};});}
-async function getDoc(dt,name){var cache=dt==="Buyer Inspection"?biCache:qiCache;if(cache[name])return cache[name];var d=await api("/api/method/frappe.client.get?doctype="+encodeURIComponent(dt)+"&name="+encodeURIComponent(name));cache[name]=d;return d;}
-
-function repChip(dim,val){var on=repSel[dim].has(val);return '<button class="chip'+(on?' on':'')+'" data-rdim="'+dim+'" data-rval="'+esc(val)+'">'+esc(val)+'</button>';}
-function reportBody(allRows,headCards){
-var sizesAll=["A","B","C","—"], gradesAll=uniq(allRows.map(function(b){return b.grade;})).sort();
-/* apply report filters */
-var rows=allRows.filter(function(b){return (!repSel.grade.size||repSel.grade.has(b.grade))&&(!repSel.size.size||repSel.size.has(b.size));});
-var n=rows.length, v=rows.reduce(function(s,b){return s+b.vol;},0), ton=tonOf(v), value=ton*repRate;
-var sizes=["A","B","C","—"], grades=uniq(rows.map(function(b){return b.grade;})).sort();
-var sizeM=statsBy(rows,function(b){return b.size;},sizes);
-var gradeM=statsBy(rows,function(b){return b.grade;},grades);
-/* filter bar */
-var html='<div class="repfilt"><span class="rfl">Filter</span>'+
-'<span class="muted">Grade:</span>'+gradesAll.map(function(g){return repChip("grade",g);}).join("")+
-'&nbsp;<span class="muted">Size:</span>'+sizesAll.map(function(s){return repChip("size",s);}).join("")+
-((repSel.grade.size||repSel.size.size)?'<span class="afclear" id="repClear">Clear</span>':'')+
-'&nbsp;&nbsp;<span class="muted">Rate ₹/t:</span> <input type="number" id="repRate" min="0" step="100" value="'+(repRate||"")+'" style="width:96px" placeholder="0">'+
-'</div>';
-html+='<div class="kpis" style="grid-template-columns:repeat(auto-fit,minmax(120px,1fr))">'+headCards+
-kpi("Blocks",fmt(n))+kpi("Volume (CBM)",cbm(v))+kpi("Tonnage @ "+factor.toFixed(2),fmt(ton))+
-(repRate?kpi("Value",money(value),"val-kpi"):"")+'</div>';
-html+='<div class="bd-grid" style="margin-top:14px">'+donutCard("By size",sizes,sizeM,n,zcol,"Size")+donutCard("By grade",grades,gradeM,n,gcol,"")+'</div>';
-html+='<div class="charts">'+barGroup("Volume by size (CBM)",sizes,sizeM,zcol,"vol")+barGroup("Volume by grade (CBM)",grades,gradeM,gcol,"vol")+'</div>';
-return html;
-}
-function paintReport(){
-if(!curReport)return;
-var out=document.getElementById(curReport.outId);
-out.innerHTML=reportBody(curReport.rows,curReport.head);
-out.querySelectorAll(".chip").forEach(function(b){b.onclick=function(){var d=b.dataset.rdim,v=b.dataset.rval;repSel[d].has(v)?repSel[d].delete(v):repSel[d].add(v);paintReport();};});
-var rc=out.querySelector("#repClear");if(rc)rc.onclick=function(){repSel={grade:new Set(),size:new Set()};paintReport();};
-var rr=out.querySelector("#repRate");if(rr)rr.addEventListener("input",function(){repRate=+rr.value||0;paintReport();var el=out.querySelector("#repRate");if(el){el.focus();var val=el.value;el.value="";el.value=val;}});
-}
-async function showReport(dt,name,outId){
-var out=document.getElementById(outId);out.innerHTML='<div class="muted">Loading…</div>';
-try{var doc=await getDoc(dt,name);var rows=rowsFromDoc(doc);
-var who=doc.buyer||doc.export_buyer||doc.local_buyer||("Pit "+(doc.pit||"—"));
-var head=kpi(dt==="Buyer Inspection"?"Buyer":"Pit",esc(who))+(doc.sale_type?kpi("Sale type",esc(doc.sale_type)):(doc.report_date?kpi("Date",esc(doc.report_date)):""));
-curReport={rows:rows,head:head,outId:outId};paintReport();
-}catch(e){out.innerHTML='<div class="muted">Could not load ('+e.message+').</div>';}
-}
-async function showCombined(dt,list,outId){
-var out=document.getElementById(outId);out.innerHTML='<div class="muted">Loading all '+list.length+' inspections…</div>';
-try{var all=[];for(var i=0;i<list.length;i++){var doc=await getDoc(dt,list[i].name);all=all.concat(rowsFromDoc(doc));}
-var head=kpi(dt==="Buyer Inspection"?"Buyers":"Inspections",list.length);
-curReport={rows:all,head:head,outId:outId};paintReport();
-}catch(e){out.innerHTML='<div class="muted">Could not load ('+e.message+').</div>';}
-}
-
-/* ---------- SALES NEGOTIATION (gated to Sales Lot users) ---------- */
-var ngBase=null, ngSet=[];
-function ngAllowSide(L,W,H,target){if(L<=0||W<=0||H<=0)return 0;var gv=L*W*H/1e6;if(target>=gv)return 0;var lo=0,hi=Math.min(L,W,H)/2;for(var i=0;i<60;i++){var a=(lo+hi)/2;var v=Math.max(L-2*a,0)*Math.max(W-2*a,0)*Math.max(H-2*a,0)/1e6;if(v>target)lo=a;else hi=a;}return Math.round((lo+hi)/2*100)/100;}
-function ngTerms(){return {dmg:ngNum("nbDMG")||factor, sf:ngNum("nbRate"), price:ngNum("nbP"), cost:ngNum("nbC"), fx:ngNum("nbFX"), allow:(document.getElementById("nbAllowOn")&&document.getElementById("nbAllowOn").checked)?ngNum("nbAllow"):0};}
-function ngBlockCalc(b,P){var L=b.L||0,W=b.W||0,H=b.H||0;var gv=b.vol||(L*W*H/1e6);var gt=gv*P.dmg;var nv=P.allow>0?(Math.max(0,L-P.allow)*Math.max(0,W-P.allow)*Math.max(0,H-P.allow))/1e6:gv;var aTon=nv*P.dmg;var sCbm=P.sf>0?aTon/P.sf:0;var sVal=sCbm*P.price;var vDiff=(gv-sCbm)*P.price;var cVal=sCbm*P.cost;var profit=sVal-(P.fx>0?cVal/P.fx:0);return {id:b.id,L:L,W:W,H:H,gv:gv,gt:gt,aTon:aTon,sCbm:sCbm,sTon:sCbm*P.dmg,sVal:sVal,vDiff:vDiff,cVal:cVal,profit:profit,allowSide:ngAllowSide(L,W,H,sCbm)};}
-function ngBlockSectionHTML(){
- return '<div class="card"><h3>Deal calculator — blocks <span class="sub">pull a source inspection or the current stock filter, set terms, get per-block + totals (same math as Sales Lot)</span></h3>'+
- '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:10px;">'+
-  '<div><label class="muted">Source inspection</label><br><select id="nbSrc" style="min-width:240px"><option value="">— pick a Buyer Inspection —</option>'+biList.map(function(r){return '<option value="'+esc(r.name)+'">'+esc(r.report_date||"")+' · '+esc(r.buyer||r.export_buyer||r.local_buyer||"—")+'</option>';}).join("")+'</select></div>'+
-  '<button class="btn" id="nbLoadIns">Load inspection</button>'+
-  '<button class="btn" id="nbLoadStock">Load current stock filter ('+filtered().length+')</button>'+
- '</div>'+
- '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin-bottom:10px;">'+
-  '<div><label class="muted">DMG factor</label><input type="number" id="nbDMG" value="'+factor.toFixed(2)+'" step="0.05"></div>'+
-  '<div><label class="muted">Sale rate (t/CBM)</label><input type="number" id="nbRate" value="6" step="0.1"></div>'+
-  '<div><label class="muted">Price / CBM</label><input type="number" id="nbP" value="1200" step="50"></div>'+
-  '<div><label class="muted">Cost / CBM (₹)</label><input type="number" id="nbC" value="0" step="100"></div>'+
-  '<div><label class="muted">FX (₹/unit)</label><input type="number" id="nbFX" value="86" step="0.5"></div>'+
-  '<div><label class="muted"><input type="checkbox" id="nbAllowOn" style="height:auto"> Allowance cm/side</label><input type="number" id="nbAllow" value="0" step="1"></div>'+
- '</div>'+
- '<div id="nbTotals"></div>'+
- '<div class="tablewrap"><table><thead><tr><th>Block</th><th>L×W×H</th><th>Gross CBM</th><th>Gross t</th><th>Allow/side cm</th><th>Sale CBM</th><th>Sale t</th><th>Free CBM</th><th>Value</th><th>Δ value</th></tr></thead><tbody id="nbBody"></tbody></table></div>'+
- '<div class="muted" style="margin-top:6px">'+(ngSet.length?ngSet.length+' block(s) loaded':'No blocks loaded yet — pick a source above.')+'</div></div>';
-}
-function ngBlockBind(){
- var li=document.getElementById("nbLoadIns");if(li)li.onclick=function(){var nm=document.getElementById("nbSrc").value;if(!nm)return;getDoc("Buyer Inspection",nm).then(function(doc){ngSet=blocksFromDoc(doc,"Buyer Inspection");renderNego();});};
- var ls=document.getElementById("nbLoadStock");if(ls)ls.onclick=function(){ngSet=filtered().slice();renderNego();};
- ["nbDMG","nbRate","nbP","nbC","nbFX","nbAllow"].forEach(function(id){var el=document.getElementById(id);if(el)el.addEventListener("input",ngBlockRender);});
- var ao=document.getElementById("nbAllowOn");if(ao)ao.addEventListener("change",ngBlockRender);
- ngBlockRender();
-}
-function ngBlockRender(){
- var body=document.getElementById("nbBody");if(!body)return;
- var P=ngTerms();
- var rows=ngSet.map(function(b){return ngBlockCalc(b,P);});
- var T={gv:0,gt:0,aTon:0,sCbm:0,sTon:0,sVal:0,cVal:0,vDiff:0};
- rows.forEach(function(r){T.gv+=r.gv;T.gt+=r.gt;T.aTon+=r.aTon;T.sCbm+=r.sCbm;T.sTon+=r.sTon;T.sVal+=r.sVal;T.cVal+=r.cVal;T.vDiff+=r.vDiff;});
- var revINR=T.sVal*P.fx, costUSD=P.fx>0?T.cVal/P.fx:0, profitUSD=T.sVal-costUSD, marginPct=T.sVal>0?profitUSD/T.sVal*100:0;
- var freeCbm=T.gv-T.sCbm, tonDiff=T.gt-T.sTon, notionalINR=T.vDiff*P.fx, priceTon=P.sf>0?P.price/P.sf:0;
- body.innerHTML=rows.map(function(r){return '<tr><td style="font-weight:700">'+esc(r.id)+'</td><td class="muted">'+r.L+'×'+r.W+'×'+r.H+'</td><td>'+cbm(r.gv)+'</td><td>'+r.gt.toFixed(2)+'</td><td>'+r.allowSide+'</td><td>'+r.sCbm.toFixed(3)+'</td><td>'+r.sTon.toFixed(2)+'</td><td>'+cbm(r.gv-r.sCbm)+'</td><td>'+ngMoney(r.sVal)+'</td><td class="muted">'+ngMoney(r.vDiff)+'</td></tr>';}).join("")||'<tr><td colspan="10" class="center">No blocks loaded.</td></tr>';
- document.getElementById("nbTotals").innerHTML='<div class="kpis" style="grid-template-columns:repeat(auto-fit,minmax(108px,1fr))">'+
-  kpi("Blocks",rows.length)+kpi("Gross CBM",cbm(T.gv))+kpi("Sale CBM",cbm(T.sCbm))+kpi("Agreed tons",fmt(T.aTon))+
-  kpi("Free allow CBM",cbm(freeCbm))+kpi("Tonnage diff",(Math.round(tonDiff*10)/10).toLocaleString())+
-  kpi("Price / ton",ngMoney(priceTon))+kpi("Sale value",ngMoney(T.sVal))+kpi("Revenue ₹","₹"+ngMoney(revINR))+
-  kpi("Notional diff",ngMoney(T.vDiff)+" / ₹"+ngMoney(notionalINR))+(P.cost>0?kpi("Profit ₹","₹"+ngMoney(revINR-T.cVal),"val-kpi"):"")+kpi("Margin %",(Math.round(marginPct*10)/10)+"%")+'</div>';
-}
-function ngNum(id){var el=document.getElementById(id);return el&&el.value!==""?+el.value:0;}
-function ngMoney(n){return (Math.round(n)).toLocaleString("en-IN");}
-function renderNego(){
- var html=ngBlockSectionHTML();
- html+='<div class="card"><h3>Quick calculator <span class="sub">standalone — no blocks; enter a rough gross volume and sweep the agreed sale-tonnage rates</span></h3>';
- html+='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:10px;">'+
-  '<div><label class="muted">Gross volume (CBM)</label><input type="number" id="ngGV" value="6" step="0.1"></div>'+
-  '<div><label class="muted">DMG factor</label><input type="number" id="ngDMG" value="'+factor.toFixed(2)+'" step="0.05"></div>'+
-  '<div><label class="muted">Price / CBM</label><input type="number" id="ngP" value="1200" step="50"></div>'+
-  '<div><label class="muted">FX (₹ per unit)</label><input type="number" id="ngFX" value="86" step="0.5"></div>'+
-  '<div><label class="muted">Cost / CBM (₹, optional)</label><input type="number" id="ngC" value="0" step="100"></div>'+
-  '<div><label class="muted">Sale rates (t/CBM)</label><input type="text" id="ngRates" value="5.5, 6, 6.5, 7"></div>'+
- '</div>';
- html+='<div class="muted" style="margin-bottom:8px">Real weight = gross × DMG = <b id="ngReal" style="color:var(--navy)"></b> &nbsp;·&nbsp; sale CBM = real weight ÷ sale rate &nbsp;·&nbsp; click a row to set the baseline for Δ</div>';
- html+='<div class="tablewrap" style="max-height:none"><table><thead><tr><th>Rate t/CBM</th><th>Price/ton</th><th>Sale CBM</th><th>Sale tons</th><th>Value</th><th>Value ₹</th><th>Profit ₹</th><th>Δ value</th></tr></thead><tbody id="ngBody"></tbody></table></div></div>';
- html+='<div class="card"><h3>Your Sales Lots <span class="sub">official negotiated lots — click to open, or start a new one</span></h3><div id="ngLots" class="muted">Loading…</div>'+
-  '<div style="margin-top:10px"><button class="btn blue" id="ngNew">+ New Sales Lot</button> <button class="btn" id="ngOpen">Open Sales Lot list</button></div></div>';
- document.getElementById("app").innerHTML=html;
- ngBlockBind();
- ["ngGV","ngDMG","ngP","ngFX","ngC","ngRates"].forEach(function(id){var el=document.getElementById(id);if(el)el.addEventListener("input",ngCalc);});
- document.getElementById("ngNew").onclick=function(){window.open("/app/sale-lot/new","_blank");};
- document.getElementById("ngOpen").onclick=function(){window.open("/app/sale-lot","_blank");};
- ngCalc(); ngLoadLots();
-}
-function ngCalc(){
- var gv=ngNum("ngGV"),dmg=ngNum("ngDMG"),p=ngNum("ngP"),fx=ngNum("ngFX"),cost=ngNum("ngC");
- var real=gv*dmg; document.getElementById("ngReal").textContent=(Math.round(real*100)/100)+" t";
- var rates=(document.getElementById("ngRates").value||"").split(",").map(function(x){return parseFloat(x);}).filter(function(x){return x>0;});
- if(ngBase===null&&rates.length)ngBase=rates[Math.min(1,rates.length-1)];
- var baseCbm=ngBase>0?real/ngBase:0, baseVal=baseCbm*p;
- document.getElementById("ngBody").innerHTML=rates.map(function(r){
-  var scbm=r>0?real/r:0, tons=scbm*dmg, val=scbm*p, vinr=val*fx, profit=vinr-(scbm*cost), dval=val-baseVal;
-  var on=Math.abs(r-ngBase)<1e-9;
-  return '<tr data-r="'+r+'" style="cursor:pointer;'+(on?'background:#e1f5ee':'')+'"><td style="font-weight:700">'+r.toFixed(1)+(on?' ★':'')+'</td><td>'+ngMoney(r>0?p/r:0)+'</td><td>'+scbm.toFixed(3)+'</td><td>'+tons.toFixed(2)+'</td><td>'+ngMoney(val)+'</td><td>₹'+ngMoney(vinr)+'</td><td>'+(cost>0?'₹'+ngMoney(profit):'—')+'</td><td style="color:'+(dval>=0?'#0f6e56':'#a32d2d')+'">'+(dval>=0?'+':'-')+ngMoney(Math.abs(dval))+'</td></tr>';
- }).join("");
- document.querySelectorAll("#ngBody tr").forEach(function(tr){tr.onclick=function(){ngBase=+tr.dataset.r;ngCalc();};});
-}
-function ngLoadLots(){
- fetch("/api/method/frappe.client.get_list?doctype=Sale%20Lot&fields="+encodeURIComponent(JSON.stringify(["name","buyer","sale_type","total_sale_cbm","total_agreed_tonnage","total_sale_value","margin_pct"]))+"&limit_page_length=20&order_by=modified%20desc",{headers:{Accept:"application/json"}})
- .then(function(r){return r.json();}).then(function(d){var rows=(d&&d.message)||[];
-  if(!rows.length){document.getElementById("ngLots").textContent="No Sales Lots yet.";return;}
-  document.getElementById("ngLots").innerHTML='<div class="tablewrap" style="max-height:none"><table><thead><tr><th>Lot</th><th>Buyer</th><th>Type</th><th>Sale CBM</th><th>Tons</th><th>Value</th><th>Margin %</th></tr></thead><tbody>'+
-  rows.map(function(x){return '<tr style="cursor:pointer" onclick="window.open(\'/app/sale-lot/'+encodeURIComponent(x.name)+'\',\'_blank\')"><td style="font-weight:700">'+esc(x.name)+'</td><td>'+esc(x.buyer||"—")+'</td><td>'+esc(x.sale_type||"")+'</td><td>'+cbm(x.total_sale_cbm||0)+'</td><td>'+fmt(x.total_agreed_tonnage||0)+'</td><td>'+ngMoney(x.total_sale_value||0)+'</td><td>'+(Math.round((x.margin_pct||0)*10)/10)+'%</td></tr>';}).join("")+'</tbody></table></div>';
- }).catch(function(){document.getElementById("ngLots").textContent="Could not load Sales Lots.";});
-}
-
-/* ---------- shell ---------- */
-function clearFilters(){sel={grade:new Set(),size:new Set(),pit:new Set(),status:new Set()};vol={min:null,max:null};dims={L:null,W:null,H:null,tol:10};period={from:null,to:null};sizeMode="gte";}
-/* ===== Dolphin Download Hub (tab D) ===== */
-var DL_PF={"Quarry Inspection":"Quarry Inspection - Report","Buyer Inspection":"Buyer Inspection - Report","Delivery Challan":"Dolphin Delivery Challan"};
-var DL_LABEL={"Quarry Inspection":"QI","Buyer Inspection":"BI","Delivery Challan":"Challan"};
-var dlData=null;
-var dlState={dt:"all",cons:"",status:"all",q:"",df:"",dtto:"",ef:"",et:""};
-function dlPdfUrl(dt,name){return '/api/method/frappe.utils.print_format.download_pdf?doctype='+encodeURIComponent(dt)+'&name='+encodeURIComponent(name)+'&format='+encodeURIComponent(DL_PF[dt])+'&no_letterhead=0';}
-function dlViewUrl(dt,name){return '/printview?doctype='+encodeURIComponent(dt)+'&name='+encodeURIComponent(name)+'&format='+encodeURIComponent(DL_PF[dt])+'&no_letterhead=0&trigger_print=0';}
-function dlStatusLabel(ds){return ds===2?'Cancelled':(ds===1?'Submitted':'Draft');}
-function dlModal(dt,name){
-  var ov=document.createElement('div');
-  ov.style.cssText='position:fixed;inset:0;background:rgba(15,37,64,.55);z-index:99999;display:flex;align-items:center;justify-content:center;';
-  var box=document.createElement('div');
-  box.style.cssText='background:#fff;width:92%;max-width:920px;height:86%;border-radius:10px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 12px 44px rgba(0,0,0,.35);';
-  var bar=document.createElement('div');
-  bar.style.cssText='display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:#0F2540;color:#fff;font-weight:600;font-size:14px;';
-  var lab=document.createElement('span'); lab.textContent=(DL_LABEL[dt]||dt)+' · '+name;
-  var actions=document.createElement('div'); actions.style.cssText='display:flex;align-items:center;gap:16px;';
-  var dlBtn=document.createElement('a'); dlBtn.href=dlPdfUrl(dt,name); dlBtn.target='_blank';
-  dlBtn.textContent='Download PDF'; dlBtn.style.cssText='color:#D4A24A;text-decoration:none;font-size:13px;font-weight:600;';
-  var cl=document.createElement('span'); cl.textContent='✕'; cl.style.cssText='cursor:pointer;font-size:18px;line-height:1;';
-  actions.appendChild(dlBtn); actions.appendChild(cl); bar.appendChild(lab); bar.appendChild(actions);
-  var fr=document.createElement('iframe'); fr.src=dlViewUrl(dt,name);
-  fr.style.cssText='flex:1;border:0;width:100%;background:#fff;';
-  box.appendChild(bar); box.appendChild(fr); ov.appendChild(box); document.body.appendChild(ov);
-  function close(){ if(ov.parentNode)ov.parentNode.removeChild(ov); }
-  cl.onclick=close; ov.onclick=function(e){ if(e.target===ov)close(); };
-  document.addEventListener('keydown',function esc(e){ if(e.key==='Escape'){close();document.removeEventListener('keydown',esc);} });
-}
-async function dlLoad(){
-  if(dlData)return dlData;
-  var L='&limit_page_length=0';
-  var qi=await api('/api/method/frappe.client.get_list?doctype=Quarry%20Inspection&fields=["name","report_date","docstatus","creation"]&order_by=creation%20desc'+L);
-  var bi=await api('/api/method/frappe.client.get_list?doctype=Buyer%20Inspection&fields=["name","report_date","docstatus","creation","export_buyer"]&order_by=creation%20desc'+L);
-  var dc=await api('/api/method/frappe.client.get_list?doctype=Delivery%20Challan&fields=["name","dc_date","docstatus","creation","export_consignee"]&order_by=creation%20desc'+L);
-  var dcMap={},biMap={};
-  try{var dcc=await api('/api/method/frappe.client.get_list?doctype=DC%20Block%20Row&fields=["parent","export_block_no"]'+L+'&parent=Delivery%20Challan');(dcc||[]).forEach(function(r){if(r.export_block_no){(dcMap[r.parent]=dcMap[r.parent]||[]).push(String(r.export_block_no));}});}catch(e){}
-  try{var bic=await api('/api/method/frappe.client.get_list?doctype=Buyer%20Inspection%20Block&fields=["parent","export_block_no"]'+L+'&parent=Buyer%20Inspection');(bic||[]).forEach(function(r){if(r.export_block_no){(biMap[r.parent]=biMap[r.parent]||[]).push(String(r.export_block_no));}});}catch(e){}
-  var cons=[];
-  try{var cl=await api('/api/method/frappe.client.get_list?doctype=Export%20Consignee&fields=["name"]'+L+'&order_by=name%20asc');cons=(cl||[]).map(function(c){return c.name;});}catch(e){}
-  var recs=[];
-  (qi||[]).forEach(function(d){recs.push({dt:'Quarry Inspection',name:d.name,date:d.report_date,ds:d.docstatus,cons:'',exps:[],creation:d.creation});});
-  (bi||[]).forEach(function(d){recs.push({dt:'Buyer Inspection',name:d.name,date:d.report_date,ds:d.docstatus,cons:d.export_buyer||'',exps:biMap[d.name]||[],creation:d.creation});});
-  (dc||[]).forEach(function(d){recs.push({dt:'Delivery Challan',name:d.name,date:d.dc_date,ds:d.docstatus,cons:d.export_consignee||'',exps:dcMap[d.name]||[],creation:d.creation});});
-  recs.sort(function(a,b){return String(b.creation||'').localeCompare(String(a.creation||''));});
-  dlData={recs:recs,cons:cons};
-  return dlData;
-}
-function dlApply(recs){
-  var s=dlState;
-  return recs.filter(function(r){
-    if(s.dt!=='all' && r.dt!==s.dt)return false;
-    if(s.status!=='all' && String(r.ds)!==s.status)return false;
-    if(s.cons && r.cons!==s.cons)return false;
-    if(s.df && (!r.date || r.date<s.df))return false;
-    if(s.dtto && (!r.date || r.date>s.dtto))return false;
-    if(s.ef||s.et){
-      var lo=s.ef?parseInt(s.ef,10):-Infinity, hi=s.et?parseInt(s.et,10):Infinity;
-      var any=(r.exps||[]).some(function(x){var n=parseInt(x,10);return !isNaN(n)&&n>=lo&&n<=hi;});
-      if(!any)return false;
-    }
-    if(s.q){var q=s.q.toLowerCase();var hay=(r.name+' '+r.cons+' '+(r.exps||[]).join(' ')).toLowerCase();if(hay.indexOf(q)===-1)return false;}
+function filtered(){
+  var vf=volField(), ed=extraDim();
+  return DATA.filter(function(b){
+    if(state.group!=='stage' && b.stage!==state.stage) return false; var val=b[vf];
+    if(on('cPeriod')){ if(b.date<$('from').value||b.date>$('to').value) return false; }
+    if(on('cVol')){ var mn=$('vmin').value===''?null:+$('vmin').value, mx=$('vmax').value===''?null:+$('vmax').value; if(mn!==null&&val<mn) return false; if(mx!==null&&val>=mx) return false; }
+    if(on('cChk')&&$('vchk').value!==''){ var vc=+$('vchk').value,tol=+$('tol').value||0.25; if(state.mode==='at'&&val<vc) return false; if(state.mode==='ar'&&Math.abs(val-vc)>tol) return false; }
+    if(on('cSize')&&state.sizes.size){ if(!state.sizes.has(b.size)) return false; }
+    if(on('cGrade')&&state.grades.size){ if(!state.grades.has(b.grade)) return false; }
+    if(on('cPit')&&state.pits.size){ if(!state.pits.has(b.pit)) return false; }
+    if(ed&&on('cExtra')&&state.extra.size){ if(!state.extra.has(b[ed])) return false; }
+    if(state.drill&&b[state.group]!=state.drill) return false;
     return true;
   });
 }
-async function renderDownloads(){
-  var app=document.getElementById('app');
-  app.innerHTML='<div class="center">Loading documents…</div>';
-  var data;
-  try{ data=await dlLoad(); }catch(e){ app.innerHTML='<div class="center">Could not load documents ('+(e.message||e)+')</div>'; return; }
-  var consOpts='<option value="">All consignees</option>'+data.cons.map(function(c){return '<option value="'+c+'">'+c+'</option>';}).join('');
-  var dtPills=[['all','All'],['Quarry Inspection','QI'],['Buyer Inspection','BI'],['Delivery Challan','Challan']].map(function(p){
-    return '<button class="dlPill" data-v="'+p[0]+'" style="padding:5px 14px;border:1px solid #d8dee6;background:'+(dlState.dt===p[0]?'#0F2540':'#fff')+';color:'+(dlState.dt===p[0]?'#fff':'#33414f')+';cursor:pointer;font-size:13px;">'+p[1]+'</button>';
-  }).join('');
-  app.innerHTML=''
-    +'<div class="card" style="margin:14px;padding:14px 16px;">'
-    +'<div style="display:flex;gap:6px;margin-bottom:12px;border-radius:6px;overflow:hidden;width:max-content;">'+dtPills+'</div>'
-    +'<div style="display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end;">'
-    +'<div><div class="flab" style="font-size:11px;color:#7a8694;">From date</div><input type="date" id="dlDf" value="'+dlState.df+'" style="padding:5px;border:1px solid #d8dee6;border-radius:5px;"></div>'
-    +'<div><div class="flab" style="font-size:11px;color:#7a8694;">To date</div><input type="date" id="dlDt" value="'+dlState.dtto+'" style="padding:5px;border:1px solid #d8dee6;border-radius:5px;"></div>'
-    +'<div><div class="flab" style="font-size:11px;color:#7a8694;">Export No from</div><input type="number" id="dlEf" value="'+dlState.ef+'" placeholder="e.g. 95001" style="width:120px;padding:5px;border:1px solid #d8dee6;border-radius:5px;"></div>'
-    +'<div><div class="flab" style="font-size:11px;color:#7a8694;">Export No to</div><input type="number" id="dlEt" value="'+dlState.et+'" placeholder="e.g. 95200" style="width:120px;padding:5px;border:1px solid #d8dee6;border-radius:5px;"></div>'
-    +'<div><div class="flab" style="font-size:11px;color:#7a8694;">Consignee</div><select id="dlCons" style="padding:5px;border:1px solid #d8dee6;border-radius:5px;">'+consOpts+'</select></div>'
-    +'<div><div class="flab" style="font-size:11px;color:#7a8694;">Status</div><select id="dlStatus" style="padding:5px;border:1px solid #d8dee6;border-radius:5px;"><option value="all">All</option><option value="0">Draft</option><option value="1">Submitted</option><option value="2">Cancelled</option></select></div>'
-    +'<div><div class="flab" style="font-size:11px;color:#7a8694;">Search</div><input type="text" id="dlQ" value="'+dlState.q+'" placeholder="name / export / consignee" style="width:200px;padding:5px;border:1px solid #d8dee6;border-radius:5px;"></div>'
-    +'<button id="dlClear" class="btn ghost" style="padding:6px 14px;">Clear</button>'
-    +'</div>'
-    +'<div id="dlCount" class="muted" style="margin-top:12px;font-size:12px;"></div>'
-    +'<div class="tablewrap" style="margin-top:6px;max-height:calc(100vh - 320px);"><table style="width:100%;border-collapse:collapse;"><thead><tr>'
-    +'<th style="text-align:left;padding:7px 10px;">Type</th><th style="text-align:left;padding:7px 10px;">Document</th><th style="text-align:left;padding:7px 10px;">Date</th><th style="text-align:left;padding:7px 10px;">Export No(s)</th><th style="text-align:left;padding:7px 10px;">Consignee</th><th style="text-align:left;padding:7px 10px;">Status</th><th style="text-align:right;padding:7px 10px;">Actions</th>'
-    +'</tr></thead><tbody id="dlBody"></tbody></table></div>'
-    +'</div>';
-  function draw(){
-    var filtered=dlApply(data.recs);
-    var show=filtered.slice(0,150);
-    document.getElementById('dlCount').textContent='Showing '+show.length+' of '+filtered.length+' documents (newest first)';
-    document.getElementById('dlBody').innerHTML=show.map(function(r){
-      var badge='<span style="display:inline-block;padding:1px 8px;border-radius:10px;font-size:11px;font-weight:600;background:'+(r.dt==='Quarry Inspection'?'#eaf6f0;color:#1D9E75':r.dt==='Buyer Inspection'?'#eaf1fc;color:#2F80ED':'#fdf3e3;color:#C9871F')+';">'+(DL_LABEL[r.dt])+'</span>';
-      var exps=(r.exps||[]).slice(0,6).join(', ')+((r.exps||[]).length>6?' …':'');
-      var st=dlStatusLabel(r.ds);
-      return '<tr style="border-top:1px solid #eef1f5;">'
-        +'<td style="padding:6px 10px;">'+badge+'</td>'
-        +'<td style="padding:6px 10px;font-weight:600;">'+r.name+'</td>'
-        +'<td style="padding:6px 10px;">'+(r.date||'—')+'</td>'
-        +'<td style="padding:6px 10px;color:#5a6573;">'+(exps||'—')+'</td>'
-        +'<td style="padding:6px 10px;">'+(r.cons||'—')+'</td>'
-        +'<td style="padding:6px 10px;">'+st+'</td>'
-        +'<td style="padding:6px 10px;text-align:right;white-space:nowrap;">'
-        +'<button class="dlEye btn ghost" data-dt="'+r.dt+'" data-n="'+String(r.name).replace(/"/g,'&quot;')+'" style="padding:3px 9px;margin-right:5px;">View</button>'
-        +'<a class="btn ghost" href="'+dlPdfUrl(r.dt,r.name)+'" target="_blank" style="padding:3px 9px;text-decoration:none;">PDF</a>'
-        +'</td></tr>';
-    }).join('') || '<tr><td colspan="7" style="padding:18px;text-align:center;color:#9aa3ad;">No documents match these filters.</td></tr>';
-    Array.prototype.forEach.call(document.querySelectorAll('.dlEye'),function(b){ b.onclick=function(){ dlModal(b.getAttribute('data-dt'), b.getAttribute('data-n')); }; });
-  }
-  Array.prototype.forEach.call(document.querySelectorAll('.dlPill'),function(b){ b.onclick=function(){ dlState.dt=b.getAttribute('data-v'); renderDownloads(); }; });
-  document.getElementById('dlDf').onchange=function(){dlState.df=this.value;draw();};
-  document.getElementById('dlDt').onchange=function(){dlState.dtto=this.value;draw();};
-  document.getElementById('dlEf').oninput=function(){dlState.ef=this.value;draw();};
-  document.getElementById('dlEt').oninput=function(){dlState.et=this.value;draw();};
-  document.getElementById('dlCons').value=dlState.cons; document.getElementById('dlCons').onchange=function(){dlState.cons=this.value;draw();};
-  document.getElementById('dlStatus').value=dlState.status; document.getElementById('dlStatus').onchange=function(){dlState.status=this.value;draw();};
-  document.getElementById('dlQ').oninput=function(){dlState.q=this.value;draw();};
-  document.getElementById('dlClear').onclick=function(){dlState={dt:'all',cons:'',status:'all',q:'',df:'',dtto:'',ef:'',et:''};renderDownloads();};
-  draw();
-}
+function groupOpts(){var o=[['grade','Grade'],['pit','Pit'],['size','Size'],['stage','Stages']];var ed=extraDim();if(ed)o.push([ed,{buyer:'Buyer',port:'Port',lot:'Lot'}[ed]]);return o;}
+function stageName(k){return STLABEL[k]||k;}
 
-function setView(v){view=v;
-document.getElementById("tabStock").className=v==="stock"?"on":"";
-document.getElementById("tabNego").className=v==="nego"?"on":"";
-var _td=document.getElementById("tabDownloads");if(_td)_td.className=v==="downloads"?"on":"";var _cb=document.querySelector(".ctrlbar");if(_cb)_cb.style.display=v==="downloads"?"none":"";if(v==="downloads")renderDownloads();else if(v==="nego")renderNego();else renderStock();}
-function buildDmg(){var s=document.getElementById("dmgSel");s.innerHTML=dmgFactors.map(function(f){return '<option value="'+f+'"'+(Math.abs(f-factor)<1e-6?' selected':'')+'>'+f.toFixed(2)+'</option>';}).join("");s.onchange=function(){factor=+this.value;setView(view);};}
-document.getElementById("tabStock").onclick=function(){setView("stock");};
-document.getElementById("tabNego").onclick=function(){setView("nego");};
-var _tdb=document.getElementById("tabDownloads");if(_tdb)_tdb.onclick=function(){setView("downloads");};
-document.getElementById("reload").onclick=function(){boot();};
-document.getElementById("reset").onclick=function(){clearFilters();sort={key:"vol",dir:-1};setView(view==="reports"?"stock":view);};
+function render(){
+  $('stages').innerHTML=STAGES.map(function(s){return '<span class="stage'+(s[0]===state.stage?' on':'')+'" data-s="'+s[0]+'">'+s[1]+'</span>';}).join('');
+  Array.prototype.forEach.call($('stages').querySelectorAll('[data-s]'),function(el){el.onclick=function(){state.stage=el.getAttribute('data-s');state.drill=null;resetFilters();state.group=({stock:'grade',bi:'grade',disp:'grade',port:'port',lot:'lot'})[state.stage]||'grade';render();};});
+  ['Period','Vol','Chk','Size','Grade','Pit','Extra'].forEach(function(g){var el=$('g'+g); if(el) el.className='fgroup'+($('c'+g).checked?'':' off'); });
+  var ed=extraDim(); $('gExtra').style.display=ed?'block':'none';
+  if(ed){ $('extraLbl').textContent={buyer:'Buyer',port:'Port',lot:'Lot'}[ed]; var cur=state.extra.size?Array.from(state.extra)[0]:'';
+    $('extra').innerHTML='<select id="extraSel"><option value="">All '+{buyer:'buyers',port:'ports',lot:'lots'}[ed]+'</option>'+extraVals().map(function(v){return '<option value="'+v+'"'+(v===cur?' selected':'')+'>'+v+'</option>';}).join('')+'</select>';
+    $('extraSel').onchange=function(){var v=this.value;state.extra=v?new Set([v]):new Set();render();}; }
+  chips('grades',GRADES,state.grades); chips('pits',PITS,state.pits); chips('sizechips',['A','B','C','-'],state.sizes);
+  $('mAt').className=state.mode==='at'?'on':''; $('mAr').className=state.mode==='ar'?'on':''; $('tolw').style.display=state.mode==='ar'?'inline':'none';
+  $('mAt').onclick=function(){state.mode='at';render();}; $('mAr').onclick=function(){state.mode='ar';render();};
+  var go=groupOpts();
+  $('groupby').innerHTML=go.map(function(g){return '<span class="'+(state.group===g[0]?'on':'')+'" data-g="'+g[0]+'">'+g[1]+'</span>';}).join('');
+  Array.prototype.forEach.call($('groupby').querySelectorAll('[data-g]'),function(el){el.onclick=function(){state.group=el.getAttribute('data-g');render();};});
+  $('vSum').className=state.view==='sum'?'on':''; $('vDet').className=state.view==='det'?'on':'';
+  $('vSum').onclick=function(){state.view='sum';render();}; $('vDet').onclick=function(){state.view='det';render();};
 
-async function boot(){
-try{
-await load();
-if(dmgFactors.indexOf(2.6)<0&&dmgFactors.length){factor=dmgFactors.reduce(function(a,b){return Math.abs(b-2.6)<Math.abs(a-2.6)?b:a;});}
-buildDmg();
-var note=window.SAMPLE?'<div class="banner">⚠ SAMPLE PREVIEW — example data so you can judge the design. The live version pulls your real ERPNext stock, inspections &amp; DMG factors.</div>':'';
-document.getElementById("bannerSlot").innerHTML=note;
-document.getElementById("sub").textContent=blocks.length+" blocks · "+biList.length+" buyer + "+qiList.length+" quarry inspections · "+(window.SAMPLE?"sample preview":"live from ERPNext");
-setView(view);
-/* gate Sales Negotiation tab — only users who can read Sales Lot see it */
-if(!window.SAMPLE){fetch("/api/method/frappe.client.get_list?doctype=Sale%20Lot&limit_page_length=1",{headers:{Accept:"application/json"}}).then(function(r){if(!r.ok)throw 0;}).catch(function(){var t=document.getElementById("tabNego");if(t)t.style.display="none";if(view==="nego")setView("stock");});}
-}catch(e){
-document.getElementById("app").innerHTML='<div class="center">Could not load data ('+e.message+').<br>Open this page while logged into ERPNext.</div>';
+  var rows=filtered(), s=sg(), vf=volField(); var tv=rows.reduce(function(a,b){return a+b[vf];},0);
+  var anyFilter=['cPeriod','cVol','cChk','cSize','cGrade','cPit','cExtra'].some(function(c){return $(c)&&$(c).checked;});
+  var parts=[];
+  if(on('cPeriod'))parts.push($('from').value+'→'+$('to').value);
+  if(on('cVol'))parts.push('Vol '+($('vmin').value||'0')+'-'+($('vmax').value||'∞'));
+  if(on('cChk')&&$('vchk').value)parts.push('vol '+(state.mode==='at'?'≥':'≈')+$('vchk').value);
+  if(on('cSize')&&state.sizes.size)parts.push('Size '+Array.from(state.sizes).join(','));
+  if(on('cGrade')&&state.grades.size)parts.push('Grade '+Array.from(state.grades).join(','));
+  if(on('cPit')&&state.pits.size)parts.push('Pit '+Array.from(state.pits).join(','));
+  if(ed&&on('cExtra')&&state.extra.size)parts.push(Array.from(state.extra).join(','));
+  var avgv=rows.length?tv/rows.length:0;
+  if(anyFilter){ $('filterbanner').style.display='flex'; $('filterbanner').innerHTML='<span style="font-size:18px">&#9873;</span> FILTERED VIEW — showing only: '+parts.join('&nbsp; · &nbsp;')+' &nbsp;<span onclick="clearAll()" style="cursor:pointer;text-decoration:underline">clear all filters</span>'; } else { $('filterbanner').style.display='none'; }
+  $('position').innerHTML='<div style="min-width:0"><div class="big">'+(state.group==='stage'?'Pipeline — all stages':(anyFilter?'Filtered stock':'Total stock'))+' — '+rows.length+' blocks · '+(tv*s).toFixed(0)+' t'+(anyFilter?' <span style="background:var(--gold);color:var(--navy);font-size:11px;padding:2px 9px;border-radius:6px;font-weight:700;vertical-align:2px">&#9679; FILTERED</span>':'')+'</div><div class="sub">'+(state.group==='stage'?'All stages':STAGES.filter(function(x){return x[0]===state.stage;})[0][1])+' · '+tv.toFixed(1)+' CBM'+(state.stage==='bi'?' net':'')+' @ SG '+s.toFixed(2)+(state.drill?'  ·  '+state.group+' '+state.drill+' <span class="link" id="clr">clear</span>':'')+'</div>'+(anyFilter?'<div style="margin-top:7px;display:flex;gap:6px;flex-wrap:wrap;align-items:center"><span style="font-size:11px;color:#9fb0c4">Filters applied:</span>'+parts.map(function(p){return '<span style="background:rgba(201,164,74,.2);color:#f2dca8;border:1px solid var(--gold);border-radius:20px;padding:2px 10px;font-size:11px">'+p+'</span>';}).join('')+'<span class="link" onclick="clearAll()" style="font-size:11px;margin-left:4px">clear all</span></div>':'')+'</div>'+
+    '<div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap"><div class="kstrip"><div class="k"><div class="l">Blocks</div><div class="v">'+rows.length+'</div></div><div class="k"><div class="l">Volume</div><div class="v">'+tv.toFixed(0)+'</div></div><div class="k"><div class="l">Tonnage</div><div class="v">'+(tv*s).toFixed(0)+'</div></div><div class="k"><div class="l">Avg vol</div><div class="v">'+avgv.toFixed(1)+'</div></div></div>'+
+    '<div style="display:flex;gap:8px;align-items:center"><span onclick="openFull()" style="cursor:pointer;background:var(--gold);color:var(--navy);border-radius:8px;padding:7px 12px;font-size:12px;font-weight:600">&#128065; Total stock</span><span onclick="window.print()" class="noprint" style="cursor:pointer;background:rgba(255,255,255,.16);color:#fff;border-radius:8px;padding:7px 12px;font-size:12px">&#128196; PDF</span></div></div>';
+  if($('clr'))$('clr').onclick=function(){state.drill=null;render();};
+
+  if(state.view==='det'){ renderDetails(rows,s); } else { renderSummary(rows,s,vf); }
+  renderChart('chart', Math.max(160, (document.querySelector('.pchart .pbody').clientHeight||320)-30));
+  var gl=groupOpts().filter(function(g){return g[0]===state.group;})[0][1]; $('chartlbl').innerHTML='Grouped by '+gl.toLowerCase()+(anyFilter?' <span style="color:var(--gold);font-weight:600">· FILTERED</span>':'');
 }
+function grouped(rows,vf){var gd=state.group; var order={grade:GRADES,pit:PITS.map(String),size:['A','B','C','-'],stage:STAGES.map(function(s){return s[0];})}[gd]||extraVals(); var m={};rows.forEach(function(b){var k=b[gd];if(!m[k])m[k]={n:0,v:0,min:Infinity};m[k].n++;m[k].v+=b[vf];m[k].min=Math.min(m[k].min,b[vf]);});return order.filter(function(k){return m[k];}).map(function(k){return [k,m[k]];});}
+function renderSummary(rows,s,vf){
+  var gd=state.group, gl=groupOpts().filter(function(g){return g[0]===gd;})[0][1];
+  var showSize=(gd!=='size'); var ed=extraDim(); var showExtra=ed&&gd!==ed;
+  var exLabel={buyer:'Buyers',port:'Ports',lot:'Export lots'}[ed]||'';
+  var m={}; rows.forEach(function(b){var k=b[gd]; if(!m[k])m[k]={n:0,v:0,A:0,B:0,C:0,ex:{}}; m[k].n++; m[k].v+=b[vf]; if(b.size==='A')m[k].A++; else if(b.size==='B')m[k].B++; else if(b.size==='C')m[k].C++; if(ed)m[k].ex[b[ed]]=1;});
+  var order={grade:GRADES,pit:PITS.map(String),size:['A','B','C','-'],stage:STAGES.map(function(x){return x[0];})}[gd]||extraVals();
+  var keys=order.filter(function(k){return m[k];});
+  var tn=0,tvv=0,tA=0,tB=0,tC=0;
+  var body=keys.map(function(k){var r=m[k]; tn+=r.n;tvv+=r.v;tA+=r.A;tB+=r.B;tC+=r.C; var kl=(gd==='size'&&k==='-')?'Below C':(gd==='stage'?stageName(k):((gd==='pit'?'Pit ':'')+k));
+    return '<tr><td>'+kl+'</td><td class="r">'+r.n+'</td>'+(showSize?'<td class="r">'+r.A+'</td><td class="r">'+r.B+'</td><td class="r">'+r.C+'</td>':'')+(showExtra?'<td style="font-size:11px">'+Object.keys(r.ex).join(', ')+'</td>':'')+'<td class="r">'+r.v.toFixed(1)+'</td><td class="r">'+(r.v*s).toFixed(0)+'</td><td class="r noprint"><span class="eye" title="View blocks (with grade)" data-k="'+k+'">&#128065;</span></td></tr>';}).join('');
+  var head='<th>'+gl+'</th><th class="r">Blk</th>'+(showSize?'<th class="r">A</th><th class="r">B</th><th class="r">C</th>':'')+(showExtra?'<th>'+exLabel+'</th>':'')+'<th class="r">Vol</th><th class="r">Ton</th><th class="r noprint"></th>';
+  var totrow='<tr style="font-weight:600;background:#f2f5f9"><td>Total</td><td class="r">'+tn+'</td>'+(showSize?'<td class="r">'+tA+'</td><td class="r">'+tB+'</td><td class="r">'+tC+'</td>':'')+(showExtra?'<td></td>':'')+'<td class="r">'+tvv.toFixed(1)+'</td><td class="r">'+(tvv*s).toFixed(0)+'</td><td></td></tr>';
+  $('tblwrap').innerHTML='<table><thead><tr>'+head+'</tr></thead><tbody>'+body+totrow+'</tbody></table>';
+  Array.prototype.forEach.call($('tblwrap').querySelectorAll('[data-k]'),function(el){el.onclick=function(){blockModal(el.getAttribute('data-k'));};});
 }
-boot();
-})();
+function detailRows(rows,s,stg){ stg=stg||state.stage; var head,cells;
+  if(stg==='bi'){ head=['Block','Export','Net L×W×H','Net vol','Net ton','Size','Grade','Buyer','BI']; cells=function(b){return [b.no,b.exp,b.nL+'×'+b.nW+'×'+b.nH,b.netvol.toFixed(2),(b.netvol*s).toFixed(1),b.size,b.grade,b.buyer,'BI-GCCG-10'+(b.no%3)];}; }
+  else if(stg==='port'){ head=['Block','Export','Arr.mark','Port','Size','Grade','Vol','Ton','PA']; cells=function(b){return [b.no,b.exp,'AM-'+(b.no%50),b.port,b.size,b.grade,b.vol.toFixed(2),(b.vol*s).toFixed(1),'PA-'+(2600+b.no%40)];}; }
+  else if(stg==='lot'){ head=['Block','Export','Lot','Size','Grade','Vol','Ton','ESL']; cells=function(b){return [b.no,b.exp,b.lot,b.size,b.grade,b.vol.toFixed(2),(b.vol*s).toFixed(1),b.lot];}; }
+  else { head=['Block','L×W×H','Vol','Ton','Size','Grade','Pit','Date','QI']; cells=function(b){return [b.no,b.L+'×'+b.W+'×'+b.H,b.vol.toFixed(2),(b.vol*s).toFixed(1),b.size,b.grade,b.pit,b.date,'QI-DABG-00'+((b.no%4)+1)];}; }
+  return '<table><thead><tr>'+head.map(function(h){return '<th>'+h+'</th>';}).join('')+'</tr></thead><tbody>'+rows.map(function(b){return '<tr>'+cells(b).map(function(v){return '<td>'+v+'</td>';}).join('')+'</tr>';}).join('')+'</tbody></table>';
+}
+function renderDetails(rows,s){ $('tblwrap').innerHTML='<div style="overflow:auto">'+detailRows(rows,s)+'</div>'; }
+function buildChartHTML(MAXH){
+  var rows=filtered(), s=sg(), vf=volField();
+  var gd=state.group; var splits={grade:'pit',pit:'grade',size:'grade',stage:'size',buyer:'grade',port:'size',lot:'size'}[gd];
+  var bvals=grouped(rows,vf).map(function(x){return x[0];});
+  var svals={grade:GRADES,pit:PITS,size:['A','B','C','-'],stage:STAGES.map(function(s){return s[0];}),buyer:BUY,port:PORT,lot:LOT}[splits];
+  var totals={}; bvals.forEach(function(bv){totals[bv]=rows.filter(function(b){return b[gd]==bv;}).reduce(function(a,b){return a+b[vf];},0);});
+  var maxT=Math.max.apply(null,bvals.map(function(bv){return totals[bv];}))||1;
+  return bvals.map(function(bv,bi){ var base=BASE[bi%BASE.length];
+    var cells=svals.map(function(sv){return {sv:sv,n:0,v:0};});
+    rows.filter(function(b){return b[gd]==bv;}).forEach(function(b){var c=cells.filter(function(x){return x.sv==b[splits];})[0];if(c){c.n++;c.v+=b[vf];}});
+    var active=cells.filter(function(c){return c.n>0;}); var nS=active.length; var tot=totals[bv]; var colH=tot/maxT*MAXH;
+    var slices=active.map(function(c,i){var h=c.v/maxT*MAXH;var avg=c.v/c.n;var amt=nS>1?(-0.28+(i/(nS-1))*0.42):-0.05;var rgb=srgb(base,amt);var fill=css(rgb);var txt=lum(rgb)>0.62?css(srgb(base,-0.55)):'#fff';
+      var inner=''; if(h>=30) inner='<div style="font-weight:600">'+(splits==='pit'?'Pit ':'')+c.sv+'</div><div>'+c.n+' blk · '+c.v.toFixed(0)+' cbm</div><div style="opacity:.85">avg '+avg.toFixed(1)+'</div>'; else if(h>=14) inner='<div style="font-weight:600">'+String(c.sv).slice(0,4)+' · '+c.n+' blk</div>';
+      var bd=i<active.length-1?'border-bottom:1px solid rgba(255,255,255,.25)':'';
+      return '<div class="slice" style="height:'+h+'px;background:'+fill+';color:'+txt+';'+bd+'" title="'+(splits+' '+c.sv+': '+c.n+' blocks, '+c.v.toFixed(1)+' CBM, avg '+avg.toFixed(1)+', '+(c.v*s).toFixed(0)+' t')+'">'+inner+'</div>';}).join('');
+    return '<div class="col"><div class="muted" style="margin-bottom:3px;font-size:10px">'+(tot*s).toFixed(0)+'t</div><div class="bar" style="height:'+colH+'px">'+slices+'</div><div style="font-weight:500;margin-top:5px;font-size:12px">'+(gd==='stage'?stageName(bv):((gd==='pit'?'Pit ':'')+bv))+'</div></div>';}).join('');
+}
+var modalRows=[], modalTableFn=null;
+function showModal(title,rows,tableFn){ modalRows=rows; modalTableFn=tableFn||function(r){return detailRows(r,sg());}; $('mtitle').innerHTML=title;
+  $('mbody').innerHTML='<div class="msearch noprint"><span style="font-size:12px;color:var(--mut)">&#128269; Trace in list:</span><input id="mSearch" placeholder="block / export no…" style="width:220px"><span class="btn" onclick="openNewPage()">&#10696; Open in new full page</span></div><div id="mtable"></div>';
+  renderModalTable(''); var el=$('mSearch'); if(el) el.oninput=function(){renderModalTable(this.value.trim());}; $('ov').className='ov on'; }
+function renderModalTable(q){ var r=modalRows; if(q){ r=modalRows.filter(function(b){return String(b.no).indexOf(q)>-1 || (''+(b.exp||'')).toLowerCase().indexOf(q.toLowerCase())>-1;}); } window.__mlast=r; $('mtable').innerHTML=modalTableFn(r)+'<div class="muted" style="padding:8px 14px">'+r.length+' block(s)</div>'; }
+function blockModal(k){ var rows=filtered().filter(function(b){return b[state.group]==k;}); var stg=(state.group==='stage')?k:state.stage; var lbl=(state.group==='stage')?stageName(k):(groupOpts().filter(function(g){return g[0]===state.group;})[0][1]+' '+k); showModal(lbl+' — '+rows.length+' blocks', rows, function(r){return detailRows(r,sg(),stg);}); }
+function openFull(){ var rows=filtered(); var tf=(state.group==='stage')?traceTable:function(r){return detailRows(r,sg());}; showModal('Total stock list — '+rows.length+' blocks · '+rows.reduce(function(a,b){return a+b[volField()];},0).toFixed(1)+' CBM', rows, tf); }
+function traceTable(rows){ var s=sg(); var head=['Block','Stage','Export','L×W×H','Vol','Ton','Size','Grade','Pit','Date']; return '<table><thead><tr>'+head.map(function(h){return '<th>'+h+'</th>';}).join('')+'</tr></thead><tbody>'+rows.map(function(b){var c=[b.no,stageName(b.stage),b.exp,b.L+'×'+b.W+'×'+b.H,b.vol.toFixed(2),(b.vol*s).toFixed(1),classOf(b),b.grade,b.pit,b.date]; return '<tr>'+c.map(function(v){return '<td>'+v+'</td>';}).join('')+'</tr>';}).join('')+'</tbody></table>'; }
+function traceBlock(){ var q=($('traceq').value||'').trim(); if(!q) return; var m=DATA.filter(function(b){return String(b.no).indexOf(q)>-1 || (''+(b.exp||'')).toLowerCase().indexOf(q.toLowerCase())>-1;}); showModal('Trace &ldquo;'+q+'&rdquo; — '+m.length+' block(s) found', m, traceTable); }
+function openNewPage(){ var rows=window.__mlast||modalRows; var w=window.open('','_blank'); if(!w) return; w.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>Total stock list</title><style>body{font-family:-apple-system,Segoe UI,Roboto,sans-serif;margin:24px;color:#12233b}h2{color:#0F2540}table{width:100%;border-collapse:collapse;font-size:13px}th{background:#0F2540;color:#fff;text-align:left;padding:8px 11px}td{padding:7px 11px;border-top:1px solid #e6eaf0}button{padding:8px 14px;border:1px solid #0F2540;background:#0F2540;color:#fff;border-radius:8px;cursor:pointer}</style></head><body><h2>Dolphin — '+($('mtitle').textContent||'Stock list')+'</h2>'+modalTableFn(rows)+'<p style="margin-top:16px"><button onclick="window.print()">Print / Save as PDF</button></p></body></html>'); w.document.close(); }
+function renderChart(targetId,MAXH){ $(targetId).innerHTML=buildChartHTML(MAXH); }
+function enlargeChart(){ var gl=groupOpts().filter(function(g){return g[0]===state.group;})[0][1]; var bigEl=$('position').querySelector('.big'); var big=bigEl?bigEl.textContent:''; var w=window.open('','_blank'); if(!w){ alert('Please allow pop-ups to open the chart in a new window.'); return; }
+  var css='<style>body{font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;margin:0;background:#F4F6F9;color:#12233b}.hd{background:#0F2540;color:#fff;padding:14px 22px;font-size:16px;font-weight:600;display:flex;justify-content:space-between;align-items:center;gap:12px}.hd .g{background:#C9A44C;color:#0F2540;border-radius:8px;padding:4px 10px;font-size:13px}.wrap{padding:22px}.chart{display:flex;align-items:flex-end;justify-content:space-around;gap:18px;height:72vh}.col{flex:1;min-width:0;max-width:220px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end}.bar{width:100%;border-radius:9px 9px 0 0;overflow:hidden;display:flex;flex-direction:column}.slice{font-size:12px;line-height:1.25;padding:4px 9px;overflow:hidden;display:flex;flex-direction:column;justify-content:center;color:#fff}.muted{color:#6b7a90;font-size:12px}button{padding:9px 15px;border:1px solid #0F2540;background:#0F2540;color:#fff;border-radius:8px;cursor:pointer;margin-top:16px}</style>';
+  w.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>Dolphin chart — '+gl+'</title>'+css+'</head><body><div class="hd"><span>Dolphin — '+big+'</span><span class="g">grouped by '+gl.toLowerCase()+'</span></div><div class="wrap"><div class="chart">'+buildChartHTML(640)+'</div><button onclick="window.print()">Print / Save as PDF</button></div></body></html>'); w.document.close(); }
+function resetFilters(){ ['cPeriod','cVol','cChk','cSize','cGrade','cPit','cExtra'].forEach(function(id){if($(id))$(id).checked=false;}); state.grades.clear();state.pits.clear();state.sizes.clear();state.extra.clear(); if($('vmin'))$('vmin').value=''; if($('vmax'))$('vmax').value=''; if($('vchk'))$('vchk').value=''; }
+function clearAll(){ resetFilters(); render(); }
+function closeM(){ $('ov').className='ov'; }
+$('ov').onclick=function(e){ if(e.target===$('ov')) closeM(); };
+
+['sg','from','to','vmin','vmax','vchk','tol','aL','aW','aH','bL','bW','bH','cL','cW','cH'].forEach(function(id){$(id).addEventListener('input',render);});
+['cPeriod','cVol','cChk','cSize','cGrade','cPit','cExtra'].forEach(function(id){$(id).addEventListener('change',render);});
+window.addEventListener('resize',function(){renderChart('chart', Math.max(160,(document.querySelector('.pchart .pbody').clientHeight||320)-30));});
+loadData();
 </script>
 </body>
 </html>
