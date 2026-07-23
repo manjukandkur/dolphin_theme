@@ -138,12 +138,16 @@ function loadData(){
   var flds=JSON.stringify(['name','block_number','granite_quality_grade','granite_size_category','pit','length_gross','width_gross','height_gross','gross_volume','date_produced','status','export_block_no','buyer_marker','consignee']);
   apiGet('frappe.client.get_list',{doctype:'Quarry Block',fields:flds,limit_page_length:0}).then(function(rows){
     rows=rows||[];
+    // grade is stored on the Quarry Inspection child rows, not on Quarry Block -> build a block-no -> grade map
+    return apiGet('frappe.client.get_list',{doctype:'Quarry Inspection Block',parent:'Quarry Inspection',fields:JSON.stringify(['quarry_block_no','granite_quality_grade']),limit_page_length:0}).catch(function(){return [];}).then(function(gr){
+      var gradeMap={}; (gr||[]).forEach(function(x){ if(x.quarry_block_no!=null&&x.granite_quality_grade) gradeMap[String(x.quarry_block_no)]=x.granite_quality_grade; });
     return apiGet('frappe.client.get_list',{doctype:'Shipment Lot Block',parent:'Export Shipment Lot',fields:JSON.stringify(['parent','block']),limit_page_length:0}).catch(function(){return [];}).then(function(lr){
       var lotmap={}; (lr||[]).forEach(function(x){lotmap[x.block]=x.parent;});
-      DATA=rows.map(function(b){ var L=b.length_gross||0,W=b.width_gross||0,H=b.height_gross||0; var vol=b.gross_volume||Math.round(L*W*H/1e6*100)/100;
-        return {_name:b.name,no:b.block_number||b.name,L:L,W:W,H:H,nL:L,nW:W,nH:H,vol:vol,netvol:vol,grade:b.granite_quality_grade||'-',size:b.granite_size_category||'-',pit:(b.pit!=null&&b.pit!==''?String(b.pit):'-'),date:b.date_produced||'',exp:b.export_block_no||'',buyer:b.buyer_marker||'',port:b.consignee||'',lot:lotmap[b.name]||'',consignee:b.consignee||'',stage:stageFromStatus(b.status)}; });
+      DATA=rows.map(function(b){ var L=b.length_gross||0,W=b.width_gross||0,H=b.height_gross||0; var vol=b.gross_volume||Math.round(L*W*H/1e6*100)/100; var no=b.block_number||b.name; var gr=gradeMap[String(no)]||gradeMap[String(b.name)]||b.granite_quality_grade||'-';
+        return {_name:b.name,no:no,L:L,W:W,H:H,nL:L,nW:W,nH:H,vol:vol,netvol:vol,grade:gr,size:b.granite_size_category||'-',pit:(b.pit!=null&&b.pit!==''?String(b.pit):'-'),date:b.date_produced||'',exp:b.export_block_no||'',buyer:b.buyer_marker||'',port:b.consignee||'',lot:lotmap[b.name]||'',consignee:b.consignee||'',stage:stageFromStatus(b.status)}; });
       var pset={}; DATA.forEach(function(b){pset[b.pit]=1;}); PITS=Object.keys(pset).sort(function(a,b){var na=+a,nb=+b; if(isNaN(na)||isNaN(nb))return String(a).localeCompare(String(b)); return na-nb;});
       render();
+    });
     });
   }).catch(function(e){ var el=document.getElementById('tblwrap'); if(el) el.innerHTML='<div style=\"padding:20px;color:#a32d2d\">Could not load stock data \u2014 you may not have access, or you are not signed in. ('+((e&&e.message)||e)+')</div>'; var p=document.getElementById('position'); if(p) p.innerHTML='<div class=\"big\">Stock &amp; Reports</div><div class=\"sub\">Not loaded \u2014 sign in with a Dolphin account with access.</div>'; });
 }
