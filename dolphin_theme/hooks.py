@@ -7,12 +7,6 @@ app_license = "MIT"
 
 # Bundle file built by Frappe's esbuild and included on every desk page.
 app_include_css = "dolphin_theme.bundle.css"
-app_include_js = ["dolphin_theme.bundle.js", "dolphin_new_bi.bundle.js"]
-
-# Resolve friendly import inputs + back-reference blocks to their Buyer Inspection.
-doc_events = {
-	"Buyer Inspection": {
-		"before_validate": "dolphin_theme.bi_import.resolve_bi",
-		"on_update": "dolphin_theme.bi_import.backref_blocks",
-	}
-}
+# dolphin_patch.js loads AFTER the bundle to enforce a single Trace-a-block box
+# and the menu changes. Remove the patch entry (and the file) to revert.
+app_include_js = ["dolphin_theme.bundle.js", "dolphin_patch.bundle.js"]
