@@ -88,6 +88,13 @@ function render(){
   syncBar();
 }
 function selectedRows(){return ROWS.filter(function(r,i){return SEL[i];});}
+/* Editable Specific Gravity for Loading Desk (added 27 Jul 2026) */
+var __sgDef=2.65, __sgApplied=false;
+function __sgVal(){ var el=document.getElementById('dip-sg'); var v=el?parseFloat(el.value):__sgDef; return (isFinite(v)&&v>0)?v:__sgDef; }
+function __sgApply(){ var sg=__sgVal(); ROWS.forEach(function(r){ var vol=(r.l*r.w*r.h)/1e6; if(vol>0){ r.t=+(vol*sg).toFixed(2); } }); render(); }
+function __sgInject(){ if(document.getElementById('dip-sg')) return; var st=$('stats'); if(!st) return; var w=document.createElement('div'); w.style.cssText='display:inline-flex;align-items:center;gap:6px;margin-left:16px;font-size:13px;'; var lb=document.createElement('label'); lb.textContent='SG'; lb.style.cssText='font-weight:600;color:#333;'; var inp=document.createElement('input'); inp.id='dip-sg'; inp.type='number'; inp.step='0.01'; inp.min='0'; inp.value=__sgDef; inp.title='Specific gravity - recomputes tonnage'; inp.style.cssText='width:64px;padding:3px 6px;border:1px solid #ccc;border-radius:6px;'; inp.addEventListener('input',__sgApply); w.appendChild(lb); w.appendChild(inp); st.appendChild(w); }
+function __sgTick(){ __sgInject(); if(!__sgApplied && typeof ROWS!=='undefined' && ROWS.length){ __sgApply(); __sgApplied=true; } }
+setInterval(__sgTick,600); setTimeout(__sgTick,300); setTimeout(__sgTick,1200);
 function syncBar(){var n=selectedRows().length;$('cnt').textContent=n+' selected';$('b-wa').disabled=!n;$('b-print').disabled=!n;}
 
 function waText(){var rs=selectedRows();var lines=['*Dolphin — blocks to load ('+rs.length+')*'];var byC={};rs.forEach(function(r){(byC[r.consignee]=byC[r.consignee]||[]).push(r);});
