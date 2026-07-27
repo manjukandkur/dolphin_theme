@@ -1,0 +1,107 @@
+{% raw %}
+<style>
+:root{--navy:#0F2540;--gold:#D4A24A;--wa:#25D366}
+#ld{font-family:inherit;max-width:1180px;margin:0 auto;padding:8px 12px;color:#1f2a3a}
+#ld .hd{background:var(--navy);color:#fff;border-radius:12px 12px 0 0;padding:12px 16px;border-bottom:3px solid var(--gold)}
+#ld .hd h1{font-size:16px;margin:0;font-weight:600}
+#ld .hd .sub{font-size:11px;color:#b9c4d4;margin-top:2px}
+#ld .stats{display:flex;flex-wrap:wrap;border:0.5px solid #e5e7eb;border-top:none;background:#fff}
+#ld .stat{padding:10px 16px;border-right:0.5px solid #eee}
+#ld .stat .n{font-size:20px;font-weight:600}
+#ld .stat .l{font-size:11px;color:#6b7280}
+#ld .tabs{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:9px 14px;border:0.5px solid #e5e7eb;border-top:none;background:#f8f9fb}
+#ld .tab{font-size:12px;padding:4px 12px;border-radius:20px;background:#eef1f5;color:#5f6b7a;cursor:pointer}
+#ld .tab.on{background:var(--wa);color:#04361b;font-weight:600}
+#ld .bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:8px 14px;border:0.5px solid #e5e7eb;border-top:none;background:#fff}
+#ld .btn{font-size:12px;padding:6px 12px;border:1px solid #cfd4dc;border-radius:6px;background:#fff;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+#ld .btn:disabled{opacity:.45;cursor:not-allowed}
+#ld .btn.wa{background:var(--wa);color:#fff;border-color:var(--wa)}
+#ld .btn.pr{background:#2490ef;color:#fff;border-color:#2490ef}
+#ld .body{border:0.5px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px;overflow:hidden;min-height:200px}
+#ld table{width:100%;border-collapse:collapse;font-size:12px}
+#ld th{text-align:left;color:#6b7280;font-weight:400;padding:6px 10px;background:#f8f9fb}
+#ld td{padding:7px 10px;border-top:0.5px solid #f0f0f0}
+#ld .grp{background:#eef1f5;font-weight:600;font-size:12px;padding:7px 12px;border-top:0.5px solid #e5e7eb}
+#ld .empty{padding:40px 20px;text-align:center;color:#9ca3af;font-size:13px}
+#ld tr.pending{background:var(--wa);color:#04361b}
+#ld tr.pending td{font-weight:500}
+</style>
+<div id="ld">
+  <div class="hd"><h1>Dolphin International — Loading desk</h1><div class="sub">Buyer-marked blocks still to be loaded (not yet on a challan)</div></div>
+  <div class="stats" id="stats"><div class="stat"><div class="n" id="s-blk">—</div><div class="l">Blocks to load</div></div><div class="stat"><div class="n" id="s-bi">—</div><div class="l">BIs open</div></div><div class="stat"><div class="n" id="s-ton">—</div><div class="l">Tonnage</div></div></div>
+  <div class="tabs"><span class="tab on" data-g="flat">All pending</span><span class="tab" data-g="consignee">By consignee</span><span class="tab" data-g="bi">By BI</span></div>
+  <div class="bar">
+    <label style="font-size:12px;display:flex;align-items:center;gap:6px"><input type="checkbox" id="all"> Select all · <span id="cnt">0 selected</span></label>
+    <span style="flex:1"></span>
+    <button class="btn wa" id="b-wa" disabled>Send to loading (WhatsApp)</button>
+    <button class="btn pr" id="b-print" disabled>Print list</button>
+  </div>
+  <div class="body" id="body"><div class="empty">Loading…</div></div>
+</div>
+<script>
+(function(){
+var GROUP='flat', ROWS=[], SEL={};
+function esc(s){return (s==null?'':(''+s)).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+function $(id){return document.getElementById(id);}
+function api(dt,filters,fields,parent){var u='/api/method/frappe.client.get_list?doctype='+encodeURIComponent(dt)+'&filters='+encodeURIComponent(JSON.stringify(filters))+'&fields='+encodeURIComponent(JSON.stringify(fields))+'&limit_page_length=0'+(parent?'&parent='+encodeURIComponent(parent):'');return fetch(u,{credentials:'include'}).then(function(r){return r.json();}).then(function(j){return j.message||[];});}
+function num(v){return (v==null||v==='')?0:parseFloat(v)||0;}
+
+function load(){
+  $('body').innerHTML='<div class="empty">Loading…</div>';
+  // 1) pending quarry blocks = Buyer Marked / In Stock (not yet challaned)
+  api('Quarry Block',{status:['in',['Buyer Marked','In Stock']]},['name']).then(function(qbs){
+    var names=qbs.map(function(x){return x.name;});
+    if(!names.length){ROWS=[];render();return;}
+    // 2) BI child rows for these blocks (measurements + parent BI)
+    api('Buyer Inspection Block',{block:['in',names]},['parent','block','block_no','export_block_no','length_gross','width_gross','height_gross','gross_tonnage'],'Buyer Inspection').then(function(brs){
+      var parents=[];brs.forEach(function(b){if(parents.indexOf(b.parent)<0)parents.push(b.parent);});
+      // 3) BI headers
+      api('Buyer Inspection',{name:['in',parents]},['name','export_buyer','local_buyer','marking','port_of_loading']).then(function(bis){
+        var biMap={};bis.forEach(function(b){biMap[b.name]=b;});
+        var ex=[],lo=[];bis.forEach(function(b){if(b.export_buyer)ex.push(b.export_buyer);if(b.local_buyer)lo.push(b.local_buyer);});
+        Promise.all([
+          ex.length?api('Export Consignee',{name:['in',ex]},['name','company_name']):Promise.resolve([]),
+          lo.length?api('Local Consignee',{name:['in',lo]},['name','buyer_name']):Promise.resolve([])
+        ]).then(function(res){
+          var cMap={};res[0].forEach(function(c){cMap['E:'+c.name]=c.company_name;});res[1].forEach(function(c){cMap['L:'+c.name]=c.buyer_name;});
+          ROWS=brs.map(function(b){var bi=biMap[b.parent]||{};var cons=bi.export_buyer?cMap['E:'+bi.export_buyer]:(bi.local_buyer?cMap['L:'+bi.local_buyer]:'');
+            return {block:b.block,blockNo:b.block_no||b.block,exp:b.export_block_no||'',l:num(b.length_gross),w:num(b.width_gross),h:num(b.height_gross),t:num(b.gross_tonnage),bi:b.parent,consignee:cons||'(no consignee)',mark:bi.marking||'',port:bi.port_of_loading||''};});
+          render();
+        });
+      });
+    });
+  }).catch(function(){$('body').innerHTML='<div class="empty">Could not load. Reload to retry.</div>';});
+}
+
+function stats(){var ton=0,bis={};ROWS.forEach(function(r){ton+=r.t;bis[r.bi]=1;});$('s-blk').textContent=ROWS.length;$('s-bi').textContent=Object.keys(bis).length;$('s-ton').textContent=ton.toFixed(1)+' t';}
+function rowHtml(r,i){return '<tr class="pending"><td><input type="checkbox" class="ck" data-i="'+i+'"'+(SEL[i]?' checked':'')+'></td><td>'+esc(r.blockNo)+'</td><td>'+esc(r.bi)+'</td><td>'+esc(r.consignee)+'</td><td>'+esc(r.mark)+'</td><td>'+r.l+'×'+r.w+'×'+r.h+'</td><td style="text-align:right">'+r.t.toFixed(2)+'</td></tr>';}
+function header(){return '<thead><tr><th style="width:26px"></th><th>Block</th><th>BI</th><th>Consignee</th><th>Mark</th><th>L×W×H</th><th style="text-align:right">Tonnage</th></tr></thead>';}
+function render(){
+  stats();
+  if(!ROWS.length){$('body').innerHTML='<div class="empty">✓ Nothing pending — every buyer-marked block is already on a challan.</div>';syncBar();return;}
+  var h='<table>'+header()+'<tbody>';
+  if(GROUP==='flat'){ROWS.forEach(function(r,i){h+=rowHtml(r,i);});}
+  else{var key=GROUP==='consignee'?'consignee':'bi';var groups={};ROWS.forEach(function(r,i){(groups[r[key]]=groups[r[key]]||[]).push(i);});
+    Object.keys(groups).sort().forEach(function(g){var idxs=groups[g];var gt=0;idxs.forEach(function(i){gt+=ROWS[i].t;});h+='<tr><td colspan="7" class="grp">'+esc(g)+' · '+idxs.length+' blocks · '+gt.toFixed(2)+' t</td></tr>';idxs.forEach(function(i){h+=rowHtml(ROWS[i],i);});});}
+  h+='</tbody></table>';$('body').innerHTML=h;
+  $('body').querySelectorAll('.ck').forEach(function(c){c.addEventListener('change',function(){SEL[c.dataset.i]=c.checked;syncBar();});});
+  syncBar();
+}
+function selectedRows(){return ROWS.filter(function(r,i){return SEL[i];});}
+function syncBar(){var n=selectedRows().length;$('cnt').textContent=n+' selected';$('b-wa').disabled=!n;$('b-print').disabled=!n;}
+
+function waText(){var rs=selectedRows();var lines=['*Dolphin — blocks to load ('+rs.length+')*'];var byC={};rs.forEach(function(r){(byC[r.consignee]=byC[r.consignee]||[]).push(r);});
+  Object.keys(byC).forEach(function(c){lines.push('');lines.push('*'+c+'*');byC[c].forEach(function(r){lines.push('• '+r.blockNo+'  '+r.l+'×'+r.w+'×'+r.h+'  '+r.t.toFixed(2)+'t');});});
+  var tot=0;rs.forEach(function(r){tot+=r.t;});lines.push('');lines.push('Total: '+rs.length+' blocks · '+tot.toFixed(2)+' t');return lines.join('\n');}
+function doWA(){window.open('https://wa.me/?text='+encodeURIComponent(waText()),'_blank');}
+function doPrint(){var rs=selectedRows();var w=window.open('','_blank');var rows=rs.map(function(r,i){return '<tr><td>'+(i+1)+'</td><td>'+esc(r.blockNo)+'</td><td>'+esc(r.bi)+'</td><td>'+esc(r.consignee)+'</td><td>'+esc(r.exp)+'</td><td>'+r.l+'×'+r.w+'×'+r.h+'</td><td style="text-align:right">'+r.t.toFixed(2)+'</td></tr>';}).join('');var tot=0;rs.forEach(function(r){tot+=r.t;});
+  w.document.write('<html><head><title>Pending loading list</title><style>body{font-family:Arial;color:#0F2540;padding:20px}h2{border-bottom:3px solid #0F2540;padding-bottom:6px}table{width:100%;border-collapse:collapse;font-size:12px}th{background:#0F2540;color:#fff;padding:5px;text-align:left}td{border:1px solid #ddd;padding:5px}</style></head><body><h2>DOLPHIN INTERNATIONAL — Pending loading list</h2><p>'+rs.length+' blocks · '+tot.toFixed(2)+' t · '+new Date().toLocaleDateString()+'</p><table><thead><tr><th>Sr</th><th>Block</th><th>BI</th><th>Consignee</th><th>Export no</th><th>L×W×H</th><th style="text-align:right">Tonnage</th></tr></thead><tbody>'+rows+'</tbody></table></body></html>');w.document.close();w.focus();setTimeout(function(){w.print();},400);}
+
+[].forEach.call(document.querySelectorAll('#ld .tab'),function(t){t.addEventListener('click',function(){GROUP=t.dataset.g;document.querySelectorAll('#ld .tab').forEach(function(x){x.classList.remove('on');});t.classList.add('on');render();});});
+$('all').addEventListener('change',function(){var c=$('all').checked;ROWS.forEach(function(r,i){SEL[i]=c;});render();});
+$('b-wa').addEventListener('click',doWA);
+$('b-print').addEventListener('click',doPrint);
+load();
+})();
+</script>
+{% endraw %}
