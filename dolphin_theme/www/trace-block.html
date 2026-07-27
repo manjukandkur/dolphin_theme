@@ -89,6 +89,14 @@ return '<div class="card">'
 }).join('')+'<div class="foot">Dolphin International &middot; Trace a block</div>';
 }
 var t=null;
+/* Highlight searched block row in yellow (added 27 Jul 2026) */
+(function(){ var __hlLast='';
+  function __hlTerm(){ var q=document.getElementById('q'); return q?String(q.value||'').trim():''; }
+  function __hlRun(){ var t=__hlTerm(); if(t!==__hlLast){ document.querySelectorAll('tr[data-hlrow]').forEach(function(tr){ tr.removeAttribute('data-hlrow'); tr.style.background=''; tr.querySelectorAll('td').forEach(function(c){ c.style.background=''; }); }); __hlLast=t; } if(!t) return; document.querySelectorAll('table tr').forEach(function(tr){ if(tr.getAttribute('data-hlrow')==='1') return; var td=tr.querySelectorAll('td'); for(var i=1;i<=2 && i<td.length;i++){ if(td[i].textContent.trim()===t){ tr.setAttribute('data-hlrow','1'); td.forEach(function(c){ c.style.background='#fff28a'; }); break; } } }); }
+  var __hlObs=new MutationObserver(function(){ clearTimeout(window.__hlT); window.__hlT=setTimeout(__hlRun,120); });
+  __hlObs.observe(document.body,{childList:true,subtree:true});
+  setInterval(__hlRun,800);
+})();
 function go(){var q=document.getElementById('q').value.trim();if(!q){document.getElementById('result').innerHTML='<div class="empty">Enter a block number above.</div>';return;}
 api([['block_number','=',q]]).then(function(bl){ if(bl.length) return bl; return api([['export_block_no','=',q]]); }).then(function(bl){ if(bl.length) return bl; return api([['name','=',q]]); }).then(function(bl){ render(q,bl); }).catch(function(e){document.getElementById('result').innerHTML='<div class="empty">Error: '+esc(e.message)+'</div>';});
 }
