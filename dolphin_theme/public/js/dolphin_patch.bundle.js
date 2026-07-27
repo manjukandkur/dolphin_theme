@@ -96,6 +96,35 @@ frappe.provide("dolphin");
   function boot(){ enforce(); }
   $(document).on("app_ready", boot);
   if (frappe.router && frappe.router.on) { frappe.router.on("change", boot); }
+
+/* Pending Loading side-menu item (added 27 Jul 2026) */
+(function(){
+  function addPending(){
+    try{
+      if(document.querySelector('a.di-sm-link[href="/app/loading-desk"]')) return;
+      var src = document.querySelector('a.di-sm-link[href="/app/quarry-block"]');
+      var srow = src && src.closest('.di-sm-row');
+      if(!srow) return;
+      var anchor = document.querySelector('a.di-sm-link[href="/app/buyer-inspection"]');
+      var arow = (anchor && anchor.closest('.di-sm-row')) || srow;
+      var nrow = srow.cloneNode(true);
+      nrow.setAttribute('data-dip-pending','1');
+      var link = nrow.querySelector('a.di-sm-link');
+      link.setAttribute('href','/app/loading-desk');
+      var extra = nrow.querySelectorAll('a');
+      for(var i=1;i<extra.length;i++) extra[i].remove();
+      var set=false;
+      link.childNodes.forEach(function(n){ if(n.nodeType===3 && n.textContent.trim()){ n.textContent='Pending Loading'; set=true; } });
+      if(!set) link.appendChild(document.createTextNode('Pending Loading'));
+      if(arow.nextSibling) arow.parentNode.insertBefore(nrow, arow.nextSibling); else arow.parentNode.appendChild(nrow);
+    }catch(e){}
+  }
+  function boot2(){ addPending(); }
+  $(document).on("app_ready", boot2);
+  if (frappe.router && frappe.router.on) { frappe.router.on("change", boot2); }
+  setInterval(boot2, 1200);
+  setTimeout(boot2, 800); setTimeout(boot2, 2200);
+})();
   setInterval(boot, 1200);
   setTimeout(boot, 800); setTimeout(boot, 2200);
 })();
