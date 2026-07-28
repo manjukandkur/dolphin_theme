@@ -1,3 +1,24 @@
+
+
+/* 3g: clicking Pending Loading did a full page load to /app/loading-desk, which
+   tripped a stray beforeunload "leave this page?" prompt. loading-desk is a real desk
+   page, so route to it in-app (no reload, no prompt). Self-healing + reversible. */
+(function(){
+  function wire(){
+    try{
+      var a=document.querySelector('a.di-sm-link[href="/app/loading-desk"]');
+      if(!a || a.getAttribute('data-dip-nav')) return;
+      a.setAttribute('data-dip-nav','1');
+      a.addEventListener('click', function(ev){
+        if(window.frappe && frappe.set_route){ ev.preventDefault(); ev.stopPropagation(); frappe.set_route('loading-desk'); }
+      }, true);
+    }catch(e){}
+  }
+  $(document).on("app_ready", wire);
+  if (frappe.router && frappe.router.on) { frappe.router.on("change", wire); }
+  setInterval(wire, 1400);
+  setTimeout(wire, 1000); setTimeout(wire, 2400);
+})();
 /* Dolphin Theme — post-bundle patch (self-healing, fully reversible).
    Remove this file + its line in hooks.py app_include_js to revert everything below.
    Purpose:
