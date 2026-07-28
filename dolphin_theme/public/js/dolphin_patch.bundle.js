@@ -1,5 +1,30 @@
 
 
+/* Export Documents side-menu entry -> the new /export-shipments page (Active/Exported
+   tabs, role-gated eye icons). Clears the stray beforeunload guard on click so the
+   full-page nav does not prompt. Self-healing + reversible. */
+(function(){
+  function wire(){
+    try{
+      if(document.querySelector('a.di-sm-link[href="/export-shipments"]')) return;
+      var src=document.querySelector('a.di-sm-link[href="/app/export-shipment-lot"]');
+      var srow=src && src.closest('.di-sm-row'); if(!srow) return;
+      var nrow=srow.cloneNode(true); nrow.setAttribute('data-dip-expdocs','1');
+      var link=nrow.querySelector('a.di-sm-link'); link.setAttribute('href','/export-shipments');
+      var nb=nrow.querySelector('.di-sm-new'); if(nb) nb.remove();
+      var extra=nrow.querySelectorAll('a'); for(var i=1;i<extra.length;i++) extra[i].remove();
+      var set=false; link.childNodes.forEach(function(n){ if(n.nodeType===3 && n.textContent.trim()){ n.textContent='Export Documents'; set=true; } });
+      if(!set) link.appendChild(document.createTextNode('Export Documents'));
+      link.addEventListener('click', function(){ try{ window.onbeforeunload=null; }catch(e){} }, true);
+      if(srow.nextSibling) srow.parentNode.insertBefore(nrow, srow.nextSibling); else srow.parentNode.appendChild(nrow);
+    }catch(e){}
+  }
+  $(document).on("app_ready", wire);
+  if (frappe.router && frappe.router.on) { frappe.router.on("change", wire); }
+  setInterval(wire, 1400); setTimeout(wire, 1000); setTimeout(wire, 2400);
+})();
+
+
 /* 3g: clicking Pending Loading did a full page load to /app/loading-desk, which
    tripped a stray beforeunload "leave this page?" prompt. loading-desk is a real desk
    page, so route to it in-app (no reload, no prompt). Self-healing + reversible. */
