@@ -1706,8 +1706,9 @@ def create_shipping_from_lot(lot=None):
     sd.shipment_date = _s(d.get("shipment_date")) or frappe.utils.today()
     if sd.meta.has_field("source_lot"):
         sd.source_lot = d.name
-    mark = d.get("export_consignee") or d.get("shipping_mark") or ""
-    for fld, val in (("shipping_mark", mark), ("marks_nos", mark),
+    real_mark = d.get("shipping_mark") or ""
+    marks_text = d.get("export_consignee") or d.get("shipping_mark") or ""
+    for fld, val in (("shipping_mark", real_mark), ("marks_nos", marks_text),
                      ("export_consignee", d.get("export_consignee")),
                      ("voyage_no", d.get("vessel")), ("bl_no", d.get("bl_no")),
                      ("lot_title", d.get("lot_title")), ("lot_description", d.get("lot_description")),
