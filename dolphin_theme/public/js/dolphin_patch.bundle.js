@@ -163,3 +163,26 @@ frappe.provide("dolphin");
   setInterval(boot, 1200);
   setTimeout(boot, 800); setTimeout(boot, 2200);
 })();
+
+/* 3f: give the Pending Loading side-menu item an icon (its row is cloned from an
+   icon-less item, so it renders blank next to the anchor/pencil/ship rows).
+   Self-healing + reversible, same pattern as the blocks above. */
+(function(){
+  function addPendingIcon(){
+    try{
+      var a=document.querySelector('a.di-sm-link[href="/app/loading-desk"]');
+      if(!a || a.querySelector('svg')) return;
+      var ns='http://www.w3.org/2000/svg';
+      var s=document.createElementNS(ns,'svg');
+      [['width','14'],['height','14'],['viewBox','0 0 24 24'],['fill','none'],['stroke','currentColor'],['stroke-width','2'],['stroke-linecap','round'],['stroke-linejoin','round']].forEach(function(x){ s.setAttribute(x[0],x[1]); });
+      var c=document.createElementNS(ns,'circle'); c.setAttribute('cx','12'); c.setAttribute('cy','12'); c.setAttribute('r','10');
+      var p=document.createElementNS(ns,'polyline'); p.setAttribute('points','12 6 12 12 16 14');
+      s.appendChild(c); s.appendChild(p);
+      a.insertBefore(s, a.firstChild);
+    }catch(e){}
+  }
+  $(document).on("app_ready", addPendingIcon);
+  if (frappe.router && frappe.router.on) { frappe.router.on("change", addPendingIcon); }
+  setInterval(addPendingIcon, 1300);
+  setTimeout(addPendingIcon, 900); setTimeout(addPendingIcon, 2300);
+})();
