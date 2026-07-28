@@ -55,29 +55,29 @@ body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Hel
 </head>
 <body>
 <div class="wrap">
-  <div class="topbar"><div class="title">Overview &amp; Journey</div><div class="sub">Dolphin International · bird's-eye of every block's stage, size &amp; grade — plus a full journey trace</div></div>
-  <div class="note" id="loadNote">Loading live stock…</div>
-  <div id="app" style="display:none">
+<div class="topbar"><div class="title">Overview &amp; Journey</div><div class="sub">Dolphin International · bird's-eye of every block's stage, size &amp; grade — plus a full journey trace</div></div>
+<div class="note" id="loadNote">Loading live stock…</div>
+<div id="app" style="display:none">
 
-  <div class="card">
-    <div class="ct">🚢 Pipeline — bird's-eye <span class="sub">every block by its current stage</span></div>
-    <div class="pipe" id="pipe"></div>
-  </div>
+<div class="card">
+<div class="ct">🚢 Pipeline — bird's-eye <span class="sub">every block by its current stage</span></div>
+<div class="pipe" id="pipe"></div>
+</div>
 
-  <div class="card">
-    <div class="ct">📐 In-stock — size &amp; grade <span class="sub" id="segSub"></span></div>
-    <div class="seg" id="seg"></div>
-    <div style="margin-top:14px" id="gmix"></div>
-  </div>
+<div class="card">
+<div class="ct">📐 In-stock — size &amp; grade <span class="sub" id="segSub"></span></div>
+<div class="seg" id="seg"></div>
+<div style="margin-top:14px" id="gmix"></div>
+</div>
 
-  <div class="card">
-    <div class="ct">🧭 Trace a block <span class="sub">quarry block number or export number → full journey</span></div>
-    <div class="sbx"><input id="q" placeholder="Enter block number to know the history" style="border:2px solid #185fa5;background:#eef5fc;color:#0c2b4a;font-weight:600;border-radius:8px"></div>
-    <div class="hint">Quarry block number works up to Delivery Challan · export number works from At Port onward.</div>
-    <div id="result"><div class="empty">Enter a block number above.</div></div>
-  </div>
+<div class="card">
+<div class="ct">🧭 Trace a block <span class="sub">quarry block number or export number → full journey</span></div>
+<div class="sbx"><input id="q" placeholder="Enter block number to know the history" style="border:2px solid #185fa5;background:#eef5fc;color:#0c2b4a;font-weight:600;border-radius:8px"></div>
+<div class="hint">Quarry block number works up to Delivery Challan · export number works from At Port onward.</div>
+<div id="result"><div class="empty">Enter a block number above.</div></div>
+</div>
 
-  </div>
+</div>
 </div>
 <script>
 function apiList(fields,filters){var u="/api/method/frappe.client.get_list?doctype=Quarry Block&fields="+encodeURIComponent(JSON.stringify(fields))+"&limit_page_length=0";if(filters)u+="&filters="+encodeURIComponent(JSON.stringify(filters));return fetch(u,{credentials:"include",headers:{Accept:"application/json"}}).then(function(r){return r.json();}).then(function(j){return j.message||[];});}
@@ -90,34 +90,34 @@ var TL=180,TW=100,TH=100;
 var STAGES=[["In Stock","In Stock","#1D9E75"],["Buyer Marked","Buyer Marked","#2F80ED"],["In Delivery Challan","In DC","#7F77DD"],["Dispatched/Transported","Dispatched","#534AB7"],["At Port","At Port","#D4A24A"],["Shipped","Shipped","#0f6e56"],["Sold","Sold","#5f6b7a"]];
 function num(v){return +v||0;}
 function build(B){
-  // pipeline
-  var byStatus={}, cbmByStatus={};
-  B.forEach(function(b){var s=b.status||"—";byStatus[s]=(byStatus[s]||0)+1;cbmByStatus[s]=(cbmByStatus[s]||0)+num(b.gross_volume);});
-  // At Port includes yard variant
-  byStatus["At Port"]=(byStatus["At Port"]||0)+(byStatus["At Bannikoppa Station yard"]||0);
-  cbmByStatus["At Port"]=(cbmByStatus["At Port"]||0)+(cbmByStatus["At Bannikoppa Station yard"]||0);
-  var html="";
-  STAGES.forEach(function(st,i){
-    var n=byStatus[st[0]]||0, cbm=cbmByStatus[st[0]]||0;
-    var ship=(st[0]==="Shipped"||st[0]==="Sold");
-    if(i>0)html+='<div class="arrow">→</div>';
-    html+='<div class="stage'+(ship?' ship':'')+'" style="border-top:3px solid '+st[2]+'"><div class="h">'+st[1]+'</div><div class="n">'+n+'</div><div class="c">'+cbm.toFixed(0)+' CBM</div></div>';
-  });
-  document.getElementById("pipe").innerHTML=html;
+// pipeline
+var byStatus={}, cbmByStatus={};
+B.forEach(function(b){var s=b.status||"—";byStatus[s]=(byStatus[s]||0)+1;cbmByStatus[s]=(cbmByStatus[s]||0)+num(b.gross_volume);});
+// At Port includes yard variant
+byStatus["At Port"]=(byStatus["At Port"]||0)+(byStatus["At Bannikoppa Station yard"]||0);
+cbmByStatus["At Port"]=(cbmByStatus["At Port"]||0)+(cbmByStatus["At Bannikoppa Station yard"]||0);
+var html="";
+STAGES.forEach(function(st,i){
+var n=byStatus[st[0]]||0, cbm=cbmByStatus[st[0]]||0;
+var ship=(st[0]==="Shipped"||st[0]==="Sold");
+if(i>0)html+='<div class="arrow">→</div>';
+html+='<div class="stage'+(ship?' ship':'')+'" style="border-top:3px solid '+st[2]+'"><div class="h">'+st[1]+'</div><div class="n">'+n+'</div><div class="c">'+cbm.toFixed(0)+' CBM</div></div>';
+});
+document.getElementById("pipe").innerHTML=html;
 
-  // in-stock size + grade
-  var stock=B.filter(function(b){return /in stock|buyer marked/i.test(b.status||"");});
-  function big(b){return num(b.length_gross)>=TL&&num(b.width_gross)>=TW&&num(b.height_gross)>=TH;}
-  var bigs=stock.filter(big), smalls=stock.filter(function(b){return !big(b);});
-  var bC=bigs.reduce(function(s,b){return s+num(b.gross_volume);},0), sC=smalls.reduce(function(s,b){return s+num(b.gross_volume);},0);
-  var tot=stock.length||1;
-  document.getElementById("segSub").textContent="· "+stock.length+" blocks · threshold "+TL+"×"+TW+"×"+TH;
-  document.getElementById("seg").innerHTML=''
-   +'<div class="segbar"><div class="lab"><span>≥ threshold (big)</span><span>'+bigs.length+' · '+bC.toFixed(0)+' CBM</span></div><div class="track"><div class="fill" style="width:'+(bigs.length/tot*100).toFixed(1)+'%;background:var(--green)"></div></div></div>'
-   +'<div class="segbar"><div class="lab"><span>&lt; threshold (small)</span><span>'+smalls.length+' · '+sC.toFixed(0)+' CBM</span></div><div class="track"><div class="fill" style="width:'+(smalls.length/tot*100).toFixed(1)+'%;background:#EF9F27"></div></div></div>';
-  var gm={};stock.forEach(function(b){var g=((b.granite_quality_grade||"—")+"").trim()||"—";gm[g]=(gm[g]||0)+1;});
-  var order=["A","B","B1","B2","C","D"];var gk=order.filter(function(g){return gm[g];});Object.keys(gm).sort().forEach(function(g){if(gk.indexOf(g)<0)gk.push(g);});
-  document.getElementById("gmix").innerHTML='<div style="font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;margin-bottom:5px">Grade mix (in stock)</div>'+gk.map(function(g){return '<span class="tag" style="background:'+gcol(g)+'">'+g+' · '+gm[g]+'</span>';}).join("");
+// in-stock size + grade
+var stock=B.filter(function(b){return /in stock|buyer marked/i.test(b.status||"");});
+function big(b){return num(b.length_gross)>=TL&&num(b.width_gross)>=TW&&num(b.height_gross)>=TH;}
+var bigs=stock.filter(big), smalls=stock.filter(function(b){return !big(b);});
+var bC=bigs.reduce(function(s,b){return s+num(b.gross_volume);},0), sC=smalls.reduce(function(s,b){return s+num(b.gross_volume);},0);
+var tot=stock.length||1;
+document.getElementById("segSub").textContent="· "+stock.length+" blocks · threshold "+TL+"×"+TW+"×"+TH;
+document.getElementById("seg").innerHTML=''
++'<div class="segbar"><div class="lab"><span>≥ threshold (big)</span><span>'+bigs.length+' · '+bC.toFixed(0)+' CBM</span></div><div class="track"><div class="fill" style="width:'+(bigs.length/tot*100).toFixed(1)+'%;background:var(--green)"></div></div></div>'
++'<div class="segbar"><div class="lab"><span>&lt; threshold (small)</span><span>'+smalls.length+' · '+sC.toFixed(0)+' CBM</span></div><div class="track"><div class="fill" style="width:'+(smalls.length/tot*100).toFixed(1)+'%;background:#EF9F27"></div></div></div>';
+var gm={};stock.forEach(function(b){var g=((b.granite_quality_grade||"—")+"").trim()||"—";gm[g]=(gm[g]||0)+1;});
+var order=["A","B","B1","B2","C","D"];var gk=order.filter(function(g){return gm[g];});Object.keys(gm).sort().forEach(function(g){if(gk.indexOf(g)<0)gk.push(g);});
+document.getElementById("gmix").innerHTML='<div style="font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;margin-bottom:5px">Grade mix (in stock)</div>'+gk.map(function(g){return '<span class="tag" style="background:'+gcol(g)+'">'+g+' · '+gm[g]+'</span>';}).join("");
 }
 
 /* ---- journey (from trace-block) ---- */
@@ -127,46 +127,57 @@ var FL=['name','block_number','export_block_no','status','delivery_challan','buy
 function apiFind(filters){return apiList(FL,filters);}
 function pdf(dt,nm,fmt){return '/api/method/frappe.utils.print_format.download_pdf?doctype='+encodeURIComponent(dt)+'&name='+encodeURIComponent(nm)+'&format='+encodeURIComponent(fmt)+'&no_letterhead=0';}
 function eye(dt,nm,fmt){return nm?'<a class="eye" href="'+pdf(dt,nm,fmt)+'" target="_blank">👁 PDF</a>':'';}
+/* ---- packing-list resolution (mirrors dolphin_patch.bundle.js popup: 3e) ---- */
+function eslFor(b){var p=new URLSearchParams({doctype:'Shipment Lot Block',parent:'Export Shipment Lot',or_filters:JSON.stringify([['block_no','=',b.block_number],['block','=',b.name]]),fields:JSON.stringify(['parent']),limit_page_length:1});return fetch('/api/method/frappe.client.get_list?'+p.toString(),{credentials:'include',headers:{Accept:'application/json'}}).then(function(r){return r.json();}).then(function(j){return (j.message&&j.message[0]&&j.message[0].parent)||null;}).catch(function(){return null;});}
+function shipDocFor(esl){if(!esl)return Promise.resolve(null);var p=new URLSearchParams({doctype:'Export Shipment Lot',filters:JSON.stringify({name:esl}),fieldname:'shipping_document'});return fetch('/api/method/frappe.client.get_value?'+p.toString(),{credentials:'include',headers:{Accept:'application/json'}}).then(function(r){return r.json();}).then(function(j){return (j.message&&j.message.shipping_document)||null;}).catch(function(){return null;});}
 function stage(cls,icon,label,val,pend,extra){return '<div class="stg '+cls+'"><div class="bar"></div><div class="node">'+icon+'</div><div class="lbl">'+label+'</div><div class="val'+(pend?' pend':'')+'">'+val+'</div>'+(extra||'')+'</div>';}
 function journey(b){
-  var rank=(b.status in RANK)?RANK[b.status]:0;
-  var qno=esc(b.block_number||b.name), xno=b.export_block_no?esc(b.export_block_no):'not yet';
-  function st(idx){return rank>idx?'done':(rank===idx?'cur':'');}
-  function dc(idx,doc){return doc?'done':st(idx);}
-  var s=[];
-  s.push(stage(rank>0?'done':'cur','●','Quarried',qno,false));
-  s.push(stage(dc(0,b.source_quarry_inspection),'QI','Quarry Insp.',b.source_quarry_inspection?qno:'not yet',!b.source_quarry_inspection,eye('Quarry Inspection',b.source_quarry_inspection,'Quarry Inspection - Report')));
-  s.push(stage(dc(1,b.buyer_inspection),'BI','Buyer Insp.',b.buyer_inspection?qno:'not yet',!b.buyer_inspection,eye('Buyer Inspection',b.buyer_inspection,'Buyer Inspection - Report')));
-  s.push(stage(dc(2,b.delivery_challan),'DC','Delivery Challan',b.delivery_challan?qno:'not yet',!b.delivery_challan,eye('Delivery Challan',b.delivery_challan,'Dolphin Delivery Challan')));
-  s.push(stage(st(3),'🚛','Transported',(rank>=3?xno:'not yet'),rank<3,false));
-  s.push(stage(st(4),'⚓','At Port',(rank>=4?xno:'not yet'),rank<4,false));
-  s.push(stage(rank>=5?'done':'','🚢','Shipped',(rank>=5?xno:'not yet'),rank<5,false));
-  return '<div class="journey">'+s.join('')+'</div>';
+var rank=(b.status in RANK)?RANK[b.status]:0;
+var qno=esc(b.block_number||b.name), xno=b.export_block_no?esc(b.export_block_no):'not yet';
+function st(idx){return rank>idx?'done':(rank===idx?'cur':'');}
+function dc(idx,doc){return doc?'done':st(idx);}
+var s=[];
+s.push(stage(rank>0?'done':'cur','●','Quarried',qno,false));
+s.push(stage(dc(0,b.source_quarry_inspection),'QI','Quarry Insp.',b.source_quarry_inspection?qno:'not yet',!b.source_quarry_inspection,eye('Quarry Inspection',b.source_quarry_inspection,'Quarry Inspection - Report')));
+s.push(stage(dc(1,b.buyer_inspection),'BI','Buyer Insp.',b.buyer_inspection?qno:'not yet',!b.buyer_inspection,eye('Buyer Inspection',b.buyer_inspection,'Buyer Inspection - Report')));
+s.push(stage(dc(2,b.delivery_challan),'DC','Delivery Challan',b.delivery_challan?qno:'not yet',!b.delivery_challan,eye('Delivery Challan',b.delivery_challan,'Dolphin Delivery Challan')));
+s.push(stage(st(3),'🚛','Transported',(rank>=3?xno:'not yet'),rank<3,false));
+s.push(stage(st(4),'⚓','At Port',(rank>=4?xno:'not yet'),rank<4,false));
+s.push(stage(rank>=5?'done':'','🚢','Shipped',(rank>=5?xno:'not yet'),rank<5,(rank>=5?'<span class="pk" data-b="'+esc(b.name)+'"></span>':false)));
+return '<div class="journey">'+s.join('')+'</div>';
 }
 function render(q,bl){
-  var R=document.getElementById('result');
-  if(!bl.length){R.innerHTML='<div class="empty">No block <b>'+esc(q)+'</b> found. Try the other number (quarry vs export).</div>';return;}
-  R.innerHTML=bl.map(function(b){
-    var sc=SC[b.status]||['#f1efe8','#444441'];
-    var dim=(b.length_gross||'')+'×'+(b.width_gross||'')+'×'+(b.height_gross||'');
-    var cbm=b.gross_volume?(' · '+(+b.gross_volume).toFixed(2)+' CBM'):'';
-    return '<div class="bcard"><div class="bhead"><span class="bno">Block '+esc(b.block_number||b.name)+'</span>'+(b.export_block_no?'<span class="meta">export '+esc(b.export_block_no)+'</span>':'')+'<span class="badge" style="background:'+sc[0]+';color:'+sc[1]+'">📍 '+esc(b.status||'')+'</span></div><div class="meta">'+esc(b.granite_quality_grade||'')+(dim!=='××'?(' · '+dim+cbm):'')+'</div>'+journey(b)+'</div>';
-  }).join('');
+var R=document.getElementById('result');
+if(!bl.length){R.innerHTML='<div class="empty">No block <b>'+esc(q)+'</b> found. Try the other number (quarry vs export).</div>';return;}
+R.innerHTML=bl.map(function(b){
+var sc=SC[b.status]||['#f1efe8','#444441'];
+var dim=(b.length_gross||'')+'×'+(b.width_gross||'')+'×'+(b.height_gross||'');
+var cbm=b.gross_volume?(' · '+(+b.gross_volume).toFixed(2)+' CBM'):'';
+return '<div class="bcard"><div class="bhead"><span class="bno">Block '+esc(b.block_number||b.name)+'</span>'+(b.export_block_no?'<span class="meta">export '+esc(b.export_block_no)+'</span>':'')+'<span class="badge" style="background:'+sc[0]+';color:'+sc[1]+'">📍 '+esc(b.status||'')+'</span></div><div class="meta">'+esc(b.granite_quality_grade||'')+(dim!=='××'?(' · '+dim+cbm):'')+'</div>'+journey(b)+'</div>';
+}).join('');
+// 3e — resolve DI Packing List PDF link for shipped blocks (packing only; Ilkal-safe)
+Array.prototype.forEach.call(R.querySelectorAll('span.pk'),function(sp){
+var nm=sp.getAttribute('data-b');
+var b=bl.filter(function(x){return (''+x.name)===nm;})[0]; if(!b) return;
+eslFor(b).then(function(esl){return shipDocFor(esl);}).then(function(shipDoc){
+if(shipDoc){sp.outerHTML='<a class="eye" href="'+pdf('Shipping Document',shipDoc,'DI Packing List')+'" target="_blank" style="border-color:#0f6e56;color:#0f6e56">📋 DI Packing List</a>';}
+});
+});
 }
 var t=null;
 function go(){var q=document.getElementById('q').value.trim();if(!q){document.getElementById('result').innerHTML='<div class="empty">Enter a block number above.</div>';return;}
-  apiFind([['block_number','=',q]]).then(function(bl){if(bl.length)return bl;return apiFind([['export_block_no','=',q]]);}).then(function(bl){if(bl.length)return bl;return apiFind([['name','=',q]]);}).then(function(bl){render(q,bl);}).catch(function(e){document.getElementById('result').innerHTML='<div class="empty">Error: '+esc(e.message)+'</div>';});
+apiFind([['block_number','=',q]]).then(function(bl){if(bl.length)return bl;return apiFind([['export_block_no','=',q]]);}).then(function(bl){if(bl.length)return bl;return apiFind([['name','=',q]]);}).then(function(bl){render(q,bl);}).catch(function(e){document.getElementById('result').innerHTML='<div class="empty">Error: '+esc(e.message)+'</div>';});
 }
 
 /* ---- init ---- */
 (async function(){
-  try{
-    var B=await apiList(["name","block_number","status","granite_quality_grade","length_gross","width_gross","height_gross","gross_volume"]);
-    build(B);
-    document.getElementById("loadNote").style.display="none";
-    document.getElementById("app").style.display="";
-    document.getElementById('q').addEventListener('input',function(){clearTimeout(t);t=setTimeout(go,350);});
-  }catch(e){ document.getElementById("loadNote").textContent="Could not load ("+((e&&e.message)||e)+"). Open while logged in to ERPNext."; }
+try{
+var B=await apiList(["name","block_number","status","granite_quality_grade","length_gross","width_gross","height_gross","gross_volume"]);
+build(B);
+document.getElementById("loadNote").style.display="none";
+document.getElementById("app").style.display="";
+document.getElementById('q').addEventListener('input',function(){clearTimeout(t);t=setTimeout(go,350);});
+}catch(e){ document.getElementById("loadNote").textContent="Could not load ("+((e&&e.message)||e)+"). Open while logged in to ERPNext."; }
 })();
 </script>
 </body>
