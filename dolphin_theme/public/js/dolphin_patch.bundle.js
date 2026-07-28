@@ -16,7 +16,7 @@ frappe.provide("dolphin");
   function pdf(dt,nm,fmt){ return '/api/method/frappe.utils.print_format.download_pdf?doctype='+encodeURIComponent(dt)+'&name='+encodeURIComponent(nm)+'&format='+encodeURIComponent(fmt)+'&no_letterhead=0'; }
   function eyeLink(dt,nm,fmt){ return nm?' <a href="'+pdf(dt,nm,fmt)+'" target="_blank" style="font-size:11px;border:1px solid #185fa5;color:#185fa5;border-radius:10px;padding:1px 8px;text-decoration:none;margin-left:6px">&#128065; PDF</a>':''; }
   function openLink(dt,nm){ return nm?' <a href="/app/'+dt+'/'+encodeURIComponent(nm)+'" target="_blank" style="font-size:11px;border:1px solid #185fa5;color:#185fa5;border-radius:10px;padding:1px 8px;text-decoration:none;margin-left:6px">open</a>':''; }
-  function journeyHTML(b, esl){
+  function journeyHTML(b, esl, shipDoc){
     var sc = SC[b.status]||['#f1efe8','#444441']; var rank=(b.status in RANK)?RANK[b.status]:0;
     var steps=[{l:'Quarried',v:b.block_number||b.name,done:true},
       {l:'Quarry Inspection',v:b.source_quarry_inspection||'not yet',done:!!b.source_quarry_inspection,e:eyeLink('Quarry Inspection',b.source_quarry_inspection,'Quarry Inspection - Report')},
@@ -25,7 +25,7 @@ frappe.provide("dolphin");
       {l:'Transported',v:(rank>=3?(b.export_block_no||'yes'):'not yet'),done:rank>=3},
       {l:'At Port',v:(rank>=4?(b.export_block_no||'yes'):'not yet'),done:rank>=4},
       {l:'Export Shipment Lot',v:(esl||'not yet'),done:!!esl,e:openLink('export-shipment-lot',esl)},
-      {l:'Shipped',v:(rank>=5?(b.export_block_no||'yes'):'not yet'),done:rank>=5}];
+      {l:'Shipped',v:(rank>=5?(b.export_block_no||'yes'):'not yet'),done:rank>=5,e:((rank>=5&&shipDoc)?' <a href="'+pdf('Shipping Document',shipDoc,'DI Packing List')+'" target="_blank" style="font-size:11px;border:1px solid #0f6e56;color:#0f6e56;border-radius:10px;padding:1px 8px;text-decoration:none;margin-left:6px">&#128203; DI Packing List</a>':'')}];
     var head='<div style="margin-bottom:10px">Current status: <b style="background:'+sc[0]+';color:'+sc[1]+';padding:2px 12px;border-radius:12px">'+esc(b.status||'')+'</b></div>';
     var body=steps.map(function(s,i){var cur=(!s.done&&i>0&&steps[i-1].done);var col=s.done?'#0f6e56':(cur?'#b8860b':'#c2c8d0');var dot=s.done?'&#9679;':(cur?'&#9673;':'&#9675;');return '<div style="display:flex;gap:12px;align-items:flex-start;padding:7px 0;border-bottom:1px solid #f2f4f7"><span style="color:'+col+';font-size:17px">'+dot+'</span><div><div style="font-size:10.5px;text-transform:uppercase;color:#8a929c">'+s.l+'</div><div style="font-weight:600;color:'+(s.done?'#1f2a3a':(cur?'#7a5a00':'#aab1ba'))+'">'+esc(''+s.v)+(s.e||'')+'</div></div></div>';}).join('');
     return '<div>'+head+body+'</div>';
@@ -34,6 +34,10 @@ frappe.provide("dolphin");
     var p=new URLSearchParams({doctype:'Shipment Lot Block',parent:'Export Shipment Lot',or_filters:JSON.stringify([['block_no','=',b.block_number],['block','=',b.name]]),fields:JSON.stringify(['parent']),limit_page_length:1});
     return fetch('/api/method/frappe.client.get_list?'+p.toString(),{credentials:'same-origin'}).then(function(r){return r.json();}).then(function(j){return (j.message&&j.message[0]&&j.message[0].parent)||null;}).catch(function(){return null;});
   }
+  function shipDocFor(esl){
+    if(!esl) return Promise.resolve(null);
+    return frappe.call({method:'frappe.client.get_value',args:{doctype:'Export Shipment Lot',filters:{name:esl},fieldname:'shipping_document'}}).then(function(r){return (r.message&&r.message.shipping_document)||null;}).catch(function(){return null;});
+  }
   function openJourney(bno){
     if(!bno) return;
     function q(f){ return frappe.call({method:'frappe.client.get_list',args:{doctype:'Quarry Block',filters:f,fields:FL,limit_page_length:5}}).then(function(r){return r.message||[];}); }
@@ -41,8 +45,10 @@ frappe.provide("dolphin");
       if(!bl.length){ frappe.msgprint('Block '+esc(bno)+' not found in stock records.'); return; }
       var b=bl[0];
       eslFor(b).then(function(esl){
+        shipDocFor(esl).then(function(shipDoc){
         var d=new frappe.ui.Dialog({title:'Block '+esc(b.block_number||b.name)+' — journey',fields:[{fieldtype:'HTML',fieldname:'j'}]});
-        d.fields_dict.j.$wrapper.html(journeyHTML(b, esl)); d.show();
+        d.fields_dict.j.$wrapper.html(journeyHTML(b, esl, shipDoc)); d.show();
+        });
       });
     });
   }
