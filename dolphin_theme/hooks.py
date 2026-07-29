@@ -18,4 +18,7 @@ doc_events = {
     "Export Shipment Lot": {
         "validate": "dolphin_theme.shipment_hub.normalize_lot_rows",
     },
+    "Local Tax Invoice": {
+        "validate": "dolphin_theme.local_tax_invoice.compute_totals",
+    },
 }
