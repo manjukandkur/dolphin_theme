@@ -1,181 +1,89 @@
-{% raw %}<!doctype html>
-<html lang="en">
-<head>
+{% raw %}
+<!doctype html>
+<html lang="en"><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Dolphin — Export Documents &amp; Shipments</title>
+<title>Dolphin — Export Hub</title>
 <style>
-:root{--navy:#0F2540;--gold:#D4A24A;--ink:#1c2430;--muted:#5f6b7a;--line:#e7ebf1;--bg:#eef1f6;--green:#0f6e56;--blue:#185fa5;}
+:root{--navy:#0e2a4d;--navy2:#1c3d63;--navy3:#16345a;--line:#2c4d76;--gold:#d9a441;--ink:#12263f;--muted:#5b7288;--bg:#eef1f6;}
 *{box-sizing:border-box;}
-body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--ink);font-size:14px;-webkit-font-smoothing:antialiased;}
-.wrap{max-width:1120px;margin:0 auto;padding:18px;}
-.topbar{background:var(--navy);border-radius:14px 14px 0 0;padding:15px 20px 0;color:#fff;}
-.topbar .row1{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;}
-.topbar .title{font-size:18px;font-weight:700;}
-.topbar .sub{font-size:12.5px;color:#bcd0e6;margin-top:2px;}
-.rolechip{background:#17324f;color:#bcd0e6;font-size:11.5px;padding:5px 12px;border-radius:20px;}
-.tabs{display:flex;gap:4px;margin-top:12px;}
-.tab{color:#bcd0e6;font-size:13px;padding:9px 18px;cursor:pointer;border-radius:10px 10px 0 0;}
-.tab.on{background:var(--bg);color:var(--navy);font-weight:600;}
-.tab .b{font-size:10px;padding:0 6px;border-radius:8px;margin-left:4px;background:#17324f;color:#9fe1cb;}
-.tab.on .b{background:#378add;color:#fff;}
-.panewrap{background:#fff;border:1px solid var(--line);border-top:none;border-radius:0 0 14px 14px;padding:14px;}
-.sbx{display:flex;gap:8px;margin-bottom:10px;align-items:center;}
-.sbx input{flex:1;height:38px;border:2px solid #185fa5;background:#eef5fc;border-radius:9px;padding:0 12px;font-size:14px;color:#0c2b4a;font-weight:600;}
-.tot{font-size:12px;color:var(--muted);white-space:nowrap;font-weight:600;}
-.lot{border:1px solid var(--line);border-radius:0 10px 10px 0;margin-bottom:7px;overflow:hidden;background:#fff;border-left:4px solid #b4b2a9;}
-.lot.ready{border-left-color:#378add;} .lot.draft{border-left-color:#b4b2a9;} .lot.ship{border-left-color:#0f6e56;background:#f9fdfb;}
-.lhead{display:flex;align-items:center;gap:9px;padding:11px 14px;flex-wrap:wrap;}
-.lhead.exp{cursor:pointer;}
-.chev{color:#8a929c;display:inline-flex;transition:transform .15s;}
-.lot.open .chev{transform:rotate(90deg);}
-.lname{font-weight:700;} .lsub{font-size:12px;color:var(--muted);}
-.pill{font-size:11px;font-weight:700;padding:2px 10px;border-radius:10px;white-space:nowrap;}
-.pill.ship{background:#e1f5ee;color:#0f6e56;} .pill.ready{background:#e6f1fb;color:#0c447c;} .pill.draft{background:#f1efe8;color:#5f5e5a;}
-.bc{font-size:12px;color:var(--muted);white-space:nowrap;}
-.eye{display:inline-flex;align-items:center;gap:3px;font-size:11px;padding:2px 8px;border-radius:11px;text-decoration:none;white-space:nowrap;}
-.eye.pl{border:1px solid #0f6e56;color:#0f6e56;} .eye.inv{border:1px solid #185fa5;color:#185fa5;} .eye.sd{border:1px solid #8a929c;color:#5f6b7a;}
-.det{display:none;border-top:1px solid #eef1f5;padding:14px;background:#fff;}
-.lot.open .det{display:block;}
-.h6{font-size:11px;font-weight:800;color:#8a929c;text-transform:uppercase;letter-spacing:.3px;margin-bottom:6px;}
-table.blk{width:100%;border-collapse:collapse;font-size:12.5px;}
-table.blk td{padding:6px 4px;border-bottom:1px solid #f2f4f7;}
-.act{display:inline-block;background:#fff;border:1px solid var(--gold);color:var(--navy);border-radius:8px;padding:7px 12px;font-size:12.5px;font-weight:600;text-decoration:none;margin-top:10px;}
-.empty{padding:26px;text-align:center;color:#9aa3ad;}
-.loadn{background:#fffdf6;border:1px solid #f1d99a;border-left:4px solid var(--gold);border-radius:10px;padding:11px 14px;font-size:12.6px;color:#6b5320;margin:0 0 14px;}
-</style>
-</head>
-<body>
-<div class="wrap">
-<div id="shell" style="display:none">
-  <div class="topbar">
-    <div class="row1">
-      <div><div class="title">Export Documents &amp; Shipments</div><div class="sub">Dolphin International · active lots and exported shipments with their documents</div></div>
-      <div class="rolechip" id="rolechip">…</div>
-    </div>
-    <div class="tabs">
-      <div class="tab on" data-t="active" id="tab-active">Active <span class="b" id="cnt-active">0</span></div>
-      <div class="tab" data-t="exported" id="tab-exported">Exported <span class="b" id="cnt-exported">0</span></div>
-    </div>
-  </div>
-  <div class="panewrap">
-    <div class="sbx"><input id="q" placeholder="Search lot / consignee / mark / block / vessel"><span class="tot" id="tot"></span></div>
-    <div id="list"></div>
-  </div>
-</div>
-<div class="loadn" id="loadNote">Loading export shipment lots…</div>
-</div>
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--ink);font-size:14px;}
+.wrap{max-width:1120px;margin:0 auto;padding:16px;}
+.card{background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.10);border:1px solid #e2e7ef;}
+.top{background:var(--navy);padding:15px 20px 0;color:#fff;}
+.title{font-size:18px;font-weight:700;}
+.sub{font-size:12.5px;color:#9db8d8;margin-top:2px;}
+.tabs{display:flex;gap:2px;margin-top:14px;}
+.tab{color:#9db8d8;font-size:13px;padding:9px 16px;cursor:pointer;border-bottom:3px solid transparent;user-select:none;}
+.tab.on{color:#fff;border-bottom-color:var(--gold);}
+.tb{background:var(--navy3);color:#cfe0f5;border-radius:10px;padding:1px 7px;font-size:11px;margin-left:3px;}
+.tab.on .tb{background:var(--gold);color:#3a2a06;}
+.stats{background:var(--navy2);display:flex;flex-wrap:wrap;}
+.stat{padding:10px 16px;border-right:1px solid var(--line);}
+.slabel{color:#9db8d8;font-size:11px;}
+.sval{color:#fff;font-size:19px;font-weight:600;}
+.sep{padding:10px 14px;color:#6f8bb0;font-size:11px;display:flex;align-items:center;border-right:1px solid var(--line);}
+.exp{color:#7fe3c2;font-size:19px;font-weight:600;}
+.tools{padding:12px 16px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:#fafbfd;border-bottom:1px solid #eef1f6;}
+.search{flex:1;min-width:220px;height:38px;border:1px solid #d6dce7;border-radius:8px;padding:0 12px;font-size:14px;}
+.btn{height:38px;border:1px solid #d6dce7;background:#fff;border-radius:8px;padding:0 14px;font-size:13px;cursor:pointer;text-decoration:none;color:var(--ink);display:inline-flex;align-items:center;gap:6px;}
+.btn.gold{background:var(--gold);border-color:var(--gold);color:#3a2a06;font-weight:600;}
+.row{padding:12px 16px;border-bottom:1px solid #eef1f6;display:flex;align-items:center;gap:12px;cursor:pointer;}
+.row:hover{background:#f7f9fc;}
+.lot{flex:1;min-width:0;} .lname{font-size:14px;font-weight:600;display:flex;align-items:center;gap:8px;} .lsub{font-size:12px;color:var(--muted);margin-top:2px;}
+.blkc{font-size:12.5px;color:#3f5670;white-space:nowrap;}
+.pill{font-size:11px;padding:3px 10px;border-radius:20px;font-weight:600;white-space:nowrap;}
+.p-ship{background:#e1f5ee;color:#0f6e56;} .p-ready{background:#e6f1fb;color:#185fa5;} .p-draft{background:#f1efe8;color:#5f5e5a;}
+.eyes{min-width:120px;text-align:right;display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap;}
+.eye{font-size:11px;border-radius:20px;padding:3px 9px;cursor:pointer;white-space:nowrap;text-decoration:none;border:1px solid #cfe0f5;color:#185fa5;background:#f4f9ff;}
+.eye.pl{color:#0f6e56;border-color:#b7e3d4;background:#f2fbf7;} .eye.lock{color:#854f0b;border-color:#f0d29a;background:#fbf3e3;}
+.nod{font-size:11px;color:#9aa8b8;} .chev{color:#9aa8b8;}
+.detail{background:#f6f8fb;border-bottom:1px solid #e6eaf1;padding:14px 16px 16px;display:none;} .detail.open{display:block;}
+.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:12px;}
+.mk{font-size:10.5px;color:#8595a8;text-transform:uppercase;letter-spacing:.4px;} .mv{font-size:13px;font-weight:500;}
+.sec{font-size:11px;color:#7a8ba0;text-transform:uppercase;letter-spacing:.5px;margin:10px 0 8px;font-weight:600;}
+.docgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px;}
+.doc{background:#fff;border:1px solid #e2e8f1;border-radius:10px;padding:9px 11px;display:flex;align-items:center;gap:9px;}
+.dic{width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex:none;color:#fff;}
+.dn{font-size:13px;font-weight:600;} .dd{font-size:11px;color:#8595a8;}
+.dgo{margin-left:auto;font-size:11px;border:1px solid #cfe0f5;border-radius:6px;padding:3px 8px;cursor:pointer;background:#f7fbff;color:#185fa5;text-decoration:none;}
+table.blk{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:4px;} table.blk th{text-align:left;color:#8595a8;font-weight:600;font-size:11px;padding:6px 8px;border-bottom:1px solid #e6eaf1;} table.blk td{padding:7px 8px;border-bottom:1px solid #f0f3f8;}
+.acts{margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;} .foot{padding:9px 16px;font-size:11px;color:#8595a8;background:#fafbfd;} .note{padding:26px;text-align:center;color:#9aa8b8;font-size:13px;}
+</style></head><body>
+<div class="wrap"><div class="card">
+<div class="top"><div class="title">Dolphin International — Export Hub</div><div class="sub">Lots, documents, and exported shipments — one page</div>
+<div class="tabs"><div class="tab on" id="tab-active" onclick="setTab('active')">Active <span class="tb" id="c-active">0</span></div>
+<div class="tab" id="tab-exported" onclick="setTab('exported')">Exported <span class="tb" id="c-exported">0</span></div>
+<div class="tab" id="tab-all" onclick="setTab('all')">All <span class="tb" id="c-all">0</span></div></div></div>
+<div class="stats" id="stats"></div>
+<div class="tools"><input class="search" id="q" placeholder="Search lot / consignee / mark / block / vessel / BL no" oninput="onSearch(this.value)">
+<a class="btn gold" href="/app/export-shipment-lot/new" target="_blank">+ New lot</a>
+<a class="btn" href="/app/export-shipment-lot/view/list" target="_blank">All lots</a></div>
+<div id="rows"><div class="note" id="loadNote">Loading…</div></div>
+<div class="foot">Active = Draft / Ready lots being prepared · Exported = Shipped lots with final documents · expand a lot for its documents, blocks, and reopen action.</div>
+</div></div>
 <script>
-var BANGALORE_ROLES=['System Manager','Administrator','Dolphin Bangalore','Dolphin Owner'];
-var isBangalore=false, ALL=[], CONS={}, blockCache={}, curTab='active';
-function api(p){return fetch('/api/method/'+p,{headers:{Accept:'application/json'},credentials:'same-origin'}).then(function(r){return r.json();});}
-function esc(s){return (s==null?'':(''+s)).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
-function pdf(dt,nm,fmt){var kind=fmt==='DI Commercial Invoice'?'invoice':'packing_list';return '/api/method/dolphin_theme.shipment_hub.get_export_pdf?shipping_document='+encodeURIComponent(nm)+'&kind='+kind;}
-function fmtDate(d){if(!d)return '—';var p=(''+d).split('-');return p.length===3?(p[2]+'-'+p[1]+'-'+p[0]):d;}
-function num(v){return (v==null||v==='')?'—':v;}
-function consName(code){return (code&&CONS[code])?CONS[code]:(code||'');}
-function isShip(l){return l.status==='Shipped';}
-
-function eyesHTML(l){
-  var sd=l.shipping_document; if(!sd) return '<span class="lsub">no SD</span>';
-  var h='<a class="eye pl" href="'+pdf('Shipping Document',sd,'DI Packing List')+'" target="_blank">&#128065; PL</a>';
-  if(isBangalore){
-    h='<a class="eye sd" href="/app/shipping-document/'+encodeURIComponent(sd)+'" target="_blank">&#128065; SD</a> '
-      +'<a class="eye inv" href="'+pdf('Shipping Document',sd,'DI Commercial Invoice')+'" target="_blank">&#128065; Inv</a> '+h;
-  }
-  return h;
-}
-function blocksHTML(rows){
-  if(!rows||!rows.length) return '<div class="lsub">No blocks on this lot.</div>';
-  return '<table class="blk"><tbody>'+rows.map(function(b){
-    var dim=num(b.length)+'&times;'+num(b.width)+'&times;'+num(b.height);
-    return '<tr><td style="font-weight:600">'+esc(b.block_no||b.block||'—')+'</td><td class="lsub">'+(b.export_block_no?('exp '+esc(b.export_block_no)):'')+'</td><td class="lsub">'+dim+'</td><td class="lsub">'+(b.grade?esc(b.grade):'')+'</td></tr>';
-  }).join('')+'</tbody></table>';
-}
-function detailHTML(l,blocks){
-  return '<div class="h6">Blocks ('+(l.block_count||(blocks?blocks.length:0)||0)+')</div>'+blocksHTML(blocks)
-    +'<a class="act" href="/app/export-shipment-lot/'+encodeURIComponent(l.name)+'" target="_blank">Open lot &middot; return blocks / reopen to At Port</a>';
-}
-function lotHTML(l,i,exported){
-  var title=l.lot_title||l.name;
-  var sub=[consName(l.export_consignee), l.vessel, (l.bl_no?('BL '+l.bl_no):''), (exported?('shipped '+fmtDate(l.shipment_date)):null)].filter(Boolean).map(esc).join(' · ');
-  var pill=exported?'<span class="pill ship">&#128666; Shipped</span>':(l.status==='Ready'?'<span class="pill ready">&#9679; Ready</span>':'<span class="pill draft">&#9679; Draft</span>');
-  var cls=exported?'ship':(l.status==='Ready'?'ready':'draft');
-  var head='<div class="lhead'+(exported?' exp':'')+'">'+(exported?'<span class="chev">&#9656;</span>':'')
-    +'<div style="flex:1;min-width:180px"><div class="lname">'+esc(title)+' <span class="lsub">'+esc(l.name)+'</span></div><div class="lsub">'+sub+'</div></div>'
-    +(exported?('<span style="display:flex;gap:5px;align-items:center">'+eyesHTML(l)+'</span>'):'')
-    +pill+'<span class="bc">'+(l.block_count||0)+' blk</span></div>';
-  return '<div class="lot '+cls+'" data-i="'+i+'">'+head+(exported?'<div class="det"><div class="lsub">Loading…</div></div>':'')+'</div>';
-}
-function currentList(){
-  var q=(document.getElementById('q').value||'').trim().toLowerCase();
-  var arr=ALL.filter(function(l){return curTab==='exported'?isShip(l):!isShip(l);});
-  if(q) arr=arr.filter(function(l){return [l.name,l.lot_title,consName(l.export_consignee),l.vessel,l.bl_no,l.shipping_mark,l.shipping_document].filter(Boolean).join(' ').toLowerCase().indexOf(q)>=0;});
-  return arr;
-}
-function render(){
-  var exported=curTab==='exported';
-  var list=currentList();
-  var el=document.getElementById('list');
-  var blocks=list.reduce(function(s,l){return s+(l.block_count||0);},0);
-  var cbm=list.reduce(function(s,l){return s+(+l.total_cbm||0);},0);
-  document.getElementById('tot').textContent=list.length+' lots · '+blocks+' blocks'+(cbm?(' · '+cbm.toFixed(0)+' CBM'):'');
-  if(!list.length){el.innerHTML='<div class="empty">No '+(exported?'exported':'active')+' lots'+((document.getElementById('q').value||'').trim()?' match your search':'')+'.</div>';return;}
-  el.innerHTML=list.map(function(l){return lotHTML(l, ALL.indexOf(l), exported);}).join('');
-  if(exported){
-    Array.prototype.forEach.call(el.querySelectorAll('.lot'),function(row){
-      row.querySelector('.lhead').addEventListener('click',function(ev){
-        if(ev.target.closest('a')) return;
-        var open=row.classList.toggle('open');
-        if(open) loadDetail(+row.getAttribute('data-i'), row.querySelector('.det'));
-      });
-    });
-  }
-}
-function loadDetail(i,det){
-  var l=ALL[i];
-  if(blockCache[l.name]){det.innerHTML=detailHTML(l,blockCache[l.name]);return;}
-  api('frappe.client.get?doctype=Export Shipment Lot&name='+encodeURIComponent(l.name)).then(function(j){
-    var doc=j.message||{};var blocks=doc.blocks||[];blockCache[l.name]=blocks;det.innerHTML=detailHTML(l,blocks);
-  }).catch(function(){det.innerHTML=detailHTML(l,[]);});
-}
-function setTab(t){
-  curTab=t;
-  document.getElementById('tab-active').classList.toggle('on',t==='active');
-  document.getElementById('tab-exported').classList.toggle('on',t==='exported');
-  render();
-}
-
-(async function(){
-  try{
-    var user=await api('frappe.auth.get_logged_user').then(function(j){return j.message;});
-    if(!user||user==='Guest'){document.getElementById('loadNote').textContent='Please sign in to view export documents.';return;}
-    var rp=new URLSearchParams({doctype:'Has Role',filters:JSON.stringify([['parenttype','=','User'],['parent','=',user]]),fields:JSON.stringify(['role']),limit_page_length:0});
-    var roles=await api('frappe.client.get_list?'+rp.toString()).then(function(j){return (j.message||[]).map(function(r){return r.role;});});
-    isBangalore=roles.some(function(r){return BANGALORE_ROLES.indexOf(r)>=0;});
-    document.getElementById('rolechip').textContent=isBangalore?'Bangalore · invoice + SD visible':'Ilkal · packing list only';
-
-    var lp=new URLSearchParams({doctype:'Export Shipment Lot',fields:JSON.stringify(['name','lot_title','export_consignee','status','vessel','bl_no','shipping_document','shipment_date','block_count','shipping_mark','total_cbm']),order_by:'modified desc',limit_page_length:0});
-    ALL=await api('frappe.client.get_list?'+lp.toString()).then(function(j){return j.message||[];});
-
-    var codes=[]; ALL.forEach(function(l){if(l.export_consignee && codes.indexOf(l.export_consignee)<0)codes.push(l.export_consignee);});
-    if(codes.length){
-      var cp=new URLSearchParams({doctype:'Export Consignee',filters:JSON.stringify([['name','in',codes]]),fields:JSON.stringify(['name','company_name','nick_name']),limit_page_length:0});
-      var cl=await api('frappe.client.get_list?'+cp.toString()).then(function(j){return j.message||[];}).catch(function(){return [];});
-      cl.forEach(function(c){CONS[c.name]=c.company_name||c.nick_name||c.name;});
-    }
-    document.getElementById('cnt-active').textContent=ALL.filter(function(l){return !isShip(l);}).length;
-    document.getElementById('cnt-exported').textContent=ALL.filter(isShip).length;
-
-    document.getElementById('loadNote').style.display='none';
-    document.getElementById('shell').style.display='';
-    document.getElementById('tab-active').addEventListener('click',function(){setTab('active');});
-    document.getElementById('tab-exported').addEventListener('click',function(){setTab('exported');});
-    var t=null;document.getElementById('q').addEventListener('input',function(){clearTimeout(t);t=setTimeout(render,250);});
-    render();
-  }catch(e){document.getElementById('loadNote').textContent='Could not load ('+((e&&e.message)||e)+'). Open while logged in to ERPNext.';}
-})();
+var PRIV=false,ALL=[],CONS={},cache={},curTab="active",Q="";
+function api(p){return fetch("/api/method/"+p,{credentials:"include"}).then(function(r){return r.json();});}
+function getList(dt,f,fl,o){var p=new URLSearchParams({doctype:dt,fields:JSON.stringify(f),limit_page_length:0});if(fl)p.set("filters",JSON.stringify(fl));if(o)p.set("order_by",o);return api("frappe.client.get_list?"+p.toString()).then(function(j){return j.message||[];});}
+function esc(s){s=(s==null?"":""+s);return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
+function cbm(n){return Math.round((n||0)*10)/10;}
+function consName(c){if(!c)return "—";return CONS[c]||c;}
+function fmtDate(d){if(!d)return "—";var p=(""+d).split("-");return p.length===3?(p[2]+"-"+p[1]+"-"+p[0]):d;}
+function isShipped(l){return l.status==="Shipped";}
+function pdf(nm,k){return "/api/method/dolphin_theme.shipment_hub.get_export_pdf?shipping_document="+encodeURIComponent(nm)+"&kind="+k;}
+function pill(s){var c=s==="Shipped"?"p-ship":(s==="Draft"?"p-draft":"p-ready");return "<span class=\"pill "+c+"\">"+esc(s||"—")+"</span>";}
+function rowEyes(l){if(!isShipped(l))return "<span class=\"nod\">— no SD yet</span>";var sd=l.shipping_document;if(!sd)return "<span class=\"nod\">— no SD</span>";var out="<a class=\"eye pl\" href=\""+pdf(sd,"packing_list")+"\" target=\"_blank\">PL</a>";if(PRIV){out="<a class=\"eye\" href=\"/app/shipping-document/"+encodeURIComponent(sd)+"\" target=\"_blank\">SD</a><a class=\"eye lock\" href=\""+pdf(sd,"invoice")+"\" target=\"_blank\">Inv</a> "+out;}return out;}
+function agg(a){var b=0,c=0;for(var i=0;i<a.length;i++){b+=a[i].block_count||0;c+=a[i].total_cbm||0;}return{lots:a.length,blocks:b,cbm:cbm(c)};}
+function renderStats(){var act=agg(ALL.filter(function(l){return !isShipped(l);}));var exp=agg(ALL.filter(isShipped));document.getElementById("c-active").textContent=act.lots;document.getElementById("c-exported").textContent=exp.lots;document.getElementById("c-all").textContent=ALL.length;document.getElementById("stats").innerHTML="<div class=\"stat\"><div class=\"sval\">"+act.lots+"</div><div class=\"slabel\">Active lots</div></div><div class=\"stat\"><div class=\"sval\">"+act.blocks+"</div><div class=\"slabel\">Active blocks</div></div><div class=\"stat\"><div class=\"sval\">"+act.cbm+"</div><div class=\"slabel\">Active CBM</div></div><div class=\"sep\">shipped ·<br>separate</div><div class=\"stat\" style=\"border-right:none\"><div class=\"exp\">"+exp.blocks+" blk · "+exp.cbm+" CBM</div><div class=\"slabel\">Exported ("+exp.lots+" lot"+(exp.lots===1?"":"s")+")</div></div>";}
+function matches(l){if(!Q)return true;var h=[l.name,l.lot_title,consName(l.export_consignee),l.vessel,l.bl_no,l.shipping_mark,l.shipping_document].join(" ").toLowerCase();return h.indexOf(Q)>=0;}
+function render(){var list=ALL.filter(function(l){var t=(curTab==="all")||(curTab==="exported"&&isShipped(l))||(curTab==="active"&&!isShipped(l));return t&&matches(l);});var el=document.getElementById("rows");if(!list.length){el.innerHTML="<div class=\"note\">No lots match</div>";return;}var html="";for(var i=0;i<list.length;i++){var l=list[i];var idx=ALL.indexOf(l);html+="<div class=\"row\" onclick=\"toggle("+idx+")\"><div class=\"lot\"><div class=\"lname\">"+esc(l.name)+" <span class=\"chev\" id=\"cv"+idx+"\">▾</span></div><div class=\"lsub\">"+esc(consName(l.export_consignee))+(l.vessel?" · "+esc(l.vessel):"")+"</div></div><div class=\"blkc\">"+(l.block_count||0)+" blk · "+cbm(l.total_cbm)+" CBM</div>"+pill(l.status)+"<div class=\"eyes\" onclick=\"event.stopPropagation()\">"+rowEyes(l)+"</div></div><div class=\"detail\" id=\"dt"+idx+"\"></div>";}el.innerHTML=html;}
+function docCard(col,tag,nm,dd,href){return "<div class=\"doc\"><div class=\"dic\" style=\"background:"+col+"\">"+tag+"</div><div><div class=\"dn\">"+nm+"</div><div class=\"dd\">"+dd+"</div></div>"+(href?"<a class=\"dgo\" href=\""+href+"\" target=\"_blank\">open</a>":"")+"</div>";}
+function detailHTML(l,blocks){var docs="";if(isShipped(l)&&l.shipping_document){var sd=l.shipping_document;if(PRIV){docs+=docCard("#185fa5","SD","Shipping Document",esc(sd),"/app/shipping-document/"+encodeURIComponent(sd));docs+=docCard("#854f0b","&#128274;","Commercial Invoice","restricted",pdf(sd,"invoice"));}docs+=docCard("#0f6e56","PL","Packing List","open to all",pdf(sd,"packing_list"));}else{docs+="<div class=\"doc\" style=\"opacity:.7\"><div class=\"dic\" style=\"background:#8a929c\">SD</div><div><div class=\"dn\">Shipping Document</div><div class=\"dd\">created when shipped</div></div></div>";}var rows="";for(var i=0;i<blocks.length;i++){var b=blocks[i];var dim=[b.length,b.width,b.height].map(function(x){return x||0;}).join("×");rows+="<tr><td>"+esc(b.block_no||b.export_block_no||b.block)+"</td><td>"+esc(b.export_block_no||"—")+"</td><td>"+dim+"</td><td>"+esc(b.grade||"—")+"</td><td>"+cbm(b.cbm)+"</td></tr>";}if(!rows)rows="<tr><td colspan=\"5\" style=\"color:#9aa8b8\">No blocks yet</td></tr>";var lref="/app/export-shipment-lot/"+encodeURIComponent(l.name);var act=isShipped(l)?"<a class=\"btn\" href=\""+lref+"\" target=\"_blank\">Open lot · reopen / return blocks to At Port</a>":"<a class=\"btn gold\" href=\""+lref+"\" target=\"_blank\">Open lot · add blocks</a>";return "<div class=\"meta\"><div><div class=\"mk\">Consignee</div><div class=\"mv\">"+esc(consName(l.export_consignee))+"</div></div><div><div class=\"mk\">Shipping mark</div><div class=\"mv\">"+esc(l.shipping_mark||"—")+"</div></div><div><div class=\"mk\">Vessel</div><div class=\"mv\">"+esc(l.vessel||"—")+"</div></div><div><div class=\"mk\">BL no</div><div class=\"mv\">"+esc(l.bl_no||"—")+"</div></div><div><div class=\"mk\">Shipment date</div><div class=\"mv\">"+fmtDate(l.shipment_date)+"</div></div><div><div class=\"mk\">Lot ID</div><div class=\"mv\">"+esc(l.name)+"</div></div></div><div class=\"sec\">Documents</div><div class=\"docgrid\">"+docs+"</div><div class=\"sec\">Blocks ("+(l.block_count||0)+")</div><table class=\"blk\"><thead><tr><th>Block no</th><th>Export no</th><th>Dims</th><th>Grade</th><th>CBM</th></tr></thead><tbody>"+rows+"</tbody></table><div class=\"acts\">"+act+"</div>";}
+function toggle(idx){var det=document.getElementById("dt"+idx),cv=document.getElementById("cv"+idx);if(!det)return;var open=det.classList.toggle("open");cv.textContent=open?"▴":"▾";if(open&&!det.getAttribute("data-loaded")){det.setAttribute("data-loaded","1");var l=ALL[idx];if(cache[l.name]){det.innerHTML=detailHTML(l,cache[l.name]);return;}det.innerHTML="<div class=\"note\">Loading blocks…</div>";api("frappe.client.get?doctype=Export Shipment Lot&name="+encodeURIComponent(l.name)).then(function(j){var bl=(j.message&&j.message.blocks)||[];cache[l.name]=bl;det.innerHTML=detailHTML(l,bl);}).catch(function(){det.innerHTML=detailHTML(l,[]);});}}
+function setTab(t){curTab=t;["active","exported","all"].forEach(function(x){document.getElementById("tab-"+x).classList.toggle("on",x===t);});render();}
+function onSearch(v){Q=(v||"").toLowerCase().trim();render();}
+(async function(){try{var user=await api("frappe.auth.get_logged_user").then(function(j){return j.message;});if(!user||user==="Guest"){document.getElementById("loadNote").textContent="Please sign in.";return;}var roles=await getList("Has Role",["role"],[["parenttype","=","User"],["parent","=",user]]).then(function(r){return r.map(function(x){return x.role;});});var pr={"System Manager":1,"Administrator":1,"Dolphin Owner":1,"Dolphin Bangalore":1};PRIV=roles.some(function(r){return pr[r];})||user==="Administrator";ALL=await getList("Export Shipment Lot",["name","lot_title","export_consignee","status","block_count","total_cbm","vessel","bl_no","shipment_date","shipping_mark","shipping_document"],null,"modified desc");var codes=[];for(var i=0;i<ALL.length;i++){var c=ALL[i].export_consignee;if(c&&codes.indexOf(c)<0)codes.push(c);}if(codes.length){var cs=await getList("Export Consignee",["name","company_name"],[["name","in",codes]]);for(var k=0;k<cs.length;k++){CONS[cs[k].name]=cs[k].company_name||cs[k].name;}}renderStats();render();}catch(e){document.getElementById("loadNote").textContent="Could not load: "+e;}})();
 </script>
-</body>
-</html>{% endraw %}
-
+</body></html>
+{% endraw %}
