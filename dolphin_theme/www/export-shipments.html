@@ -70,7 +70,7 @@ var BANGALORE_ROLES=['System Manager','Administrator','Dolphin Bangalore','Dolph
 var isBangalore=false, ALL=[], CONS={}, blockCache={}, curTab='active';
 function api(p){return fetch('/api/method/'+p,{headers:{Accept:'application/json'},credentials:'same-origin'}).then(function(r){return r.json();});}
 function esc(s){return (s==null?'':(''+s)).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
-function pdf(dt,nm,fmt){return '/api/method/frappe.utils.print_format.download_pdf?doctype='+encodeURIComponent(dt)+'&name='+encodeURIComponent(nm)+'&format='+encodeURIComponent(fmt)+'&no_letterhead=0';}
+function pdf(dt,nm,fmt){var kind=fmt==='DI Commercial Invoice'?'invoice':'packing_list';return '/api/method/dolphin_theme.shipment_hub.get_export_pdf?shipping_document='+encodeURIComponent(nm)+'&kind='+kind;}
 function fmtDate(d){if(!d)return '—';var p=(''+d).split('-');return p.length===3?(p[2]+'-'+p[1]+'-'+p[0]):d;}
 function num(v){return (v==null||v==='')?'—':v;}
 function consName(code){return (code&&CONS[code])?CONS[code]:(code||'');}
