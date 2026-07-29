@@ -54,3 +54,46 @@ def require_bangalore():
     if set(frappe.get_roles(user)) & _BANGALORE_ROLES:
         return
     frappe.throw(_("Not enough permission"), frappe.PermissionError)
+
+
+@frappe.whitelist()
+def get_export_pdf(shipping_document, kind):
+    """Gated PDF access for export shipment documents.
+
+    Packing List is available to any signed-in user. Commercial Invoice is
+    served only to users with print permission on Shipping Document (Owner /
+    System Manager / Bangalore); everyone else gets a hard PermissionError, so
+    the invoice cannot be reached even by crafting the URL directly.
+    """
+    if frappe.session.user == "Guest":
+        raise frappe.PermissionError(_("Please sign in to view this document."))
+
+    kind = (kind or "").strip().lower()
+    formats = {
+        "packing_list": "DI Packing List",
+        "invoice": "DI Commercial Invoice",
+    }
+    print_format = formats.get(kind)
+    if not print_format:
+        frappe.throw(_("Unknown document type."))
+
+    if kind == "invoice" and not frappe.has_permission(
+        "Shipping Document", ptype="print", doc=shipping_document
+    ):
+        raise frappe.PermissionError(
+            _("You are not authorized to view the commercial invoice.")
+        )
+
+    doc = frappe.get_doc("Shipping Document", shipping_document)
+    doc.flags.ignore_permissions = True
+
+    frappe.local.response.filename = "{0}-{1}.pdf".format(shipping_document, kind)
+    frappe.local.response.filecontent = frappe.get_print(
+        "Shipping Document",
+        shipping_document,
+        print_format,
+        doc=doc,
+        as_pdf=True,
+        no_letterhead=0,
+    )
+    frappe.local.response.type = "pdf"
