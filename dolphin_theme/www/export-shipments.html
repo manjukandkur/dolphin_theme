@@ -1,89 +1,127 @@
 {% raw %}
-<!doctype html>
-<html lang="en"><head>
-<meta charset="utf-8">
+<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Dolphin — Export Hub</title>
-<style>
-:root{--navy:#0e2a4d;--navy2:#1c3d63;--navy3:#16345a;--line:#2c4d76;--gold:#d9a441;--ink:#12263f;--muted:#5b7288;--bg:#eef1f6;}
-*{box-sizing:border-box;}
-body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--ink);font-size:14px;}
-.wrap{max-width:1120px;margin:0 auto;padding:16px;}
-.card{background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.10);border:1px solid #e2e7ef;}
-.top{background:var(--navy);padding:15px 20px 0;color:#fff;}
-.title{font-size:18px;font-weight:700;}
-.sub{font-size:12.5px;color:#9db8d8;margin-top:2px;}
-.tabs{display:flex;gap:2px;margin-top:14px;}
-.tab{color:#9db8d8;font-size:13px;padding:9px 16px;cursor:pointer;border-bottom:3px solid transparent;user-select:none;}
-.tab.on{color:#fff;border-bottom-color:var(--gold);}
-.tb{background:var(--navy3);color:#cfe0f5;border-radius:10px;padding:1px 7px;font-size:11px;margin-left:3px;}
-.tab.on .tb{background:var(--gold);color:#3a2a06;}
-.stats{background:var(--navy2);display:flex;flex-wrap:wrap;}
-.stat{padding:10px 16px;border-right:1px solid var(--line);}
-.slabel{color:#9db8d8;font-size:11px;}
-.sval{color:#fff;font-size:19px;font-weight:600;}
-.sep{padding:10px 14px;color:#6f8bb0;font-size:11px;display:flex;align-items:center;border-right:1px solid var(--line);}
-.exp{color:#7fe3c2;font-size:19px;font-weight:600;}
-.tools{padding:12px 16px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:#fafbfd;border-bottom:1px solid #eef1f6;}
-.search{flex:1;min-width:220px;height:38px;border:1px solid #d6dce7;border-radius:8px;padding:0 12px;font-size:14px;}
-.btn{height:38px;border:1px solid #d6dce7;background:#fff;border-radius:8px;padding:0 14px;font-size:13px;cursor:pointer;text-decoration:none;color:var(--ink);display:inline-flex;align-items:center;gap:6px;}
-.btn.gold{background:var(--gold);border-color:var(--gold);color:#3a2a06;font-weight:600;}
-.row{padding:12px 16px;border-bottom:1px solid #eef1f6;display:flex;align-items:center;gap:12px;cursor:pointer;}
-.row:hover{background:#f7f9fc;}
-.lot{flex:1;min-width:0;} .lname{font-size:14px;font-weight:600;display:flex;align-items:center;gap:8px;} .lsub{font-size:12px;color:var(--muted);margin-top:2px;}
-.blkc{font-size:12.5px;color:#3f5670;white-space:nowrap;}
-.pill{font-size:11px;padding:3px 10px;border-radius:20px;font-weight:600;white-space:nowrap;}
-.p-ship{background:#e1f5ee;color:#0f6e56;} .p-ready{background:#e6f1fb;color:#185fa5;} .p-draft{background:#f1efe8;color:#5f5e5a;}
-.eyes{min-width:120px;text-align:right;display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap;}
-.eye{font-size:11px;border-radius:20px;padding:3px 9px;cursor:pointer;white-space:nowrap;text-decoration:none;border:1px solid #cfe0f5;color:#185fa5;background:#f4f9ff;}
-.eye.pl{color:#0f6e56;border-color:#b7e3d4;background:#f2fbf7;} .eye.lock{color:#854f0b;border-color:#f0d29a;background:#fbf3e3;}
-.nod{font-size:11px;color:#9aa8b8;} .chev{color:#9aa8b8;}
-.detail{background:#f6f8fb;border-bottom:1px solid #e6eaf1;padding:14px 16px 16px;display:none;} .detail.open{display:block;}
-.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:12px;}
-.mk{font-size:10.5px;color:#8595a8;text-transform:uppercase;letter-spacing:.4px;} .mv{font-size:13px;font-weight:500;}
-.sec{font-size:11px;color:#7a8ba0;text-transform:uppercase;letter-spacing:.5px;margin:10px 0 8px;font-weight:600;}
-.docgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px;}
-.doc{background:#fff;border:1px solid #e2e8f1;border-radius:10px;padding:9px 11px;display:flex;align-items:center;gap:9px;}
-.dic{width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex:none;color:#fff;}
-.dn{font-size:13px;font-weight:600;} .dd{font-size:11px;color:#8595a8;}
-.dgo{margin-left:auto;font-size:11px;border:1px solid #cfe0f5;border-radius:6px;padding:3px 8px;cursor:pointer;background:#f7fbff;color:#185fa5;text-decoration:none;}
-table.blk{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:4px;} table.blk th{text-align:left;color:#8595a8;font-weight:600;font-size:11px;padding:6px 8px;border-bottom:1px solid #e6eaf1;} table.blk td{padding:7px 8px;border-bottom:1px solid #f0f3f8;}
-.acts{margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;} .foot{padding:9px 16px;font-size:11px;color:#8595a8;background:#fafbfd;} .note{padding:26px;text-align:center;color:#9aa8b8;font-size:13px;}
-</style></head><body>
-<div class="wrap"><div class="card">
-<div class="top"><div class="title">Dolphin International — Export Hub</div><div class="sub">Lots, documents, and exported shipments — one page</div>
-<div class="tabs"><div class="tab on" id="tab-active" onclick="setTab('active')">Active <span class="tb" id="c-active">0</span></div>
-<div class="tab" id="tab-exported" onclick="setTab('exported')">Exported <span class="tb" id="c-exported">0</span></div>
-<div class="tab" id="tab-all" onclick="setTab('all')">All <span class="tb" id="c-all">0</span></div></div></div>
-<div class="stats" id="stats"></div>
-<div class="tools"><input class="search" id="q" placeholder="Search lot / consignee / mark / block / vessel / BL no" oninput="onSearch(this.value)">
-<a class="btn gold" href="/app/export-shipment-lot/new" target="_blank">+ New lot</a>
-<a class="btn" href="/app/export-shipment-lot/view/list" target="_blank">All lots</a></div>
-<div id="rows"><div class="note" id="loadNote">Loading…</div></div>
-<div class="foot">Active = Draft / Ready lots being prepared · Exported = Shipped lots with final documents · expand a lot for its documents, blocks, and reopen action.</div>
-</div></div>
+<title>Dolphin — Export Hub</title><style>
+:root{--navy:#0F2540;--navy2:#16345a;--navy3:#1c3d63;--line:#24466e;--gold:#D4A24A;--ink:#12263f;--muted:#5b7288;--bg:#eef1f5;}
+*{box-sizing:border-box}html,body{margin:0;height:100%}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--ink);font-size:14px}
+.app{display:flex;min-height:100vh}
+.side{width:230px;flex:none;background:var(--navy);color:#cdd9e8;padding:12px 10px;overflow-y:auto;max-height:100vh;position:sticky;top:0}
+.brand{display:flex;align-items:center;gap:8px;background:#fff;border-radius:10px;padding:8px 10px;margin-bottom:12px}
+.brand .lg{width:26px;height:26px;border-radius:6px;background:#00ADEF;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700}
+.brand .bt{font-weight:700;color:var(--navy);font-size:13px;line-height:1.1}
+.menuhdr{font-weight:600;color:#e7eef7;font-size:13px;padding:6px 8px}
+.filter{width:100%;height:32px;border-radius:8px;border:1px solid var(--line);background:#0c2138;color:#cdd9e8;padding:0 10px;font-size:12px;margin:4px 0 10px}
+.sec{color:var(--gold);font-size:11px;font-weight:700;letter-spacing:.4px;padding:10px 8px 4px}
+a.mi{display:block;padding:7px 10px;border-radius:8px;color:#c3d1e2;font-size:13px;text-decoration:none}
+a.mi:hover{background:var(--navy2)}
+a.mi.on{background:var(--navy2);color:#fff;border-left:3px solid var(--gold)}
+.main{flex:1;min-width:0;display:flex;flex-direction:column}
+.topbar{background:var(--navy);display:flex;align-items:center;gap:10px;padding:10px 16px;flex-wrap:wrap;position:sticky;top:0;z-index:5}
+.trace{flex:1;min-width:160px;max-width:320px;height:34px;border-radius:9px;border:1px solid var(--line);background:#0c2138;color:#cdd9e8;padding:0 12px;font-size:13px}
+.tbtn{height:32px;border-radius:9px;border:1px solid var(--gold);background:transparent;color:var(--gold);font-size:12px;padding:0 12px;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:5px}
+.tbtn.solid{background:var(--gold);color:#3a2a06;font-weight:700}.tbtn.blue{background:#2490ef;border-color:#2490ef;color:#fff}
+.crumb{color:#fff;font-weight:600;font-size:14px;margin:0 4px}
+.content{padding:16px}
+.hubhead{background:var(--navy);border-radius:12px 12px 0 0;padding:14px 18px 0;color:#fff}
+.htitle{font-size:17px;font-weight:700}.hsub{font-size:12px;color:#9db8d8;margin-top:2px}
+.tabs{display:flex;gap:2px;margin-top:12px;flex-wrap:wrap}
+.tab{color:#9db8d8;font-size:13px;padding:9px 15px;cursor:pointer;border-bottom:3px solid transparent}
+.tab.on{color:#fff;border-bottom-color:var(--gold)}
+.tbdg{background:var(--navy2);color:#cfe0f5;border-radius:10px;padding:1px 7px;font-size:11px;margin-left:3px}.tab.on .tbdg{background:var(--gold);color:#3a2a06}
+.stats{background:var(--navy3);display:flex;flex-wrap:wrap}.stat{padding:10px 18px;border-right:1px solid var(--line)}
+.sl{color:#9db8d8;font-size:11px}.sv{color:#fff;font-size:19px;font-weight:700}
+.sep{padding:10px 14px;color:#6f8bb0;font-size:11px;display:flex;align-items:center;border-right:1px solid var(--line)}.expv{color:#7fe3c2;font-size:19px;font-weight:700}
+.tools{background:#fafbfd;border-bottom:1px solid #e6eaf1;padding:10px 16px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.search{flex:1;min-width:200px;height:36px;border:1px solid #d6dce7;border-radius:8px;padding:0 12px;font-size:14px}
+.btn{height:36px;border:1px solid #d6dce7;background:#fff;border-radius:8px;padding:0 12px;font-size:13px;cursor:pointer;text-decoration:none;color:var(--ink);display:inline-flex;align-items:center;gap:6px}
+.btn.gold{background:var(--gold);border-color:var(--gold);color:#3a2a06;font-weight:700}
+.list{background:#fff;border-radius:0 0 12px 12px;overflow:hidden;border:1px solid #e2e7ef;border-top:none}
+.lhead,.row{display:grid;gap:10px;align-items:center;padding:11px 16px}
+.cl{grid-template-columns:1.7fr 0.9fr 1.5fr 0.8fr 1fr 1.1fr}.cd{grid-template-columns:1.2fr 1.1fr 1.5fr 0.9fr 0.9fr 1.1fr}
+.lhead{background:#f4f6fa;color:#8595a8;font-size:11px;text-transform:uppercase;letter-spacing:.4px;border-bottom:1px solid #eef1f6}
+.row{border-bottom:1px solid #eef1f6;cursor:pointer}.row:hover{background:#f7f9fc}
+.lname{font-weight:600;display:flex;align-items:center;gap:7px}.lsub{font-size:11px;color:var(--muted);margin-top:1px}
+.pill{font-size:11px;padding:3px 10px;border-radius:20px;font-weight:600;justify-self:start;white-space:nowrap}
+.p-ship{background:#e1f5ee;color:#0f6e56}.p-ready{background:#e6f1fb;color:#185fa5}.p-draft{background:#f1efe8;color:#5f5e5a}
+.eyes{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.eye{font-size:11px;border-radius:20px;padding:3px 9px;border:1px solid #cfe0f5;color:#185fa5;background:#f4f9ff;text-decoration:none}
+.eye.pl{color:#0f6e56;border-color:#b7e3d4;background:#f2fbf7}.eye.lock{color:#854f0b;border-color:#f0d29a;background:#fbf3e3}
+.nod{font-size:11px;color:#9aa8b8;text-align:right}.chev{color:#9aa8b8}
+.detail{background:#f6f8fb;border-bottom:1px solid #e6eaf1;padding:14px 16px 18px;display:none}.detail.open{display:block}
+.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:12px}
+.mk{font-size:10.5px;color:#8595a8;text-transform:uppercase;letter-spacing:.4px}.mv{font-size:13px;font-weight:500}
+.dsec{font-size:11px;color:#7a8ba0;text-transform:uppercase;letter-spacing:.5px;margin:8px 0 8px;font-weight:700}
+.docgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px}
+.doc{background:#fff;border:1px solid #e2e8f1;border-radius:10px;padding:9px 11px;display:flex;align-items:center;gap:9px}
+.dic{width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex:none}
+.dn{font-size:13px;font-weight:600}.dd{font-size:11px;color:#8595a8}
+.dgo{margin-left:auto;font-size:11px;border:1px solid #cfe0f5;border-radius:6px;padding:3px 8px;background:#f7fbff;color:#185fa5;text-decoration:none}
+table.blk{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:4px}
+table.blk th{text-align:left;color:#8595a8;font-weight:600;font-size:11px;padding:6px 8px;border-bottom:1px solid #e6eaf1}table.blk td{padding:7px 8px;border-bottom:1px solid #f0f3f8}
+.acts{margin-top:12px;display:flex;gap:8px;flex-wrap:wrap}.foot{padding:9px 16px;font-size:11px;color:#8595a8}
+</style></head><body><div class="app">
+<aside class="side">
+<div class="brand"><div class="lg">D</div><div class="bt">Dolphin<br>International</div></div>
+<div class="menuhdr">Dolphin menu</div><input class="filter" placeholder="Filter menu">
+<div class="sec">Quarry &amp; inspection</div>
+<a class="mi" href="/app/quarry-block">Quarry Block</a>
+<a class="mi" href="/app/quarry-inspection">Quarry Inspection</a>
+<a class="mi" href="/app/buyer-inspection">Buyer Inspection</a>
+<a class="mi" href="/app/loading-desk">Pending Loading</a>
+<div class="sec">Dispatch &amp; port</div>
+<a class="mi" href="/app/delivery-challan">Delivery Challan</a>
+<a class="mi" href="/app/port-arrival">Port Arrival</a>
+<a class="mi" href="/port-reconciliation">Port &amp; Stock</a>
+<a class="mi" href="/app/export-shipment-lot">Export Shipment Lot</a>
+<a class="mi on" href="/export-shipments">Export Hub</a>
+<div class="sec">Sales &amp; reports</div>
+<a class="mi" href="/sales-calc">Sales</a>
+<a class="mi" href="/stock-reports">Reports</a>
+</aside><main class="main">
+<div class="topbar"><input class="trace" placeholder="Trace block no">
+<a class="tbtn" id="back">Back</a><a class="tbtn" href="/app">Dolphin Home</a><span class="crumb">Export Hub</span>
+<a class="tbtn" href="/app/export-shipment-lot/view/import">Import</a><a class="tbtn blue" id="refresh">Refresh</a>
+<a class="tbtn solid" href="/app/export-shipment-lot/new">+ Add Export Shipment Lot</a></div>
+<div class="content"><div class="hubhead"><div class="htitle">Dolphin International — Export Hub</div>
+<div class="hsub">Export shipment lots, shipping documents, and exported shipments</div>
+<div class="tabs" id="tabs">
+<div class="tab on" data-t="active">Active <span class="tbdg" id="c-active">0</span></div>
+<div class="tab" data-t="exported">Exported <span class="tbdg" id="c-exported">0</span></div>
+<div class="tab" data-t="shipdocs">Shipping docs <span class="tbdg" id="c-ship">0</span></div>
+<div class="tab" data-t="all">All lots <span class="tbdg" id="c-all">0</span></div>
+</div></div><div class="stats" id="stats"></div><div class="tools" id="tools"></div>
+<div id="list"><div class="note" style="padding:26px;text-align:center;color:#9aa8b8" id="loadNote">Loading…</div></div>
+<div class="foot" id="foot"></div></div></main></div>
 <script>
-var PRIV=false,ALL=[],CONS={},cache={},curTab="active",Q="";
+var PRIV=false,ALL=[],SHIP=[],CONS={},cache={},TAB="active",Q="";
 function api(p){return fetch("/api/method/"+p,{credentials:"include"}).then(function(r){return r.json();});}
 function getList(dt,f,fl,o){var p=new URLSearchParams({doctype:dt,fields:JSON.stringify(f),limit_page_length:0});if(fl)p.set("filters",JSON.stringify(fl));if(o)p.set("order_by",o);return api("frappe.client.get_list?"+p.toString()).then(function(j){return j.message||[];});}
 function esc(s){s=(s==null?"":""+s);return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
 function cbm(n){return Math.round((n||0)*10)/10;}
 function consName(c){if(!c)return "—";return CONS[c]||c;}
 function fmtDate(d){if(!d)return "—";var p=(""+d).split("-");return p.length===3?(p[2]+"-"+p[1]+"-"+p[0]):d;}
-function isShipped(l){return l.status==="Shipped";}
+function shipped(l){return l.status==="Shipped";}
 function pdf(nm,k){return "/api/method/dolphin_theme.shipment_hub.get_export_pdf?shipping_document="+encodeURIComponent(nm)+"&kind="+k;}
 function pill(s){var c=s==="Shipped"?"p-ship":(s==="Draft"?"p-draft":"p-ready");return "<span class=\"pill "+c+"\">"+esc(s||"—")+"</span>";}
-function rowEyes(l){if(!isShipped(l))return "<span class=\"nod\">— no SD yet</span>";var sd=l.shipping_document;if(!sd)return "<span class=\"nod\">— no SD</span>";var out="<a class=\"eye pl\" href=\""+pdf(sd,"packing_list")+"\" target=\"_blank\">PL</a>";if(PRIV){out="<a class=\"eye\" href=\"/app/shipping-document/"+encodeURIComponent(sd)+"\" target=\"_blank\">SD</a><a class=\"eye lock\" href=\""+pdf(sd,"invoice")+"\" target=\"_blank\">Inv</a> "+out;}return out;}
+function eyeSet(sd){var o="<a class=\"eye pl\" href=\""+pdf(sd,"packing_list")+"\" target=\"_blank\">PL</a>";if(PRIV){o="<a class=\"eye\" href=\"/app/shipping-document/"+encodeURIComponent(sd)+"\" target=\"_blank\">SD</a><a class=\"eye lock\" href=\""+pdf(sd,"invoice")+"\" target=\"_blank\">Inv</a> "+o;}return "<div class=\"eyes\">"+o+"</div>";}
+function lotEyes(l){if(!shipped(l))return "<div class=\"nod\">— no SD yet</div>";if(!l.shipping_document)return "<div class=\"nod\">— no SD</div>";return eyeSet(l.shipping_document);}
 function agg(a){var b=0,c=0;for(var i=0;i<a.length;i++){b+=a[i].block_count||0;c+=a[i].total_cbm||0;}return{lots:a.length,blocks:b,cbm:cbm(c)};}
-function renderStats(){var act=agg(ALL.filter(function(l){return !isShipped(l);}));var exp=agg(ALL.filter(isShipped));document.getElementById("c-active").textContent=act.lots;document.getElementById("c-exported").textContent=exp.lots;document.getElementById("c-all").textContent=ALL.length;document.getElementById("stats").innerHTML="<div class=\"stat\"><div class=\"sval\">"+act.lots+"</div><div class=\"slabel\">Active lots</div></div><div class=\"stat\"><div class=\"sval\">"+act.blocks+"</div><div class=\"slabel\">Active blocks</div></div><div class=\"stat\"><div class=\"sval\">"+act.cbm+"</div><div class=\"slabel\">Active CBM</div></div><div class=\"sep\">shipped ·<br>separate</div><div class=\"stat\" style=\"border-right:none\"><div class=\"exp\">"+exp.blocks+" blk · "+exp.cbm+" CBM</div><div class=\"slabel\">Exported ("+exp.lots+" lot"+(exp.lots===1?"":"s")+")</div></div>";}
+function dcard(col,tag,nm,dd,href){return "<div class=\"doc\"><div class=\"dic\" style=\"background:"+col+"\">"+tag+"</div><div><div class=\"dn\">"+nm+"</div><div class=\"dd\">"+dd+"</div></div>"+(href?"<a class=\"dgo\" href=\""+href+"\" target=\"_blank\">open</a>":"")+"</div>";}
+function docsBlock(l){var sd=l.shipping_document;if(shipped(l)&&sd){var h="";if(PRIV){h+=dcard("#185fa5","SD","Shipping Document",esc(sd),"/app/shipping-document/"+encodeURIComponent(sd));h+=dcard("#854f0b","&#128274;","Commercial Invoice","restricted",pdf(sd,"invoice"));}h+=dcard("#0f6e56","PL","Packing List","open to all",pdf(sd,"packing_list"));return h;}return "<div class=\"doc\" style=\"opacity:.7\"><div class=\"dic\" style=\"background:#8a929c\">SD</div><div><div class=\"dn\">Shipping Document</div><div class=\"dd\">created when shipped</div></div></div>";}
+function blockTable(bl,n){var r="";for(var i=0;i<bl.length;i++){var b=bl[i];var dim=[b.length,b.width,b.height].map(function(x){return x||0;}).join("×");r+="<tr><td>"+esc(b.block_no||b.export_block_no||b.block)+"</td><td>"+esc(b.export_block_no||"—")+"</td><td>"+dim+"</td><td>"+esc(b.grade||"—")+"</td><td>"+cbm(b.cbm)+"</td></tr>";}if(!r)r="<tr><td colspan=\"5\" style=\"color:#9aa8b8\">No blocks yet</td></tr>";return "<div class=\"dsec\">Blocks ("+n+")</div><table class=\"blk\"><thead><tr><th>Block no</th><th>Export no</th><th>Dims</th><th>Grade</th><th>CBM</th></tr></thead><tbody>"+r+"</tbody></table>";}
+function detailHTML(l,bl){var lref="/app/export-shipment-lot/"+encodeURIComponent(l.name);var act=shipped(l)?"<a class=\"btn\" href=\""+lref+"\" target=\"_blank\">Open lot · reopen / return blocks to At Port</a>":"<a class=\"btn gold\" href=\""+lref+"\" target=\"_blank\">Open lot · add blocks</a>";return "<div class=\"meta\"><div><div class=\"mk\">Consignee</div><div class=\"mv\">"+esc(consName(l.export_consignee))+"</div></div><div><div class=\"mk\">Shipping mark</div><div class=\"mv\">"+esc(l.shipping_mark||"—")+"</div></div><div><div class=\"mk\">Vessel</div><div class=\"mv\">"+esc(l.vessel||"—")+"</div></div><div><div class=\"mk\">BL no</div><div class=\"mv\">"+esc(l.bl_no||"—")+"</div></div><div><div class=\"mk\">Shipment date</div><div class=\"mv\">"+fmtDate(l.shipment_date)+"</div></div><div><div class=\"mk\">Lot ID</div><div class=\"mv\">"+esc(l.name)+"</div></div></div><div class=\"dsec\">Documents</div><div class=\"docgrid\">"+docsBlock(l)+"</div>"+blockTable(bl,l.block_count||0)+"<div class=\"acts\">"+act+"</div>";}
+function rowsLots(arr){var h="<div class=\"lhead cl\"><div>Lot name</div><div>Shipment date</div><div>Consignee</div><div>Status</div><div>Blocks · CBM</div><div style=\"text-align:right\">Documents</div></div>";for(var i=0;i<arr.length;i++){var l=arr[i];var idx=ALL.indexOf(l);h+="<div class=\"row cl\" data-idx=\""+idx+"\"><div><div class=\"lname\">"+esc(l.name)+" <span class=\"chev\">▾</span></div><div class=\"lsub\">"+esc(l.name)+"</div></div><div>"+fmtDate(l.shipment_date)+"</div><div>"+esc(consName(l.export_consignee))+"</div>"+pill(l.status)+"<div>"+(l.block_count||0)+" blk · "+cbm(l.total_cbm)+" CBM</div>"+lotEyes(l)+"</div><div class=\"detail\" data-det=\""+idx+"\"></div>";}return h;}
+function rowsShip(arr){var h="<div class=\"lhead cd\"><div>Shipping doc</div><div>Lot</div><div>Consignee</div><div>Date</div><div>Blocks · CBM</div><div style=\"text-align:right\">Documents</div></div>";for(var i=0;i<arr.length;i++){var l=arr[i];var idx=ALL.indexOf(l);h+="<div class=\"row cd\" data-idx=\""+idx+"\"><div><div class=\"lname\">"+esc(l.shipping_document)+" <span class=\"chev\">▾</span></div><div class=\"lsub\">shipping document</div></div><div>"+esc(l.name)+"</div><div>"+esc(consName(l.export_consignee))+"</div><div>"+fmtDate(l.shipment_date)+"</div><div>"+(l.block_count||0)+" · "+cbm(l.total_cbm)+"</div>"+eyeSet(l.shipping_document)+"</div><div class=\"detail\" data-det=\""+idx+"\"></div>";}return h;}
 function matches(l){if(!Q)return true;var h=[l.name,l.lot_title,consName(l.export_consignee),l.vessel,l.bl_no,l.shipping_mark,l.shipping_document].join(" ").toLowerCase();return h.indexOf(Q)>=0;}
-function render(){var list=ALL.filter(function(l){var t=(curTab==="all")||(curTab==="exported"&&isShipped(l))||(curTab==="active"&&!isShipped(l));return t&&matches(l);});var el=document.getElementById("rows");if(!list.length){el.innerHTML="<div class=\"note\">No lots match</div>";return;}var html="";for(var i=0;i<list.length;i++){var l=list[i];var idx=ALL.indexOf(l);html+="<div class=\"row\" onclick=\"toggle("+idx+")\"><div class=\"lot\"><div class=\"lname\">"+esc(l.name)+" <span class=\"chev\" id=\"cv"+idx+"\">▾</span></div><div class=\"lsub\">"+esc(consName(l.export_consignee))+(l.vessel?" · "+esc(l.vessel):"")+"</div></div><div class=\"blkc\">"+(l.block_count||0)+" blk · "+cbm(l.total_cbm)+" CBM</div>"+pill(l.status)+"<div class=\"eyes\" onclick=\"event.stopPropagation()\">"+rowEyes(l)+"</div></div><div class=\"detail\" id=\"dt"+idx+"\"></div>";}el.innerHTML=html;}
-function docCard(col,tag,nm,dd,href){return "<div class=\"doc\"><div class=\"dic\" style=\"background:"+col+"\">"+tag+"</div><div><div class=\"dn\">"+nm+"</div><div class=\"dd\">"+dd+"</div></div>"+(href?"<a class=\"dgo\" href=\""+href+"\" target=\"_blank\">open</a>":"")+"</div>";}
-function detailHTML(l,blocks){var docs="";if(isShipped(l)&&l.shipping_document){var sd=l.shipping_document;if(PRIV){docs+=docCard("#185fa5","SD","Shipping Document",esc(sd),"/app/shipping-document/"+encodeURIComponent(sd));docs+=docCard("#854f0b","&#128274;","Commercial Invoice","restricted",pdf(sd,"invoice"));}docs+=docCard("#0f6e56","PL","Packing List","open to all",pdf(sd,"packing_list"));}else{docs+="<div class=\"doc\" style=\"opacity:.7\"><div class=\"dic\" style=\"background:#8a929c\">SD</div><div><div class=\"dn\">Shipping Document</div><div class=\"dd\">created when shipped</div></div></div>";}var rows="";for(var i=0;i<blocks.length;i++){var b=blocks[i];var dim=[b.length,b.width,b.height].map(function(x){return x||0;}).join("×");rows+="<tr><td>"+esc(b.block_no||b.export_block_no||b.block)+"</td><td>"+esc(b.export_block_no||"—")+"</td><td>"+dim+"</td><td>"+esc(b.grade||"—")+"</td><td>"+cbm(b.cbm)+"</td></tr>";}if(!rows)rows="<tr><td colspan=\"5\" style=\"color:#9aa8b8\">No blocks yet</td></tr>";var lref="/app/export-shipment-lot/"+encodeURIComponent(l.name);var act=isShipped(l)?"<a class=\"btn\" href=\""+lref+"\" target=\"_blank\">Open lot · reopen / return blocks to At Port</a>":"<a class=\"btn gold\" href=\""+lref+"\" target=\"_blank\">Open lot · add blocks</a>";return "<div class=\"meta\"><div><div class=\"mk\">Consignee</div><div class=\"mv\">"+esc(consName(l.export_consignee))+"</div></div><div><div class=\"mk\">Shipping mark</div><div class=\"mv\">"+esc(l.shipping_mark||"—")+"</div></div><div><div class=\"mk\">Vessel</div><div class=\"mv\">"+esc(l.vessel||"—")+"</div></div><div><div class=\"mk\">BL no</div><div class=\"mv\">"+esc(l.bl_no||"—")+"</div></div><div><div class=\"mk\">Shipment date</div><div class=\"mv\">"+fmtDate(l.shipment_date)+"</div></div><div><div class=\"mk\">Lot ID</div><div class=\"mv\">"+esc(l.name)+"</div></div></div><div class=\"sec\">Documents</div><div class=\"docgrid\">"+docs+"</div><div class=\"sec\">Blocks ("+(l.block_count||0)+")</div><table class=\"blk\"><thead><tr><th>Block no</th><th>Export no</th><th>Dims</th><th>Grade</th><th>CBM</th></tr></thead><tbody>"+rows+"</tbody></table><div class=\"acts\">"+act+"</div>";}
-function toggle(idx){var det=document.getElementById("dt"+idx),cv=document.getElementById("cv"+idx);if(!det)return;var open=det.classList.toggle("open");cv.textContent=open?"▴":"▾";if(open&&!det.getAttribute("data-loaded")){det.setAttribute("data-loaded","1");var l=ALL[idx];if(cache[l.name]){det.innerHTML=detailHTML(l,cache[l.name]);return;}det.innerHTML="<div class=\"note\">Loading blocks…</div>";api("frappe.client.get?doctype=Export Shipment Lot&name="+encodeURIComponent(l.name)).then(function(j){var bl=(j.message&&j.message.blocks)||[];cache[l.name]=bl;det.innerHTML=detailHTML(l,bl);}).catch(function(){det.innerHTML=detailHTML(l,[]);});}}
-function setTab(t){curTab=t;["active","exported","all"].forEach(function(x){document.getElementById("tab-"+x).classList.toggle("on",x===t);});render();}
-function onSearch(v){Q=(v||"").toLowerCase().trim();render();}
-(async function(){try{var user=await api("frappe.auth.get_logged_user").then(function(j){return j.message;});if(!user||user==="Guest"){document.getElementById("loadNote").textContent="Please sign in.";return;}var roles=await getList("Has Role",["role"],[["parenttype","=","User"],["parent","=",user]]).then(function(r){return r.map(function(x){return x.role;});});var pr={"System Manager":1,"Administrator":1,"Dolphin Owner":1,"Dolphin Bangalore":1};PRIV=roles.some(function(r){return pr[r];})||user==="Administrator";ALL=await getList("Export Shipment Lot",["name","lot_title","export_consignee","status","block_count","total_cbm","vessel","bl_no","shipment_date","shipping_mark","shipping_document"],null,"modified desc");var codes=[];for(var i=0;i<ALL.length;i++){var c=ALL[i].export_consignee;if(c&&codes.indexOf(c)<0)codes.push(c);}if(codes.length){var cs=await getList("Export Consignee",["name","company_name"],[["name","in",codes]]);for(var k=0;k<cs.length;k++){CONS[cs[k].name]=cs[k].company_name||cs[k].name;}}renderStats();render();}catch(e){document.getElementById("loadNote").textContent="Could not load: "+e;}})();
-</script>
-</body></html>
+function render(){var el=document.getElementById("list");if(TAB==="shipdocs"){var s=SHIP.filter(matches);el.innerHTML=s.length?rowsShip(s):"<div class=\"note\" style=\"padding:26px;text-align:center;color:#9aa8b8\">No shipping documents</div>";return;}var arr=ALL.filter(function(l){var t=(TAB==="all")||(TAB==="exported"&&shipped(l))||(TAB==="active"&&!shipped(l));return t&&matches(l);});el.innerHTML=arr.length?rowsLots(arr):"<div class=\"note\" style=\"padding:26px;text-align:center;color:#9aa8b8\">No lots match</div>";}
+function renderChrome(){var st=document.getElementById("stats"),to=document.getElementById("tools"),fo=document.getElementById("foot");if(TAB==="shipdocs"){var a=agg(SHIP);st.innerHTML="<div class=\"stat\"><div class=\"sv\">"+a.lots+"</div><div class=\"sl\">Shipping docs</div></div><div class=\"stat\"><div class=\"sv\">"+a.blocks+"</div><div class=\"sl\">Blocks</div></div><div class=\"stat\" style=\"border-right:none\"><div class=\"sv\">"+a.cbm+"</div><div class=\"sl\">CBM</div></div>";to.innerHTML="<input class=\"search\" id=\"q\" placeholder=\"Search shipping doc / lot / consignee / vessel / BL\">";fo.textContent="Shipping documents behind the shipped lots — invoice restricted, packing list open to all.";}else{var ac=agg(ALL.filter(function(l){return !shipped(l);}));var ex=agg(ALL.filter(shipped));st.innerHTML="<div class=\"stat\"><div class=\"sv\">"+ac.lots+"</div><div class=\"sl\">Active lots</div></div><div class=\"stat\"><div class=\"sv\">"+ac.blocks+"</div><div class=\"sl\">Active blocks</div></div><div class=\"stat\"><div class=\"sv\">"+ac.cbm+"</div><div class=\"sl\">Active CBM</div></div><div class=\"sep\">shipped ·<br>separate</div><div class=\"stat\" style=\"border-right:none\"><div class=\"expv\">"+ex.blocks+" blk · "+ex.cbm+" CBM</div><div class=\"sl\">Exported ("+ex.lots+" lot"+(ex.lots===1?"":"s")+")</div></div>";to.innerHTML="<input class=\"search\" id=\"q\" placeholder=\"Search lot / consignee / mark / block / vessel / BL no\"><a class=\"btn gold\" href=\"/app/export-shipment-lot/new\">+ New lot</a><a class=\"btn\" href=\"/app/export-shipment-lot/view/import\">Import</a>";fo.textContent="The export shipment lot list, its documents, exported shipments, and shipping documents — inside the Dolphin menu, full width.";}var s=document.getElementById("q");if(s)s.addEventListener("input",function(){Q=this.value.toLowerCase().trim();render();});}
+function counts(){document.getElementById("c-active").textContent=ALL.filter(function(l){return !shipped(l);}).length;document.getElementById("c-exported").textContent=ALL.filter(shipped).length;document.getElementById("c-ship").textContent=SHIP.length;document.getElementById("c-all").textContent=ALL.length;}
+function setTab(t){TAB=t;var ts=document.querySelectorAll(".tab");for(var i=0;i<ts.length;i++)ts[i].classList.toggle("on",ts[i].getAttribute("data-t")===t);renderChrome();render();}
+document.getElementById("tabs").addEventListener("click",function(e){var t=e.target.closest(".tab");if(t)setTab(t.getAttribute("data-t"));});
+document.getElementById("list").addEventListener("click",function(e){if(e.target.closest("a"))return;var row=e.target.closest(".row");if(!row)return;var idx=row.getAttribute("data-idx");var det=row.nextElementSibling;var l=ALL[idx];var cv=row.querySelector(".chev");var open=det.classList.toggle("open");if(cv)cv.textContent=open?"▴":"▾";if(open&&!det.getAttribute("data-loaded")){det.setAttribute("data-loaded","1");if(cache[l.name]){det.innerHTML=detailHTML(l,cache[l.name]);return;}det.innerHTML="<div class=\"note\" style=\"color:#9aa8b8\">Loading blocks…</div>";api("frappe.client.get?doctype=Export Shipment Lot&name="+encodeURIComponent(l.name)).then(function(j){var bl=(j.message&&j.message.blocks)||[];cache[l.name]=bl;det.innerHTML=detailHTML(l,bl);}).catch(function(){det.innerHTML=detailHTML(l,[]);});}});
+var bk=document.getElementById("back");if(bk)bk.addEventListener("click",function(){history.back();});
+var rf=document.getElementById("refresh");if(rf)rf.addEventListener("click",function(){location.reload();});
+(async function(){try{var user=await api("frappe.auth.get_logged_user").then(function(j){return j.message;});if(!user||user==="Guest"){document.getElementById("loadNote").textContent="Please sign in.";return;}var roles=await getList("Has Role",["role"],[["parenttype","=","User"],["parent","=",user]]).then(function(r){return r.map(function(x){return x.role;});});var pr={"System Manager":1,"Administrator":1,"Dolphin Owner":1,"Dolphin Bangalore":1};PRIV=roles.some(function(r){return pr[r];})||user==="Administrator";ALL=await getList("Export Shipment Lot",["name","lot_title","export_consignee","status","block_count","total_cbm","vessel","bl_no","shipment_date","shipping_mark","shipping_document"],null,"modified desc");SHIP=ALL.filter(function(l){return shipped(l)&&l.shipping_document;});var codes=[];for(var i=0;i<ALL.length;i++){var c=ALL[i].export_consignee;if(c&&codes.indexOf(c)<0)codes.push(c);}if(codes.length){var cs=await getList("Export Consignee",["name","company_name"],[["name","in",codes]]);for(var k=0;k<cs.length;k++){CONS[cs[k].name]=cs[k].company_name||cs[k].name;}}counts();renderChrome();render();}catch(e){document.getElementById("loadNote").textContent="Could not load: "+e;}})();
+</script></body></html>
 {% endraw %}
