@@ -1,5 +1,5 @@
 /* Dolphin ERP service worker */
-const CACHE = "dolphin-pwa-v1";
+const CACHE = "dolphin-pwa-v2";
 const SHELL = ["/m", "/dolphin_icon.svg", "/dolphin_manifest.json"];
 
 self.addEventListener("install", (e) => {
@@ -23,16 +23,25 @@ self.addEventListener("fetch", (e) => {
   if (url.pathname.startsWith("/api/") || url.pathname.startsWith("/app") || url.search.includes("cmd=")) {
     return;
   }
+  const isDoc = req.mode === "navigate" || (req.headers.get("accept") || "").includes("text/html");
+  if (isDoc) {
+    e.respondWith(
+      fetch(req).then((res) => {
+        const copy = res.clone();
+        caches.open(CACHE).then((c) => c.put(req, copy)).catch(() => {});
+        return res;
+      }).catch(() => caches.match(req))
+    );
+    return;
+  }
   e.respondWith(
     caches.match(req).then((hit) => {
       if (hit) return hit;
       return fetch(req).then((res) => {
-        if (res && res.status === 200 && (url.pathname === "/m" || url.pathname.startsWith("/dolphin_"))) {
-          const copy = res.clone();
-          caches.open(CACHE).then((c) => c.put(req, copy));
-        }
+        const copy = res.clone();
+        caches.open(CACHE).then((c) => c.put(req, copy)).catch(() => {});
         return res;
-      }).catch(() => caches.match("/m"));
+      });
     })
   );
 });
