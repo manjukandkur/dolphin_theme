@@ -6,11 +6,11 @@
 (function(){
   function wire(){
     try{
-      if(document.querySelector('a.di-sm-link[href="/export-shipments"]')) return;
+      if(document.querySelector('a.di-sm-link[href="/app/export-hub"]')) return;
       var src=document.querySelector('a.di-sm-link[href="/app/export-shipment-lot"]');
       var srow=src && src.closest('.di-sm-row'); if(!srow) return;
       var nrow=srow.cloneNode(true); nrow.setAttribute('data-dip-expdocs','1');
-      var link=nrow.querySelector('a.di-sm-link'); link.setAttribute('href','/export-shipments');
+      var link=nrow.querySelector('a.di-sm-link'); link.setAttribute('href','/app/export-hub');
       var nb=nrow.querySelector('.di-sm-new'); if(nb) nb.remove();
       var extra=nrow.querySelectorAll('a'); for(var i=1;i<extra.length;i++) extra[i].remove();
       var set=false; link.childNodes.forEach(function(n){ if(n.nodeType===3 && n.textContent.trim()){ n.textContent='Export Hub'; set=true; } });
