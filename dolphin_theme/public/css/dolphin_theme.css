@@ -127,3 +127,12 @@ ul.nav-tabs .nav-link.active {
 @media (max-width: 1366px) {
   .page-head .page-head-content { flex-wrap: wrap; row-gap: 6px; }
 }
+
+/* #8/#17 sidebar scroll fix — the injected #dolphin-sidemenu clipped its lower
+   sections (MASTERS / QUARRY) because overflow-y was hidden and its content
+   (~689px) exceeds the box (~520px). Let it scroll; keep the scrollbar subtle. */
+#dolphin-sidemenu { overflow-y: auto !important; overscroll-behavior: contain; }
+#dolphin-sidemenu::-webkit-scrollbar { width: 7px; }
+#dolphin-sidemenu::-webkit-scrollbar-thumb { background: #24466e; border-radius: 6px; }
+#dolphin-sidemenu::-webkit-scrollbar-thumb:hover { background: #35618f; }
+#dolphin-sidemenu::-webkit-scrollbar-track { background: transparent; }
