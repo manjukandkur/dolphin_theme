@@ -782,7 +782,7 @@ def lots_view():
 
 
 @frappe.whitelist()
-def move_to_at_port(blocks=None):
+def move_to_at_port(blocks=None, note=None):
     """Place DC-submitted 'awaiting arrival' blocks At Port without an arrival file.
     Writes into a single reusable DRAFT Port Arrival. Idempotent by block number."""
     if isinstance(blocks, str):
@@ -821,6 +821,12 @@ def move_to_at_port(blocks=None):
             row.matched_dc = it.get("dc")
         if row.meta.has_field("recon_status"):
             row.recon_status = "Resolved"
+        if note not in (None, "") and row.meta.has_field("resolution_note"):
+            row.resolution_note = note
+            if row.meta.has_field("resolved_by"):
+                row.resolved_by = frappe.session.user
+            if row.meta.has_field("resolved_on"):
+                row.resolved_on = now_datetime()
         moved += 1
 
     if meta.has_field("total_blocks"):
@@ -885,7 +891,8 @@ def _arrived_index():
     for p in frappe.get_all(
         "Port Arrival Block",
         fields=["parent", "block_no", "mark", "length", "width", "height",
-                "cbm", "net_wt", "recon_status", "match_status", "vehicle_no"],
+                "cbm", "net_wt", "recon_status", "match_status", "vehicle_no",
+                "resolution_note"],
         limit_page_length=0,
     ):
         k = _s(p.block_no)
@@ -956,6 +963,7 @@ def ledger_view():
                 "net_wt": (pa.net_wt if pa else None),
                 "arrival": (pa.parent if pa else None),
                 "recon_status": (pa.recon_status if pa else None),
+                "resolution_note": (pa.resolution_note if pa else None),
                 "lot": (lot["lot"] if lot else None),
                 "lot_title": (lot["title"] if lot else None),
                 "truck": dc.vehicle, "port": dc.port_of_loading, "port_code": ports.get(dc.port_of_loading, dc.port_of_loading), "state": state, "source": "dc",
@@ -1008,7 +1016,7 @@ def move_dc_to_at_port(dc=None):
 
 
 @frappe.whitelist()
-def resolve_block(arrival=None, block_no=None, action="accept", dc=None, length=None, width=None, height=None, cbm=None, weight=None):
+def resolve_block(arrival=None, block_no=None, action="accept", dc=None, length=None, width=None, height=None, cbm=None, weight=None, note=None):
     """Resolve a flagged block, keyed by (arrival, block_no). Once accepted the
     block reads as Resolved and shows under All at port."""
     block_no = _s(block_no)
@@ -1043,6 +1051,14 @@ def resolve_block(arrival=None, block_no=None, action="accept", dc=None, length=
         for _f, _v in (("length", length), ("width", width), ("height", height), ("cbm", cbm), ("weight", weight)):
             if _v not in (None, ""):
                 updates[_f] = flt(_v)
+    if note not in (None, ""):
+        _bm = frappe.get_meta("Port Arrival Block")
+        if _bm.has_field("resolution_note"):
+            updates["resolution_note"] = note
+        if _bm.has_field("resolved_by"):
+            updates["resolved_by"] = frappe.session.user
+        if _bm.has_field("resolved_on"):
+            updates["resolved_on"] = now_datetime()
     frappe.db.set_value("Port Arrival Block", name, updates, update_modified=False)
     frappe.db.commit()
     return {"block_no": block_no, "action": action, "ok": True}
