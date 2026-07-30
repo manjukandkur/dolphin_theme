@@ -979,7 +979,37 @@ frappe.provide("dolphin");
   }, true);
   document.addEventListener("keydown", function (ev) { if (ev.key === "Escape") { try { abCloseMenus(); } catch (e) {} } });
   /* safety net: always keep the page bar (Back/Home/Edit/New/Print) and side menu present */
-  setInterval(function () { try { addButtonBar(); addSideMenu(); } catch (e) {} }, 1000);
+  function dolphinWsIcon(label){var t=(label||"").toLowerCase();
+    if(t.indexOf("dashboard")>=0)return"dashboard";
+    if(t.indexOf("inspection")>=0||t.indexOf("inspector")>=0)return"quality";
+    if(t.indexOf("challan")>=0)return"small-file";
+    if(t.indexOf("loading")>=0)return"stock";
+    if(t.indexOf("tax")>=0||t.indexOf("invoice")>=0||t.indexOf("calculation")>=0||t.indexOf("allowance")>=0)return"accounting";
+    if(t.indexOf("sale")>=0)return"sell";
+    if(t.indexOf("shipment")>=0||t.indexOf("shipping")>=0||t.indexOf("export hub")>=0||t.indexOf("arrival")>=0||t.indexOf("port")>=0||t.indexOf("vessel")>=0)return"stock";
+    if(t.indexOf("consignee")>=0||t.indexOf("buyer")>=0||t.indexOf("customer")>=0)return"customer";
+    if(t.indexOf("gangman")>=0||t.indexOf("driver")>=0||t.indexOf("agent")>=0)return"hr";
+    if(t.indexOf("vehicle")>=0)return"tool";
+    if(t.indexOf("state")>=0)return"branch";
+    if(t.indexOf("pit")>=0)return"agriculture";
+    if(t.indexOf("grade")>=0||t.indexOf("size")>=0||t.indexOf("gravity")>=0||t.indexOf("rule")>=0)return"setting-gear";
+    if(t.indexOf("block")>=0)return"grid";
+    return"card";}
+  function decorateWsShortcuts(){
+    try{
+      if(!(window.frappe&&frappe.utils&&frappe.utils.icon))return;
+      document.querySelectorAll(".shortcut-widget-box .widget-title").forEach(function(ti){
+        if(ti.querySelector("svg"))return;
+        var sp=ti.querySelector(".ellipsis");var label=sp?(sp.getAttribute("title")||sp.textContent):ti.textContent;
+        if(!label)return;
+        var html=frappe.utils.icon(dolphinWsIcon(label),"sm");if(!html)return;
+        var w=document.createElement("span");w.className="di-ws-ic";
+        w.style.cssText="margin-right:7px;display:inline-flex;align-items:center;vertical-align:middle;color:#0F2540";
+        w.innerHTML=html;ti.insertBefore(w,ti.firstChild);
+      });
+    }catch(e){}
+  }
+  setInterval(function () { try { addButtonBar(); addSideMenu(); decorateWsShortcuts(); } catch (e) {} }, 1000);
   /* robust attach: re-add the bar the instant the page toolbar (re)renders — fixes the
      missing Back/Home bar on fast-loading minimal master forms (New Gangman, New Pit, etc.) */
   try {
