@@ -85,7 +85,7 @@
   </div>
 </div>
 <script>
-(function(){try{if(window.self!==window.top){var h=document.querySelector("#dcfvapp .hd");if(h)h.style.display="none";var r=document.querySelector("#dcfvapp .rule");if(r)r.style.display="none";var a=document.getElementById("dcfvapp");if(a){a.style.maxWidth="none";a.style.padding="8px 14px";}document.documentElement.classList.add("di-embedded");}}catch(e){}})();
+(function(){try{if(window.self!==window.top){var a=document.getElementById("dcfvapp");if(a){a.style.maxWidth="none";a.style.padding="8px 14px";}document.documentElement.classList.add("di-embedded");}}catch(e){}})();
 (function(){
   function api(dt,filters,fields,order){
     var u='/api/method/frappe.client.get_list?doctype='+encodeURIComponent(dt)+'&filters='+encodeURIComponent(JSON.stringify(filters))+'&fields='+encodeURIComponent(JSON.stringify(fields))+'&limit_page_length=0'+(order?'&order_by='+encodeURIComponent(order):'');
