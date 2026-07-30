@@ -1634,12 +1634,30 @@ def parse_email_arrivals(limit=60):
         if pa.meta.has_field("source_sheet"):
             pa.source_sheet = sheet
         marks = [r["mark"] for r in rows if r.get("mark")]
-        if marks and pa.meta.has_field("mark") and not pa.get("mark"):
+        # A block's/arrival's "mark" is a Link to the Mark master for some agencies
+        # (Elite) but new agencies (Puyvast) ship marks with no master yet -- setting
+        # an unknown Link would raise LinkValidationError and abort the whole import.
+        # So: only gate Link-type mark fields by existence; Data marks pass through.
+        valid_marks = set()
+        for m in set(marks):
+            try:
+                if m and frappe.db.exists("Mark", m):
+                    valid_marks.add(m)
+            except Exception:
+                pass
+        def _ok_mark(doc, field, value):
+            if not value:
+                return False
+            fm = doc.meta.get_field(field)
+            if fm and fm.fieldtype == "Link":
+                return value in valid_marks
+            return True
+        if marks and pa.meta.has_field("mark") and not pa.get("mark") and _ok_mark(pa, "mark", marks[0]):
             pa.mark = marks[0]
         for r in rows:
             b = pa.append("blocks", {})
             b.block_no = r["block_no"]
-            if r.get("mark"):
+            if r.get("mark") and _ok_mark(b, "mark", r["mark"]):
                 b.mark = r["mark"]
             for k in ("length", "width", "height", "cbm",
                       "vehicle_no", "yard_location", "line_no", "ado_no", "permit_no"):
