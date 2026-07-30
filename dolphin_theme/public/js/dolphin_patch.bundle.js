@@ -1,6 +1,6 @@
 
 
-/* Export Documents side-menu entry -> the new /export-shipments page (Active/Exported
+/* Export Hub side-menu entry -> the new /export-shipments page (Active/Exported
    tabs, role-gated eye icons). Clears the stray beforeunload guard on click so the
    full-page nav does not prompt. Self-healing + reversible. */
 (function(){
@@ -13,8 +13,8 @@
       var link=nrow.querySelector('a.di-sm-link'); link.setAttribute('href','/export-shipments');
       var nb=nrow.querySelector('.di-sm-new'); if(nb) nb.remove();
       var extra=nrow.querySelectorAll('a'); for(var i=1;i<extra.length;i++) extra[i].remove();
-      var set=false; link.childNodes.forEach(function(n){ if(n.nodeType===3 && n.textContent.trim()){ n.textContent='Export Documents'; set=true; } });
-      if(!set) link.appendChild(document.createTextNode('Export Documents'));
+      var set=false; link.childNodes.forEach(function(n){ if(n.nodeType===3 && n.textContent.trim()){ n.textContent='Export Hub'; set=true; } });
+      if(!set) link.appendChild(document.createTextNode('Export Hub'));
       link.addEventListener('click', function(){ try{ window.onbeforeunload=null; }catch(e){} }, true);
       if(srow.nextSibling) srow.parentNode.insertBefore(nrow, srow.nextSibling); else srow.parentNode.appendChild(nrow);
     }catch(e){}
