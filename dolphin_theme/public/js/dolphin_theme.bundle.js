@@ -56,7 +56,7 @@ frappe.provide("dolphin");
       ".body-sidebar .standard-sidebar-item.selected *," +
       ".standard-sidebar .standard-sidebar-item.selected *{color:#fff!important;fill:#fff!important;}" +
       /* ---- floating left-panel menu ---- */
-      "#dolphin-sidemenu{margin:6px 8px 16px;border:1px solid rgba(212,162,74,.35);border-radius:12px;" +
+      "#dolphin-sidemenu{margin:6px 8px 16px;border:1px solid rgba(212,162,74,.35);border-radius:12px;display:flex;flex-direction:column;min-height:0;" +
       "overflow:hidden;background:" + NAVY + ";font-family:Georgia,serif;box-shadow:0 4px 14px rgba(0,0,0,.25);}" +
       "#dolphin-sidemenu .di-sm-top{display:flex;align-items:center;justify-content:space-between;" +
       "background:linear-gradient(135deg," + NAVY + " 0%,#16365c 100%);color:#fff;padding:9px 12px;" +
@@ -92,7 +92,7 @@ frappe.provide("dolphin");
       "#dolphin-sidemenu .di-sm-row.di-active .di-sm-new{color:" + GOLD + ";}" +
       "#dolphin-sidemenu .di-sm-empty{padding:10px 12px;font-size:11px;color:#9fb0c4;font-style:italic;}" +
       /* ---- Day31: scrollable menu body (fixes no-scroll bug) ---- */
-      "#dolphin-sidemenu .di-sm-body{max-height:calc(100vh - 210px);overflow-y:auto;overflow-x:hidden;}" +
+      "#dolphin-sidemenu .di-sm-body{flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden;}" +
       "#dolphin-sidemenu .di-sm-body::-webkit-scrollbar{width:8px;}" +
       "#dolphin-sidemenu .di-sm-body::-webkit-scrollbar-track{background:transparent;}" +
       "#dolphin-sidemenu .di-sm-body::-webkit-scrollbar-thumb{background:rgba(212,162,74,.45);border-radius:4px;}" +
