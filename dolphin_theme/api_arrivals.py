@@ -1565,7 +1565,8 @@ def arrival_xls_grid(arrival=None, max_rows=5000):
 
 @frappe.whitelist()
 def sync_arrivals_email():
-    """Manually pull incoming email accounts on demand (Check new mail)."""
+    """Manually pull incoming email accounts on demand (Check new mail), then
+    auto-parse any arrival emails that came in but have no blocks yet."""
     n = 0
     try:
         for ea in frappe.get_all("Email Account", filters={"enable_incoming": 1}, pluck="name"):
@@ -1576,7 +1577,99 @@ def sync_arrivals_email():
                 frappe.log_error(frappe.get_traceback(), "sync_arrivals_email")
     except Exception:
         frappe.log_error(frappe.get_traceback(), "sync_arrivals_email")
-    return {"accounts": n}
+    parsed = []
+    try:
+        parsed = parse_email_arrivals().get("parsed", [])
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), "sync_arrivals_email parse")
+    return {"accounts": n, "parsed": parsed}
+
+
+@frappe.whitelist()
+def parse_email_arrivals(limit=60):
+    """Auto-import blocks for Port Arrivals created from an incoming arrival email
+    that still have no blocks. Finds the .xls attached to the arrival's source
+    email (Communication), sets it as source_file, parses it with the Dolphin
+    parser and fills the block rows -- so arrivals from ANY agency whose sheet the
+    parser recognises (Elite, Puyvast, ...) import automatically. Idempotent:
+    skips arrivals that already have blocks or have no parseable .xls."""
+    out = []
+    arrivals = frappe.get_all("Port Arrival", filters=[["docstatus", "<", 2]],
+        fields=["name"], order_by="creation desc", limit_page_length=int(limit))
+    for a in arrivals:
+        pa = frappe.get_doc("Port Arrival", a.name)
+        if pa.get("blocks"):
+            continue
+        xls_url = pa.get("source_file") or None
+        content = _arrival_file_bytes(xls_url) if xls_url else None
+        if content is None:
+            xls_url = None
+            comms = frappe.get_all("Communication",
+                filters={"reference_doctype": "Port Arrival", "reference_name": pa.name},
+                pluck="name")
+            for cm in comms:
+                for f in frappe.get_all("File",
+                        filters={"attached_to_doctype": "Communication", "attached_to_name": cm},
+                        fields=["file_url", "file_name"]):
+                    nm = (f.get("file_name") or f.get("file_url") or "").lower()
+                    if nm.endswith(".xls") or nm.endswith(".xlsx"):
+                        xls_url = f.get("file_url")
+                        break
+                if xls_url:
+                    break
+            if not xls_url:
+                continue
+            content = _arrival_file_bytes(xls_url)
+            if content is None:
+                continue
+        try:
+            rows, sheet = _parse_arrival_xls(content)
+        except Exception:
+            frappe.log_error(frappe.get_traceback(), "parse_email_arrivals")
+            continue
+        if not rows:
+            continue
+        if xls_url and pa.meta.has_field("source_file"):
+            pa.source_file = xls_url
+        if pa.meta.has_field("source_sheet"):
+            pa.source_sheet = sheet
+        marks = [r["mark"] for r in rows if r.get("mark")]
+        if marks and pa.meta.has_field("mark") and not pa.get("mark"):
+            pa.mark = marks[0]
+        for r in rows:
+            b = pa.append("blocks", {})
+            b.block_no = r["block_no"]
+            if r.get("mark"):
+                b.mark = r["mark"]
+            for k in ("length", "width", "height", "cbm",
+                      "vehicle_no", "yard_location", "line_no", "ado_no", "permit_no"):
+                if r.get(k) is not None and b.meta.has_field(k):
+                    b.set(k, r[k])
+            if r.get("weight") is not None:
+                if b.meta.has_field("net_wt"):
+                    b.net_wt = r["weight"]
+                if b.meta.has_field("a_wt") and not b.get("a_wt"):
+                    b.a_wt = r["weight"]
+        pa.total_blocks = len(pa.blocks)
+        if pa.meta.has_field("total_cbm"):
+            pa.total_cbm = round(sum(flt(b.cbm) for b in pa.blocks), 3)
+        if pa.meta.has_field("total_net_wt"):
+            pa.total_net_wt = round(sum(flt(b.net_wt) for b in pa.blocks), 3)
+        pa.flags.ignore_mandatory = True
+        pa.save(ignore_permissions=True)
+        try:
+            _classify(pa)
+            for row in pa.blocks:
+                frappe.db.set_value("Port Arrival Block", row.name, {
+                    "recon_status": row.get("recon_status"),
+                    "matched_dc": row.get("matched_dc"),
+                    "suggested_block": row.get("suggested_block"),
+                }, update_modified=False)
+        except Exception:
+            frappe.log_error(frappe.get_traceback(), "parse_email_arrivals classify")
+        out.append({"arrival": pa.name, "blocks": len(rows), "sheet": sheet})
+    frappe.db.commit()
+    return {"parsed": out}
 
 
 @frappe.whitelist()

@@ -22,3 +22,13 @@ doc_events = {
         "validate": "dolphin_theme.local_tax_invoice.compute_totals",
     },
 }
+
+# Auto-import arrival emails: every 15 min, parse any arrival that came in via
+# email but has no blocks yet (belt-and-braces alongside sync_arrivals_email).
+scheduler_events = {
+    "cron": {
+        "*/15 * * * *": [
+            "dolphin_theme.api_arrivals.parse_email_arrivals",
+        ],
+    },
+}
