@@ -64,6 +64,10 @@
 #pr .rb.gold,#pr .bbtn.gold{font-size:14px;padding:10px 16px}
 #pr .pill{font-size:13px;padding:4px 12px}
 #pr .eye{font-size:16px}
+.ntov{position:fixed;inset:0;background:rgba(15,37,64,.5);z-index:100000;display:none;align-items:center;justify-content:center;padding:20px}
+.ntov.on{display:flex}
+.ntbox{background:#fff;border-radius:12px;width:min(440px,96%);box-shadow:0 16px 48px rgba(0,0,0,.4);overflow:hidden}
+.ntbox .nthd{background:#13325c;color:#fff;font-size:13px;font-weight:600;padding:11px 16px}
 #pr .rb{font-size:13px}
 #__ov.pop{position:fixed;inset:0;background:rgba(15,36,68,.55);z-index:99998;display:none;align-items:center;justify-content:center}
 #__ov.pop.on{display:flex}
@@ -322,6 +326,7 @@ function trace(r,i){
   h+=(r.lot?node('cur','Shipment Lot',esc(r.lot_title||r.lot),(r.state==='load'?'shipped':'building'),'lot'):node('pend','Shipment Lot','&#8212;','',''));
   h+='</div>';
   if(r.dc_h&&r.pt_h&&(''+r.dc_h)!==(''+r.pt_h))h+='<div style="margin-top:8px;font-size:12px;color:#8a5a12">Size check: DC '+dcSize(r)+' vs port '+ptSize(r).replace(/<[^>]+>/g,'')+'</div>';
+  if(r.resolution_note)h+='<div style="margin-top:7px;font-size:12px;color:#0f6e56;font-weight:600">'+U(128221)+' Note: '+esc(r.resolution_note)+'</div>';
   return h+'</div>';
 }
 function wire(){
@@ -332,10 +337,28 @@ function wire(){
 }
 function visRows(){return LED.filter(matchQ).filter(function(x){return passFilt(x.state);});}
 function doAct(act,r){if(!r)return;
+  if(act==='note'){openNote(r);return;}
   if(act==='move'){post('dolphin_theme.api_arrivals.move_to_at_port',{blocks:[{block_no:r.block_no,dc:r.dc}]}).then(function(){msg('Moved '+r.block_no+' to At Port');loadAll();});}
   else if(act==='push'){pushRows([r]);}
   else{post('dolphin_theme.api_arrivals.resolve_block',{arrival:r.arrival,block_no:r.block_no,action:act,dc:r.dc}).then(function(){loadAll();}).catch(function(){msg('Resolve failed',1);});}
 }
+function noteAct(st){return st==='await'?'move':(st==='orphan'?'accept_extra':'accept');}
+function openNote(r){
+  var act=noteAct(r.state),bn=esc(r.export_block_no||r.block_no||''),verb=(act==='move')?'move to At Port':'resolve';
+  var ov=document.getElementById('__nt');if(!ov){ov=document.createElement('div');ov.id='__nt';document.body.appendChild(ov);}
+  ov.className='ntov on';
+  ov.innerHTML='<div class="ntbox"><div class="nthd">'+U(128221)+' Note '+DOT+' block '+bn+'</div><div style="padding:14px 16px"><div class="sub" style="margin-bottom:6px">Reason / note (e.g. wrongly entered by shipping agency)</div><textarea id="__nttx" rows="3" style="width:100%;box-sizing:border-box;border:1px solid #cfd4dc;border-radius:8px;padding:9px;font-size:13px;resize:vertical"></textarea>'+(r.resolution_note?'<div class="sub" style="margin-top:7px">Current note: '+esc(r.resolution_note)+'</div>':'')+'<div style="text-align:right;margin-top:12px"><span class="rb" id="__ntc" style="margin-right:6px;color:#8a929c">Cancel</span><span class="rb pri" id="__nts">Save note &amp; '+verb+'</span></div></div></div>';
+  ov.addEventListener('click',function(e){if(e.target===ov)closeNote();});
+  ov.querySelector('#__ntc').addEventListener('click',closeNote);
+  var tx=ov.querySelector('#__nttx');if(tx)tx.focus();
+  ov.querySelector('#__nts').addEventListener('click',function(){
+    var note=(ov.querySelector('#__nttx').value||'').trim();if(!note){msg('Type a note first',1);return;}
+    var done=function(){closeNote();msg(U(10003)+' Noted '+r.block_no);loadAll();},fail=function(){msg('Save failed',1);};
+    if(act==='move'){post('dolphin_theme.api_arrivals.move_to_at_port',{blocks:[{block_no:r.block_no,dc:(r.dc||'')}],note:note}).then(done).catch(fail);}
+    else{post('dolphin_theme.api_arrivals.resolve_block',{arrival:(r.arrival||''),block_no:r.block_no,action:act,dc:(r.dc||''),note:note}).then(done).catch(fail);}
+  });
+}
+function closeNote(){var ov=document.getElementById('__nt');if(ov){ov.className='ntov';ov.innerHTML='';}}
 function selRows(){return LED.filter(function(r){return SEL[key(r)];});}
 function updBulk(){var n=Object.keys(SEL).filter(function(k){return SEL[k];}).length;$('bn').textContent=n;$('bulk').classList.toggle('on',n>0);}
 $('bmove').addEventListener('click',function(){var it=selRows().filter(function(r){return r.state==='await';}).map(function(r){return {block_no:r.block_no,dc:r.dc};});if(!it.length){msg('Select awaiting blocks',1);return;}post('dolphin_theme.api_arrivals.move_to_at_port',{blocks:it}).then(function(){SEL={};msg('Moved '+it.length+' to At Port');loadAll();});});
@@ -411,12 +434,13 @@ $('openbtn').addEventListener('click',function(){toggleImp();msg('Opening stock:
 loadAll();
 
 function action(r,i){
-if(r.state==='await')return '<span class="rb gold" data-act="move" data-i="'+i+'">'+AR+' Move to At Port</span>';
+var nt=(['await','mis','dmg','held','orphan'].indexOf(r.state)>=0)?'<span class="rb" data-act="note" data-i="'+i+'" title="Add reason / note">'+U(128221)+'</span>':'';
+if(r.state==='await')return '<span class="rb gold" data-act="move" data-i="'+i+'">'+AR+' Move to At Port</span>'+nt;
 if(r.state==='port')return '<span class="rb pri" data-act="push" data-i="'+i+'">Push to lot</span>';
-if(r.state==='mis')return '<span class="rb pri" data-act="use_dc" data-i="'+i+'">Use DC</span><span class="rb ok" data-act="accept" data-i="'+i+'">Accept</span>';
-if(r.state==='dmg')return '<span class="rb" data-act="hold" data-i="'+i+'">Hold</span><span class="rb ok" data-act="accept" data-i="'+i+'">OK</span>';
-if(r.state==='held')return '<span class="rb ok" data-act="accept" data-i="'+i+'">Release</span>';
-if(r.state==='orphan')return '<span class="rb ok" data-act="accept" data-i="'+i+'">Accept as extra</span>';
+if(r.state==='mis')return '<span class="rb pri" data-act="use_dc" data-i="'+i+'">Use DC</span><span class="rb ok" data-act="accept" data-i="'+i+'">Accept</span>'+nt;
+if(r.state==='dmg')return '<span class="rb" data-act="hold" data-i="'+i+'">Hold</span><span class="rb ok" data-act="accept" data-i="'+i+'">OK</span>'+nt;
+if(r.state==='held')return '<span class="rb ok" data-act="accept" data-i="'+i+'">Release</span>'+nt;
+if(r.state==='orphan')return '<span class="rb ok" data-act="accept" data-i="'+i+'">Accept as extra</span>'+nt;
 if(r.state==='lot'||r.state==='load')return '<span class="dc" data-doc="lot" data-i="'+i+'">'+esc(r.lot_title||r.lot||'')+' '+U(128196)+'</span>';
 return '';
 }
@@ -440,7 +464,7 @@ var ov=$('__ov'); if(!ov){ov=document.createElement('div');ov.id='__ov';document
 var src='/printview?doctype='+encodeURIComponent(dt)+'&name='+encodeURIComponent(nm)+(fmt?'&format='+encodeURIComponent(fmt):'')+'&no_letterhead=0&_lang=en';
 var pdf='/api/method/frappe.utils.print_format.download_pdf?doctype='+encodeURIComponent(dt)+'&name='+encodeURIComponent(nm)+(fmt?'&format='+encodeURIComponent(fmt):'');
 ov.className='pop on';
-ov.innerHTML='<div class="popbox"><div class="pophd"><span class="rb" id="__bk">'+U(8592)+' Back</span><a class="rb" href="/app">'+U(8962)+' Home</a><b style="flex:1;font-size:13px">'+esc(nm)+' '+DOT+' '+esc(dt)+'</b><a class="rb pri" href="'+src+'" target="_blank">'+U(11021)+' Full view</a><a class="rb" href="'+src+'" target="_blank">'+U(128424)+' Print</a><a class="rb" href="'+pdf+'" target="_blank">'+U(11015)+' PDF</a> <a class="rb" href="/api/method/dolphin_theme.api_arrivals.export_doc_blocks_xls?doctype='+encodeURIComponent(dt)+'&name='+encodeURIComponent(nm)+'" target="_blank">'+U(11015)+' XLS</a><span class="rb" id="__cl">'+U(10005)+' Close</span></div><iframe src="'+src+'"></iframe></div>';
+ov.innerHTML='<div class="popbox"><div class="pophd"><span class="rb" id="__bk">'+U(8592)+' Back</span><a class="rb" href="/app/dolphin">'+U(8962)+' Home</a><b style="flex:1;font-size:13px">'+esc(nm)+' '+DOT+' '+esc(dt)+'</b><a class="rb pri" href="'+src+'" target="_blank">'+U(11021)+' Full view</a><a class="rb" href="'+src+'" target="_blank">'+U(128424)+' Print</a><a class="rb" href="'+pdf+'" target="_blank">'+U(11015)+' PDF</a> <a class="rb" href="/api/method/dolphin_theme.api_arrivals.export_doc_blocks_xls?doctype='+encodeURIComponent(dt)+'&name='+encodeURIComponent(nm)+'" target="_blank">'+U(11015)+' XLS</a><span class="rb" id="__cl">'+U(10005)+' Close</span></div><iframe src="'+src+'"></iframe></div>';
 $('__bk').addEventListener('click',closePanel);$('__cl').addEventListener('click',closePanel);
 ov.addEventListener('click',function(e){if(e.target===ov)closePanel();});
 }
@@ -454,7 +478,7 @@ function addHeaderNav(){
   var hd=document.querySelector('#pr .hd');
   if(!hd || hd.querySelector('.hdnav')) return;
   var nav=document.createElement('span'); nav.className='hdnav';
-  nav.innerHTML='<a id="__navback">'+U(8592)+' Back</a><a href="/app">'+U(8962)+' Home</a><a href="/app/dolphin">'+U(9776)+' Menu</a>';
+  nav.innerHTML='<a id="__navback">'+U(8592)+' Back</a><a href="/app/dolphin">'+U(8962)+' Home</a><a href="/app/dolphin">'+U(9776)+' Menu</a>';
   hd.insertBefore(nav, hd.firstChild);
   var bk=nav.querySelector('#__navback');
   if(bk) bk.addEventListener('click',function(){ if(history.length>1) history.back(); else location.href='/app'; });
@@ -464,7 +488,7 @@ function openPanel(dt,nm,fmt,hlBlock){
   var src='/printview?doctype='+encodeURIComponent(dt)+'&name='+encodeURIComponent(nm)+(fmt?'&format='+encodeURIComponent(fmt):'')+'&no_letterhead=0&_lang=en';
   var pdf='/api/method/frappe.utils.print_format.download_pdf?doctype='+encodeURIComponent(dt)+'&name='+encodeURIComponent(nm)+(fmt?'&format='+encodeURIComponent(fmt):'');
   ov.className='pop on';
-  ov.innerHTML='<div class="popbox"><div class="pophd"><span class="rb" id="__bk">'+U(8592)+' Back</span><a class="rb" href="/app">'+U(8962)+' Home</a><b style="flex:1;font-size:13px">'+esc(nm)+' '+DOT+' '+esc(dt)+(hlBlock?' '+DOT+' block '+esc(hlBlock):'')+'</b><a class="rb pri" href="'+src+'" target="_blank">'+U(11021)+' Full view</a><a class="rb" href="'+src+'" target="_blank">'+U(128424)+' Print</a><a class="rb" href="'+pdf+'" target="_blank">'+U(11015)+' PDF</a> <a class="rb" href="/api/method/dolphin_theme.api_arrivals.export_doc_blocks_xls?doctype='+encodeURIComponent(dt)+'&name='+encodeURIComponent(nm)+'" target="_blank">'+U(11015)+' XLS</a><span class="rb" id="__cl">'+U(10005)+' Close</span></div><iframe id="__ovif" src="'+src+'"></iframe></div>';
+  ov.innerHTML='<div class="popbox"><div class="pophd"><span class="rb" id="__bk">'+U(8592)+' Back</span><a class="rb" href="/app/dolphin">'+U(8962)+' Home</a><b style="flex:1;font-size:13px">'+esc(nm)+' '+DOT+' '+esc(dt)+(hlBlock?' '+DOT+' block '+esc(hlBlock):'')+'</b><a class="rb pri" href="'+src+'" target="_blank">'+U(11021)+' Full view</a><a class="rb" href="'+src+'" target="_blank">'+U(128424)+' Print</a><a class="rb" href="'+pdf+'" target="_blank">'+U(11015)+' PDF</a> <a class="rb" href="/api/method/dolphin_theme.api_arrivals.export_doc_blocks_xls?doctype='+encodeURIComponent(dt)+'&name='+encodeURIComponent(nm)+'" target="_blank">'+U(11015)+' XLS</a><span class="rb" id="__cl">'+U(10005)+' Close</span></div><iframe id="__ovif" src="'+src+'"></iframe></div>';
   $('__bk').addEventListener('click',closePanel);$('__cl').addEventListener('click',closePanel);
   ov.addEventListener('click',function(e){if(e.target===ov)closePanel();});
   if(hlBlock){ var ifr=$('__ovif'); if(ifr){ ifr.addEventListener('load',function(){ try{ var d=ifr.contentDocument||ifr.contentWindow.document; var els=d.querySelectorAll('td,th,span,div,b'); var tgt=null; for(var i=0;i<els.length;i++){ if((els[i].textContent||'').trim()===String(hlBlock)){ tgt=els[i]; break; } } if(tgt){ var row=tgt.closest('tr')||tgt; row.style.background='#fff3cd'; row.style.outline='2px solid #d4a24a'; row.scrollIntoView({block:'center'}); } }catch(e){} }); } }
@@ -546,7 +570,7 @@ function openPanel(dt,nm,fmt,hlBlock){
   var src='/printview?doctype='+encodeURIComponent(dt)+'&name='+encodeURIComponent(nm)+(fmt?'&format='+encodeURIComponent(fmt):'')+'&no_letterhead=0&_lang=en';
   var pdf='/api/method/frappe.utils.print_format.download_pdf?doctype='+encodeURIComponent(dt)+'&name='+encodeURIComponent(nm)+(fmt?'&format='+encodeURIComponent(fmt):'');
   ov.className='pop on';
-  ov.innerHTML='<div class="popbox"><div class="pophd"><span class="rb" id="__bk">'+U(8592)+' Back</span><a class="rb" href="/app">'+U(8962)+' Home</a><a class="rb" href="/app/dolphin">'+U(9776)+' Menu</a><b style="flex:1;font-size:13px">'+esc(nm)+' '+DOT+' '+esc(dt)+(hlBlock?' '+DOT+' block '+esc(hlBlock):'')+'</b><a class="rb pri" href="'+src+'" target="_blank">'+U(11021)+' Full view</a><a class="rb" href="'+src+'" target="_blank">'+U(128424)+' Print</a><a class="rb" href="'+pdf+'" target="_blank">'+U(11015)+' PDF</a> <a class="rb" href="/api/method/dolphin_theme.api_arrivals.export_doc_blocks_xls?doctype='+encodeURIComponent(dt)+'&name='+encodeURIComponent(nm)+'" target="_blank">'+U(11015)+' XLS</a><span class="rb" id="__cl">'+U(10005)+' Close</span></div><iframe id="__ovif" src="'+src+'"></iframe></div>';
+  ov.innerHTML='<div class="popbox"><div class="pophd"><span class="rb" id="__bk">'+U(8592)+' Back</span><a class="rb" href="/app/dolphin">'+U(8962)+' Home</a><a class="rb" href="/app/dolphin">'+U(9776)+' Menu</a><b style="flex:1;font-size:13px">'+esc(nm)+' '+DOT+' '+esc(dt)+(hlBlock?' '+DOT+' block '+esc(hlBlock):'')+'</b><a class="rb pri" href="'+src+'" target="_blank">'+U(11021)+' Full view</a><a class="rb" href="'+src+'" target="_blank">'+U(128424)+' Print</a><a class="rb" href="'+pdf+'" target="_blank">'+U(11015)+' PDF</a> <a class="rb" href="/api/method/dolphin_theme.api_arrivals.export_doc_blocks_xls?doctype='+encodeURIComponent(dt)+'&name='+encodeURIComponent(nm)+'" target="_blank">'+U(11015)+' XLS</a><span class="rb" id="__cl">'+U(10005)+' Close</span></div><iframe id="__ovif" src="'+src+'"></iframe></div>';
   $('__bk').addEventListener('click',closePanel);$('__cl').addEventListener('click',closePanel);
   ov.addEventListener('click',function(e){if(e.target===ov)closePanel();});
   if(hlBlock){
