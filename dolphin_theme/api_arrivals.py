@@ -1362,22 +1362,22 @@ def remove_lot_block(lot=None, block_no=None):
 
 @frappe.whitelist()
 def reopen_lot(lot=None):
-    """Reopen a shipped lot: status back to Ready and its blocks back to At Port."""
+    """Reopen a lot: set status back to Ready AND return every block to At Port,
+    removing the rows from the lot's block table (block_count -> 0) and unlinking
+    the Shipping Document. Delegates the row removal + At Port flip to
+    return_blocks_from_lot so both the desk 'Reopen' button and the Export Hub
+    behave identically. The Quarry Block status is set idempotently and no Port
+    Arrival row is created, so a block is never duplicated at port."""
     if not lot:
         frappe.throw("No lot given.")
     d = frappe.get_doc("Export Shipment Lot", lot)
-    tf = _lot_table_field(d)
     if d.meta.has_field("status"):
         d.status = "Ready"
     if d.meta.has_field("shipped"):
         d.shipped = 0
     d.save(ignore_permissions=True)
-    for r in (d.get(tf) or []):
-        qb = r.get("block") or r.get("block_no")
-        if qb and frappe.db.exists("Quarry Block", qb):
-            frappe.db.set_value("Quarry Block", qb, "status", "At Port")
-    frappe.db.commit()
-    return {"name": d.name, "status": "Ready"}
+    res = return_blocks_from_lot(lot=lot, blocks=None) or {}
+    return {"name": lot, "status": "Ready", "returned": res.get("returned", 0)}
 
 
 @frappe.whitelist()
