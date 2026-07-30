@@ -259,7 +259,7 @@ function loadAll(){
   Promise.all([
     fetch('/api/method/dolphin_theme.api_arrivals.ledger_view',{credentials:'include'}).then(function(r){return r.json();}).then(function(j){return j.message||[];}).catch(function(){return [];}),
     fetch('/api/method/dolphin_theme.api_arrivals.lots_view',{credentials:'include'}).then(function(r){return r.json();}).then(function(j){return j.message||[];}).catch(function(){return [];}),
-    api('Port Arrival',[],['name','mark','arrival_date','shipper','total_blocks','creation'],0).catch(function(){return [];}),api('Delivery Challan',[],['name','delivery_challan_no'],0).catch(function(){return [];})
+    api('Port Arrival',[],['name','mark','arrival_date','shipper','total_blocks','creation','source_file','email_sender'],0).catch(function(){return [];}),api('Delivery Challan',[],['name','delivery_challan_no'],0).catch(function(){return [];})
   ]).then(function(res){
     LED=res[0]||[];LOTS=res[1]||[];ARRS=res[2]||[];window.DCMAP={};(res[3]||[]).forEach(function(d){if(d&&d.name&&d.delivery_challan_no)DCMAP[d.name]=d.delivery_challan_no;});
     ADATE={};ARRS.forEach(function(a){ADATE[a.name]=a.arrival_date||a.creation;});
@@ -373,9 +373,11 @@ function openPanel(dt,nm,fmt){var p=$('panel');p.classList.add('on');var src='/p
 }
 function closePanel(){var p=$('panel');p.classList.remove('on');p.innerHTML='';}
 /* arrivals */
+function agencyName(a){var sh=((a&&a.shipper)||'').trim();if(sh)return sh;var e=((a&&a.email_sender)||'').toLowerCase();if(e.indexOf('puyvast')>=0)return 'Puyvast';if(e.indexOf('elite')>=0)return 'Elite';return '';}
 function renderArr(){var el=$('arrlist');if(!ARRS.length){el.innerHTML='<div class="empty">No arrivals</div>';return;}var aq=($('aq').value||'').toLowerCase();
-  el.innerHTML=ARRS.filter(function(a){return !aq||(a.name+' '+(a.mark||'')).toLowerCase().indexOf(aq)>=0;}).map(function(a){var age=ageDays(a.name);
-    return '<div class="arow"><div style="flex:1"><div style="font-weight:600;font-size:15px">'+esc(a.name)+'</div><div class="sub" style="font-size:12.5px;color:#1f2a3a">'+esc(a.mark||'')+' '+DOT+' '+esc(fmtDate(a.arrival_date))+' '+DOT+' '+(a.total_blocks||0)+' blocks'+(age!=null?' '+DOT+' '+age+'d ago':'')+'</div></div><a class="rb" href="/app/port-arrival/'+encodeURIComponent(a.name)+'" target="_blank">Open</a></div>';}).join('');}
+  el.innerHTML=ARRS.filter(function(a){return !aq||(a.name+' '+(a.mark||'')+' '+agencyName(a)).toLowerCase().indexOf(aq)>=0;}).map(function(a){var age=ageDays(a.name);var ag=agencyName(a);var agc=ag?('<span class="pill p-port" style="margin-left:7px;font-size:11px">'+esc(ag)+'</span>'):'';var eye=a.source_file?('<span class="eye" data-xls="'+esc(a.name)+'" title="View / download the imported .xls" style="margin-right:10px;font-size:16px;cursor:pointer">'+U(128065)+'</span>'):'';
+    return '<div class="arow"><div style="flex:1"><div style="font-weight:600;font-size:15px">'+esc(a.name)+agc+'</div><div class="sub" style="font-size:12.5px;color:#1f2a3a">'+esc(a.mark||'')+' '+DOT+' '+esc(fmtDate(a.arrival_date))+' '+DOT+' '+(a.total_blocks||0)+' blocks'+(age!=null?' '+DOT+' '+age+'d ago':'')+'</div></div>'+eye+'<a class="rb" href="/app/port-arrival/'+encodeURIComponent(a.name)+'" target="_blank">Open</a></div>';}).join('');
+  el.querySelectorAll('[data-xls]').forEach(function(x){x.addEventListener('click',function(){openArrivalXls(x.dataset.xls);});});}
 $('aq').addEventListener('input',renderArr);
 /* lots */
 var LF='all',LQ='';
@@ -403,7 +405,7 @@ document.querySelectorAll('#flrow .fl').forEach(function(f){f.addEventListener('
 $('v-blk').addEventListener('click',function(){VMODE='blk';this.classList.add('on');$('v-dc').classList.remove('on');$('flrow').style.display='';closePanel();renderStock();});
 $('v-dc').addEventListener('click',function(){VMODE='dc';this.classList.add('on');$('v-blk').classList.remove('on');$('flrow').style.display='none';closePanel();renderDC();});
 $('q').addEventListener('input',function(){Q=this.value.trim().toLowerCase();renderStock();});
-var __ib=$('impbtn');if(__ib)__ib.addEventListener('click',toggleImp);$('impbtn2').addEventListener('click',function(){tab('recon');RSUB='src';renderRecon();toggleImp();});var __sy=$('syncbtn');if(__sy)__sy.addEventListener('click',function(){msg('Checking for new mail…');post('dolphin_theme.api_arrivals.sync_arrivals_email',{}).then(function(){msg('Checked — refreshing');loadAll();}).catch(function(){msg('Sync failed',1);});});$('impx').addEventListener('click',toggleImp);$('impgo').addEventListener('click',doImport);
+var __ib=$('impbtn');if(__ib)__ib.addEventListener('click',toggleImp);$('impbtn2').addEventListener('click',function(){tab('recon');RSUB='src';renderRecon();toggleImp();});var __sy=$('syncbtn');if(__sy)__sy.addEventListener('click',function(){msg('Checking for new mail…');post('dolphin_theme.api_arrivals.sync_arrivals_email',{}).then(function(j){var pr=((j&&j.message&&j.message.parsed)||[]);if(pr.length){var mm=pr.reduce(function(t,x){return t+(x.blocks||0);},0);msg(CHK+' Imported '+pr.length+' arrival'+(pr.length>1?'s':'')+' '+DOT+' '+mm+' block rows');}else{msg('Checked '+DOT+' no new arrivals to import');}loadAll();}).catch(function(){msg('Sync failed',1);});});$('impx').addEventListener('click',toggleImp);$('impgo').addEventListener('click',doImport);
 $('addbtn').addEventListener('click',function(){var b=prompt('Add block at port - enter: block, L, W, H (cm)');if(!b)return;var p=b.split(/[\s,]+/);post('dolphin_theme.api_arrivals.move_to_at_port',{blocks:[{block_no:p[0]}]}).then(function(){msg('Added '+p[0]+' at port');loadAll();});});
 $('openbtn').addEventListener('click',function(){toggleImp();msg('Opening stock: paste/import via the .xls box, or use + Add at port for one block',0);});
 loadAll();
