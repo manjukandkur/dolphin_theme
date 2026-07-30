@@ -51,13 +51,21 @@ body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Hel
 .badge{font-size:12px;padding:3px 12px;border-radius:12px;font-weight:700;margin-left:auto;}
 .empty{padding:22px;text-align:center;color:#9aa3ad;}
 .note{background:#fffdf6;border:1px solid #f1d99a;border-left:4px solid var(--gold);border-radius:10px;padding:11px 14px;font-size:12.6px;color:#6b5320;margin:0 0 14px;}
-</style>
+.dpov{position:fixed;inset:0;background:rgba(15,37,64,.55);z-index:99999;display:none;align-items:center;justify-content:center;padding:22px}.dpov.on{display:flex}.dpbox{background:#fff;border-radius:12px;width:min(900px,96%);height:92%;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 14px 44px rgba(0,0,0,.4)}.dphd{display:flex;align-items:center;gap:8px;padding:10px 14px;background:#13325c;color:#fff;font-size:13px}.dphd .dpbtn{font-size:12px;background:rgba(255,255,255,.14);color:#fff;border:1px solid rgba(255,255,255,.3);border-radius:7px;padding:5px 11px;cursor:pointer;text-decoration:none;white-space:nowrap}.dpbox iframe{flex:1;border:0;width:100%;background:#fff}</style>
 </head>
 <body>
 <div class="wrap">
+<style>.dnav{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 12px}.dnav .nbtn{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;color:#16304F;background:#fff;border:1px solid #16304F;border-radius:8px;padding:6px 13px;text-decoration:none;cursor:pointer}.dnav .nbtn:hover{background:#16304F;color:#fff}</style><div class="dnav"><a class="nbtn" id="dnavback">&#8592; Back</a><a class="nbtn" href="/app/dolphin" target="_top">&#8962; Home</a><a class="nbtn" href="/trace-block" target="_top">&#128269; Trace block</a></div><script>(function(){var b=document.getElementById('dnavback');if(b)b.addEventListener('click',function(){var w;try{w=window.top||window;}catch(e){w=window;}try{if(w.history&&w.history.length>1)w.history.back();else w.location.href='/app/dolphin';}catch(e){location.href='/app/dolphin';}});})();</script>
 <div class="topbar"><div class="title">Overview &amp; Journey</div><div class="sub">Dolphin International · bird's-eye of every block's stage, size &amp; grade — plus a full journey trace</div></div>
 <div class="note" id="loadNote">Loading live stock…</div>
 <div id="app" style="display:none">
+
+<div class="card" style="border-left:3px solid #185fa5">
+<div class="ct" style="color:#185fa5">🧭 Trace a block <span class="sub">quarry block number or export number → full journey</span></div>
+<div class="sbx"><input id="q" placeholder="Enter block number to know the history" style="border:2px solid #185fa5;background:#eef5fc;color:#0c2b4a;font-weight:600;border-radius:8px"></div>
+<div class="hint">Quarry block number works up to Delivery Challan · export number works from At Port onward.</div>
+<div id="result"><div class="empty">Enter a block number above.</div></div>
+</div>
 
 <div class="card">
 <div class="ct">🚢 Pipeline — bird's-eye <span class="sub">every block by its current stage</span></div>
@@ -70,12 +78,6 @@ body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Hel
 <div style="margin-top:14px" id="gmix"></div>
 </div>
 
-<div class="card">
-<div class="ct">🧭 Trace a block <span class="sub">quarry block number or export number → full journey</span></div>
-<div class="sbx"><input id="q" placeholder="Enter block number to know the history" style="border:2px solid #185fa5;background:#eef5fc;color:#0c2b4a;font-weight:600;border-radius:8px"></div>
-<div class="hint">Quarry block number works up to Delivery Challan · export number works from At Port onward.</div>
-<div id="result"><div class="empty">Enter a block number above.</div></div>
-</div>
 
 </div>
 </div>
@@ -126,7 +128,11 @@ var RANK={'In Stock':0,'Buyer Marked':1,'In Delivery Challan':2,'Dispatched/Tran
 var FL=['name','block_number','export_block_no','status','delivery_challan','buyer_inspection','source_quarry_inspection','granite_quality_grade','length_gross','width_gross','height_gross','gross_volume'];
 function apiFind(filters){return apiList(FL,filters);}
 function pdf(dt,nm,fmt){return '/api/method/frappe.utils.print_format.download_pdf?doctype='+encodeURIComponent(dt)+'&name='+encodeURIComponent(nm)+'&format='+encodeURIComponent(fmt)+'&no_letterhead=0';}
-function eye(dt,nm,fmt){return nm?'<a class="eye" href="'+pdf(dt,nm,fmt)+'" target="_blank">👁 PDF</a>':'';}
+function eye(dt,nm,fmt){return nm?'<span class="eye docprev" data-dt="'+esc(dt)+'" data-nm="'+esc(nm)+'" data-fmt="'+esc(fmt)+'" style="cursor:pointer">👁 view</span>':'';}
+function dpPdf(dt,nm,fmt){return pdf(dt,nm,fmt);}
+function openDocPreview(dt,nm,fmt){var pv='/printview?doctype='+encodeURIComponent(dt)+'&name='+encodeURIComponent(nm)+'&format='+encodeURIComponent(fmt)+'&no_letterhead=0&trigger_print=0';var pf=pdf(dt,nm,fmt);var ov=document.getElementById('__dp');if(!ov){ov=document.createElement('div');ov.id='__dp';document.body.appendChild(ov);}ov.className='dpov on';ov.innerHTML='<div class="dpbox"><div class="dphd"><b style="flex:1;font-size:13px">'+esc(dt)+' \u00b7 '+esc(nm)+'</b><a class="dpbtn" href="'+pv+'" target="_blank">\u29c9 Full page</a><a class="dpbtn" href="'+pf+'" target="_blank">\u2b73 PDF</a><span class="dpbtn" id="__dpc">\u2715 Close</span></div><iframe src="'+pv+'"></iframe></div>';ov.addEventListener('click',function(e){if(e.target===ov)closeDocPreview();});ov.querySelector('#__dpc').addEventListener('click',closeDocPreview);}
+function closeDocPreview(){var ov=document.getElementById('__dp');if(ov){ov.className='dpov';ov.innerHTML='';}}
+document.addEventListener('click',function(e){var t=e.target&&e.target.closest?e.target.closest('.docprev'):null;if(t){e.preventDefault();openDocPreview(t.dataset.dt,t.dataset.nm,t.dataset.fmt);}});
 /* ---- packing-list resolution (mirrors dolphin_patch.bundle.js popup: 3e) ---- */
 function eslFor(b){var p=new URLSearchParams({doctype:'Shipment Lot Block',parent:'Export Shipment Lot',or_filters:JSON.stringify([['block_no','=',b.block_number],['block','=',b.name]]),fields:JSON.stringify(['parent']),limit_page_length:1});return fetch('/api/method/frappe.client.get_list?'+p.toString(),{credentials:'include',headers:{Accept:'application/json'}}).then(function(r){return r.json();}).then(function(j){return (j.message&&j.message[0]&&j.message[0].parent)||null;}).catch(function(){return null;});}
 function shipDocFor(esl){if(!esl)return Promise.resolve(null);var p=new URLSearchParams({doctype:'Export Shipment Lot',filters:JSON.stringify({name:esl}),fieldname:'shipping_document'});return fetch('/api/method/frappe.client.get_value?'+p.toString(),{credentials:'include',headers:{Accept:'application/json'}}).then(function(r){return r.json();}).then(function(j){return (j.message&&j.message.shipping_document)||null;}).catch(function(){return null;});}
@@ -160,7 +166,7 @@ Array.prototype.forEach.call(R.querySelectorAll('span.pk'),function(sp){
 var nm=sp.getAttribute('data-b');
 var b=bl.filter(function(x){return (''+x.name)===nm;})[0]; if(!b) return;
 eslFor(b).then(function(esl){return shipDocFor(esl);}).then(function(shipDoc){
-if(shipDoc){sp.outerHTML='<a class="eye" href="'+pdf('Shipping Document',shipDoc,'DI Packing List')+'" target="_blank" style="border-color:#0f6e56;color:#0f6e56">📋 DI Packing List</a>';}
+if(shipDoc){sp.outerHTML='<span class="eye docprev" data-dt="Shipping Document" data-nm="'+esc(shipDoc)+'" data-fmt="DI Packing List" style="border-color:#0f6e56;color:#0f6e56;cursor:pointer">📋 DI Packing List</span>';}
 });
 });
 }
