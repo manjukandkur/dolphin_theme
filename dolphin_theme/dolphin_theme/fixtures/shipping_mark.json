@@ -1,0 +1,16 @@
+[
+ {
+  "doctype": "Shipping Mark",
+  "name": "BL/XMN",
+  "mark": "BL/XMN",
+  "active": 0,
+  "description": null
+ },
+ {
+  "doctype": "Shipping Mark",
+  "name": "YL-XMN",
+  "mark": "YL-XMN",
+  "active": 1,
+  "description": null
+ }
+]

@@ -1,0 +1,82 @@
+[
+ {
+  "doctype": "Role",
+  "name": "Dolphin Admin",
+  "role_name": "Dolphin Admin",
+  "disabled": 0,
+  "desk_access": 1,
+  "is_custom": 0
+ },
+ {
+  "doctype": "Role",
+  "name": "Dolphin Bangalore",
+  "role_name": "Dolphin Bangalore",
+  "disabled": 0,
+  "desk_access": 1,
+  "is_custom": 0
+ },
+ {
+  "doctype": "Role",
+  "name": "Dolphin Entry",
+  "role_name": "Dolphin Entry",
+  "disabled": 0,
+  "desk_access": 1,
+  "is_custom": 0
+ },
+ {
+  "doctype": "Role",
+  "name": "Dolphin Ilkal",
+  "role_name": "Dolphin Ilkal",
+  "disabled": 0,
+  "desk_access": 1,
+  "is_custom": 0
+ },
+ {
+  "doctype": "Role",
+  "name": "Dolphin Local Sales",
+  "role_name": "Dolphin Local Sales",
+  "disabled": 0,
+  "desk_access": 1,
+  "is_custom": 0
+ },
+ {
+  "doctype": "Role",
+  "name": "Dolphin Owner",
+  "role_name": "Dolphin Owner",
+  "disabled": 0,
+  "desk_access": 1,
+  "is_custom": 0
+ },
+ {
+  "doctype": "Role",
+  "name": "Dolphin Quarry",
+  "role_name": "Dolphin Quarry",
+  "disabled": 0,
+  "desk_access": 1,
+  "is_custom": 0
+ },
+ {
+  "doctype": "Role",
+  "name": "Dolphin Sales",
+  "role_name": "Dolphin Sales",
+  "disabled": 0,
+  "desk_access": 1,
+  "is_custom": 0
+ },
+ {
+  "doctype": "Role",
+  "name": "Dolphin Super Admin",
+  "role_name": "Dolphin Super Admin",
+  "disabled": 0,
+  "desk_access": 1,
+  "is_custom": 0
+ },
+ {
+  "doctype": "Role",
+  "name": "Dolphin View Only",
+  "role_name": "Dolphin View Only",
+  "disabled": 0,
+  "desk_access": 1,
+  "is_custom": 0
+ }
+]
