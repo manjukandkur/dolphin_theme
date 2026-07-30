@@ -95,6 +95,7 @@ table.blk th{text-align:left;color:#8595a8;font-weight:600;font-size:11px;paddin
 <div id="list"><div class="note" style="padding:26px;text-align:center;color:#9aa8b8" id="loadNote">Loading…</div></div>
 <div class="foot" id="foot"></div></div></main></div>
 <script>
+(function(){try{if(window.self!==window.top){var s=document.querySelector(".side");if(s)s.style.display="none";var tb=document.querySelector(".topbar");if(tb)tb.style.display="none";document.documentElement.classList.add("di-embedded");}}catch(e){}})();
 var PRIV=false,ALL=[],SHIP=[],CONS={},cache={},TAB="active",Q="",TOKEN=null;
 function api(p){return fetch("/api/method/"+p,{credentials:"include"}).then(function(r){return r.json();});}
 function post(m,a){return fetch("/api/method/"+m,{method:"POST",credentials:"include",headers:{"Content-Type":"application/json","X-Frappe-CSRF-Token":TOKEN},body:JSON.stringify(a)}).then(function(r){return r.json();});}
