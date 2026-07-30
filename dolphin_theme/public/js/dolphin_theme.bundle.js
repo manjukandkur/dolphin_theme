@@ -275,7 +275,7 @@ frappe.provide("dolphin");
     { title: "Reports & Views", items: [
       ["Block Summary", "/block-summary", null, "url", "file"],
       ["Overview & Journey", "/overview", null, "url", "stack"],
-      ["DC Consolidated", "/dc-fullview", null, "url", "stack"],
+      ["DC Consolidated", "/app/dc-consolidated", null, "url", "stack"],
       ["Measurement Variations", "/measurement-variations", null, "url"],
       ["Backups", "/app/backups", ROLE_OWNER, "url"] ] },
     { title: "Masters", subgroups: [
