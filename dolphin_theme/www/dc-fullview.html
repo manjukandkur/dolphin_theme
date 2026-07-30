@@ -7,11 +7,15 @@
 #dcfvapp .hd .ttl{color:#fff;font-size:17px;font-weight:600}
 #dcfvapp .hd .sub{color:#9fb0c4;font-size:12.5px}
 #dcfvapp .rule{height:3px;background:var(--gold);border-radius:2px;margin:0 2px 12px}
+#dcfvapp .tabs{display:flex;gap:6px;margin:0 2px 8px}
+#dcfvapp .tabs .tab{border:1px solid var(--navy);background:#fff;color:var(--navy);font-size:13px;font-weight:600;padding:8px 18px;border-radius:9px;cursor:pointer}
+#dcfvapp .tabs .tab.on{background:var(--navy);color:#fff}
 #dcfvapp .bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:12px 0}
 #dcfvapp .seg{display:inline-flex;border:1px solid var(--navy);border-radius:8px;overflow:hidden}
 #dcfvapp .seg button{border:none;background:#fff;color:var(--navy);font-size:12.5px;padding:6px 14px;cursor:pointer}
 #dcfvapp .seg button.on{background:var(--navy);color:#fff}
 #dcfvapp .sp{flex:1}
+#dcfvapp .search{height:32px;border:1px solid #cfd4dc;border-radius:7px;padding:0 11px;font-size:12.5px;min-width:230px;flex:1;max-width:360px}
 #dcfvapp .btn{height:32px;padding:0 13px;font-size:12.5px;border-radius:7px;border:1px solid #cfd4dc;background:#fff;cursor:pointer;color:#23314a}
 #dcfvapp .btn.gold{background:var(--gold);border:none;color:#3a2a06}
 #dcfvapp .tot{font-size:12px;color:#6b7280}
@@ -22,35 +26,92 @@
 #dcfvapp .dccell .no{font-weight:600;font-size:12.5px}
 #dcfvapp .dccell .meta{color:#9fb0c4;font-size:10.5px;margin:3px 0 8px;line-height:1.5}
 #dcfvapp .dccell a{width:26px;height:26px;border-radius:6px;border:1px solid rgba(212,162,74,.6);display:inline-flex;align-items:center;justify-content:center;color:var(--gold);text-decoration:none;margin-right:4px;font-size:13px}
+#dcfvapp table.reg{width:100%;border-collapse:collapse;font-size:12.5px;border:1px solid #e6d9bf;border-radius:12px;overflow:hidden}
+#dcfvapp .reg thead th{background:#13325c;color:#fff;font-weight:600;text-align:left;padding:9px 10px}
+#dcfvapp .reg td{padding:9px 10px;border-top:1px solid #efe3c8}
+#dcfvapp .reg tbody tr:nth-child(even){background:#fdf9ef}
+#dcfvapp .reg tfoot td{border-top:2px solid #e6d9bf;font-weight:600;background:#fff}
+#dcfvapp .reg .num{text-align:right;white-space:nowrap}
+#dcfvapp .reg .inv{color:#185fa5;font-weight:600}
 #dcfvapp .pill{padding:2px 9px;border-radius:20px;font-size:10.5px;font-weight:600;white-space:nowrap}
 #dcfvapp .empty{padding:16px;color:#6b7280}
-@media print{.bar .btn{display:none}}
+@media print{.tabs,.bar .btn,.bar .search{display:none}}
 </style>
 <div id="dcfvapp">
-  <div class="hd"><div class="lg">D</div><div><div class="ttl">Dispatched Blocks &mdash; Consolidated</div><div class="sub">Dolphin International &middot; all blocks dispatched via delivery challan</div></div></div>
+  <div class="hd"><div class="lg">D</div><div><div class="ttl">Dolphin International &mdash; Delivery Challans</div><div class="sub">DC register &middot; dispatched blocks consolidated</div></div></div>
   <div class="rule"></div>
-  <div class="bar">
-    <span class="seg" id="seg"><button data-f="all" class="on">All DCs</button><button data-f="At Port">At port</button><button data-f="Shipped">Shipped</button></span>
-    <span class="sp"></span>
-    <span class="tot" id="tot"></span>
-    <button class="btn gold" onclick="window.print()">Print</button>
+  <div class="tabs">
+    <button data-v="reg" class="tab on">DC register</button>
+    <button data-v="blocks" class="tab">Dispatched blocks</button>
   </div>
-  <div id="body"><div class="empty">Loading dispatched blocks&hellip;</div></div>
+
+  <div id="viewReg">
+    <div class="bar">
+      <input id="regq" class="search" placeholder="Search DC / invoice / vehicle / destination / mark">
+      <span class="sp"></span>
+      <span class="tot" id="regtot"></span>
+      <button class="btn" id="regcsv">Export to Excel</button>
+      <button class="btn gold" onclick="window.print()">Print</button>
+    </div>
+    <div id="regbody"><div class="empty">Loading challans&hellip;</div></div>
+  </div>
+
+  <div id="viewBlocks" style="display:none">
+    <div class="bar">
+      <span class="seg" id="seg"><button data-f="all" class="on">All DCs</button><button data-f="At Port">At port</button><button data-f="Shipped">Shipped</button></span>
+      <span class="sp"></span>
+      <span class="tot" id="tot"></span>
+      <button class="btn gold" onclick="window.print()">Print</button>
+    </div>
+    <div id="body"><div class="empty">Loading dispatched blocks&hellip;</div></div>
+  </div>
 </div>
 <script>
 (function(){
-  var SAND=['#fdf6e6','#f4e6c4'];
-  var SC={'Shipped':['#15a06a','#fff'],'At Port':['#e98a3c','#3d1f06'],'Dispatched/Transported':['#cfe0f5','#0c447c'],'In Delivery Challan':['#f6e3c0','#6b4a09']};
-  var filter='all',_b=null,_m=null;
-  function api(dt,filters,fields){
-    var u='/api/method/frappe.client.get_list?doctype='+encodeURIComponent(dt)+'&filters='+encodeURIComponent(JSON.stringify(filters))+'&fields='+encodeURIComponent(JSON.stringify(fields))+'&limit_page_length=0';
+  function api(dt,filters,fields,order){
+    var u='/api/method/frappe.client.get_list?doctype='+encodeURIComponent(dt)+'&filters='+encodeURIComponent(JSON.stringify(filters))+'&fields='+encodeURIComponent(JSON.stringify(fields))+'&limit_page_length=0'+(order?'&order_by='+encodeURIComponent(order):'');
     return fetch(u,{credentials:'include'}).then(function(r){return r.json();}).then(function(j){return j.message||[];});
   }
   function inr(n){return Number(n||0).toLocaleString('en-IN',{maximumFractionDigits:2});}
+  function esc(s){s=(s==null?'':''+s);return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+  function fmtDate(d){if(!d)return '';var p=(''+d).split('-');return p.length===3?(p[2]+'-'+p[1]+'-'+p[0]):d;}
+  function dest(d){return d.destination||d.port_of_loading||d.place_of_receipt||'—';}
+
+  var REG=[],REGQ='';
+  function regRows(){var q=REGQ;return REG.filter(function(d){if(!q)return true;var hay=[d.delivery_challan_no,d.name,d.vehicle,dest(d),d.description_of_goods,d.export_consignee,d.shipping_agency,d.shipping_mark].join(' ').toLowerCase();return hay.indexOf(q)>=0;});}
+  function renderReg(){
+    var rows=regRows();
+    var h='<table class="reg"><colgroup><col style="width:6%"><col style="width:11%"><col style="width:12%"><col style="width:14%"><col style="width:9%"><col style="width:15%"><col style="width:20%"><col style="width:13%"></colgroup>';
+    h+='<thead><tr><th>Sr no</th><th>Date</th><th>DC / invoice no</th><th>Vehicle no</th><th class="num">Tonne</th><th>Destination</th><th>Description</th><th class="num">Total amount</th></tr></thead><tbody>';
+    var tt=0,ta=0;
+    rows.forEach(function(d,i){
+      var ton=(+d.total_tonnage||0),amt=(+d.total_amount||0);tt+=ton;ta+=amt;
+      h+='<tr><td>'+(i+1)+'</td><td>'+esc(fmtDate(d.dc_date))+'</td><td class="inv">'+esc(d.delivery_challan_no||d.name||'—')+'</td><td>'+esc(d.vehicle||'—')+'</td><td class="num">'+ton.toFixed(2)+'</td><td>'+esc(dest(d))+'</td><td>'+esc(d.description_of_goods||'—')+'</td><td class="num">₹'+inr(amt)+'</td></tr>';
+    });
+    h+='</tbody><tfoot><tr><td colspan="4">Total</td><td class="num">'+tt.toFixed(2)+'</td><td colspan="2"></td><td class="num">₹'+inr(ta)+'</td></tr></tfoot></table>';
+    document.getElementById('regbody').innerHTML=rows.length?h:'<div class="empty">No delivery challans match.</div>';
+    document.getElementById('regtot').innerHTML=rows.length+' DCs &middot; '+tt.toFixed(2)+' t &middot; ₹'+inr(ta);
+  }
+  function csvEsc(v){v=(v==null?'':''+v);return /[",\n]/.test(v)?('"'+v.replace(/"/g,'""')+'"'):v;}
+  function exportCSV(){
+    var rows=regRows();var head=['Sr no','Date','DC / invoice no','Vehicle no','Tonne','Destination','Description','Total amount'];
+    var lines=[head.join(',')];
+    rows.forEach(function(d,i){lines.push([i+1,fmtDate(d.dc_date),d.delivery_challan_no||d.name||'',d.vehicle||'',(+d.total_tonnage||0).toFixed(2),dest(d),d.description_of_goods||'',(+d.total_amount||0).toFixed(2)].map(csvEsc).join(','));});
+    var blob=new Blob(['﻿'+lines.join('\n')],{type:'text/csv;charset=utf-8;'});var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='DC-register.csv';document.body.appendChild(a);a.click();document.body.removeChild(a);
+  }
+  function loadReg(){
+    api('Delivery Challan',[['docstatus','<',2]],['name','delivery_challan_no','dc_date','vehicle','total_tonnage','total_amount','destination','port_of_loading','place_of_receipt','description_of_goods','export_consignee','shipping_agency','shipping_mark'],'dc_date desc').then(function(dd){REG=dd;renderReg();}).catch(function(e){document.getElementById('regbody').innerHTML='<div class="empty">Could not load challans. '+((e&&e.message)||'')+'</div>';});
+  }
+  document.getElementById('regq').addEventListener('input',function(){REGQ=this.value.toLowerCase().trim();renderReg();});
+  document.getElementById('regcsv').addEventListener('click',exportCSV);
+
+  var SAND=['#fdf6e6','#f4e6c4'];
+  var SC={'Shipped':['#15a06a','#fff'],'At Port':['#e98a3c','#3d1f06'],'Dispatched/Transported':['#cfe0f5','#0c447c'],'In Delivery Challan':['#f6e3c0','#6b4a09']};
+  var filter='all',_b=null,_m=null,blocksLoaded=false;
   function pill(s){var c=SC[s]||['#eee','#333'];return '<span class="pill" style="background:'+c[0]+';color:'+c[1]+'">'+s+'</span>';}
   function pdf(dc){return '/api/method/frappe.utils.print_format.download_pdf?doctype=Delivery%20Challan&name='+encodeURIComponent(dc)+'&format=Dolphin%20Delivery%20Challan';}
   function view(dc){return '/app/print/Delivery%20Challan/'+encodeURIComponent(dc);}
-  function render(){
+  function renderBlocks(){
     var body=document.getElementById('body');
     var byDC={};_b.forEach(function(b){(byDC[b.delivery_challan]=byDC[b.delivery_challan]||[]).push(b);});
     var h='<table class="fvt"><colgroup><col style="width:27%"><col style="width:15%"><col style="width:24%"><col style="width:13%"><col style="width:12%"><col style="width:9%"></colgroup><thead><tr><th>Delivery challan</th><th>Export no</th><th>L&times;W&times;H</th><th style="text-align:right">CBM</th><th style="text-align:right">Tonnage</th><th>Status</th></tr></thead><tbody>';
@@ -68,13 +129,19 @@
     });
     h+='</tbody></table>';
     body.innerHTML=(gc===0?'<div class="empty">No blocks for this filter.</div>':'')+h;
-    document.getElementById('tot').textContent=gc+' blocks &middot; '+gt.toFixed(2)+' t &middot; ₹'+inr(gAmt);
+    document.getElementById('tot').innerHTML=gc+' blocks &middot; '+gt.toFixed(2)+' t &middot; ₹'+inr(gAmt);
   }
-  document.querySelectorAll('#seg button').forEach(function(btn){btn.addEventListener('click',function(){document.querySelectorAll('#seg button').forEach(function(x){x.classList.remove('on');});btn.classList.add('on');filter=btn.dataset.f;render();});});
-  api('Quarry Block',[['delivery_challan','is','set']],['name','export_block_no','status','delivery_challan','length_gross','width_gross','height_gross','gross_volume','gross_tonnage']).then(function(blocks){
-    _b=blocks;var dcs=[];blocks.forEach(function(b){if(dcs.indexOf(b.delivery_challan)<0)dcs.push(b.delivery_challan);});
-    return api('Delivery Challan',[['name','in',dcs]],['name','export_consignee','consignee','shipping_mark','dc_date','sale_type','rate_per_mt','total_amount','total_tonnage','delivery_challan_no']).then(function(dd){_m={};dd.forEach(function(d){_m[d.name]=d;});render();});
-  }).catch(function(e){document.getElementById('body').innerHTML='<div class="empty">Could not load dispatched blocks. '+((e&&e.message)||'')+'</div>';});
+  function loadBlocks(){
+    if(blocksLoaded)return;blocksLoaded=true;
+    api('Quarry Block',[['delivery_challan','is','set']],['name','export_block_no','status','delivery_challan','length_gross','width_gross','height_gross','gross_volume','gross_tonnage']).then(function(blocks){
+      _b=blocks;var dcs=[];blocks.forEach(function(b){if(dcs.indexOf(b.delivery_challan)<0)dcs.push(b.delivery_challan);});
+      return api('Delivery Challan',[['name','in',dcs]],['name','export_consignee','consignee','shipping_mark','dc_date','sale_type','rate_per_mt','total_amount','total_tonnage','delivery_challan_no']).then(function(dd){_m={};dd.forEach(function(d){_m[d.name]=d;});renderBlocks();});
+    }).catch(function(e){blocksLoaded=false;document.getElementById('body').innerHTML='<div class="empty">Could not load dispatched blocks. '+((e&&e.message)||'')+'</div>';});
+  }
+  document.querySelectorAll('#seg button').forEach(function(btn){btn.addEventListener('click',function(){document.querySelectorAll('#seg button').forEach(function(x){x.classList.remove('on');});btn.classList.add('on');filter=btn.dataset.f;renderBlocks();});});
+  document.querySelectorAll('.tabs .tab').forEach(function(btn){btn.addEventListener('click',function(){document.querySelectorAll('.tabs .tab').forEach(function(x){x.classList.remove('on');});btn.classList.add('on');var v=btn.dataset.v;document.getElementById('viewReg').style.display=(v==='reg'?'':'none');document.getElementById('viewBlocks').style.display=(v==='blocks'?'':'none');if(v==='blocks')loadBlocks();});});
+
+  loadReg();
 })();
 </script>
 {% endraw %}
