@@ -19,6 +19,17 @@
 #dcfvapp .dt{height:32px;border:1px solid #cfd4dc;border-radius:7px;padding:0 8px;font-size:12.5px;color:#23314a}
 #dcfvapp .sel{height:32px;border:1px solid #cfd4dc;border-radius:7px;padding:0 8px;font-size:12.5px;color:#23314a;background:#fff;cursor:pointer;max-width:210px}
 #dcfvapp .dfl{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;color:#6b7280}
+#dcfvapp .reg td.blkcell{text-align:left}
+#dcfvapp .reg .bc{font-weight:600}
+#dcfvapp .reg .bn{font-size:10px;color:#6b7280;font-weight:400;margin-top:2px;line-height:1.45;white-space:normal;word-break:break-word}
+#dcfvapp .reg .dceye{cursor:pointer}
+.dcov{position:fixed;inset:0;background:rgba(15,37,64,.55);z-index:99999;display:none;align-items:center;justify-content:center;padding:22px}
+.dcov.on{display:flex}
+.dcbox{background:#fff;border-radius:12px;width:min(920px,96%);height:92%;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 14px 44px rgba(0,0,0,.4)}
+.dchd{display:flex;align-items:center;gap:8px;padding:10px 14px;background:#13325c;color:#fff;font-size:13px}
+.dchd .dcbtn{font-size:12px;background:rgba(255,255,255,.14);color:#fff;border:1px solid rgba(255,255,255,.32);border-radius:7px;padding:5px 11px;cursor:pointer;text-decoration:none;white-space:nowrap}
+.dchd .dcbtn:hover{background:rgba(255,255,255,.28)}
+.dcbox iframe{flex:1;border:0;width:100%;background:#fff}
 #dcfvapp .dcnav{display:flex;gap:8px;margin:0 2px 10px;flex-wrap:wrap}
 #dcfvapp .dcnav .nb{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;color:var(--navy);background:#fff;border:1px solid var(--navy);border-radius:8px;padding:6px 13px;text-decoration:none;cursor:pointer}
 #dcfvapp .dcnav .nb:hover{background:var(--navy);color:#fff}
@@ -96,7 +107,7 @@
   function fmtDate(d){if(!d)return '';var p=(''+d).split('-');return p.length===3?(p[2]+'-'+p[1]+'-'+p[0]):d;}
   function dest(d){return d.destination||d.port_of_loading||d.place_of_receipt||'—';}
 
-  var REG=[],REGQ='',REGFROM='',REGTO='',REGDEST='',BCOUNT={};
+  var REG=[],REGQ='',REGFROM='',REGTO='',REGDEST='',BCOUNT={},BNUMS={};
   function regRows(){return REG.filter(function(d){
     if(REGQ){var hay=[d.delivery_challan_no,d.name,d.vehicle,dest(d),d.description_of_goods,d.export_consignee,d.shipping_agency,d.shipping_mark].join(' ').toLowerCase();if(hay.indexOf(REGQ)<0)return false;}
     if(REGDEST&&dest(d)!==REGDEST)return false;
@@ -104,33 +115,39 @@
     if(REGFROM&&(!dd||dd<REGFROM))return false;
     if(REGTO&&(!dd||dd>REGTO))return false;
     return true;});}
-  function dcIcons(d){var nm=d.name;var v='/app/print/Delivery%20Challan/'+encodeURIComponent(nm);var pf='/api/method/frappe.utils.print_format.download_pdf?doctype=Delivery%20Challan&name='+encodeURIComponent(nm)+'&format=Dolphin%20Delivery%20Challan';return '<span class="eyes"><a href="'+v+'" target="_blank" title="View DC">&#128065;</a><a href="'+pf+'" target="_blank" title="Download PDF">&#11015;</a></span>';}
+  function pvUrl(nm){return '/printview?doctype=Delivery%20Challan&name='+encodeURIComponent(nm)+'&trigger_print=0&format=Dolphin%20Delivery%20Challan&no_letterhead=0';}
+  function pdfUrl(nm){return '/api/method/frappe.utils.print_format.download_pdf?doctype=Delivery%20Challan&name='+encodeURIComponent(nm)+'&format=Dolphin%20Delivery%20Challan';}
+  function dcIcons(d){var nm=esc(d.name);return '<span class="eyes"><span class="dceye" data-dc="'+nm+'" title="Preview DC">&#128065;</span><a href="'+pdfUrl(d.name)+'" target="_blank" title="Download PDF">&#11015;</a></span>';}
+  function openDCPreview(nm){var ov=document.getElementById('dcov');if(!ov){ov=document.createElement('div');ov.id='dcov';document.body.appendChild(ov);}ov.className='dcov on';ov.innerHTML='<div class="dcbox"><div class="dchd"><b style="flex:1;font-size:13px">Delivery Challan &middot; '+esc(nm)+'</b><a class="dcbtn" href="'+pvUrl(nm)+'" target="_blank">&#11021; Open full page</a><a class="dcbtn" href="'+pdfUrl(nm)+'" target="_blank">&#11015; PDF</a><span class="dcbtn" id="dcclose">&#10005; Close</span></div><iframe src="'+pvUrl(nm)+'" title="DC preview"></iframe></div>';ov.addEventListener('click',function(e){if(e.target===ov)closeDCPreview();});var c=ov.querySelector('#dcclose');if(c)c.addEventListener('click',closeDCPreview);}
+  function closeDCPreview(){var ov=document.getElementById('dcov');if(ov){ov.className='dcov';ov.innerHTML='';}}
+  function bnCell(name){var nb=(BCOUNT[name]||0),nums=(BNUMS[name]||[]);return '<div class="bc">'+nb+'</div>'+(nums.length?('<div class="bn">'+nums.map(esc).join(', ')+'</div>'):'');}
   function renderReg(){
     var rows=regRows();
-    var h='<table class="reg"><colgroup><col style="width:5%"><col style="width:10%"><col style="width:14%"><col style="width:12%"><col style="width:6%"><col style="width:8%"><col style="width:13%"><col style="width:19%"><col style="width:13%"></colgroup>';
-    h+='<thead><tr><th>Sr no</th><th>Date</th><th>DC / invoice no</th><th>Vehicle no</th><th class="num">Blocks</th><th class="num">Tonne</th><th>Destination</th><th>Description</th><th class="num">Total amount</th></tr></thead><tbody>';
+    var h='<table class="reg"><colgroup><col style="width:5%"><col style="width:9%"><col style="width:13%"><col style="width:11%"><col style="width:13%"><col style="width:7%"><col style="width:12%"><col style="width:14%"><col style="width:16%"></colgroup>';
+    h+='<thead><tr><th>Sr no</th><th>Date</th><th>DC / invoice no</th><th>Vehicle no</th><th>Blocks</th><th class="num">Tonne</th><th>Destination</th><th>Description</th><th class="num">Total amount</th></tr></thead><tbody>';
     var tt=0,ta=0,tb=0;
     rows.forEach(function(d,i){
       var ton=(+d.total_tonnage||0),amt=(+d.total_amount||0),nb=(BCOUNT[d.name]||0);tt+=ton;ta+=amt;tb+=nb;
-      h+='<tr><td>'+(i+1)+'</td><td>'+esc(fmtDate(d.dc_date))+'</td><td class="inv">'+esc(d.delivery_challan_no||d.name||'—')+' '+dcIcons(d)+'</td><td>'+esc(d.vehicle||'—')+'</td><td class="num">'+nb+'</td><td class="num">'+ton.toFixed(2)+'</td><td>'+esc(dest(d))+'</td><td>'+esc(d.description_of_goods||'—')+'</td><td class="num">₹'+inr(amt)+'</td></tr>';
+      h+='<tr><td>'+(i+1)+'</td><td>'+esc(fmtDate(d.dc_date))+'</td><td class="inv">'+esc(d.delivery_challan_no||d.name||'—')+' '+dcIcons(d)+'</td><td>'+esc(d.vehicle||'—')+'</td><td class="blkcell">'+bnCell(d.name)+'</td><td class="num">'+ton.toFixed(2)+'</td><td>'+esc(dest(d))+'</td><td>'+esc(d.description_of_goods||'—')+'</td><td class="num">₹'+inr(amt)+'</td></tr>';
     });
     h+='</tbody><tfoot><tr><td colspan="4">Total</td><td class="num">'+tb+'</td><td class="num">'+tt.toFixed(2)+'</td><td colspan="2"></td><td class="num">₹'+inr(ta)+'</td></tr></tfoot></table>';
     document.getElementById('regbody').innerHTML=rows.length?h:'<div class="empty">No delivery challans match.</div>';
+    var _rb=document.getElementById('regbody');if(_rb)_rb.querySelectorAll('.dceye').forEach(function(x){x.addEventListener('click',function(){openDCPreview(x.dataset.dc);});});
     document.getElementById('regtot').innerHTML=rows.length+' DCs &middot; '+tb+' blocks &middot; '+tt.toFixed(2)+' t &middot; ₹'+inr(ta);
   }
   function csvEsc(v){v=(v==null?'':''+v);return /[",\n]/.test(v)?('"'+v.replace(/"/g,'""')+'"'):v;}
   function exportCSV(){
-    var rows=regRows();var head=['Sr no','Date','DC / invoice no','Vehicle no','Blocks','Tonne','Destination','Description','Total amount'];
+    var rows=regRows();var head=['Sr no','Date','DC / invoice no','Vehicle no','Blocks','Block numbers','Tonne','Destination','Description','Total amount'];
     var lines=[head.join(',')];
-    rows.forEach(function(d,i){lines.push([i+1,fmtDate(d.dc_date),d.delivery_challan_no||d.name||'',d.vehicle||'',(BCOUNT[d.name]||0),(+d.total_tonnage||0).toFixed(2),dest(d),d.description_of_goods||'',(+d.total_amount||0).toFixed(2)].map(csvEsc).join(','));});
+    rows.forEach(function(d,i){lines.push([i+1,fmtDate(d.dc_date),d.delivery_challan_no||d.name||'',d.vehicle||'',(BCOUNT[d.name]||0),(BNUMS[d.name]||[]).join(' '),(+d.total_tonnage||0).toFixed(2),dest(d),d.description_of_goods||'',(+d.total_amount||0).toFixed(2)].map(csvEsc).join(','));});
     var blob=new Blob(['﻿'+lines.join('\n')],{type:'text/csv;charset=utf-8;'});var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='DC-register.csv';document.body.appendChild(a);a.click();document.body.removeChild(a);
   }
   function loadReg(){
     Promise.all([
       api('Delivery Challan',[['docstatus','<',2]],['name','delivery_challan_no','dc_date','vehicle','total_tonnage','total_amount','destination','port_of_loading','place_of_receipt','description_of_goods','export_consignee','shipping_agency','shipping_mark'],'dc_date desc'),
-      api('Quarry Block',[['delivery_challan','is','set']],['delivery_challan']).catch(function(){return [];})
+      api('Quarry Block',[['delivery_challan','is','set']],['delivery_challan','export_block_no']).catch(function(){return [];})
     ]).then(function(res){
-      REG=res[0]||[];BCOUNT={};(res[1]||[]).forEach(function(b){if(b.delivery_challan)BCOUNT[b.delivery_challan]=(BCOUNT[b.delivery_challan]||0)+1;});
+      REG=res[0]||[];BCOUNT={};BNUMS={};(res[1]||[]).forEach(function(b){if(b.delivery_challan){BCOUNT[b.delivery_challan]=(BCOUNT[b.delivery_challan]||0)+1;var bnv=b.export_block_no;if(bnv){(BNUMS[b.delivery_challan]=BNUMS[b.delivery_challan]||[]).push(''+bnv);}}});Object.keys(BNUMS).forEach(function(k){BNUMS[k].sort(function(a,b){var na=parseFloat(a),nb2=parseFloat(b);if(!isNaN(na)&&!isNaN(nb2)&&na!==nb2)return na-nb2;return (''+a).localeCompare(''+b);});});
       var seen={},opts='<option value="">All destinations</option>';
       REG.forEach(function(d){var dv=dest(d);if(dv&&dv!=='—'&&!seen[dv]){seen[dv]=1;opts+='<option value="'+esc(dv)+'">'+esc(dv)+'</option>';}});
       var sel=document.getElementById('regdest');if(sel)sel.innerHTML=opts;
