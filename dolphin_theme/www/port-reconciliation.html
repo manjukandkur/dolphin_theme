@@ -664,12 +664,30 @@ function openLotDetail(lot){
   }).catch(function(){msg('Error loading lot',1);});
 }
 function shipLot(lot){ if(lot&&typeof lot==='object'){return;} openLotDetail(lot); }
+function _ownerAbbr(){try{var fn=(frappe.session&&(frappe.session.user_fullname))||'';fn=(''+fn).trim();if(!fn||/administrator/i.test(fn))return '';var p=fn.split(/\s+/);if(p.length===1)return p[0].slice(0,3);return p.map(function(x){return x.charAt(0);}).join('').toUpperCase();}catch(e){return '';}}
+function _lotSuggest(buyer){var parts=[];var by=(''+(buyer||'')).trim();if(by){var w=by.replace(/[.,&\/]/g,' ').split(/\s+/).filter(Boolean);var stop=/^(import|export|exports|imports|co|ltd|pvt|private|limited|company|inc|and|trading|international)$/i;var o=[];for(var i=0;i<w.length;i++){if(stop.test(w[i]))break;o.push(w[i]);if(o.length>=2)break;}if(o.length)parts.push(o.join(' '));}var ab=_ownerAbbr();if(ab)parts.push(ab);var d=new Date();var M=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];parts.push(d.getDate()+'-'+M[d.getMonth()]+'-'+(''+d.getFullYear()).slice(2));return parts.join(' · ');}
+function openNewLot(){var old=document.getElementById('__nlot');if(old)old.remove();var ov=document.createElement('div');ov.id='__nlot';ov.className='ovl';ov.style.cssText='position:fixed;inset:0;z-index:100000;background:rgba(15,37,64,.28);display:flex;align-items:center;justify-content:center';
+  ov.innerHTML='<div class="ntbox" style="width:440px;max-width:92vw;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 12px 40px rgba(0,0,0,.22)"><div class="nthd" style="background:#16304F;color:#fff;padding:12px 16px;font-weight:600">'+U(128230)+' New export lot</div><div style="padding:16px">'
+   +'<div class="sub" style="margin-bottom:4px">Buyer / consignee <span style="color:#9aa8b8">(optional)</span></div><input id="__nlby" placeholder="e.g. Xiamen Bless Trading" style="width:100%;box-sizing:border-box;border:1px solid #cfd4dc;border-radius:8px;padding:9px;font-size:13px;margin-bottom:12px">'
+   +'<div class="sub" style="margin-bottom:4px">Lot name <span style="color:#9aa8b8">(editable)</span></div><input id="__nlnm" style="width:100%;box-sizing:border-box;border:1px solid #cfd4dc;border-radius:8px;padding:9px;font-size:13px">'
+   +'<div class="sub" style="margin-top:6px;color:#8a929c;font-size:11.5px">Suggested from buyer + your initials + date. Edit freely.</div>'
+   +'<div style="text-align:right;margin-top:16px"><span class="rb" id="__nlc" style="margin-right:6px;color:#8a929c">Cancel</span><span class="rb pri" id="__nlok">Create lot</span></div></div></div>';
+  document.body.appendChild(ov);
+  var byI=ov.querySelector('#__nlby'),nmI=ov.querySelector('#__nlnm');nmI.value=_lotSuggest('');
+  var edited=false;nmI.addEventListener('input',function(){edited=true;});
+  byI.addEventListener('input',function(){if(!edited)nmI.value=_lotSuggest(byI.value);});
+  function close(){ov.remove();}
+  ov.addEventListener('click',function(e){if(e.target===ov)close();});
+  ov.querySelector('#__nlc').addEventListener('click',close);
+  ov.querySelector('#__nlok').addEventListener('click',function(){var nm=(nmI.value||'').trim();var by=(byI.value||'').trim();if(!nm){msg('Enter a lot name',1);return;}
+    post('dolphin_theme.api_arrivals.create_empty_lot',{title:nm,consignee:by}).then(function(j){var id=(j.message&&(j.message.name||j.message))||'';close();msg(CHK+' Created '+(nm||id));loadAll();if(id)openLotDetail(id);}).catch(function(){msg('Error creating lot',1);});});
+}
 function ensureNewLotBtn(){
   var inp=document.querySelector('#pr input[placeholder*="packing list"], #pr input[placeholder*="vessel"]');
   if(!inp||document.getElementById('__newlotbtn'))return;
   var b=document.createElement('button');b.id='__newlotbtn';b.innerHTML='&#43; New lot';
   b.style.cssText='margin-left:8px;background:#16304F;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-weight:600;cursor:pointer';
-  b.onclick=function(){post('dolphin_theme.api_arrivals.create_empty_lot',{}).then(function(j){var nm=(j.message&&(j.message.name||j.message))||'';msg(CHK+' Created '+nm);loadAll();if(nm)openLotDetail(nm);}).catch(function(){msg('Error creating lot',1);});};
+  b.onclick=function(){openNewLot();};
   if(inp.parentNode)inp.parentNode.appendChild(b);
 }
 setInterval(ensureNewLotBtn,1000);
