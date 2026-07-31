@@ -1835,7 +1835,7 @@ def _qb_by_any(key):
                                 ["name", "block_number", "export_block_no"], as_dict=True)
         if d:
             return d
-    for fld in ("export_block_no", "block_number"):
+    for fld in ("block_number", "export_block_no"):
         rows = frappe.get_all("Quarry Block", filters={fld: key},
                               fields=["name", "block_number", "export_block_no"],
                               limit_page_length=1)
@@ -1861,16 +1861,25 @@ def _export_map():
     """quarry block_number -> export_block_no, for port displays."""
     m = {}
     try:
-        for qb in frappe.get_all("Quarry Block",
-                                 fields=["name", "block_number", "export_block_no"],
-                                 limit_page_length=0):
+        allqb = frappe.get_all("Quarry Block",
+                               fields=["name", "block_number", "export_block_no"],
+                               limit_page_length=0)
+        # Pass 1: quarry-number and docname keys win (they are the identifiers the
+        # rest of the system passes around). Pass 2: export-number self-keys only
+        # fill gaps, so a block_number that collides with another block's export
+        # number still resolves to ITS OWN export number.
+        for qb in allqb:
             v = str(qb.export_block_no or "").strip()
             if not v:
                 continue
-            for k in (qb.block_number, qb.name, qb.export_block_no):
+            for k in (qb.block_number, qb.name):
                 k = str(k or "").strip()
                 if k:
                     m[k] = v
+        for qb in allqb:
+            v = str(qb.export_block_no or "").strip()
+            if v:
+                m.setdefault(v, v)
     except Exception:
         pass
     return m
