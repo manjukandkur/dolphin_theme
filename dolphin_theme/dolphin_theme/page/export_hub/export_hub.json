@@ -10,7 +10,20 @@
  "name": "export-hub",
  "owner": "Administrator",
  "page_name": "export-hub",
- "roles": [],
+ "roles": [
+  {
+   "role": "System Manager"
+  },
+  {
+   "role": "Dolphin Owner"
+  },
+  {
+   "role": "Dolphin Bangalore"
+  },
+  {
+   "role": "Dolphin Ilkal"
+  }
+ ],
  "standard": "Yes",
  "system_page": 0,
  "title": "Export Hub"
