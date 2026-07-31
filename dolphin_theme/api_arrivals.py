@@ -50,8 +50,8 @@ def _nearest(block_no, candidates):
 def _dispatched_index():
     rows = frappe.db.sql(
         """
-        SELECT r.block, r.length_gross AS l, r.width_gross AS w,
-               r.height_gross AS h, r.gross_volume AS vol, p.name AS dc
+        SELECT r.block, r.block_no, r.export_block_no, r.length_gross AS l,
+               r.width_gross AS w, r.height_gross AS h, r.gross_volume AS vol, p.name AS dc
         FROM `tabDC Block Row` r
         JOIN `tabDelivery Challan` p ON p.name = r.parent
         WHERE p.docstatus = 1
@@ -203,6 +203,7 @@ def full_view():
     measurement, CBM/MT/Kgs, matched challan, live reconciliation status and resolver,
     plus the reverse-check list of blocks dispatched but not yet arrived."""
     idx = _dispatched_index()
+    emap = _export_map()
     awaiting_keys = set(idx.keys())
     rows = []
     arrivals = frappe.get_all(
@@ -224,6 +225,7 @@ def full_view():
                 "mark": a.mark or "",
                 "block_no": b.block_no or "",
                 "quarry_block": (dcrow.block if dcrow else ""),
+                "export_block_no": (_s(dcrow.export_block_no) if (dcrow and dcrow.get("export_block_no")) else "") or emap.get(_s(b.block_no)) or emap.get(_s(dcrow.block) if dcrow else "") or "",
                 "length": cint(b.length),
                 "width": cint(b.width),
                 "height": cint(b.height),
@@ -464,22 +466,30 @@ def create_shipment_lot(consignee=None, rows=None, mark=None, vessel=None):
     lot.status = "Ready"
     arrivals, tc, tt = set(), 0.0, 0.0
     for r in data:
+        _qb = _qb_by_any(r.get("quarry_block") or r.get("block_no"))
+        _l = cint(r.get("length")); _w = cint(r.get("width")); _h = cint(r.get("height"))
+        _cbm = flt(r.get("cbm")) or (round(_l * _w * _h / 1e6, 3) if (_l and _w and _h) else 0)
+        _mt = flt(r.get("net_tonnage") or r.get("mt") or r.get("net_ton") or 0)
+        if not _mt:
+            _mt = round(_cbm * (flt(r.get("tonnage_factor")) or 2.7), 3)
         ch = lot.append("blocks", {})
-        ch.block = r.get("quarry_block") or None
-        ch.block_no = r.get("block_no")
-        ch.length = cint(r.get("length"))
-        ch.width = cint(r.get("width"))
-        ch.height = cint(r.get("height"))
-        ch.cbm = flt(r.get("cbm"))
-        ch.net_tonnage = flt(r.get("mt"))
-        ch.net_kgs = cint(r.get("kgs"))
+        ch.block = r.get("quarry_block") or (_qb.get("name") if _qb else None)
+        ch.block_no = r.get("block_no") or (_qb.get("block_number") if _qb else "")
+        ch.length = _l
+        ch.width = _w
+        ch.height = _h
+        ch.cbm = _cbm
+        ch.net_tonnage = _mt
+        ch.net_kgs = cint(r.get("kgs") or round(_mt * 1000))
         ch.grade = r.get("grade") or ""
-        ch.source_dc = r.get("matched_dc") or ""
+        ch.source_dc = r.get("matched_dc") or r.get("source_dc") or ""
         ch.source_arrival = r.get("arrival") or ""
+        if ch.meta.has_field("export_block_no"):
+            ch.export_block_no = _s(r.get("export_block_no")) or (_s(_qb.get("export_block_no")) if _qb else "")
         if r.get("arrival"):
             arrivals.add(r.get("arrival"))
-        tc += flt(r.get("cbm"))
-        tt += flt(r.get("mt"))
+        tc += _cbm
+        tt += _mt
     lot.block_count = len(lot.blocks)
     lot.total_cbm = round(tc, 2)
     lot.total_net_tonnage = round(tt, 3)
@@ -1023,12 +1033,14 @@ def resolve_block(arrival=None, block_no=None, action="accept", dc=None, length=
     if not block_no:
         frappe.throw("No block number.")
 
+    alt = _pab_alt_keys(block_no) or {block_no}
     name = None
     if arrival:
         name = frappe.db.get_value("Port Arrival Block",
-                                   {"parent": arrival, "block_no": block_no}, "name")
+                                   {"parent": arrival, "block_no": ["in", list(alt)]}, "name")
     if not name:
-        name = frappe.db.get_value("Port Arrival Block", {"block_no": block_no}, "name")
+        name = frappe.db.get_value("Port Arrival Block",
+                                   {"block_no": ["in", list(alt)]}, "name")
     if not name:
         frappe.throw("Block {0} not found at port.".format(block_no))
 
@@ -1136,34 +1148,39 @@ def add_blocks_to_lot(lot=None, rows=None):
         bn = _s(r.get("block_no"))
         if not bn or bn in existing:
             continue
+        qb = _qb_by_any(r.get("quarry_block") or bn)
+        _l = cint(r.get("length")); _w = cint(r.get("width")); _h = cint(r.get("height"))
+        _cbm = flt(r.get("cbm")) or (round(_l * _w * _h / 1e6, 3) if (_l and _w and _h) else 0)
+        _mt = flt(r.get("net_tonnage") or r.get("mt") or r.get("net_ton") or 0)
+        if not _mt:
+            _factor = flt(r.get("tonnage_factor")) or 2.7
+            _mt = round(_cbm * _factor, 3)
+        _kgs = cint(r.get("kgs") or r.get("net_kgs") or round(_mt * 1000))
         ch = d.append(tf, {})
         if ch.meta.has_field("block"):
-            ch.block = r.get("quarry_block") or None
+            ch.block = r.get("quarry_block") or (qb.get("name") if qb else None)
         if ch.meta.has_field("block_no"):
-            ch.block_no = r.get("block_no")
-        for fld in ("length", "width", "height"):
-            if ch.meta.has_field(fld):
-                ch.set(fld, cint(r.get(fld)))
+            ch.block_no = r.get("block_no") or (qb.get("block_number") if qb else bn)
+        for _fld, _v in (("length", _l), ("width", _w), ("height", _h)):
+            if ch.meta.has_field(_fld):
+                ch.set(_fld, _v)
         if ch.meta.has_field("cbm"):
-            ch.cbm = flt(r.get("cbm"))
+            ch.cbm = _cbm
         if ch.meta.has_field("net_tonnage"):
-            ch.net_tonnage = flt(r.get("mt"))
+            ch.net_tonnage = _mt
         if ch.meta.has_field("net_kgs"):
-            ch.net_kgs = cint(r.get("kgs"))
+            ch.net_kgs = _kgs
         if ch.meta.has_field("source_dc"):
-            ch.source_dc = r.get("matched_dc") or ""
+            ch.source_dc = r.get("matched_dc") or r.get("source_dc") or ""
         if ch.meta.has_field("source_arrival"):
             ch.source_arrival = r.get("arrival") or ""
         if ch.meta.has_field("export_block_no"):
-            ex = _s(r.get("export_block_no"))
-            if not ex:
-                ex = _s(frappe.db.get_value(
-                    "Quarry Block", {"block_number": bn}, "export_block_no"))
+            ex = _s(r.get("export_block_no")) or (_s(qb.get("export_block_no")) if qb else "")
             ch.export_block_no = ex
         existing.add(bn)
         added += 1
-        tc += flt(r.get("cbm"))
-        tt += flt(r.get("mt"))
+        tc += _cbm
+        tt += _mt
     if d.meta.has_field("block_count"):
         d.block_count = len(d.get(tf) or [])
     if d.meta.has_field("total_cbm"):
@@ -1312,13 +1329,22 @@ def _lot_table_field(d):
 
 
 @frappe.whitelist()
-def create_empty_lot():
-    """Create an empty Export Shipment Lot (status Ready); return its name."""
+def create_empty_lot(title=None, consignee=None, mark=None, vessel=None):
+    """Create an empty Export Shipment Lot (status Ready); return its name.
+    Optional title/consignee/mark/vessel are set from the New-lot dialog."""
     lot = frappe.new_doc("Export Shipment Lot")
     if lot.meta.has_field("shipment_date"):
         lot.shipment_date = frappe.utils.today()
     if lot.meta.has_field("status"):
         lot.status = "Ready"
+    if title and lot.meta.has_field("lot_title"):
+        lot.lot_title = title
+    if consignee and lot.meta.has_field("export_consignee"):
+        lot.export_consignee = consignee
+    if mark and lot.meta.has_field("shipping_mark"):
+        lot.shipping_mark = mark
+    if vessel and lot.meta.has_field("vessel"):
+        lot.vessel = vessel
     lot.insert(ignore_permissions=True)
     frappe.db.commit()
     return {"name": lot.name}
@@ -1336,8 +1362,10 @@ def lot_detail(lot=None):
         blocks.append({
             "block": r.get("block"),
             "block_no": r.get("block_no") or r.get("block"),
+            "export_block_no": r.get("export_block_no") or "",
             "length": r.get("length"), "width": r.get("width"), "height": r.get("height"),
-            "cbm": r.get("cbm"), "grade": r.get("grade"), "source_dc": r.get("source_dc"),
+            "cbm": r.get("cbm"), "net_tonnage": r.get("net_tonnage"),
+            "grade": r.get("grade"), "source_dc": r.get("source_dc"),
         })
     shipped = (d.get("status") == "Shipped") or bool(d.get("shipped"))
     return {
@@ -1794,17 +1822,55 @@ def export_doc_blocks_xls(doctype=None, name=None):
 
 
 
+def _qb_by_any(key):
+    """Resolve a Quarry Block dict from ANY of its identifiers: docname,
+    block_number, or export_block_no. Returns {name, block_number,
+    export_block_no} or None. Used to keep block identity robust across the
+    three overlapping number spaces."""
+    key = _s(key)
+    if not key:
+        return None
+    if frappe.db.exists("Quarry Block", key):
+        d = frappe.db.get_value("Quarry Block", key,
+                                ["name", "block_number", "export_block_no"], as_dict=True)
+        if d:
+            return d
+    for fld in ("export_block_no", "block_number"):
+        rows = frappe.get_all("Quarry Block", filters={fld: key},
+                              fields=["name", "block_number", "export_block_no"],
+                              limit_page_length=1)
+        if rows:
+            return rows[0]
+    return None
+
+
+def _pab_alt_keys(key):
+    """All strings that could match a Port Arrival Block.block_no for one physical
+    block: the given key plus the quarry docname / quarry number / export number."""
+    key = _s(key)
+    keys = {key} if key else set()
+    qb = _qb_by_any(key)
+    if qb:
+        for v in (qb.get("name"), qb.get("block_number"), qb.get("export_block_no")):
+            if _s(v):
+                keys.add(_s(v))
+    return keys
+
+
 def _export_map():
     """quarry block_number -> export_block_no, for port displays."""
     m = {}
     try:
         for qb in frappe.get_all("Quarry Block",
-                                 fields=["block_number", "export_block_no"],
+                                 fields=["name", "block_number", "export_block_no"],
                                  limit_page_length=0):
-            k = str(qb.block_number or "").strip()
             v = str(qb.export_block_no or "").strip()
-            if k and v:
-                m[k] = v
+            if not v:
+                continue
+            for k in (qb.block_number, qb.name, qb.export_block_no):
+                k = str(k or "").strip()
+                if k:
+                    m[k] = v
     except Exception:
         pass
     return m
