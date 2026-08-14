@@ -209,6 +209,7 @@ frappe.provide("dolphin");
   setInterval(boot, 1200);
   setTimeout(boot, 800); setTimeout(boot, 2200);
 })();
+/* Unify Export menu (Cowork): hide Export Shipment Lot + Shipping Document sidebar rows; keep Export Hub (already tabs Active/Shipping docs/All lots/Exported). Pages and routes unchanged. Reversible: delete this line + redeploy. */ (function(){function unifyExportMenu(){try{var hub=document.querySelector('a.di-sm-link[href="/app/export-hub"]');if(!hub)return;var hubRow=hub.closest('.di-sm-row');if(hubRow&&hubRow.style.display==='none')hubRow.style.display='';['/app/export-shipment-lot','/app/shipping-document'].forEach(function(h){var a=document.querySelector('a.di-sm-link[href="'+h+'"]');var row=a&&a.closest('.di-sm-row');if(row)row.style.display='none';});}setInterval(unifyExportMenu,900);setTimeout(unifyExportMenu,700);setTimeout(unifyExportMenu,1800);})();
 
 /* 3f: give the Pending Loading side-menu item an icon (its row is cloned from an
    icon-less item, so it renders blank next to the anchor/pencil/ship rows).
