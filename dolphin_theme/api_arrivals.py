@@ -2,6 +2,8 @@ import json
 
 import frappe
 from frappe.utils import flt, cint, now_datetime
+@frappe.whitelist()
+def get_my_roles(): return frappe.get_roles()
 
 # Tolerance aligned with the Measurement Variations work: a side passes if it is
 # within 3 cm OR 3% of the dispatched value (whichever is larger).
