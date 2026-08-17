@@ -28,6 +28,16 @@ doc_events = {
         "validate": [
             "dolphin_theme.shipment_hub.normalize_lot_rows",
             "dolphin_theme.guards.guard",
+            "dolphin_theme.sizing.carry_sizes",
+        ],
+    },
+    # The export invoice / packing list. carry_sizes runs first (and honours the
+    # size-override tick, B45), then the rate table is rebuilt from whatever
+    # sizes and grades the document is actually carrying (B46).
+    "Shipping Document": {
+        "validate": [
+            "dolphin_theme.sizing.carry_sizes",
+            "dolphin_theme.sizing.compute_size_rates",
         ],
     },
     "Local Tax Invoice": {
@@ -40,7 +50,12 @@ doc_events = {
         "validate": "dolphin_theme.guards.guard",
     },
     "Port Arrival": {
-        "validate": "dolphin_theme.guards.guard",
+        "validate": [
+            "dolphin_theme.guards.guard",
+            # B44: 0 of 849 arrival rows carried a measurement, which is why
+            # nothing at the port could be reconciled. Carry them from the BI.
+            "dolphin_theme.sizing.carry_sizes",
+        ],
     },
     "Delivery Challan": {
         "validate": "dolphin_theme.guards.guard",
@@ -50,7 +65,10 @@ doc_events = {
 
 # Make the new lifecycle stages selectable after every deploy. Idempotent: it
 # writes a Property Setter only when an option is genuinely missing.
-after_migrate = ["dolphin_theme.lifecycle.ensure_stages"]
+after_migrate = [
+    "dolphin_theme.lifecycle.ensure_stages",
+    "dolphin_theme.sizing.ensure_fields",
+]
 
 # Auto-import arrival emails: every 15 min, parse any arrival that came in via
 # email but has no blocks yet (belt-and-braces alongside sync_arrivals_email).
