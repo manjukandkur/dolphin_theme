@@ -1117,6 +1117,13 @@ def ledger_view():
             #   4. arrival evidence on a draft — its own bucket, never "at port"
             if qstat in _LADDER_STATE:
                 state = _LADDER_STATE[qstat]
+                # A3, second pass: the block's own status winning is right, but it
+                # buried the thing worth seeing. When the block says it has NOT
+                # reached the port and a draft arrival sheet says it has, that
+                # disagreement is the whole point — surface it rather than letting
+                # the block's status quietly swallow it.
+                if state == "await" and pa is None and ev is not None:
+                    state = "unconfirmed"
             elif lot and lot["st"] == "ship":
                 state = "load"
             elif lot:
@@ -2571,18 +2578,23 @@ def reconciliation_view():
                 if alt in disp:
                     d = disp[alt]
                     break
-        have_port = any(flt(x) for x in (p.length, p.width, p.height, p.cbm))
-        have_dc = bool(d) and any(flt(x) for x in (d.l, d.w, d.h, d.vol))
+        # Compare a side ONLY when both ends actually carry a number.
+        #
+        # The first cut of this still called 471 rows a mismatch, because a row
+        # with a cbm but no length was treated as "has measurements" and then
+        # every side compared against a zero. Zero is not a measurement of zero;
+        # it is an absence. Only genuinely comparable sides count, and a row with
+        # none of them is 'nothing to compare' rather than a failure.
+        pairs = [(d.l, p.length), (d.w, p.width), (d.h, p.height)] if d else []
+        comparable = [(a, b) for a, b in pairs if flt(a) and flt(b)]
 
         if not d:
             bucket = "unknown"
-        elif not have_port or not have_dc:
+        elif not comparable:
             bucket = "nodim"
         else:
-            exact = (flt(d.l) == flt(p.length) and flt(d.w) == flt(p.width)
-                     and flt(d.h) == flt(p.height))
-            ok = (_within_tol(d.l, p.length) and _within_tol(d.w, p.width)
-                  and _within_tol(d.h, p.height))
+            exact = all(flt(a) == flt(b) for a, b in comparable)
+            ok = all(_within_tol(a, b) for a, b in comparable)
             bucket = "match" if exact else ("tol" if ok else "mismatch")
         counts[bucket] += 1
         rows.append({
@@ -2594,6 +2606,7 @@ def reconciliation_view():
             "pt_l": p.length, "pt_w": p.width, "pt_h": p.height, "pt_cbm": p.cbm,
             "net_wt": p.net_wt, "recon_status": p.recon_status,
             "note": p.resolution_note, "bucket": bucket,
+            "compared": len(comparable),
         })
 
     labels = {
@@ -2603,5 +2616,8 @@ def reconciliation_view():
         "nodim": "No measurement to compare",
         "unknown": "Not on any submitted challan",
     }
+    labels["_note"] = ("A side is compared only when both the challan and the arrival "
+                       "carry a number for it. A missing measurement is an absence, "
+                       "not a measurement of zero, and it is never counted as a mismatch.")
     return {"rows": rows, "counts": counts, "labels": labels,
             "total": len(rows)}
