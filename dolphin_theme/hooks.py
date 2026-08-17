@@ -40,11 +40,19 @@ doc_events = {
             "dolphin_theme.sizing.compute_size_rates",
         ],
     },
+    # 17 Aug, evening: guards.guard REMOVED from Local Tax Invoice.
+    #
+    # Adding it here broke "Mark as Sold" — the button vanished and the form showed
+    # a false "Not Saved" beside a green Saved toast (the C4 symptom). Two ways it
+    # could do that: Local Tax Invoice is in the guard's HARD set so a finding calls
+    # frappe.throw, and the guard runs resolve_many, which fires a resolution query
+    # per block and is far heavier than anything this validate carried before.
+    #
+    # Selling an invoice is business-critical and duplicate protection on it is not
+    # worth breaking it for. If it is wanted here later it must be warn-only, cheap,
+    # and tested against a real invoice first.
     "Local Tax Invoice": {
-        "validate": [
-            "dolphin_theme.local_tax_invoice.compute_totals",
-            "dolphin_theme.guards.guard",
-        ],
+        "validate": "dolphin_theme.local_tax_invoice.compute_totals",
     },
     "Buyer Inspection": {
         "validate": "dolphin_theme.guards.guard",
