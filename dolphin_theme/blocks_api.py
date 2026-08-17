@@ -145,13 +145,265 @@ def add_block_note(name=None, text=None):
 
 
 @frappe.whitelist()
-def delete_block(name=None):
-    """Delete a duplicate block — blocked if it is already in a BI or DC."""
+def delete_block(name=None, reason=None, machine=None, person=None):
+    """Remove a duplicate block record.
+
+    CHANGED 17 Aug 2026 (B33/B34). This used to call `frappe.delete_doc` — the
+    record was gone and nothing said why. Now:
+
+      * the block's full contents are written into a Trash stamp first, so it can
+        be brought back (`lifecycle.restore_from_trash`)
+      * a reason is mandatory, and it stays with the block, so it surfaces in
+        Trace afterwards
+      * the record itself is cancelled out of the way rather than destroyed —
+        nothing Claude did not create this session is ever hard-deleted
+
+    Still blocked outright when the block is already in a BI or DC."""
+    import json as _json
+    from dolphin_theme.lifecycle import TRASH_TAG
+    from dolphin_theme.block_resolve import machine_of, log_event
+
     if not name:
         frappe.throw("No block given.")
+    reason = _s(reason)
+    if len(reason) < 4:
+        frappe.throw("A removal needs a reason — it stays with the block and shows "
+                     "in Trace. A few words is enough.")
     b = frappe.get_doc("Quarry Block", name)
     if _s(b.delivery_challan) or _s(b.buyer_inspection):
-        frappe.throw("Block is in a BI/DC and cannot be deleted.")
-    frappe.delete_doc("Quarry Block", name, ignore_permissions=True)
+        frappe.throw("Block is in a BI/DC and cannot be removed.")
+
+    snapshot = {k: v for k, v in b.as_dict().items()
+                if not str(k).startswith("_") and not isinstance(v, (list, dict))}
+    payload = {"from_doctype": "Quarry Block", "from_name": name,
+               "row": {"table": None, "data": snapshot},
+               "reason": reason, "person": _s(person) or frappe.session.user,
+               "machine": machine_of(machine), "restored": False,
+               "hard_deleted": False}
+    try:
+        b.add_comment("Comment", "{0} {1}".format(TRASH_TAG, _json.dumps(payload, default=str)))
+    except Exception:
+        pass
+    log_event(name, "removed", _s(b.status), "Removed", reason,
+              machine_of(machine), person)
+
+    # Take it out of every count without destroying it.
+    try:
+        if b.meta.has_field("status"):
+            b.status = "Removed" if "Removed" in (
+                (b.meta.get_field("status").options or "").split("\n")) else _s(b.status)
+        if b.meta.has_field("disabled"):
+            b.disabled = 1
+        b.flags.ignore_permissions = True
+        b.flags.ignore_validate_update_after_submit = True
+        b.save()
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), "Dolphin soft remove block")
     frappe.db.commit()
-    return {"ok": 1}
+    return {"ok": 1, "trashed": True, "reason": reason,
+            "message": "Removed to Trash. Recoverable — nothing was destroyed."}
+
+
+# ===========================================================================
+# Trace — every occurrence, with dates  (B2, B3, B4, B34 — 17 Aug 2026)
+#
+# The old trace stopped at the first match. With 92 numbers shared between the
+# quarry-number space and the export-number space, that meant the second block
+# was silently hidden — you searched a number, got an answer, and had no way of
+# knowing there was another one. This returns them ALL, says how each was
+# reached, and carries the dates so age is obvious at a glance.
+# ===========================================================================
+
+_JOURNEY = [
+    ("produced", "Produced", None),
+    ("qi", "Quarry Inspection", "Quarry Inspection"),
+    ("bi", "Buyer Inspection", "Buyer Inspection"),
+    ("dc", "Delivery Challan", "Delivery Challan"),
+    ("port", "Reached port", "Port Arrival"),
+    ("lot", "Export shipment lot", "Export Shipment Lot"),
+    ("ship", "Shipped", None),
+]
+
+
+def _age_days(datestr):
+    if not datestr:
+        return None
+    try:
+        from frappe.utils import date_diff, today
+        return int(date_diff(today(), str(datestr)[:10]))
+    except Exception:
+        return None
+
+
+@frappe.whitelist()
+def trace_all(q=None):
+    """Every block that answers to this number — never just the first.
+
+    Each hit says how it was reached ('export', 'quarry', or 'record-id, which is
+    not a real match'), carries every lifecycle date, and brings its notes and
+    removal reasons with it (B34)."""
+    from dolphin_theme.block_resolve import candidates
+    from dolphin_theme.lifecycle import block_events
+
+    q = _s(q)
+    if not q:
+        return {"q": "", "hits": [], "message": "Type a block number."}
+
+    hits = candidates(q, allow_record_name=False)
+    record_only = []
+    if not hits:
+        try:
+            if frappe.db.exists("Quarry Block", q):
+                d = frappe.db.get_value(
+                    "Quarry Block", q,
+                    ["name", "block_number", "export_block_no", "status"], as_dict=True)
+                if d:
+                    record_only = [dict(d, via="record-id")]
+        except Exception:
+            pass
+
+    out = []
+    for h in (hits or record_only):
+        out.append(_trace_one(h))
+
+    return {
+        "q": q,
+        "count": len(out),
+        "hits": out,
+        "record_id_only": bool(record_only),
+        "message": (
+            "" if len(hits) == 1 else
+            ("{0} is used by {1} different blocks — all of them are shown below."
+             .format(q, len(hits)) if len(hits) > 1 else
+             ("{0} is not any block's quarry number or export number. It IS record "
+              "id {0}, shown below for information only — a typed number is never "
+              "treated as a record id.".format(q) if record_only else
+              "Nothing answers to {0}.".format(q)))
+        ),
+    }
+
+
+def _trace_one(hit):
+    from dolphin_theme.lifecycle import block_events
+
+    name = hit.get("name")
+    b = frappe.get_doc("Quarry Block", name)
+
+    dc_no = ""
+    if _s(b.delivery_challan):
+        try:
+            dc_no = _s(frappe.db.get_value("Delivery Challan", b.delivery_challan,
+                                           "delivery_challan_no"))
+        except Exception:
+            pass
+
+    keys = {_s(b.name), _s(b.block_number), _s(b.export_block_no)} - {""}
+    arrivals = []
+    try:
+        for r in frappe.get_all("Port Arrival Block",
+                                filters={"block_no": ["in", list(keys)]},
+                                fields=["parent", "block_no", "recon_status",
+                                        "resolution_note", "resolution_type"],
+                                limit_page_length=0):
+            pa = frappe.db.get_value("Port Arrival", r.parent,
+                                     ["arrival_date", "docstatus"], as_dict=True) or {}
+            arrivals.append({
+                "arrival": r.parent, "date": _s(pa.get("arrival_date"))[:10],
+                "confirmed": 1 if pa.get("docstatus") == 1 else 0,
+                "matched_on": r.block_no, "recon_status": r.recon_status,
+                "note": r.resolution_note, "resolution": r.resolution_type,
+            })
+    except Exception:
+        pass
+
+    lots = []
+    try:
+        for r in frappe.get_all("Shipment Lot Block",
+                                filters={"block_no": ["in", list(keys)]},
+                                fields=["parent", "block_no"], limit_page_length=0):
+            lots.append({"lot": r.parent,
+                         "date": _docdate("Export Shipment Lot", r.parent)})
+    except Exception:
+        pass
+
+    port_date = next((a["date"] for a in arrivals if a["confirmed"] and a["date"]), "")
+    ship_date = lots[0]["date"] if lots else ""
+
+    nodes = [
+        {"k": "produced", "label": "Produced", "date": _s(b.date_produced)[:10],
+         "doc": None, "doctype": None},
+        {"k": "qi", "label": "Quarry Inspection",
+         "date": _docdate("Quarry Inspection", b.source_quarry_inspection),
+         "doc": _s(b.source_quarry_inspection), "doctype": "Quarry Inspection"},
+        {"k": "bi", "label": "Buyer Inspection",
+         "date": _docdate("Buyer Inspection", b.buyer_inspection),
+         "doc": _s(b.buyer_inspection), "doctype": "Buyer Inspection"},
+        {"k": "dc", "label": "Delivery Challan" + (" " + dc_no if dc_no else ""),
+         "date": _docdate("Delivery Challan", b.delivery_challan),
+         "doc": _s(b.delivery_challan), "doctype": "Delivery Challan"},
+        {"k": "port", "label": "Reached port", "date": port_date,
+         "doc": (arrivals[0]["arrival"] if arrivals else None), "doctype": "Port Arrival"},
+        {"k": "lot", "label": "Export shipment lot", "date": ship_date,
+         "doc": (lots[0]["lot"] if lots else None), "doctype": "Export Shipment Lot"},
+    ]
+    for n in nodes:
+        n["age"] = _age_days(n["date"])
+        n["done"] = bool(n["date"])
+
+    ev = block_events(name)
+    notes = []
+    for c in frappe.get_all("Comment",
+                            filters={"reference_doctype": "Quarry Block",
+                                     "reference_name": str(name),
+                                     "comment_type": "Comment"},
+                            fields=["content", "creation", "owner"],
+                            order_by="creation desc", limit_page_length=50):
+        notes.append({"t": strip_html(c.content or "").strip(),
+                      "d": _s(c.creation)[:19], "by": c.owner})
+
+    return {
+        "name": name,
+        "via": hit.get("via") or "record-id",
+        "block_number": _s(b.block_number),
+        "export_block_no": _s(b.export_block_no),
+        "status": _s(b.status),
+        "grade": _s(b.granite_quality_grade),
+        "pit": _s(b.pit),
+        "L": cint(b.length_gross), "W": cint(b.width_gross), "H": cint(b.height_gross),
+        "cbm": flt(b.gross_volume), "mt": flt(b.gross_tonnage),
+        "qi": _s(b.source_quarry_inspection), "bi": _s(b.buyer_inspection),
+        "dc": _s(b.delivery_challan), "dc_no": dc_no,
+        "nodes": nodes,
+        "arrivals": arrivals,
+        "lots": lots,
+        "events": ev.get("events") or [],
+        "notes": notes,
+        "last_moved": _s(b.modified)[:19],
+        "age": _age_days(_s(b.modified)[:10]),
+    }
+
+
+@frappe.whitelist()
+def collisions(limit=500):
+    """Every number that means more than one block  (B2).
+
+    92 of these exist. Until now nothing listed them, so a trace that landed on
+    the wrong one looked exactly like a trace that landed on the right one."""
+    from collections import defaultdict
+    space = defaultdict(list)
+    for qb in frappe.get_all("Quarry Block",
+                             fields=["name", "block_number", "export_block_no", "status"],
+                             limit_page_length=0):
+        for k, kind in ((qb.block_number, "quarry"), (qb.export_block_no, "export")):
+            k = _s(k)
+            if k:
+                space[k].append({"name": qb.name, "kind": kind, "status": _s(qb.status),
+                                 "block_number": _s(qb.block_number),
+                                 "export_block_no": _s(qb.export_block_no)})
+    out = []
+    for k, group in space.items():
+        names = {g["name"] for g in group}
+        if len(names) > 1:
+            out.append({"number": k, "blocks": group, "count": len(names)})
+    out.sort(key=lambda x: (-x["count"], x["number"]))
+    return out[:int(limit or 500)]

@@ -139,19 +139,50 @@ def reconcile_arrival(name):
 
 def _mark_at_port(pa):
     """A block confirmed arrived (Matched, or a non-duplicate resolution) is physically
-    AT THE PORT -> flip its Quarry Block status to 'At Port' so it shows in the
-    Blocks-At-Port report and the Shipping Document picker. Gated: only flips a block
-    number that is a real Quarry Block, and never downgrades Shipped/Sold."""
+    AT THE PORT -> flip its Quarry Block status to 'At Port'.
+
+    REWRITTEN 17 Aug 2026. The previous version called
+    ``frappe.db.exists("Quarry Block", bno)`` — it resolved a number typed by a
+    shipping agency against the Quarry Block RECORD ID. Because the record id is
+    an autoincrementing integer, every plausible number matched something, and
+    56 blocks were moved to a port they had never reached; 25 of them were
+    provably the wrong block.
+
+    Now: the number is resolved against export number then quarry number only,
+    a number that matches two blocks writes NOTHING, and every write is a
+    versioned save carrying the arrival it came from as its reason.
+
+    Returns a report so the caller can show what was refused instead of the
+    refusal being invisible."""
+    from dolphin_theme.block_resolve import try_resolve, set_status
+
+    moved, skipped = [], []
+    draft = (getattr(pa, "docstatus", 0) or 0) == 0
     for row in pa.blocks:
         bno = str(row.block_no or "").strip()
         arrived = (row.recon_status == "Matched") or (
             row.resolution_type and row.resolution_type != "Removed (duplicate)"
         )
-        if not (arrived and bno) or not frappe.db.exists("Quarry Block", bno):
+        if not (arrived and bno):
             continue
-        cur = frappe.db.get_value("Quarry Block", bno, "status")
-        if cur not in ("At Port", "Shipped", "Sold"):
-            frappe.db.set_value("Quarry Block", bno, "status", "At Port", update_modified=False)
+        if draft:
+            # B36's root cause, in its other guise: a DRAFT arrival must not move
+            # live stock. The evidence is kept and shown, but nothing is written.
+            skipped.append({"block": bno, "why": "draft-arrival"})
+            continue
+        hit, why = try_resolve(bno, allow_record_name=False)
+        if not hit:
+            skipped.append({"block": bno, "why": why})
+            continue
+        cur = _s(hit.get("status"))
+        if cur in ("At Port", "Shipped", "Sold"):
+            continue
+        res = set_status(hit["name"], "At Port",
+                         "arrived on {0} (row {1})".format(pa.name, row.idx),
+                         machine="server (arrival reconcile)")
+        (moved if res.get("ok") else skipped).append(
+            {"block": bno, "name": hit["name"], "why": res.get("error")})
+    return {"moved": len(moved), "skipped": skipped}
 
 
 @frappe.whitelist()
@@ -820,11 +851,19 @@ def move_to_at_port(blocks=None, note=None):
         if meta.has_field("arrival_date"):
             pa.arrival_date = frappe.utils.today()
 
+    from dolphin_theme.block_resolve import try_resolve, set_status
+
     existing = {str(b.block_no).strip() for b in pa.blocks}
-    moved = 0
+    moved, refused = 0, []
     for it in blocks:
         bn = str((it or {}).get("block_no") or "").strip()
         if not bn or bn in existing:
+            continue
+        # 17 Aug: resolve before writing. A number that means two blocks, or no
+        # block, never reaches the arrival sheet — it is reported back instead.
+        hit, why = try_resolve(bn, allow_record_name=False)
+        if not hit:
+            refused.append({"block": bn, "why": why})
             continue
         row = pa.append("blocks", {})
         row.block_no = bn
@@ -845,8 +884,24 @@ def move_to_at_port(blocks=None, note=None):
         pa.total_blocks = len(pa.blocks)
     pa.flags.ignore_mandatory = True
     pa.save(ignore_permissions=True)
+
+    # A deliberate, recorded skip of the arrival step (B39). The status is written
+    # here — not implied by the draft arrival — so the block's own history says
+    # who decided to skip and why.
+    skipped = []
+    for it in blocks:
+        bn = str((it or {}).get("block_no") or "").strip()
+        hit, why = try_resolve(bn, allow_record_name=False)
+        if not hit:
+            continue
+        res = set_status(hit["name"], "At Port",
+                         "arrival step skipped: {0}".format(_s(note) or "no reason given"),
+                         machine="server (skip arrivals)")
+        if res.get("ok"):
+            skipped.append(bn)
     frappe.db.commit()
-    return {"arrival": pa.name, "moved": moved}
+    return {"arrival": pa.name, "moved": moved, "at_port": len(skipped),
+            "refused": refused}
 
 
 # ===========================================================================
@@ -897,28 +952,132 @@ def _lot_membership():
     return m
 
 
-def _arrived_index():
-    """block_no -> Port Arrival Block row (physically at port)."""
+_PAB_FIELDS = ["parent", "block_no", "mark", "length", "width", "height",
+               "cbm", "net_wt", "recon_status", "match_status", "vehicle_no",
+               "resolution_note"]
+
+
+def _arrival_docstatus():
+    """{arrival name: docstatus} — cheap, one query."""
+    try:
+        return {a.name: a.docstatus for a in
+                frappe.get_all("Port Arrival", fields=["name", "docstatus"],
+                               limit_page_length=0)}
+    except Exception:
+        return {}
+
+
+def _arrived_index(include_drafts=False):
+    """block_no -> Port Arrival Block row (physically at port).
+
+    FIXED 17 Aug 2026. This had no docstatus filter, so all 849 rows of the five
+    DRAFT arrivals counted as "at port" — which is the whole of the 178 the Port
+    & Stock page was reporting. A draft is somebody's unfinished typing; it is
+    evidence, not arrival.
+
+    Confirmed arrivals only by default. `_evidence_index()` returns the drafts
+    separately so they stay visible instead of vanishing (A3)."""
+    ds = _arrival_docstatus()
     idx = {}
-    for p in frappe.get_all(
-        "Port Arrival Block",
-        fields=["parent", "block_no", "mark", "length", "width", "height",
-                "cbm", "net_wt", "recon_status", "match_status", "vehicle_no",
-                "resolution_note"],
-        limit_page_length=0,
-    ):
+    for p in frappe.get_all("Port Arrival Block", fields=_PAB_FIELDS,
+                            limit_page_length=0):
         k = _s(p.block_no)
-        if k:
+        if not k:
+            continue
+        if not include_drafts and ds.get(p.parent, 0) != 1:
+            continue
+        idx.setdefault(k, p)
+    return idx
+
+
+def _evidence_index():
+    """block_no -> Port Arrival Block row that sits on an UNSUBMITTED arrival.
+
+    Arrival evidence, unconfirmed. Shown in its own bucket on the ledger so the
+    number is honest without the rows disappearing from the screen."""
+    ds = _arrival_docstatus()
+    idx = {}
+    for p in frappe.get_all("Port Arrival Block", fields=_PAB_FIELDS,
+                            limit_page_length=0):
+        k = _s(p.block_no)
+        if k and ds.get(p.parent, 0) == 0:
             idx.setdefault(k, p)
     return idx
+
+
+def _block_status_index():
+    """Every identifier a Quarry Block answers to -> (record name, real status).
+
+    ledger_view never read Quarry Block.status at all; it inferred a state from
+    arrival rows. So when the 56 blocks were corrected on 17 Aug the page went on
+    saying 178 regardless. Now the block's own status is the spine of the row and
+    the arrival is supporting evidence."""
+    idx = {}
+    try:
+        for qb in frappe.get_all("Quarry Block",
+                                 fields=["name", "block_number", "export_block_no", "status"],
+                                 limit_page_length=0):
+            rec = {"name": qb.name, "status": _s(qb.status),
+                   "block_number": _s(qb.block_number),
+                   "export_block_no": _s(qb.export_block_no)}
+            for k in (qb.export_block_no, qb.block_number, qb.name):
+                k = _s(k)
+                if k:
+                    idx.setdefault(k, rec)
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), "Dolphin block status index")
+    return idx
+
+
+# Quarry Block.status -> ledger state. The block's own status wins over inferred
+# state, so a correction made to the data shows on the page immediately (A3).
+_LADDER_STATE = {
+    "Dispatched/Transported": "await",
+    "In Delivery Challan": "await",
+    "At Port": "port",
+    "At Bannikoppa Station yard": "port",
+    "Reconciled": "recon",
+    "Ready for Export Lot": "ready",
+    "In Export Shipment Lot": "lot",
+    "Shipped": "load",
+    "Sold": "load",
+}
+
+# Labels the page shows for each state, kept server-side so every screen agrees.
+STATE_LABELS = {
+    "await": "Awaiting arrival",
+    "unconfirmed": "Arrival evidence, unconfirmed",
+    "port": "At port",
+    "recon": "Reconciled",
+    "ready": "Ready for export lot",
+    "lot": "In shipment lot",
+    "load": "Shipped",
+    "mis": "Dimension mismatch",
+    "held": "Held",
+    "dmg": "Damaged",
+    "orphan": "At port, not on any challan",
+}
+
+
+@frappe.whitelist()
+def ledger_states():
+    """The state vocabulary, for the page legend."""
+    return STATE_LABELS
 
 
 @frappe.whitelist()
 def ledger_view():
     """One flat row per transported block: block -> DC -> BI/consignee, plus
-    arrival/port reality, lot membership and a single state."""
+    arrival/port reality, lot membership and a single state.
+
+    REWRITTEN 17 Aug 2026 (A3). Three things were wrong and all three are fixed:
+      * draft arrivals counted as arrivals — now filtered, with their own bucket
+      * the block's real status was never read — now it is the spine of the row
+      * a number was resolved against the record id — now never."""
     lots = _lot_membership()
-    arrived = _arrived_index()
+    arrived = _arrived_index()          # submitted arrivals only (17 Aug fix)
+    evidence = _evidence_index()        # draft arrivals — shown, never counted
+    qbs = _block_status_index()         # the block's OWN status is the spine
     cons = _consignee_names()
     emap = _export_map()
 
@@ -946,9 +1105,19 @@ def ledger_view():
             if not primary:
                 continue
             pa = next((arrived[k] for k in keys if k in arrived), None)
+            ev = next((evidence[k] for k in keys if k in evidence), None)
             lot = next((lots[k] for k in keys if k in lots), None)
+            qb = next((qbs[k] for k in keys if k in qbs), None)
+            qstat = _s(qb["status"]) if qb else ""
 
-            if lot and lot["st"] == "ship":
+            # State, in order of authority:
+            #   1. the block's own status, when it is one the ladder knows
+            #   2. lot membership
+            #   3. a CONFIRMED arrival row
+            #   4. arrival evidence on a draft — its own bucket, never "at port"
+            if qstat in _LADDER_STATE:
+                state = _LADDER_STATE[qstat]
+            elif lot and lot["st"] == "ship":
                 state = "load"
             elif lot:
                 state = "lot"
@@ -957,6 +1126,8 @@ def ledger_view():
                 state = ("dmg" if "damage" in rs else
                          "held" if ("hold" in rs or "held" in rs) else
                          "mis" if ("mismatch" in rs or "dimension" in rs) else "port")
+            elif ev is not None:
+                state = "unconfirmed"
             else:
                 state = "await"
 
@@ -973,9 +1144,13 @@ def ledger_view():
                 "pt_l": (pa.length if pa else None), "pt_w": (pa.width if pa else None),
                 "pt_h": (pa.height if pa else None), "pt_cbm": (pa.cbm if pa else None),
                 "net_wt": (pa.net_wt if pa else None),
-                "arrival": (pa.parent if pa else None),
-                "recon_status": (pa.recon_status if pa else None),
-                "resolution_note": (pa.resolution_note if pa else None),
+                "arrival": (pa.parent if pa else (ev.parent if ev else None)),
+                "arrival_confirmed": 1 if pa else 0,
+                "recon_status": (pa.recon_status if pa else (ev.recon_status if ev else None)),
+                "resolution_note": (pa.resolution_note if pa else
+                                    (ev.resolution_note if ev else None)),
+                "block_status": qstat,
+                "qb": (qb["name"] if qb else None),
                 "lot": (lot["lot"] if lot else None),
                 "lot_title": (lot["title"] if lot else None),
                 "truck": dc.vehicle, "port": dc.port_of_loading, "port_code": ports.get(dc.port_of_loading, dc.port_of_loading), "state": state, "source": "dc",
@@ -983,22 +1158,35 @@ def ledger_view():
             for k in keys:
                 seen.add(k)
 
-    # arrived but not on any submitted DC -> excess / opening / accepted
-    for k, pa in arrived.items():
+    # arrived but not on any submitted DC -> excess / opening / accepted.
+    # Draft-arrival rows are included too, but flagged unconfirmed rather than
+    # silently counted as stock at the port.
+    merged = dict(evidence)
+    merged.update(arrived)
+    for k, pa in merged.items():
         if k in seen:
             continue
+        confirmed = k in arrived
         lot = lots.get(k)
+        qb = qbs.get(k)
+        qstat = _s(qb["status"]) if qb else ""
         rs = _s(pa.recon_status).lower()
-        if lot and lot["st"] == "ship":
+        if qstat in _LADDER_STATE:
+            state = _LADDER_STATE[qstat]
+        elif lot and lot["st"] == "ship":
             state = "load"
         elif lot:
             state = "lot"
+        elif not confirmed:
+            state = "unconfirmed"
         elif "resolved" in rs or "accept" in rs or "opening" in rs:
             state = "port"
         else:
             state = "orphan"
         rows.append({
             "block_no": k, "mark": pa.mark, "dc": None, "consignee": None,
+            "arrival_confirmed": 1 if confirmed else 0,
+            "block_status": qstat, "qb": (qb["name"] if qb else None),
             "source_bi": None, "grade": None,
             "dc_l": None, "dc_w": None, "dc_h": None, "dc_cbm": None, "ton": None,
             "pt_l": pa.length, "pt_w": pa.width, "pt_h": pa.height,
@@ -1019,7 +1207,11 @@ def move_dc_to_at_port(dc=None):
     d = frappe.get_doc("Delivery Challan", dc)
     blocks = []
     for r in (d.get("dc_block_rows") or []):
-        bn = _s(r.get("block")) or _s(r.get("block_no"))
+        # 17 Aug: `block` is the LINK — the record id. Sending that downstream is
+        # exactly the record-id leak that produced the wrong At Port matches, and
+        # it also breaks the standing rule that after the DC only export numbers
+        # travel. Prefer the export number, then the quarry number.
+        bn = _s(r.get("export_block_no")) or _s(r.get("block_no")) or _s(r.get("block"))
         if bn:
             blocks.append({"block_no": bn, "dc": dc})
     if not blocks:
@@ -1828,21 +2020,29 @@ def _qb_by_any(key):
     """Resolve a Quarry Block dict from ANY of its identifiers: docname,
     block_number, or export_block_no. Returns {name, block_number,
     export_block_no} or None. Used to keep block identity robust across the
-    three overlapping number spaces."""
+    three overlapping number spaces.
+
+    17 Aug 2026: the record-id branch used to come FIRST. That ordering is what
+    matched 56 agency-typed numbers against autoincrementing record ids and moved
+    25 wrong blocks to the port. Number spaces are now tried first and the record
+    id is only a last resort — and never when the number is shared."""
+    from dolphin_theme.block_resolve import try_resolve
+
     key = _s(key)
     if not key:
         return None
-    if frappe.db.exists("Quarry Block", key):
-        d = frappe.db.get_value("Quarry Block", key,
-                                ["name", "block_number", "export_block_no"], as_dict=True)
-        if d:
-            return d
-    for fld in ("block_number", "export_block_no"):
-        rows = frappe.get_all("Quarry Block", filters={fld: key},
-                              fields=["name", "block_number", "export_block_no"],
-                              limit_page_length=1)
-        if rows:
-            return rows[0]
+    hit, why = try_resolve(key, allow_record_name=False)
+    if hit:
+        return frappe._dict({"name": hit["name"],
+                             "block_number": hit.get("block_number"),
+                             "export_block_no": hit.get("export_block_no")})
+    if why == "ambiguous":
+        return None
+    hit, _why = try_resolve(key, allow_record_name=True)
+    if hit:
+        return frappe._dict({"name": hit["name"],
+                             "block_number": hit.get("block_number"),
+                             "export_block_no": hit.get("export_block_no")})
     return None
 
 
@@ -2133,3 +2333,275 @@ def return_blocks_from_lot(lot=None, blocks=None):
             d.db_set("shipping_document", None)
     frappe.db.commit()
     return {"lot": d.name, "returned": len(returned), "remaining": len(kept_dicts)}
+
+
+# ===========================================================================
+# Port & Stock — the four capabilities that were missing  (B1, 17 Aug 2026)
+#
+#   "there is no way to delete duplicates or reject accepting or accept with
+#    note and find with note block"
+#
+#   duplicate_rows()      what is actually duplicated, with both rows shown
+#   remove_arrival_row()  soft-delete a duplicate row -> Trash, with a reason
+#   reject_acceptance()   undo an accept; the block goes back to needing a person
+#   accept_with_note()    accept, but the note travels with the BLOCK
+#   find_by_note()        find every block carrying a note, by text
+# ===========================================================================
+
+
+@frappe.whitelist()
+def duplicate_rows(arrival=None):
+    """Every block number that appears on more than one arrival row, with both
+    rows side by side. Previously the page said 617 rows were "Duplicate" and
+    offered nothing to do about it."""
+    filters = {}
+    if arrival:
+        filters["parent"] = arrival
+    rows = frappe.get_all("Port Arrival Block",
+                          filters=filters or None,
+                          fields=["name", "parent", "block_no", "length", "width",
+                                  "height", "cbm", "net_wt", "recon_status",
+                                  "resolution_type", "resolution_note", "vehicle_no"],
+                          limit_page_length=0)
+    ds = _arrival_docstatus()
+    by = {}
+    for r in rows:
+        k = _s(r.block_no)
+        if k:
+            by.setdefault(k, []).append(dict(r, confirmed=1 if ds.get(r.parent) == 1 else 0))
+    out = []
+    for k, group in by.items():
+        if len(group) < 2:
+            continue
+        out.append({
+            "block_no": k,
+            "count": len(group),
+            "rows": sorted(group, key=lambda x: (0 if x["confirmed"] else 1, x["parent"])),
+            "identical": len({(_s(g["length"]), _s(g["width"]), _s(g["height"])) for g in group}) == 1,
+        })
+    out.sort(key=lambda x: (-x["count"], x["block_no"]))
+    return out
+
+
+@frappe.whitelist()
+def remove_arrival_row(row=None, reason=None, machine=None, person=None):
+    """Soft-delete one arrival row. Nothing is destroyed: the row's contents go
+    into the block's Trash stamp and can be restored (B33). The reason is
+    mandatory and it follows the BLOCK, so Trace shows it (B34)."""
+    from dolphin_theme.lifecycle import remove_to_trash
+    if not row:
+        frappe.throw("No row given.")
+    parent, block_no = frappe.db.get_value("Port Arrival Block", row,
+                                           ["parent", "block_no"]) or (None, None)
+    if not parent:
+        frappe.throw("That row no longer exists.")
+    return remove_to_trash(doctype="Port Arrival", parent=parent, row=row,
+                           block=block_no, reason=reason, machine=machine,
+                           person=person)
+
+
+@frappe.whitelist()
+def reject_acceptance(row=None, block_no=None, arrival=None, reason=None,
+                      machine=None, person=None):
+    """Undo an acceptance. The row goes back to unresolved and the block comes
+    back off At Port, with the rejection written into its history — so an accept
+    made in error is a correctable event, not a permanent one."""
+    from dolphin_theme.block_resolve import try_resolve, set_status, log_event, machine_of
+    reason = _s(reason)
+    if len(reason) < 4:
+        frappe.throw("Say why the acceptance is being rejected — that reason is the "
+                     "only record of it.")
+    name = row
+    if not name:
+        alt = _pab_alt_keys(block_no) or {_s(block_no)}
+        flt_ = {"block_no": ["in", list(alt)]}
+        if arrival:
+            flt_["parent"] = arrival
+        name = frappe.db.get_value("Port Arrival Block", flt_, "name")
+    if not name:
+        frappe.throw("No arrival row found for {0}.".format(_s(block_no)))
+
+    bno = _s(frappe.db.get_value("Port Arrival Block", name, "block_no"))
+    updates = {"recon_status": "", "resolution_type": None,
+               "resolution_note": "REJECTED: " + reason}
+    meta = frappe.get_meta("Port Arrival Block")
+    for f, v in (("resolved_by", frappe.session.user), ("resolved_on", now_datetime())):
+        if meta.has_field(f):
+            updates[f] = v
+    frappe.db.set_value("Port Arrival Block", name, updates, update_modified=False)
+
+    hit, _why = try_resolve(bno, allow_record_name=False)
+    if hit and _s(hit.get("status")) == "At Port":
+        set_status(hit["name"], "Dispatched/Transported",
+                   "acceptance rejected: " + reason, machine=machine_of(machine),
+                   actor=person, allow_backwards=True)
+    if hit:
+        log_event(hit["name"], "acceptance-rejected", "Resolved", "", reason,
+                  machine_of(machine), person)
+    frappe.db.commit()
+    return {"ok": True, "row": name, "block_no": bno}
+
+
+@frappe.whitelist()
+def accept_with_note(row=None, block_no=None, arrival=None, note=None,
+                     machine=None, person=None, to_status="At Port"):
+    """Accept an arrival row WITH a note that stays attached to the block.
+
+    The old accept wrote `resolution_note` on the arrival row, where nobody ever
+    looks again. This writes it there AND onto the block, so `find_by_note` and
+    Trace can both find it afterwards."""
+    from dolphin_theme.block_resolve import try_resolve, set_status, log_event, machine_of
+    note = _s(note)
+    if len(note) < 4:
+        frappe.throw("An acceptance needs a note — that is the point of accepting "
+                     "with a note rather than just accepting.")
+    name = row
+    if not name:
+        alt = _pab_alt_keys(block_no) or {_s(block_no)}
+        flt_ = {"block_no": ["in", list(alt)]}
+        if arrival:
+            flt_["parent"] = arrival
+        name = frappe.db.get_value("Port Arrival Block", flt_, "name")
+    if not name:
+        frappe.throw("No arrival row found for {0}.".format(_s(block_no)))
+
+    bno = _s(frappe.db.get_value("Port Arrival Block", name, "block_no"))
+    meta = frappe.get_meta("Port Arrival Block")
+    updates = {"recon_status": "Resolved", "resolution_note": note}
+    if meta.has_field("resolution_type"):
+        updates["resolution_type"] = "Accepted as-is"
+    if meta.has_field("resolved_by"):
+        updates["resolved_by"] = frappe.session.user
+    if meta.has_field("resolved_on"):
+        updates["resolved_on"] = now_datetime()
+    if meta.has_field("resolved_machine"):
+        updates["resolved_machine"] = machine_of(machine)
+    frappe.db.set_value("Port Arrival Block", name, updates, update_modified=False)
+
+    hit, why = try_resolve(bno, allow_record_name=False)
+    if not hit:
+        frappe.db.commit()
+        return {"ok": True, "row": name, "block_no": bno, "block": None, "why": why,
+                "message": "Row accepted, but {0} does not resolve to exactly one "
+                           "block, so no block status was changed.".format(bno)}
+    try:
+        frappe.get_doc("Quarry Block", hit["name"]).add_comment(
+            "Comment", "Accepted at port with note · {0} · {1} · {2}".format(
+                person or frappe.session.user, machine_of(machine), note))
+    except Exception:
+        pass
+    res = set_status(hit["name"], to_status, "accepted with note: " + note,
+                     machine=machine_of(machine), actor=person)
+    log_event(hit["name"], "accepted-with-note", None, to_status, note,
+              machine_of(machine), person)
+    frappe.db.commit()
+    return {"ok": True, "row": name, "block_no": bno, "block": hit["name"],
+            "status": res.get("status")}
+
+
+@frappe.whitelist()
+def find_by_note(q=None, limit=300):
+    """Find every block carrying a note, optionally matching text.
+
+    Looks in three places at once, because notes have been written into all
+    three over the months: the arrival row's resolution_note, the block's
+    comments, and the lifecycle stamps (trash / skip / reverse)."""
+    q = _s(q)
+    out, seen = [], set()
+
+    def add(block, where, text, when, who=None):
+        k = (str(block), where, (text or "")[:60])
+        if k in seen:
+            return
+        seen.add(k)
+        out.append({"block": block, "where": where, "note": text,
+                    "at": _s(when)[:19], "by": who})
+
+    like = "%{0}%".format(q) if q else "%"
+    try:
+        for r in frappe.get_all("Port Arrival Block",
+                                filters={"resolution_note": ["like", like]},
+                                fields=["block_no", "parent", "resolution_note",
+                                        "resolved_on", "resolved_by"],
+                                limit_page_length=int(limit or 300)):
+            if _s(r.resolution_note):
+                add(r.block_no, "arrival " + str(r.parent), r.resolution_note,
+                    r.resolved_on, r.resolved_by)
+    except Exception:
+        pass
+
+    try:
+        for c in frappe.get_all("Comment",
+                                filters={"reference_doctype": "Quarry Block",
+                                         "comment_type": "Comment",
+                                         "content": ["like", like]},
+                                fields=["reference_name", "content", "creation", "owner"],
+                                order_by="creation desc",
+                                limit_page_length=int(limit or 300)):
+            add(c.reference_name, "block note",
+                frappe.utils.strip_html(c.content or "").strip(), c.creation, c.owner)
+    except Exception:
+        pass
+
+    return out
+
+
+@frappe.whitelist()
+def reconciliation_view():
+    """An honest reconciliation table  (B30).
+
+    The live page read '0 match · 12 within tolerance · 49 mismatch', with most
+    rows showing XLS MT 0.00 — because a missing measurement was being compared
+    as if it were a measurement of zero. A row with nothing to compare is not a
+    mismatch; it is a row with no evidence, and it now says so.
+
+    Buckets: match · within-tolerance · mismatch · no-measurement · unresolved."""
+    disp = _dispatched_index()
+    ds = _arrival_docstatus()
+    rows, counts = [], {"match": 0, "tol": 0, "mismatch": 0, "nodim": 0, "unknown": 0}
+
+    for p in frappe.get_all("Port Arrival Block", fields=_PAB_FIELDS + ["name"],
+                            limit_page_length=0):
+        k = _s(p.block_no)
+        if not k:
+            continue
+        d = disp.get(k)
+        if not d:
+            for alt in _pab_alt_keys(k):
+                if alt in disp:
+                    d = disp[alt]
+                    break
+        have_port = any(flt(x) for x in (p.length, p.width, p.height, p.cbm))
+        have_dc = bool(d) and any(flt(x) for x in (d.l, d.w, d.h, d.vol))
+
+        if not d:
+            bucket = "unknown"
+        elif not have_port or not have_dc:
+            bucket = "nodim"
+        else:
+            exact = (flt(d.l) == flt(p.length) and flt(d.w) == flt(p.width)
+                     and flt(d.h) == flt(p.height))
+            ok = (_within_tol(d.l, p.length) and _within_tol(d.w, p.width)
+                  and _within_tol(d.h, p.height))
+            bucket = "match" if exact else ("tol" if ok else "mismatch")
+        counts[bucket] += 1
+        rows.append({
+            "row": p.name, "block_no": k, "arrival": p.parent,
+            "confirmed": 1 if ds.get(p.parent) == 1 else 0,
+            "dc": (d.dc if d else None),
+            "dc_l": (d.l if d else None), "dc_w": (d.w if d else None),
+            "dc_h": (d.h if d else None), "dc_cbm": (d.vol if d else None),
+            "pt_l": p.length, "pt_w": p.width, "pt_h": p.height, "pt_cbm": p.cbm,
+            "net_wt": p.net_wt, "recon_status": p.recon_status,
+            "note": p.resolution_note, "bucket": bucket,
+        })
+
+    labels = {
+        "match": "Exact match",
+        "tol": "Within tolerance (3 cm or 3%)",
+        "mismatch": "Real mismatch",
+        "nodim": "No measurement to compare",
+        "unknown": "Not on any submitted challan",
+    }
+    return {"rows": rows, "counts": counts, "labels": labels,
+            "total": len(rows)}
