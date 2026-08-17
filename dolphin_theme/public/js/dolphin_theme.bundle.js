@@ -650,7 +650,13 @@ frappe.provide("dolphin");
     if (!bar) {
       bar = document.createElement("span");
       bar.className = "di-navbar-group di-actionbar";
-      bar.style.flexWrap = "nowrap";
+      /* B16 (17 Aug 2026): this used to be flexWrap:"nowrap", which is why the
+         bar ran off the edge and half the buttons were unreachable on a narrow
+         window. Let it wrap, keep the rows tight, and never let it overflow. */
+      bar.style.flexWrap = "wrap";
+      bar.style.rowGap = "4px";
+      bar.style.maxWidth = "100%";
+      bar.style.overflow = "visible";
       var back = abChip("‹", "Back", function () { window.history.back(); });
       var home = abChip("⌂", "Home", function () { goHome(); });
       var title = document.createElement("span"); title.className = "di-ab-title"; title.setAttribute("data-di-abtitle", "1");
@@ -1023,6 +1029,29 @@ frappe.provide("dolphin");
     });
     __diMo.observe(document.body, { childList: true, subtree: true });
   } catch (e) {}
+  /* ---------- B17: give Ctrl/Cmd+K somewhere to go (17 Aug 2026) ----------
+     The theme removes Frappe's navbar, so the framework's Ctrl+K had nothing to
+     focus and the shortcut silently did nothing. Bind it ourselves, in priority
+     order: the theme's own Trace-a-block box, then the side-menu filter, then
+     Frappe's awesomebar if it happens to exist on this page. */
+  document.addEventListener("keydown", function (ev) {
+    try {
+      if (!(ev.metaKey || ev.ctrlKey) || (ev.key !== "k" && ev.key !== "K")) return;
+      var target = document.querySelector(".dtq")
+        || document.querySelector("#di-trace")
+        || document.querySelector("#dolphin-sidemenu .di-sm-search")
+        || document.querySelector("#navbar-search, .navbar .awesomplete input");
+      if (!target) {
+        // last resort: open the side menu, which carries the filter box
+        var toggle = document.querySelector(".di-menu-toggle, #dolphin-menu-toggle");
+        if (toggle) { toggle.click(); target = document.querySelector("#dolphin-sidemenu .di-sm-search"); }
+      }
+      if (!target) return;
+      ev.preventDefault(); ev.stopPropagation();
+      try { target.focus(); target.select && target.select(); } catch (e) {}
+    } catch (e) {}
+  }, true);
+
   /* stop Frappe's Ctrl/Cmd+P doc-print (and its "unsaved changes" warning) on non-form pages like the workspace */
   document.addEventListener("keydown", function (ev) {
     try {
