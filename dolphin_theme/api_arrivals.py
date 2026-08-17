@@ -2555,14 +2555,19 @@ def find_by_note(q=None, limit=300):
 
 @frappe.whitelist()
 def reconciliation_view():
-    """An honest reconciliation table  (B30).
+    """Did the agency transcribe our numbers correctly?  (B30, reframed by B54)
 
-    The live page read '0 match · 12 within tolerance · 49 mismatch', with most
-    rows showing XLS MT 0.00 — because a missing measurement was being compared
-    as if it were a measurement of zero. A row with nothing to compare is not a
-    mismatch; it is a row with no evidence, and it now says so.
+    B54, and this is the whole point of the screen: **the port agency never
+    measures a block.** Weight and tonnage are their only concern. The
+    measurements are ours and the Buyer Inspection measurement is FINAL.
 
-    Buckets: match · within-tolerance · mismatch · no-measurement · unresolved."""
+    So this is not measurement-versus-measurement. It is a transcription check:
+    where the agency has typed a size, does it match what we gave them? A row
+    where they typed nothing is NORMAL — they were never asked to — and it is
+    never counted as a fault.
+
+    Buckets: match · within-tolerance · mismatch (mistyped) · not-entered ·
+    not-on-a-challan."""
     disp = _dispatched_index()
     ds = _arrival_docstatus()
     rows, counts = [], {"match": 0, "tol": 0, "mismatch": 0, "nodim": 0, "unknown": 0}
@@ -2610,14 +2615,15 @@ def reconciliation_view():
         })
 
     labels = {
-        "match": "Exact match",
+        "match": "Agency figures match ours",
         "tol": "Within tolerance (3 cm or 3%)",
-        "mismatch": "Real mismatch",
-        "nodim": "No measurement to compare",
+        "mismatch": "Mistyped — does not match what we gave",
+        "nodim": "Not entered by the agency (normal)",
         "unknown": "Not on any submitted challan",
     }
-    labels["_note"] = ("A side is compared only when both the challan and the arrival "
-                       "carry a number for it. A missing measurement is an absence, "
-                       "not a measurement of zero, and it is never counted as a mismatch.")
+    labels["_note"] = ("The port agency does not measure — weight and tonnage are their "
+                       "only concern, and the Buyer Inspection measurement is final. "
+                       "This table only asks whether what they typed matches what we gave "
+                       "them. A blank is normal and is never a fault.")
     return {"rows": rows, "counts": counts, "labels": labels,
             "total": len(rows)}

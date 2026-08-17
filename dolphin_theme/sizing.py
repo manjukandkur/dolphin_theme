@@ -20,8 +20,12 @@ and nothing may print a bare letter without saying which axis it belongs to.
 What this module does
 ---------------------
   B44  carry sizes forward:  BI -> DC -> Port Arrival -> Lot -> Export invoice.
-       The measured hole was Port Arrival: 0 of 849 rows had any measurement,
-       which is why nothing at the port could ever be reconciled.
+
+       B54: the port agency NEVER measures — weight and tonnage are their only
+       concern, and the measurements are ours. **The Buyer Inspection measurement
+       is FINAL.** So carrying BI sizes forward is not a workaround for missing
+       port data; it is the correct and only source. An arrival row with no
+       measurement of its own is normal, not a gap.
 
   B45  a size override on the export invoice and packing list — carried sizes
        are the default, a person may correct them, and the correction is kept
@@ -299,9 +303,9 @@ def carry_sizes(doc, method=None):
                     filled += 1
         if filled and doc.doctype == "Port Arrival":
             frappe.msgprint(
-                "Measurements carried onto {0} block row(s) from the Buyer Inspection. "
-                "Until now no arrival row carried any measurement at all, which is why "
-                "nothing at the port could be reconciled.".format(filled),
+                "Measurements carried onto {0} block row(s) from the Buyer Inspection, "
+                "which is the final and authoritative measurement. The agency supplies "
+                "weight, not size.".format(filled),
                 alert=True, indicator="blue")
     except Exception:
         frappe.log_error(frappe.get_traceback(), "Dolphin carry_sizes ({0})".format(doc.doctype))
