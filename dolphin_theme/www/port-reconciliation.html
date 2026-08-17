@@ -39,6 +39,16 @@
 #pr .pill{font-size:11px;padding:2px 8px;border-radius:11px;font-weight:600;white-space:nowrap}
 #pr .p-port{background:#e6f1fb;color:#185fa5}#pr .p-inlot{background:#e7ecff;color:#33449c}#pr .p-load{background:#dff3ea;color:#0c7150}
 #pr .p-mis{background:#faeeda;color:#854f0b}#pr .p-short{background:#fcebeb;color:#a32d2d}#pr .p-dmg{background:#fbe3d4;color:#a3491a}
+#pr .p-unc{background:#fdf2dc;color:#8a6a1f;box-shadow:inset 0 0 0 1px #ecd7a6}
+#pr .p-nodim{background:#eef0f3;color:#5f6b7a}
+#pr .qcard{border:1px solid #cfd4dc;border-radius:11px;overflow:hidden;margin-bottom:11px}
+#pr .qcard .qh{background:#0F2540;color:#fff;padding:8px 12px;font-size:13px;display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+#pr .qcard .qh .n{background:#D4A24A;color:#16304F;border-radius:9px;padding:1px 8px;font-weight:700;font-size:11px}
+#pr .qrow{display:flex;gap:8px;align-items:center;padding:7px 12px;border-top:.5px solid #eef2f6;font-size:12.5px;flex-wrap:wrap}
+#pr .qrow .blkno{font-weight:800;font-size:14px;color:#0F2540}
+#pr .qrow.dupe{background:#fdf7f7}
+#pr .exph{font-weight:800;font-size:14px;color:#0F2540}
+#pr .exph .tg{font-weight:700;font-size:9px;color:#8a6a1f;background:#fdf2dc;border:1px solid #ecd7a6;border-radius:4px;padding:1px 4px;margin-right:5px;vertical-align:2px}
 #pr .p-held{background:#f3d9dd;color:#8a1f2e}#pr .p-await{background:#eef1f6;color:#5f6b7a}#pr .p-orph{background:#fcebeb;color:#a32d2d}
 #pr .rb{font-size:11px;padding:4px 9px;border-radius:7px;border:1px solid #cfd4dc;background:#fff;color:#374151;cursor:pointer;margin:1px 2px 0 0;display:inline-block}
 #pr .rb.pri{background:var(--navy);color:#fff;border-color:var(--navy)}#pr .rb.ok{background:#e1f5ee;color:#0f6e56;border-color:#9fe1cb}
@@ -149,12 +159,12 @@ function api(dt,f,fl,lim){var u='/api/method/frappe.client.get_list?doctype='+en
 function post(m,a){return fetch('/api/method/'+m,{method:'POST',credentials:'include',headers:{'Content-Type':'application/json','X-Frappe-CSRF-Token':TOKEN},body:JSON.stringify(a)}).then(function(r){return r.json();});}
 function ageDays(arr){var d=ADATE[arr];if(!d)return null;var t=(new Date()-new Date(d))/86400000;return t>=0?Math.round(t):null;}
 fetch('/api/method/dolphin_theme.api_arrivals.get_token',{credentials:'include'}).then(function(r){return r.json();}).then(function(j){TOKEN=j.message;});
-var SP={port:['p-port',U(9679)+' At port'],await:['p-await',U(9684)+' Awaiting arrival'],lot:['p-inlot',U(9635)+' In lot'],load:['p-load',U(9875)+' Loaded'],mis:['p-mis',U(9888)+' Size mismatch'],dmg:['p-dmg',U(9888)+' Damaged'],held:['p-held',U(9940)+' Held'],orphan:['p-orph',U(9888)+' Excess'+DOT+'no DC']};
+var SP={port:['p-port',U(9679)+' At port'],await:['p-await',U(9684)+' Awaiting arrival'],unconfirmed:['p-unc',U(9888)+' Arrival evidence, unconfirmed'],recon:['p-load',U(10003)+' Reconciled'],ready:['p-inlot',U(9873)+' Ready for lot'],lot:['p-inlot',U(9635)+' In lot'],load:['p-load',U(9875)+' Loaded'],mis:['p-mis',U(9888)+' Size mismatch'],dmg:['p-dmg',U(9888)+' Damaged'],held:['p-held',U(9940)+' Held'],orphan:['p-orph',U(9888)+' Excess'+DOT+'no DC']};
 function pill(st){var s=SP[st]||['p-port',st];return '<span class="pill '+s[0]+'">'+s[1]+'</span>';}
 function dcSize(r){if(!r.dc_l&&!r.dc_w&&!r.dc_h)return DASH;return (r.dc_l||'?')+X+(r.dc_w||'?')+X+(r.dc_h||'?');}
 function ptSize(r){if(r.state==='await')return '<span class="sub">not yet arrived</span>';if(!r.pt_l&&!r.pt_w&&!r.pt_h)return DASH;var mis=(r.dc_h&&r.pt_h&&(''+r.dc_h)!==(''+r.pt_h));return (r.pt_l||'?')+X+(r.pt_w||'?')+X+(mis?'<span class="d">'+r.pt_h+'</span>':(r.pt_h||'?'));}
 
-var RSUB='cmp';
+var RSUB='queue';
 function _fx(n){var x=(+n);if(n==null||isNaN(x))return '0.00';return x.toFixed(2);}
 var PORTABBR={'krishnapatnam':'INKRI1','inkri':'INKRI1','inkri1':'INKRI1','nhava sheva':'INNSA1','jawaharlal nehru':'INNSA1','jnpt':'INNSA1','innsa':'INNSA1','innsa1':'INNSA1','chennai':'INMAA1','inmaa':'INMAA1','inmaa1':'INMAA1','kakinada':'INKAK1','inkak':'INKAK1','inkak1':'INKAK1','mundra':'INMUN1','inmun':'INMUN1','kolkata':'INCCU1','inccu':'INCCU1','cochin':'INCOK1','kochi':'INCOK1','incok':'INCOK1','mangalore':'INNML1','innml':'INNML1','mormugao':'INMRM1','mormugao (goa)':'INMRM1','goa':'INMRM1','inmrm':'INMRM1','inmrm1':'INMRM1'};function portAbbr(p){if(!p)return '';var k=(''+p).trim().toLowerCase();return PORTABBR[k]||p;}function _blkList(arr,cap){cap=cap||6;var ns=arr.map(function(b){return (''+b).replace(/^[A-Za-z]+-?/,'');});var s='Blocks: '+ns.slice(0,cap).join(', ');var ex=ns.length-cap;return s+(ex>0?(' +'+ex+' more'):'');}function _dcAgg(dc){var t='',p='',mt=0,bl=[];LED.forEach(function(r){if((r.dc||'')!==dc)return;if(!t&&r.truck)t=r.truck;if(!p&&(r.port_code||r.port))p=(r.port_code||r.port);mt+=(+r.ton||0);if(r.export_block_no||r.block_no)bl.push(r.export_block_no||r.block_no);});return {truck:t,port:p,mt:mt,blocks:bl};}function _dcSub(dc){if(!dc)return '';var a=_dcAgg(dc);var parts=[];if(a.truck)parts.push('&#128667; '+esc(a.truck));parts.push(_blkList(a.blocks));parts.push(a.mt.toFixed(2)+' MT');var pa=portAbbr(a.port);if(pa)parts.push(esc(pa));return '<div class="sub" style="font-size:11.5px;margin-top:1px;color:#1f2a3a;font-weight:500">'+parts.join(' &#183; ')+'</div>';}function fmtDate(d){if(!d)return '';var m=(''+d).match(/^(\d{4})-(\d{2})-(\d{2})/);return m?(m[3]+'-'+m[2]+'-'+m[1]):(''+d);}
 function _dcGroups(){var g={};LED.forEach(function(r){if(r.source!=='dc')return;var k=r.dc;if(!k)return;(g[k]=g[k]||{dc:k,rows:[]}).rows.push(r);});return g;}
@@ -163,17 +173,23 @@ function rcSelected(sel){var out=[];document.querySelectorAll('#rcmain '+sel+':c
 function renderRecon(){
   var pane=$('p-recon');
   if(!pane){pane=document.createElement('div');pane.className='pane';pane.id='p-recon';var host=$('p-stock');(host?host.parentNode:$('pr')).appendChild(pane);}
-  var subs=[['cmp','DC-wise comparison'],['b2b','XLS block-to-block'],['lot','Ready for export lot'],['src','XLS source']];
+  var subs=[['queue','Review queue'],['dup','Duplicates'],['cmp','DC-wise comparison'],['b2b','XLS block-to-block'],['lot','Ready for export lot'],['trash','Trash'],['src','XLS source']];
   var bar='<div class="tb" style="flex-wrap:wrap;gap:3px">';
   subs.forEach(function(s){bar+='<span class="vtog'+(RSUB===s[0]?' on':'')+'" data-rs="'+s[0]+'">'+s[1]+'</span>';});
   bar+='</div>';
   pane.innerHTML=bar+'<div id="rcmain"></div>';
   pane.querySelectorAll('[data-rs]').forEach(function(x){x.addEventListener('click',function(){RSUB=x.dataset.rs;renderRecon();});});
   var m=$('rcmain');
-  if(RSUB==='cmp')renderCmp(m);else if(RSUB==='b2b')renderB2B(m);else if(RSUB==='lot')renderReady(m);else renderSrc(m);
+  if(RSUB==='cmp')renderCmp(m);
+  else if(RSUB==='b2b')renderB2B(m);
+  else if(RSUB==='lot')renderReady(m);
+  else if(RSUB==='queue')renderQueue(m);
+  else if(RSUB==='dup')renderDupes(m);
+  else if(RSUB==='trash')renderTrash(m);
+  else renderSrc(m);
 }
 function renderCmp(m){
-  var g=_dcGroups(),keys=Object.keys(g).sort(),rows='',nM=0,nT=0,nX=0;
+  var g=_dcGroups(),keys=Object.keys(g).sort(),rows='',nM=0,nT=0,nX=0,nN=0;
   keys.forEach(function(k){
     var rs=g[k].rows;
     var truck=(rs[0]&&rs[0].truck)||'',pc=(rs[0]&&(rs[0].port_code||rs[0].port))||'';
@@ -181,15 +197,21 @@ function renderCmp(m){
     var dcMT=rs.reduce(function(a,r){return a+(+r.ton||0);},0);
     var xlsMT=rs.reduce(function(a,r){return a+(+r.net_wt||0);},0);
     var dcm=(window.DCMAP&&DCMAP[k])||k,d2=xlsMT-dcMT,lim=Math.max(0.3,dcMT*0.03),status,cls;
+    /* B30 (17 Aug 2026).  The old logic called every challan a mismatch, because
+       xlsMT sums net_wt and net_wt is 0.00 on all 849 arrival rows — there is no
+       weight recorded at the port at all.  Comparing a real number against a
+       missing one and calling the difference a mismatch is not reconciliation,
+       it is noise.  A challan with nothing to compare now says so. */
     if(arrived===0){status='All awaiting';cls='p-await';}
     else if(awaiting>0){status=arrived+'/'+rs.length+' arrived';cls='p-await';}
+    else if(!xlsMT){status='No weight recorded';cls='p-nodim';nN++;}
     else if(Math.abs(d2)<=0.05){status='Match';cls='p-load';nM++;}
     else if(Math.abs(d2)<=lim){status='Within tol';cls='p-mis';nT++;}
     else{status='Mismatch';cls='p-orph';nX++;}
     var dcolor=(arrived>0&&awaiting===0&&Math.abs(d2)>lim)?' style="color:#a32d2d;font-weight:600"':'';
     rows+='<tr><td><b>'+esc(dcm)+'</b></td><td class="sub">'+esc(truck)+'</td><td>'+rs.length+'</td><td>'+_fx(dcMT)+'</td><td>'+(arrived?_fx(xlsMT):DASH)+'</td><td'+dcolor+'>'+((arrived&&awaiting===0)?((d2>=0?'+':'')+_fx(d2)):DASH)+'</td><td><span class="pill '+cls+'">'+status+'</span></td><td class="sub">'+esc(pc)+'</td></tr>';
   });
-  m.innerHTML='<div class="frow" style="padding:8px 2px;gap:6px"><span class="pill p-load">'+nM+' match</span><span class="pill p-mis">'+nT+' within tol</span><span class="pill p-orph">'+nX+' mismatch</span></div><table><thead><tr><th>DC</th><th>Truck</th><th>Blk</th><th>DC MT</th><th>XLS MT</th><th>'+U(916)+'</th><th>Status</th><th>Port</th></tr></thead><tbody>'+rows+'</tbody></table><div class="sub" style="margin-top:8px;padding:0 2px">DC stored tonnage vs summed arrival net weight per challan. Tolerance 3% or 0.3 MT.</div>';
+  m.innerHTML='<div class="frow" style="padding:8px 2px;gap:6px"><span class="pill p-load">'+nM+' match</span><span class="pill p-mis">'+nT+' within tol</span><span class="pill p-orph">'+nX+' mismatch</span><span class="pill p-nodim">'+nN+' no weight recorded</span></div><div class="sub" style="padding:0 2px 8px">A challan with no arrival weight is not a mismatch. Until a weight is captured at the port there is nothing to reconcile against, and it is counted separately.</div><table><thead><tr><th>DC</th><th>Truck</th><th>Blk</th><th>DC MT</th><th>XLS MT</th><th>'+U(916)+'</th><th>Status</th><th>Port</th></tr></thead><tbody>'+rows+'</tbody></table><div class="sub" style="margin-top:8px;padding:0 2px">DC stored tonnage vs summed arrival net weight per challan. Tolerance 3% or 0.3 MT.</div>';
 }
 function renderB2B(m){
   var rows='',nready=0;
@@ -691,6 +713,179 @@ function ensureNewLotBtn(){
   if(inp.parentNode)inp.parentNode.appendChild(b);
 }
 setInterval(ensureNewLotBtn,1000);
+
+/* ======================================================================
+   B1 (17 Aug 2026) — the four things Port & Stock could not do.
+
+     "there is no way to delete duplicates or reject accepting or accept with
+      note and find with note block you can show me a mock up which is
+      comrehensive or upgrade"
+
+   Duplicates could be seen but not removed.  An acceptance, once made, was
+   permanent — there was no way to say "that was wrong".  A note could be typed
+   into the arrival row, where nobody would ever look at it again.  And there
+   was no way to find the blocks carrying a note at all.
+
+   All four are live below, and every one of them records a reason, the person
+   and the machine, and writes it onto the BLOCK so it follows the block
+   afterwards (B34).
+   ====================================================================== */
+
+function _reason(prompt_text){
+  var why=prompt(prompt_text);
+  if(why===null)return null;
+  why=(why||'').trim();
+  if(why.length<4){alert('A real reason is needed — a few words at least. It stays with the block and shows in Trace.');return null;}
+  return why;
+}
+function _machine(){
+  try{ return localStorage.getItem('dolphin_machine') || (navigator.platform||'')+' · '+(navigator.userAgent.indexOf('Mac')>=0?'Mac':'PC'); }
+  catch(e){ return 'un-named device'; }
+}
+function _expHtml(exp,q){
+  if(exp)return '<span class="exph"><span class="tg">EXP</span>'+esc(exp)+'</span>'+(q?(' <span class="sub">quarry '+esc(q)+'</span>'):'');
+  return '<span class="exph" style="color:#a32d2d">'+esc(q||'—')+'</span>';
+}
+
+/* ---------- the review queue: what actually needs a person ---------- */
+var QDATA=null;
+function renderQueue(m){
+  m.innerHTML='<div class="empty">Building the queue…</div>';
+  Promise.all([
+    fetch('/api/method/dolphin_theme.api_arrivals.reconciliation_view',{credentials:'include'}).then(function(r){return r.json();}).then(function(j){return j.message||{};}).catch(function(){return {};}),
+    fetch('/api/method/dolphin_theme.api_arrivals.duplicate_rows',{credentials:'include'}).then(function(r){return r.json();}).then(function(j){return j.message||[];}).catch(function(){return [];})
+  ]).then(function(res){
+    var rv=res[0]||{},dup=res[1]||[];
+    var c=rv.counts||{},lab=rv.labels||{};
+    QDATA={rv:rv,dup:dup};
+    var unconf=LED.filter(function(r){return r.state==='unconfirmed';}).length;
+    var mismatch=(rv.rows||[]).filter(function(r){return r.bucket==='mismatch';});
+    var unknown=(rv.rows||[]).filter(function(r){return r.bucket==='unknown';});
+
+    var h='<div class="frow" style="padding:8px 2px;gap:6px;flex-wrap:wrap">'
+      +'<span class="pill p-orph">'+dup.length+' duplicated numbers</span>'
+      +'<span class="pill p-mis">'+mismatch.length+' real mismatches</span>'
+      +'<span class="pill p-unc">'+unconf+' unconfirmed evidence</span>'
+      +'<span class="pill p-nodim">'+(c.nodim||0)+' nothing to compare</span>'
+      +'<span class="pill p-await">'+unknown.length+' not on any challan</span>'
+      +'</div>'
+      +'<div class="sub" style="padding:0 2px 10px">Work these one at a time — that is the standing rule, and it is what stopped the last mistake becoming fifty-six. Every action here asks for a reason.</div>';
+
+    if(!dup.length && !mismatch.length && !unknown.length){
+      h+='<div class="empty">Nothing waiting. The queue is clear.</div>';
+      m.innerHTML=h; return;
+    }
+
+    if(mismatch.length){
+      h+='<div class="qcard"><div class="qh"><span class="n">'+mismatch.length+'</span> Measurements that genuinely disagree</div>';
+      mismatch.slice(0,40).forEach(function(r){
+        h+='<div class="qrow"><span class="blkno">'+esc(r.block_no)+'</span>'
+          +'<span class="sub">challan '+esc(r.dc||'—')+'</span>'
+          +'<span>DC '+(r.dc_l||'?')+'×'+(r.dc_w||'?')+'×'+(r.dc_h||'?')+'</span>'
+          +'<span style="color:#a32d2d">port '+(r.pt_l||'?')+'×'+(r.pt_w||'?')+'×'+(r.pt_h||'?')+'</span>'
+          +'<span style="flex:1"></span>'
+          +'<span class="rb ok" data-note="'+esc(r.row)+'" data-b="'+esc(r.block_no)+'">Accept with note</span>'
+          +'<span class="rb" data-rej="'+esc(r.row)+'" data-b="'+esc(r.block_no)+'">Reject</span>'
+          +'</div>';
+      });
+      if(mismatch.length>40)h+='<div class="qrow sub">…and '+(mismatch.length-40)+' more. Clear these first.</div>';
+      h+='</div>';
+    }
+
+    if(unknown.length){
+      h+='<div class="qcard"><div class="qh"><span class="n">'+unknown.length+'</span> At the port but on no submitted challan</div>';
+      unknown.slice(0,25).forEach(function(r){
+        h+='<div class="qrow"><span class="blkno">'+esc(r.block_no)+'</span><span class="sub">'+esc(r.arrival||'')+(r.confirmed?'':' · draft')+'</span>'
+          +'<span style="flex:1"></span>'
+          +'<span class="rb ok" data-note="'+esc(r.row)+'" data-b="'+esc(r.block_no)+'">Accept with note</span>'
+          +'<span class="rb" data-del="'+esc(r.row)+'" data-b="'+esc(r.block_no)+'">Remove row</span>'
+          +'</div>';
+      });
+      h+='</div>';
+    }
+    m.innerHTML=h;
+    wireQueueActions(m);
+  });
+}
+
+function wireQueueActions(m){
+  m.querySelectorAll('[data-note]').forEach(function(el){el.addEventListener('click',function(){
+    var note=_reason('Accept block '+el.dataset.b+' — what is the note?\n\nIt is written onto the block, so it will show in Trace and in "find by note" afterwards.');
+    if(!note)return;
+    post('dolphin_theme.api_arrivals.accept_with_note',{row:el.dataset.note,note:note,machine:_machine()})
+      .then(function(j){var r=(j&&j.message)||{};msg(r.message||(CHK+' '+el.dataset.b+' accepted with note'));loadAll();renderRecon();})
+      .catch(function(){msg('Could not accept',1);});
+  });});
+  m.querySelectorAll('[data-rej]').forEach(function(el){el.addEventListener('click',function(){
+    var why=_reason('Reject the acceptance of '+el.dataset.b+' — why?\n\nThe row goes back to unresolved and the block comes off At Port.');
+    if(!why)return;
+    post('dolphin_theme.api_arrivals.reject_acceptance',{row:el.dataset.rej,reason:why,machine:_machine()})
+      .then(function(){msg(CHK+' Acceptance rejected for '+el.dataset.b);loadAll();renderRecon();})
+      .catch(function(){msg('Could not reject',1);});
+  });});
+  m.querySelectorAll('[data-del]').forEach(function(el){el.addEventListener('click',function(){
+    var why=_reason('Remove this arrival row for '+el.dataset.b+' — why?\n\nNothing is destroyed. It goes to the Trash and can be brought back.');
+    if(!why)return;
+    post('dolphin_theme.api_arrivals.remove_arrival_row',{row:el.dataset.del,reason:why,machine:_machine()})
+      .then(function(){msg(CHK+' Moved to Trash — recoverable');loadAll();renderRecon();})
+      .catch(function(){msg('Could not remove',1);});
+  });});
+}
+
+/* ---------- duplicates, with something to do about them ---------- */
+function renderDupes(m){
+  m.innerHTML='<div class="empty">Finding duplicates…</div>';
+  fetch('/api/method/dolphin_theme.api_arrivals.duplicate_rows',{credentials:'include'})
+    .then(function(r){return r.json();}).then(function(j){
+      var dup=j.message||[];
+      if(!dup.length){m.innerHTML='<div class="empty">No duplicated arrival rows.</div>';return;}
+      var h='<div class="sub" style="padding:6px 2px 10px">'+dup.length+' block number(s) appear on more than one arrival row. '
+        +'Keep the one that is right, remove the rest — each removal asks for a reason and goes to the Trash, not to nothing.</div>';
+      dup.slice(0,120).forEach(function(d){
+        h+='<div class="qcard"><div class="qh"><span class="n">'+d.count+'</span> Block '+esc(d.block_no)
+          +(d.identical?'<span class="pill p-nodim" style="margin-left:auto">identical measurements</span>':'<span class="pill p-mis" style="margin-left:auto">measurements differ</span>')+'</div>';
+        d.rows.forEach(function(r,i){
+          h+='<div class="qrow'+(i?' dupe':'')+'"><span class="pill '+(r.confirmed?'p-load':'p-unc')+'">'+(r.confirmed?'confirmed':'draft')+'</span>'
+            +'<span class="sub">'+esc(r.parent)+'</span>'
+            +'<span>'+(r.length||'?')+'×'+(r.width||'?')+'×'+(r.height||'?')+'</span>'
+            +'<span class="sub">'+esc(r.recon_status||'')+'</span>'
+            +'<span style="flex:1"></span>'
+            +(i?('<span class="rb" data-del="'+esc(r.name)+'" data-b="'+esc(d.block_no)+'">Remove this row</span>'):'<span class="sub">keeping this one</span>')
+            +'</div>';
+        });
+        h+='</div>';
+      });
+      m.innerHTML=h;
+      wireQueueActions(m);
+    });
+}
+
+/* ---------- the Trash: nothing is ever really gone ---------- */
+function renderTrash(m){
+  m.innerHTML='<div class="empty">Opening the Trash…</div>';
+  fetch('/api/method/dolphin_theme.lifecycle.trash_list',{credentials:'include'})
+    .then(function(r){return r.json();}).then(function(j){
+      var t=j.message||[];
+      var h='<div class="sub" style="padding:6px 2px 10px">Everything removed, with the reason it was removed and who removed it. '
+        +'Nothing here has been destroyed — recovery is limited to Dolphin Owner / Admin.</div>';
+      if(!t.length){m.innerHTML=h+'<div class="empty">The Trash is empty.</div>';return;}
+      h+='<table><thead><tr><th>Block</th><th>Removed from</th><th>Reason</th><th>Person</th><th>Machine</th><th>When</th><th></th></tr></thead><tbody>';
+      t.forEach(function(x){
+        h+='<tr><td><b>'+esc(x.block)+'</b></td><td class="sub">'+esc(x.from_name||'')+'</td><td>'+esc(x.reason||'')+'</td>'
+          +'<td class="sub">'+esc(x.person||x.by||'')+'</td><td class="sub">'+esc(x.machine||'')+'</td><td class="sub">'+esc((x.at||'').slice(0,10))+'</td>'
+          +'<td>'+(x.restored?'<span class="pill p-load">restored</span>':'<span class="rb" data-restore="'+esc(x.block)+'" data-from="'+esc(x.from_name||'')+'">Recover</span>')+'</td></tr>';
+      });
+      h+='</tbody></table>';
+      m.innerHTML=h;
+      m.querySelectorAll('[data-restore]').forEach(function(el){el.addEventListener('click',function(){
+        var why=_reason('Recover block '+el.dataset.restore+' from the Trash — why?');
+        if(!why)return;
+        post('dolphin_theme.lifecycle.restore_from_trash',{block:el.dataset.restore,from_name:el.dataset.from,reason:why,machine:_machine()})
+          .then(function(){msg(CHK+' Recovered');renderRecon();loadAll();})
+          .catch(function(){msg('Could not recover — recovery is restricted to Owner/Admin',1);});
+      });});
+    });
+}
 
 })();
 </script>

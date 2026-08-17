@@ -23,8 +23,15 @@
 #ld td{padding:7px 10px;border-top:0.5px solid #f0f0f0}
 #ld .grp{background:#eef1f5;font-weight:600;font-size:12px;padding:7px 12px;border-top:0.5px solid #e5e7eb}
 #ld .empty{padding:40px 20px;text-align:center;color:#9ca3af;font-size:13px}
-#ld tr.pending{background:var(--wa);color:#04361b}
+/* B31 (17 Aug 2026) — "lighten the green colour".  The rows were full-saturation
+   WhatsApp green edge to edge, which shouted over everything else on the desk.
+   The tint now carries the same meaning at a fraction of the strength, with a
+   solid green rule down the left edge so it still reads instantly as pending. */
+#ld tr.pending{background:#eaf7ef;color:#1f2a3a;box-shadow:inset 3px 0 0 #25D366}
 #ld tr.pending td{font-weight:500}
+#ld tr.pending:hover{background:#dff2e7}
+#ld .tab.on{background:#d9f2e2;color:#12603a;font-weight:600;box-shadow:inset 0 0 0 1px #8fd7ae}
+#ld .btn.wa{background:#25D366;color:#fff;border-color:#25D366}
 </style>
 <div id="ld">
   <div class="hd"><h1>Dolphin International — Loading desk</h1><div class="sub">Buyer-marked blocks still to be loaded (not yet on a challan)</div></div>
@@ -35,6 +42,7 @@
     <span style="flex:1"></span>
     <button class="btn wa" id="b-wa" disabled>Send to loading (WhatsApp)</button>
     <button class="btn pr" id="b-print" disabled>Print list</button>
+    <button class="btn" id="b-load" disabled style="background:#0F2540;color:#fff;border-color:#0F2540" title="Sizes and volume only — no tonnage. For the loading team to plan the truck.">&#128666; Loading list PDF</button>
   </div>
   <div class="body" id="body"><div class="empty">Loading…</div></div>
 </div>
@@ -95,7 +103,63 @@ function __sgApply(){ var sg=__sgVal(); ROWS.forEach(function(r){ var vol=(r.l*r
 function __sgInject(){ if(document.getElementById('dip-sg')) return; var st=$('stats'); if(!st) return; var w=document.createElement('div'); w.style.cssText='display:inline-flex;align-items:center;gap:6px;margin-left:16px;font-size:13px;'; var lb=document.createElement('label'); lb.textContent='SG'; lb.style.cssText='font-weight:600;color:#333;'; var inp=document.createElement('input'); inp.id='dip-sg'; inp.type='number'; inp.step='0.01'; inp.min='0'; inp.value=__sgDef; inp.title='Specific gravity - recomputes tonnage'; inp.style.cssText='width:64px;padding:3px 6px;border:1px solid #ccc;border-radius:6px;'; inp.addEventListener('input',__sgApply); w.appendChild(lb); w.appendChild(inp); st.appendChild(w); }
 function __sgTick(){ __sgInject(); if(!__sgApplied && typeof ROWS!=='undefined' && ROWS.length){ __sgApply(); __sgApplied=true; } }
 setInterval(__sgTick,600); setTimeout(__sgTick,300); setTimeout(__sgTick,1200);
-function syncBar(){var n=selectedRows().length;$('cnt').textContent=n+' selected';$('b-wa').disabled=!n;$('b-print').disabled=!n;}
+function syncBar(){var n=selectedRows().length;$('cnt').textContent=n+' selected';$('b-wa').disabled=!n;$('b-print').disabled=!n;$('b-load').disabled=!n;}
+
+/* =====================================================================
+   B32 (17 Aug 2026) — the loading list.
+
+   "give an option to download pdf with only block numbers msmts volume no
+    tonnage which will be sent to loading team to arrange blocks looking at
+    sizes and volume to fit appropriately in truck and to decide number of
+    blocks to fit in one truck etc"
+
+   Tonnage is deliberately absent — the loading team is arranging by size and
+   volume, and a weight column only invites the wrong conversation on the yard.
+   Blocks are ordered largest volume first, because that is the order you load
+   a truck in.  A running cumulative volume column lets whoever is planning draw
+   a line where the truck fills up.
+   ===================================================================== */
+function loadingPdf(){
+  var rs=selectedRows().slice().map(function(r){
+    var vol=(r.l*r.w*r.h)/1e6; return {blockNo:r.blockNo,exp:r.exp,l:r.l,w:r.w,h:r.h,vol:vol,bi:r.bi,consignee:r.consignee,mark:r.mark};
+  }).sort(function(a,b){return b.vol-a.vol;});
+  var tot=0,cum=0; rs.forEach(function(r){tot+=r.vol;});
+  var rows=rs.map(function(r,i){
+    cum+=r.vol;
+    return '<tr><td>'+(i+1)+'</td><td class="bn">'+esc(r.exp||r.blockNo)+'</td><td>'+esc(r.exp?r.blockNo:'')+'</td>'
+      +'<td class="c">'+r.l+'</td><td class="c">'+r.w+'</td><td class="c">'+r.h+'</td>'
+      +'<td class="r"><b>'+r.vol.toFixed(3)+'</b></td><td class="r cum">'+cum.toFixed(3)+'</td></tr>';
+  }).join('');
+  var w=window.open('','_blank');
+  w.document.write('<html><head><title>Loading list — Dolphin International</title><style>'
+    +'@page{size:A4;margin:14mm}'
+    +'body{font-family:Arial,Helvetica,sans-serif;color:#0F2540;padding:0;margin:0}'
+    +'h2{margin:0;font-size:17px;letter-spacing:.3px}'
+    +'.sub{font-size:11px;color:#5f6b7a;margin-top:2px}'
+    +'.hd{border-bottom:3px solid #D4A24A;padding-bottom:8px;margin-bottom:10px;display:flex;align-items:flex-end}'
+    +'.hd .rt{margin-left:auto;text-align:right;font-size:11px;color:#5f6b7a}'
+    +'.note{background:#f7fbff;border-left:3px solid #2490ef;padding:7px 10px;font-size:11px;margin-bottom:10px}'
+    +'table{width:100%;border-collapse:collapse;font-size:12px}'
+    +'th{background:#0F2540;color:#fff;padding:6px 5px;text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.3px}'
+    +'td{border:1px solid #dfe4ea;padding:5px}'
+    +'tr:nth-child(even) td{background:#fafbfc}'
+    +'.c{text-align:center}.r{text-align:right}'
+    +'.bn{font-weight:800;font-size:13px}'
+    +'.cum{color:#5f6b7a}'
+    +'tfoot td{background:#eef4fa;font-weight:700;border-top:2px solid #0F2540}'
+    +'@media print{.noprint{display:none}}'
+    +'</style></head><body>'
+    +'<div class="hd"><div><h2>DOLPHIN INTERNATIONAL</h2><div class="sub">Loading list &mdash; block sizes and volume</div></div>'
+    +'<div class="rt">'+rs.length+' blocks<br>'+new Date().toLocaleDateString()+'</div></div>'
+    +'<div class="note">Sizes in centimetres, volume in CBM. <b>Tonnage is not shown on this list by design</b> &mdash; '
+    +'load by size and volume. Blocks are listed largest first; the running total is there so you can draw a line where a truck fills up.</div>'
+    +'<table><thead><tr><th>Sr</th><th>Block no</th><th>Quarry no</th><th class="c">L</th><th class="c">W</th><th class="c">H</th>'
+    +'<th class="r">Volume CBM</th><th class="r">Running CBM</th></tr></thead><tbody>'+rows+'</tbody>'
+    +'<tfoot><tr><td colspan="6">Total &mdash; '+rs.length+' blocks</td><td class="r">'+tot.toFixed(3)+'</td><td class="r">'+tot.toFixed(3)+'</td></tr></tfoot></table>'
+    +'<div class="noprint" style="margin-top:14px"><button onclick="window.print()" style="padding:8px 16px;font-size:13px;background:#2490ef;color:#fff;border:none;border-radius:6px;cursor:pointer">Print / Save as PDF</button></div>'
+    +'</body></html>');
+  w.document.close(); w.focus(); setTimeout(function(){w.print();},450);
+}
 
 function waText(){var rs=selectedRows();var lines=['*Dolphin — blocks to load ('+rs.length+')*'];var byC={};rs.forEach(function(r){(byC[r.consignee]=byC[r.consignee]||[]).push(r);});
   Object.keys(byC).forEach(function(c){lines.push('');lines.push('*'+c+'*');byC[c].forEach(function(r){lines.push('• '+r.blockNo+'  '+r.l+'×'+r.w+'×'+r.h+'  '+r.t.toFixed(2)+'t');});});
@@ -108,6 +172,7 @@ function doPrint(){var rs=selectedRows();var w=window.open('','_blank');var rows
 $('all').addEventListener('change',function(){var c=$('all').checked;ROWS.forEach(function(r,i){SEL[i]=c;});render();});
 $('b-wa').addEventListener('click',doWA);
 $('b-print').addEventListener('click',doPrint);
+$('b-load').addEventListener('click',loadingPdf);
 load();
 })();
 </script>
