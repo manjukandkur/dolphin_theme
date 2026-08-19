@@ -2627,3 +2627,61 @@ def reconciliation_view():
                        "them. A blank is normal and is never a fault.")
     return {"rows": rows, "counts": counts, "labels": labels,
             "total": len(rows)}
+
+
+# ---------------------------------------------------------------------------
+# 19 Aug 2026 - CORRECTION, appended deliberately so it overrides the earlier
+# definitions above (Python keeps the last definition in a module).
+#
+# _dispatched_index() was keyed on str(r.block) - the Quarry Block DOCNAME, a
+# bare integer such as 1363 - while _classify() looks rows up by the ARRIVAL's
+# block NUMBER. Those are two different numbering spaces and they overlap on
+# this site: 25 docnames collide with an export number, 37 with a block number,
+# 103 block numbers collide with an export number.
+#
+# Block 1363 was therefore matched to DC-DAFG-021 (challan 0021) and to another
+# block's dimensions 297x190x59, when export number 1363 belongs to quarry block
+# 1508 on DC-GCFG-049 (challan 0121), dimensions 331x138x133. Reported by the
+# owner on 19 Aug 2026. Simulated over all 231 arrival numbers: every one of
+# them changed verdict, and 25 had been paired with a genuinely wrong challan.
+#
+# Now keyed on the numbers the arrival actually quotes. A number that appears on
+# more than one challan is left OUT of the index entirely, so it is reported as
+# unmatched for a human to decide instead of being silently paired with one of
+# them. _nearest() is tightened from edit distance 2 (which is guesswork on a
+# 3-4 digit number: "021" vs "121" is distance 1) to distance 1 with exactly one
+# candidate, and it only ever suggests.
+# ---------------------------------------------------------------------------
+def _dispatched_index():
+    rows = frappe.db.sql(
+        """
+        SELECT r.block, r.block_no, r.export_block_no, r.length_gross AS l,
+               r.width_gross AS w, r.height_gross AS h, r.gross_volume AS vol, p.name AS dc
+        FROM `tabDC Block Row` r
+        JOIN `tabDelivery Challan` p ON p.name = r.parent
+        WHERE p.docstatus = 1
+        """,
+        as_dict=True,
+    )
+    idx, ambiguous = {}, set()
+    for r in rows:
+        for key in (r.get("block_no"), r.get("export_block_no")):
+            k = str(key or "").strip()
+            if not k:
+                continue
+            if k in idx:
+                if idx[k].dc != r.dc:
+                    ambiguous.add(k)
+            else:
+                idx[k] = r
+    for k in ambiguous:
+        idx.pop(k, None)
+    return idx
+
+
+def _nearest(block_no, candidates):
+    target = str(block_no).strip()
+    if len(target) < 3:
+        return None
+    at_one = [c for c in candidates if _edit_distance(target, str(c)) == 1]
+    return at_one[0] if len(at_one) == 1 else None
