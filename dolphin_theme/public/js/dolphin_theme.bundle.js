@@ -1402,3 +1402,89 @@ frappe.listview_settings = frappe.listview_settings || {};
       });
   };
 })();
+
+/* ---------------------------------------------------------------------------
+   20 Aug 2026, same day follow-up. The range search above only ran when the
+   trace box's Enter key fell through to window.dolphinTrace. Typing 1332-1356
+   still showed "No block matches" in the dropdown first, because the dropdown
+   does LIKE searches on the raw text - so it looked broken and nobody would
+   ever press Enter. The dropdown now offers the range itself.
+   --------------------------------------------------------------------------- */
+(function () {
+  if (window.__diTraceRangeDD) { return; }
+  window.__diTraceRangeDD = 1;
+  var MAX = 500;
+
+  function esc4(v) { return (v == null ? "" : ("" + v)).replace(/[&<>"]/g, function (c) {
+    return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+
+  function parseQ(raw) {
+    var s = String(raw || "").trim();
+    if (!s) { return null; }
+    var m = s.match(/^(\d+)\s*(?:-|to|\.\.)\s*(\d+)$/i);
+    if (m) {
+      var a = parseInt(m[1], 10), b = parseInt(m[2], 10);
+      if (a > b) { var t = a; a = b; b = t; }
+      var n = b - a + 1;
+      if (n > MAX) { return { error: "That range is " + n + " blocks. Please keep it to " + MAX + " or fewer." }; }
+      return { count: n, label: a + " to " + b };
+    }
+    if (s.indexOf(",") !== -1) {
+      var many = s.split(",").map(function (x) { return x.trim(); }).filter(Boolean);
+      if (!many.length) { return null; }
+      if (many.length > MAX) { return { error: "That is " + many.length + " numbers. Please keep it to " + MAX + " or fewer." }; }
+      return { count: many.length, label: many.length + " numbers" };
+    }
+    return null;
+  }
+
+  function hook(box) {
+    if (box.__diRangeHooked) { return; }
+    var inp = box.querySelector(".dtq");
+    var dd = box.querySelector(".dtdd");
+    if (!inp || !dd) { return; }
+    box.__diRangeHooked = 1;
+
+    function show() {
+      var raw = inp.value;
+      var p = parseQ(raw);
+      if (!p) { return; }                       // a plain number - leave the normal dropdown alone
+      if (p.error) {
+        dd.innerHTML = '<div style="padding:11px 13px;font-size:12.5px;color:#a32d2d">' + esc4(p.error) + "</div>";
+        dd.style.display = "block";
+        return;
+      }
+      dd.innerHTML = '<div class="di-rangego" style="padding:11px 13px;display:flex;align-items:center;gap:9px;cursor:pointer">' +
+        '<span style="font-size:14px">&#128269;</span>' +
+        '<span style="font-size:13px;font-weight:600;color:#1f2a3a">Show all ' + p.count + " blocks</span>" +
+        '<span style="font-size:12px;color:#6b7280">' + esc4(p.label) + "</span>" +
+        '<span style="margin-left:auto;font-size:11px;color:#8a929c">press Enter</span></div>';
+      dd.style.display = "block";
+      var go = dd.querySelector(".di-rangego");
+      go.addEventListener("mouseenter", function () { go.style.background = "#f6f7f9"; });
+      go.addEventListener("mouseleave", function () { go.style.background = ""; });
+      go.addEventListener("mousedown", function (ev) {
+        ev.preventDefault(); ev.stopPropagation();
+        dd.style.display = "none"; inp.blur();
+        if (window.dolphinTrace) { window.dolphinTrace(raw); }
+      });
+    }
+
+    // the built-in handler renders at 280ms; run just after so ours wins
+    inp.addEventListener("input", function () {
+      clearTimeout(box.__diRangeT);
+      box.__diRangeT = setTimeout(show, 330);
+    });
+    inp.addEventListener("focus", function () {
+      clearTimeout(box.__diRangeT);
+      box.__diRangeT = setTimeout(show, 330);
+    });
+  }
+
+  function sweep() {
+    var boxes = document.querySelectorAll(".dolphin-trace-box");
+    for (var i = 0; i < boxes.length; i++) { hook(boxes[i]); }
+  }
+  setInterval(sweep, 1200);
+  setTimeout(sweep, 700);
+})();
