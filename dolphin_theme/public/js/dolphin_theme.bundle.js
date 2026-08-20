@@ -1682,7 +1682,57 @@ frappe.listview_settings = frappe.listview_settings || {};
       "#di-panel .chip{display:inline-flex;align-items:baseline;gap:5px;padding:2px 8px;border-radius:999px;" +
       "background:#f4f6f8;margin:0 4px 4px 0;font-size:11.5px}" +
       "#di-panel .chip i{width:8px;height:8px;border-radius:2px;display:block;align-self:center}" +
-      "#di-panel .x{float:right;cursor:pointer;color:#95a0ad;font-size:14px;line-height:1}";
+      "#di-panel .x{float:right;cursor:pointer;color:#95a0ad;font-size:14px;line-height:1}" +
+      /* 20 Aug 2026 - the stage strip was rendering "96In Stock" because .sn and .sl are
+         plain spans, so number and label sat on one line. Column layout fixes it. */
+      "#di-panel .strip{align-items:stretch}" +
+      "#di-panel .st{display:flex;flex-direction:column;text-align:center}" +
+      "#di-panel .sn{display:block}" +
+      "#di-panel .sl{display:block;white-space:normal;font-size:9px;line-height:1.12;overflow:hidden}" +
+      "#di-panel .strip > span:not(.st){align-self:center;padding:0 1px !important}" +
+      /* his words: "this ticker is of no use since we already have a trace a block" - the
+         search box was a straight duplicate of Trace a Block, so it goes. */
+      "#di-panel .sbox{display:none}" +
+      "#di-zoom{float:right;cursor:pointer;color:#7c8896;font-size:12px;margin-right:10px;line-height:1}" +
+      "#di-zoom:hover{color:" + NAVY + "}" +
+      /* the bird's eye - iPhone-Photos style: the card scales up into a full sheet */
+      "#di-sheet{position:fixed;inset:0;z-index:1060;background:rgba(15,37,64,.55);display:none;" +
+      "align-items:center;justify-content:center;padding:20px}" +
+      "#di-sheet.on{display:flex}" +
+      "#di-sheet .card{background:#fff;border-radius:16px;width:min(1120px,96vw);max-height:93vh;overflow:auto;" +
+      "padding:18px 22px 22px;box-shadow:0 24px 70px rgba(15,37,64,.42);transform:scale(.94);opacity:0;" +
+      "transition:transform .17s ease,opacity .17s ease}" +
+      "#di-sheet.on .card{transform:scale(1);opacity:1}" +
+      "#di-sheet h3{margin:0;font-size:15px;color:" + NAVY + ";font-family:Georgia,serif;font-weight:400}" +
+      "#di-sheet h5{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:#7c8896;font-weight:700;margin:0 0 9px}" +
+      "#di-sheet .bx{border:1px solid #e6eaf0;border-radius:12px;padding:13px 15px}" +
+      "#di-sheet .grid{display:grid;gap:12px;margin-top:14px}" +
+      "#di-sheet .g3{grid-template-columns:repeat(3,minmax(0,1fr))}" +
+      "#di-sheet .flow{display:flex;align-items:stretch;gap:5px}" +
+      "#di-sheet .fs{flex:1;min-width:0;display:flex;flex-direction:column;text-align:center;cursor:pointer;border-radius:8px;padding:4px 2px}" +
+      "#di-sheet .fs:hover{background:#f6f8fb}" +
+      "#di-sheet .fbar{display:flex;flex-direction:column-reverse;height:78px;border-radius:4px 4px 0 0;overflow:hidden;gap:2px;justify-content:flex-start}" +
+      "#di-sheet .fbar i{display:block;width:100%}" +
+      "#di-sheet .fn{font-family:Georgia,serif;font-size:21px;line-height:1.1;margin-top:6px;color:" + NAVY + "}" +
+      "#di-sheet .fn.z{color:" + RED + "}" +
+      "#di-sheet .fl{font-size:10px;color:#5c6a7a;line-height:1.15;margin-top:2px}" +
+      "#di-sheet .fc{font-size:9.5px;color:#95a0ad;margin-top:1px}" +
+      "#di-sheet .arw{align-self:center;color:#c8d1da;font-size:12px}" +
+      "#di-sheet .hbar{display:flex;height:15px;border-radius:4px;overflow:hidden;gap:2px;margin-bottom:9px}" +
+      "#di-sheet .hbar i{display:block}" +
+      "#di-sheet .lg{display:flex;flex-wrap:wrap;gap:4px 9px}" +
+      "#di-sheet .lg span{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;color:#3d4855}" +
+      "#di-sheet .lg i{width:9px;height:9px;border-radius:2px;display:block;flex:none}" +
+      "#di-sheet .lg b{color:" + NAVY + "}" +
+      "#di-sheet .kv{display:flex;justify-content:space-between;align-items:baseline;font-size:12.5px;padding:5px 0;border-bottom:1px solid #f1f4f8}" +
+      "#di-sheet .kv:last-child{border-bottom:0}" +
+      "#di-sheet .kv b{font-family:Georgia,serif;font-size:15px;color:" + NAVY + "}" +
+      "#di-sheet .kv b.z{color:" + RED + "}" +
+      "#di-sheet .warn{background:#fdf3f2;border:1px solid #f0c9c4;border-radius:9px;padding:9px 11px;font-size:12px;color:#8c2f22;margin-top:11px}" +
+      "#di-sheet .rowx{display:flex;align-items:center;gap:9px;padding:6px 0;border-bottom:1px solid #f1f4f8;font-size:12.8px;cursor:pointer}" +
+      "#di-sheet .rowx b{color:" + NAVY + ";min-width:22px;text-align:right}" +
+      "#di-sheet .rowx .d{font-size:11px;color:#95a0ad;margin-left:auto;font-family:ui-monospace,Menlo,monospace}" +
+      "#di-sheet .cls{float:right;cursor:pointer;color:#95a0ad;font-size:15px;line-height:1;margin-left:10px}";
     document.head.appendChild(s);
   }
 
@@ -1705,7 +1755,9 @@ frappe.listview_settings = frappe.listview_settings || {};
     var max = 1;
     stages.forEach(function (s) { if (s.n > max) { max = s.n; } });
 
-    var h = '<span class="x" id="di-x">&#10005;</span><h4>Needs a person &mdash; ' + (att.total || 0) + "</h4>";
+    var h = '<span class="x" id="di-x">&#10005;</span>' +
+      '<span id="di-zoom" title="Bird&rsquo;s eye \u2014 the whole pipeline, stock and paperwork on one screen">&#9974; Bird&rsquo;s eye</span>' +
+      '<h4>Needs a person &mdash; ' + (att.total || 0) + "</h4>";
     if (!att.total) {
       h += '<div style="font-size:12.5px;color:#0f6e56;padding:2px 0 6px">&#10003; Nothing is stuck.</div>';
     } else {
@@ -1750,6 +1802,8 @@ frappe.listview_settings = frappe.listview_settings || {};
 
     var x = document.getElementById("di-x");
     if (x) { x.onclick = function (e) { e.stopPropagation(); hide(); }; }
+    var z = document.getElementById("di-zoom");
+    if (z) { z.onclick = function (e) { e.stopPropagation(); showSheet(); }; }
     p.querySelectorAll("[data-go]").forEach(function (el) {
       el.onclick = function () { window.location.href = el.getAttribute("data-go"); };
     });
@@ -1827,6 +1881,174 @@ frappe.listview_settings = frappe.listview_settings || {};
     open = false;
   }
 
+  /* ---------------------------------------------------------------------------
+     BIRD'S EYE - 20 Aug 2026. His words: "graph with all the stock details etc
+     ... like photos zoomable on iphone and a bird eye view of stock DC etc",
+     "rather than leaving the page quick look kind".
+
+     Three zoom levels, same object:
+       pill   ->  "5 need you"                        (always parked above Workspace)
+       card   ->  needs-a-person + the stage strip    (click the pill)
+       sheet  ->  everything, full screen             (click "Bird's eye")
+     Escape or the backdrop steps back down one level. Nothing navigates away.
+
+     Palette: slots 1-6 of the validated categorical set, checked with the
+     dataviz validator - lightness band, chroma floor, adjacent CVD separation
+     and normal-vision floor all PASS on a light surface. Contrast warns on
+     three slots, so every segment carries a visible number beside its swatch
+     rather than relying on colour alone. "Unassigned" is deliberately grey:
+     it is an absence, not a category.
+     --------------------------------------------------------------------------- */
+  var PAL = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300"];
+  function keyCol(k, i) {
+    var t = String(k == null ? "" : k).trim();
+    if (!t || /^unassigned$/i.test(t) || /^none$/i.test(t)) { return NOGRADE; }
+    return PAL[i % PAL.length];
+  }
+  function sumN(arr) { var t = 0; (arr || []).forEach(function (x) { t += (x.n || 0); }); return t; }
+
+  function hbar(arr) {
+    var tot = sumN(arr);
+    if (!tot) { return '<div class="hbar"><i style="flex:1;background:#eef1f5"></i></div>'; }
+    return '<div class="hbar">' + (arr || []).map(function (x, i) {
+      return '<i style="flex:' + Math.max(1, x.n || 0) + ';background:' + keyCol(x.k, i) + '"></i>';
+    }).join("") + "</div>";
+  }
+  function legend(arr) {
+    return '<div class="lg">' + (arr || []).map(function (x, i) {
+      return '<span><i style="background:' + keyCol(x.k, i) + '"></i>' + e6(x.k) +
+        " <b>" + (x.n || 0) + "</b></span>";
+    }).join("") + "</div>";
+  }
+  function box(title, arr) {
+    return '<div class="bx"><h5>' + e6(title) + "</h5>" + hbar(arr) + legend(arr) + "</div>";
+  }
+
+  function flowStage(st, max) {
+    var n = st.n || 0;
+    var h = n ? Math.max(6, Math.round((n / (max || 1)) * 78)) : 3;
+    var by = st.by_grade || null, bars;
+    if (by && by.length) {
+      var tot = sumN(by) || 1;
+      bars = by.map(function (g, i) {
+        return '<i style="height:' + Math.max(2, Math.round((g.n / tot) * h)) +
+          "px;background:" + keyCol(g.k, i) + '"></i>';
+      }).join("");
+    } else {
+      bars = '<i style="height:' + h + "px;background:" + (n ? "#8fa6bd" : "#f3d6d2") +
+        (n ? "" : ";border-top:2px solid " + RED) + '"></i>';
+    }
+    return '<span class="fs" data-jump="' + e6(st.status || "") + '">' +
+      '<span class="fbar">' + bars + "</span>" +
+      '<span class="fn' + (n ? "" : " z") + '">' + n + "</span>" +
+      '<span class="fl">' + e6(st.label) + "</span>" +
+      '<span class="fc">' + (st.cbm ? (Number(st.cbm).toLocaleString() + " CBM") : "&mdash;") + "</span></span>";
+  }
+
+  function drawSheet() {
+    var sh = document.getElementById("di-sheet");
+    if (!sh) { return; }
+    var d = data || {}, stages = d.stages || [], att = d.attention || { items: [], total: 0 };
+    var paper = d.paper || {}, dc = paper.dc || {}, arr = paper.arrivals || {}, lots = paper.lots || {};
+    var max = 1;
+    stages.forEach(function (x) { if ((x.n || 0) > max) { max = x.n; } });
+
+    var h = '<div class="card">';
+    h += '<span class="cls" id="di-sheet-x" title="Close">&#10005;</span>';
+    h += '<span class="cls" id="di-sheet-min" title="Back to the small view">&#8722;</span>';
+    h += "<h3>Dolphin International &mdash; bird&rsquo;s eye</h3>";
+    h += '<div style="font-size:11px;color:#95a0ad;margin-top:2px">' +
+      (d.total_blocks || 0) + " blocks tracked &middot; as of " +
+      e6(String(d.as_of || "").slice(11, 16)) + "</div>";
+
+    h += '<div class="grid" style="grid-template-columns:1fr"><div class="bx"><h5>Where every block is</h5><div class="flow">';
+    stages.forEach(function (st, i) {
+      h += (i ? '<span class="arw">&rsaquo;</span>' : "") + flowStage(st, max);
+    });
+    h += "</div></div></div>";
+
+    h += '<div class="grid g3">' + box("Grade", d.by_grade) + box("Size", d.by_size) + box("Pit", d.by_pit) + "</div>";
+    h += '<div style="font-size:10.5px;color:#95a0ad;margin-top:5px">Grade, size and pit describe the ' +
+      (d.in_stock_blocks || 0) + " blocks still in stock and buyer marked &mdash; " +
+      (d.in_stock_cbm || 0) + " CBM.</div>";
+
+    h += '<div class="grid g3">';
+    h += '<div class="bx"><h5>Delivery Challans</h5>' +
+      '<div class="kv"><span>Submitted</span><b>' + (dc.submitted || 0) + "</b></div>" +
+      '<div class="kv"><span>Still draft</span><b class="' + ((dc.draft || 0) ? "z" : "") + '">' + (dc.draft || 0) + "</b></div>" +
+      '<div class="kv"><span>Total</span><b>' + (dc.total || 0) + "</b></div></div>";
+    h += '<div class="bx"><h5>Port Arrivals</h5>' +
+      '<div class="kv"><span>Submitted</span><b class="' + ((arr.submitted || 0) ? "" : "z") + '">' + (arr.submitted || 0) + "</b></div>" +
+      '<div class="kv"><span>Still draft</span><b class="' + ((arr.draft || 0) ? "z" : "") + '">' + (arr.draft || 0) + "</b></div>" +
+      '<div class="kv"><span>Total</span><b>' + (arr.total || 0) + "</b></div></div>";
+    var lb = (lots.by_status || []).map(function (x) {
+      return '<div class="kv"><span>' + e6(x.k) + "</span><b>" + (x.n || 0) + "</b></div>";
+    }).join("");
+    h += '<div class="bx"><h5>Export Lots</h5>' + (lb || '<div class="kv"><span>None</span><b>0</b></div>') +
+      '<div class="kv"><span>Total</span><b>' + (lots.total || 0) + "</b></div></div>";
+    h += "</div>";
+
+    var atPort = 0, exported = 0;
+    stages.forEach(function (x) {
+      if (x.label === "At Port") { atPort = x.n || 0; }
+      if (x.label === "Exported") { exported = x.n || 0; }
+    });
+    if ((arr.draft || 0) > 0 && !atPort) {
+      h += '<div class="warn"><b>Nothing has reached At Port.</b> All ' + (arr.draft || 0) +
+        " Port Arrival document(s) are still drafts, so no block has been counted as arrived. " +
+        "Until they are submitted, the second half of the process cannot run.</div>";
+    }
+
+    h += '<div class="bx" style="margin-top:12px"><h5>Needs a person &mdash; ' + (att.total || 0) + "</h5>";
+    if (!att.total) {
+      h += '<div style="font-size:12.5px;color:#0f6e56">&#10003; Nothing is stuck.</div>';
+    } else {
+      (att.items || []).forEach(function (it) {
+        if (!it.n) { return; }
+        h += '<div class="rowx" data-go="' + e6(it.go) + '"><b>' + it.n + "</b><span>" +
+          e6(it.label) + '</span><span class="d">' + e6(it.detail || "") + "</span></div>";
+      });
+    }
+    h += "</div></div>";
+
+    sh.innerHTML = h;
+    var x1 = document.getElementById("di-sheet-x");
+    if (x1) { x1.onclick = function (e) { e.stopPropagation(); hideSheet(true); }; }
+    var m1 = document.getElementById("di-sheet-min");
+    if (m1) { m1.onclick = function (e) { e.stopPropagation(); hideSheet(false); }; }
+    sh.querySelectorAll("[data-go]").forEach(function (el) {
+      el.onclick = function () { window.location.href = el.getAttribute("data-go"); };
+    });
+    sh.querySelectorAll("[data-jump]").forEach(function (el) {
+      el.onclick = function () {
+        var st = el.getAttribute("data-jump");
+        if (st) { window.location.href = "/app/quarry-block?status=" + encodeURIComponent(st); }
+      };
+    });
+  }
+
+  function showSheet() {
+    var sh = document.getElementById("di-sheet");
+    if (!sh) {
+      sh = document.createElement("div");
+      sh.id = "di-sheet";
+      document.body.appendChild(sh);
+      sh.addEventListener("click", function (e) { if (e.target === sh) { hideSheet(false); } });
+    }
+    drawSheet();
+    sh.classList.add("on");
+    hide();
+  }
+  function hideSheet(allTheWay) {
+    var sh = document.getElementById("di-sheet");
+    if (sh) { sh.classList.remove("on"); }
+    if (!allTheWay) { show(); }
+  }
+  function sheetOpen() {
+    var sh = document.getElementById("di-sheet");
+    return !!(sh && sh.classList.contains("on"));
+  }
+
   function paint() {
     var f = document.getElementById("di-fab");
     if (!f || !data) { return; }
@@ -1860,7 +2082,11 @@ frappe.listview_settings = frappe.listview_settings || {};
       document.body.appendChild(p);
       p.addEventListener("click", function (e) { e.stopPropagation(); });
       document.addEventListener("click", function () { if (open) { hide(); } });
-      document.addEventListener("keydown", function (e) { if (e.key === "Escape" && open) { hide(); } });
+      document.addEventListener("keydown", function (e) {
+        if (e.key !== "Escape") { return; }
+        if (sheetOpen()) { hideSheet(true); return; }
+        if (open) { hide(); }
+      });
     }
     f.style.display = "";
     paint();
@@ -1872,7 +2098,7 @@ frappe.listview_settings = frappe.listview_settings || {};
     last = now;
     fetch("/api/method/stock_pipeline", { credentials: "include" })
       .then(function (r) { return r.json(); })
-      .then(function (j) { if (j && j.message) { data = j.message; paint(); if (open) { drawPanel(document.getElementById("di-panel"), null); } } })
+      .then(function (j) { if (j && j.message) { data = j.message; paint(); if (open) { drawPanel(document.getElementById("di-panel"), null); } if (sheetOpen()) { drawSheet(); } } })
       .catch(function () {});
   }
 
