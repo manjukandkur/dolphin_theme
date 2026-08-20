@@ -639,6 +639,21 @@ frappe.provide("dolphin");
     });
     return items;
   }
+  /* B58 (20 Aug 2026). His report of 17 Aug: "mark as sold again vanishing :(
+     since yesterday ... it appears on refresh for a split second and vanishes".
+     Confirmed on 20 Aug by direct observation on a different doctype: he could
+     not find "Mark as Exported" on the Shipping Document either. Nothing was
+     lost and it was never a permission problem - buildActionBar() harvests EVERY
+     Client-Script button into the Actions dropdown and hides the original with
+     .di-ab-harvested. That is the paint-then-vanish, exactly.
+
+     A button that changes the state of the business should not be two clicks
+     deep inside a menu. These stay on the bar as their own chip AND remain in
+     the dropdown, so nothing is taken away from anyone used to finding them there. */
+  function abIsLifecycle(it) {
+    var s = ((it.group || "") + " " + (it.label || "")).toLowerCase();
+    return /mark as sold|mark as exported|mark shipped|confirm sale|return to draft|return from exported|return to export shipment lot/.test(s);
+  }
   function abIsAddBlocks(it) {
     var s = ((it.group || "") + " " + (it.label || "")).toLowerCase();
     return /add/.test(s) && /(block|marked|from qi|by number)/.test(s);
@@ -676,9 +691,29 @@ frappe.provide("dolphin");
     if (!addMenu || !actMenu) return;
     addMenu.innerHTML = ""; actMenu.innerHTML = "";
 
+    // B58: drop any chips promoted on the previous refresh before rebuilding
+    Array.prototype.forEach.call(bar.querySelectorAll("[data-di-lifecycle]"), function (n) { n.remove(); });
+    var abSaveBtn = null;
+    Array.prototype.forEach.call(bar.querySelectorAll("button.di-ab-btn"), function (b) {
+      if ((b.textContent || "").trim() === "Save") abSaveBtn = b;
+    });
+
     abHarvest(head).forEach(function (it) {
       var mi = abItem(it.label, (function (el) { return function () { abForward(el); }; })(it.el));
       if (abIsAddBlocks(it)) addMenu.appendChild(mi); else actMenu.appendChild(mi);
+
+      // B58: a state-changing action also gets its own chip, in front of Save
+      if (abIsLifecycle(it)) {
+        var chip = document.createElement("button");
+        chip.type = "button";
+        chip.className = "di-ab-btn di-ab-gold";
+        chip.setAttribute("data-di-lifecycle", "1");
+        chip.textContent = it.label;
+        chip.onclick = (function (el) { return function () { abForward(el); }; })(it.el);
+        if (abSaveBtn && abSaveBtn.parentElement === bar) { bar.insertBefore(chip, abSaveBtn); }
+        else { bar.appendChild(chip); }
+      }
+
       (it.groupEl || it.el).classList.add("di-ab-harvested"); // hide native only after re-presenting
     });
     // always-available actions
