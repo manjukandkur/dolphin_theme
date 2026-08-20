@@ -1488,3 +1488,122 @@ frappe.listview_settings = frappe.listview_settings || {};
   setInterval(sweep, 1200);
   setTimeout(sweep, 700);
 })();
+
+/* ===========================================================================
+   20 Aug 2026 - the dashboard ticker. His words, in order:
+     "give stock overview in the dashboard of stock buyer marked dispatched at
+      port and export lot exported in one graphical count representation"
+     "in one glance a small graph not full page a paragraph size overview"
+     "which can be like a live ticker"
+     "it must have all the details like pit, sizes grades, dispatched count etc
+      in nut shell everything"
+
+   One strip on the Dolphin workspace, paragraph height, three compact rows:
+   the pipeline, then in-stock by grade and size, then by pit. Refreshes every
+   60s and whenever the tab comes back to the front. One read-only call. A
+   stage sitting at zero is drawn in red rather than as nothing, so a hole in
+   the pipeline is visible instead of invisible. Each stage clicks through.
+   =========================================================================== */
+(function () {
+  if (window.__diTicker) { return; }
+  window.__diTicker = 1;
+  var EVERY = 60000, last = 0;
+
+  function onWorkspace() {
+    var p = location.pathname || "";
+    return /\/(app|desk)\/dolphin\/?$/.test(p) || /\/(app|desk)\/?$/.test(p);
+  }
+  function host() {
+    var c = document.querySelector(".layout-main-section");
+    return (c && c.offsetParent !== null) ? c : null;
+  }
+  function e5(v) { return (v == null ? "" : ("" + v)).replace(/[&<>"]/g, function (c) {
+    return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+
+  function chips(title, arr, tone) {
+    if (!arr || !arr.length) { return ""; }
+    var body = arr.map(function (x) {
+      var faded = (x.k === "Unassigned");
+      return '<span style="display:inline-flex;align-items:baseline;gap:5px;padding:2px 8px;border-radius:999px;' +
+        'background:' + (faded ? "#f4f6f8" : tone) + ';margin:0 5px 4px 0">' +
+        '<b style="font-size:12px;color:' + (faded ? "#95a0ad" : "#0F2540") + '">' + e5(x.k) + "</b>" +
+        '<span style="font-size:11.5px;color:#5c6a7a">' + x.n + "</span>" +
+        (x.cbm ? '<span style="font-size:10px;color:#95a0ad">' + x.cbm.toLocaleString() + "</span>" : "") +
+        "</span>";
+    }).join("");
+    return '<div style="margin-top:9px"><span style="font-size:9.5px;letter-spacing:.07em;text-transform:uppercase;' +
+      'color:#95a0ad;font-weight:700;margin-right:7px">' + e5(title) + "</span>" + body + "</div>";
+  }
+
+  function draw(box, d) {
+    var stages = d.stages || [], max = 1;
+    stages.forEach(function (s) { if (s.n > max) { max = s.n; } });
+    var cells = stages.map(function (s, i) {
+      var zero = !s.n;
+      var h = zero ? 4 : Math.max(6, Math.round((s.n / max) * 32));
+      var bar = zero
+        ? '<i style="display:block;width:100%;height:4px;background:#f0d2ce;border-top:2px solid #c0392b"></i>'
+        : '<i style="display:block;width:100%;height:' + h + 'px;background:#1F4E79;border-radius:3px 3px 0 0"></i>';
+      return (i ? '<span style="color:#c8d1da;font-size:12px;padding:0 2px 24px">&rsaquo;</span>' : "") +
+        '<span class="di-tk-st" data-status="' + e5(s.status || "") + '" style="flex:1;min-width:0;' +
+        (s.status ? "cursor:pointer" : "") + '"><span style="display:flex;align-items:flex-end;height:34px">' + bar +
+        '</span><span style="display:block;font-family:Georgia,serif;font-size:16px;line-height:1;margin-top:5px;color:' +
+        (zero ? "#c0392b" : "#0F2540") + '">' + s.n + '</span><span style="display:block;font-size:10px;color:#5c6a7a;' +
+        'margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + e5(s.label) +
+        '</span><span style="display:block;font-size:9.5px;color:#95a0ad">' +
+        (s.cbm ? (s.cbm.toLocaleString() + " CBM") : "&mdash;") + "</span></span>";
+    }).join("");
+
+    box.innerHTML =
+      '<div style="font-size:10px;letter-spacing:.07em;text-transform:uppercase;color:#7c8896;font-weight:700;margin-bottom:7px">' +
+      'Stock across the pipeline &middot; <span style="color:#0F2540">' + (d.total_blocks || 0) + " blocks</span>" +
+      '<span style="float:right;font-weight:400;letter-spacing:0;text-transform:none;color:#95a0ad" class="di-tk-t"></span></div>' +
+      '<div style="display:flex;align-items:flex-end;gap:5px">' + cells + "</div>" +
+      '<div style="border-top:1px solid #eef2f6;margin-top:10px;padding-top:8px">' +
+      '<div style="font-size:10.5px;color:#5c6a7a;margin-bottom:2px">In stock &amp; buyer marked &mdash; <b style="color:#0F2540">' +
+      (d.in_stock_blocks || 0) + "</b> blocks, <b style=\"color:#0F2540\">" + (d.in_stock_cbm || 0).toLocaleString() + "</b> CBM</div>" +
+      chips("Grade", d.by_grade, "#eef4fb") + chips("Size", d.by_size, "#f3f0fa") + chips("Pit", d.by_pit, "#f0f7f3") +
+      "</div>";
+
+    var t = box.querySelector(".di-tk-t");
+    if (t) { t.textContent = "updated " + String(d.as_of || "").slice(11, 16); }
+    Array.prototype.forEach.call(box.querySelectorAll(".di-tk-st"), function (el) {
+      var st = el.getAttribute("data-status");
+      if (!st) { return; }
+      el.addEventListener("click", function () {
+        window.location.href = "/app/quarry-block?status=" + encodeURIComponent(st);
+      });
+    });
+  }
+
+  function refresh(force) {
+    if (!onWorkspace()) { return; }
+    var h = host();
+    if (!h) { return; }
+    var box = h.querySelector("#di-ticker");
+    if (!box) {
+      box = document.createElement("div");
+      box.id = "di-ticker";
+      box.style.cssText = "background:#fff;border:1px solid #e3e8ee;border-radius:10px;padding:12px 15px;" +
+        "margin:0 0 14px;box-shadow:0 1px 2px rgba(16,37,64,.05)";
+      h.insertBefore(box, h.firstChild);
+      box.innerHTML = '<div style="font-size:12px;color:#95a0ad">Loading stock overview&hellip;</div>';
+    }
+    var now = Date.now();
+    if (!force && now - last < EVERY) { return; }
+    last = now;
+    fetch("/api/method/stock_pipeline", { credentials: "include" })
+      .then(function (r) { return r.json(); })
+      .then(function (j) { if (j && j.message) { draw(box, j.message); } })
+      .catch(function () {});
+  }
+
+  setInterval(function () { refresh(false); }, 5000);
+  setTimeout(function () { refresh(true); }, 900);
+  window.addEventListener("focus", function () { refresh(true); });
+  try {
+    if (window.frappe && frappe.router && frappe.router.on) {
+      frappe.router.on("change", function () { setTimeout(function () { refresh(true); }, 350); });
+    }
+  } catch (e) {}
+})();
