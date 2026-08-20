@@ -1284,3 +1284,121 @@ frappe.listview_settings = frappe.listview_settings || {};
     } catch (e) {}
   };
 })();
+
+/* ===========================================================================
+   20 Aug 2026 - "is it not possible to search range in this trace block field
+   which is everywhere on the menu?"
+
+   The range search shipped earlier today only covered the two portal pages,
+   /trace-block and /overview. This is the OTHER search box - the navy one the
+   theme injects into every desk page head. Appended deliberately: it captures
+   the existing window.dolphinTrace and delegates a plain single number straight
+   back to it, so nothing about today's behaviour changes. Only a range or a
+   list takes the new path.
+
+     1332              unchanged - the original dialog
+     1332-1356         range
+     1332 to 1356      range
+     1332,1340,1350    list
+   =========================================================================== */
+(function () {
+  if (!window.dolphinTrace || window.__diTraceRange) { return; }
+  window.__diTraceRange = 1;
+  var MAX = 500;
+  var single = window.dolphinTrace;
+
+  function esc3(v) { return (v == null ? "" : ("" + v)).replace(/[&<>"]/g, function (c) {
+    return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+
+  function parseQ(raw) {
+    var s = String(raw || "").trim();
+    if (!s) { return null; }
+    var m = s.match(/^(\d+)\s*(?:-|to|\.\.)\s*(\d+)$/i);
+    if (m) {
+      var a = parseInt(m[1], 10), b = parseInt(m[2], 10);
+      if (a > b) { var t = a; a = b; b = t; }
+      if (b - a + 1 > MAX) { return { error: "That range is " + (b - a + 1) + " blocks. Please keep it to " + MAX + " or fewer." }; }
+      var out = [];
+      for (var i = a; i <= b; i++) { out.push(String(i)); }
+      return { list: out, label: a + "-" + b };
+    }
+    if (s.indexOf(",") !== -1) {
+      var many = s.split(",").map(function (x) { return x.trim(); }).filter(Boolean);
+      if (many.length > MAX) { return { error: "That is " + many.length + " numbers. Please keep it to " + MAX + " or fewer." }; }
+      return { list: many, label: many.length + " numbers" };
+    }
+    return null;                      // a plain single number - not ours
+  }
+
+  var FL = ["name", "block_number", "export_block_no", "granite_quality_grade",
+            "length_gross", "width_gross", "height_gross", "gross_volume", "status"];
+
+  function find(field, list) {
+    var u = "/api/method/frappe.client.get_list?doctype=Quarry Block"
+      + "&filters=" + encodeURIComponent(JSON.stringify([[field, "in", list]]))
+      + "&fields=" + encodeURIComponent(JSON.stringify(FL))
+      + "&limit_page_length=0";
+    return fetch(u, { credentials: "include" })
+      .then(function (r) { return r.json(); })
+      .then(function (j) { return j.message || []; });
+  }
+
+  window.dolphinTrace = function (q) {
+    var parsed = parseQ(q);
+    if (!parsed) { return single(q); }          // unchanged behaviour
+
+    var d = new frappe.ui.Dialog({ title: "Trace blocks " + (parsed.label || ""), size: "extra-large" });
+    d.show();
+    if (parsed.error) { d.$body.html('<div style="padding:16px;color:#a32d2d">' + esc3(parsed.error) + "</div>"); return; }
+    d.$body.html('<div style="padding:16px;color:#888">Searching&hellip;</div>');
+
+    find("block_number", parsed.list)
+      .then(function (bl) { return bl.length ? bl : find("export_block_no", parsed.list); })
+      .then(function (bl) { return bl.length ? bl : find("name", parsed.list); })
+      .then(function (bl) {
+        bl = (bl || []).sort(function (x, y) {
+          var a = parseInt(x.block_number, 10), b = parseInt(y.block_number, 10);
+          if (isNaN(a) || isNaN(b)) { return String(x.block_number).localeCompare(String(y.block_number)); }
+          return a - b;
+        });
+        var found = {};
+        bl.forEach(function (b) {
+          found[String(b.block_number)] = 1;
+          if (b.export_block_no) { found[String(b.export_block_no)] = 1; }
+          found[String(b.name)] = 1;
+        });
+        var missing = parsed.list.filter(function (n) { return !found[n]; });
+
+        var h = '<div style="padding:4px 2px 10px;font-size:13px;color:#4b5563">Showing <b>' + bl.length +
+          "</b> of " + parsed.list.length + " asked for." +
+          (missing.length ? ' <span style="color:#a32d2d">Not found: <b>' + esc3(missing.join(", ")) + "</b></span>" : "") +
+          "</div>";
+        if (!bl.length) { d.$body.html(h); return; }
+
+        h += '<div style="max-height:60vh;overflow:auto"><table class="table table-sm" style="width:100%;font-size:13px">' +
+          '<thead><tr style="font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;color:#8a929c">' +
+          "<th>Block</th><th>Export</th><th>Grade</th><th>Size</th><th style='text-align:right'>CBM</th><th>Status</th><th></th></tr></thead><tbody>";
+        bl.forEach(function (b) {
+          var dim = (b.length_gross || "") + "×" + (b.width_gross || "") + "×" + (b.height_gross || "");
+          h += "<tr><td><b>" + esc3(b.block_number || b.name) + "</b></td>" +
+            "<td>" + (b.export_block_no ? esc3(b.export_block_no) : '<span style="color:#9aa3ad">&mdash;</span>') + "</td>" +
+            "<td>" + esc3(b.granite_quality_grade || "") + "</td>" +
+            "<td>" + (dim === "××" ? "" : esc3(dim)) + "</td>" +
+            '<td style="text-align:right">' + (b.gross_volume ? (+b.gross_volume).toFixed(2) : "") + "</td>" +
+            "<td>" + esc3(b.status || "") + "</td>" +
+            '<td style="text-align:right"><button class="btn btn-xs di-one" data-b="' + esc3(b.block_number || b.name) +
+            '" style="border:1px solid #185fa5;color:#185fa5;background:#fff;border-radius:10px;padding:1px 9px;font-size:12px">journey</button></td></tr>';
+        });
+        h += "</tbody></table></div>";
+        d.$body.html(h);
+        d.$body.find(".di-one").on("click", function () {
+          var b = this.getAttribute("data-b");
+          d.hide();
+          setTimeout(function () { single(b); }, 120);
+        });
+      })
+      .catch(function (e) {
+        d.$body.html('<div style="padding:16px;color:#a32d2d">Error: ' + esc3((e && e.message) || e) + "</div>");
+      });
+  };
+})();
