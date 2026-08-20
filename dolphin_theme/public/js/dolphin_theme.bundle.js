@@ -693,6 +693,10 @@ frappe.provide("dolphin");
 
     // B58: drop any chips promoted on the previous refresh before rebuilding
     Array.prototype.forEach.call(bar.querySelectorAll("[data-di-lifecycle]"), function (n) { n.remove(); });
+    // ...and never promote the same label twice. abHarvest can return the same
+    // action more than once (the button and its group wrapper both match), which
+    // put two "Mark as Exported" chips on the bar the first time this shipped.
+    var abPromoted = {};
     var abSaveBtn = null;
     Array.prototype.forEach.call(bar.querySelectorAll("button.di-ab-btn"), function (b) {
       if ((b.textContent || "").trim() === "Save") abSaveBtn = b;
@@ -703,7 +707,8 @@ frappe.provide("dolphin");
       if (abIsAddBlocks(it)) addMenu.appendChild(mi); else actMenu.appendChild(mi);
 
       // B58: a state-changing action also gets its own chip, in front of Save
-      if (abIsLifecycle(it)) {
+      if (abIsLifecycle(it) && !abPromoted[(it.label || "").trim()]) {
+        abPromoted[(it.label || "").trim()] = 1;
         var chip = document.createElement("button");
         chip.type = "button";
         chip.className = "di-ab-btn di-ab-gold";
