@@ -3226,3 +3226,99 @@ def reopen_lot(lot=None):
                     "To send those blocks back to At Port, use the next undo - "
                     "Return all blocks to At Port." % (lot, kept)),
     }
+
+
+@frappe.whitelist()
+def reopen_lot(lot=None, reason=None):
+    """SUPERSEDES the reopen_lot above (last definition wins).
+
+    20 Aug 2026. His words: "exported: it went back without any confirmation
+    dialog box and reasons names".
+
+    Reversing an export is a reversal on a customs-linked document. It is now
+    REFUSED without a reason, and every reversal is written into the timeline of
+    both the lot and the Shipping Document it was unlinked from, with who did it
+    and when. The rung itself is unchanged: the lot returns to Ready, ship date
+    and BL are cleared, the Shipping Document is unlinked, and the blocks STAY
+    in the lot.
+
+    The requirement lives here rather than in the buttons on purpose - desk, the
+    portal pages and any future caller are all covered by this one gate.
+    """
+    if not lot:
+        frappe.throw("No lot given.")
+
+    why = (reason or "").strip()
+    if len(why) < 4:
+        frappe.throw(
+            "An export cannot be undone without a reason. "
+            "Type why this shipment is being reversed - it is written into the "
+            "lot's history against your name."
+        )
+
+    d = frappe.get_doc("Export Shipment Lot", lot)
+
+    was_sd = d.get("shipping_document")
+    was_status = d.get("status")
+    was_bl = d.get("bl_no")
+    was_date = d.get("ship_date")
+
+    if d.meta.has_field("status"):
+        d.status = "Ready"
+    if d.meta.has_field("shipped"):
+        d.shipped = 0
+    for f in ("ship_date", "bl_no"):
+        if d.meta.has_field(f):
+            d.set(f, None)
+    if d.meta.has_field("shipping_document"):
+        d.shipping_document = None
+    d.flags.ignore_mandatory = True
+    d.save(ignore_permissions=True)
+
+    who = frappe.session.user
+    when = frappe.utils.now_datetime().strftime("%d-%b-%Y %H:%M")
+    kept = len(d.get("blocks") or [])
+
+    note = (
+        "<b>Export undone</b> &mdash; %s by %s.<br>"
+        "Reason: <b>%s</b><br>"
+        "Was: status %s, BL %s, shipment date %s, Shipping Document %s.<br>"
+        "The %d block(s) stayed in the lot."
+        % (when, who, frappe.utils.escape_html(why),
+           was_status or "-", was_bl or "-", was_date or "-", was_sd or "-", kept)
+    )
+
+    def _log(dt, dn):
+        if not dn:
+            return
+        try:
+            c = frappe.get_doc({
+                "doctype": "Comment",
+                "comment_type": "Comment",
+                "reference_doctype": dt,
+                "reference_name": dn,
+                "content": note,
+                "comment_email": who,
+                "comment_by": who,
+            })
+            c.insert(ignore_permissions=True)
+        except Exception:
+            frappe.log_error(frappe.get_traceback(), "reopen_lot audit note")
+
+    _log("Export Shipment Lot", lot)
+    _log("Shipping Document", was_sd)
+
+    frappe.db.commit()
+
+    return {
+        "name": lot,
+        "status": "Ready",
+        "blocks_kept_in_lot": kept,
+        "shipping_document_unlinked": was_sd or None,
+        "blocks_returned_to_port": 0,
+        "logged_by": who,
+        "reason": why,
+        "message": ("Lot %s is back to Export Shipment Lot with its %d block(s) still in it. "
+                    "Recorded against %s. To send those blocks back to At Port, use the next "
+                    "undo - Return all blocks to At Port." % (lot, kept, who)),
+    }
