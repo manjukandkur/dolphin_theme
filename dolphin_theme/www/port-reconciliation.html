@@ -889,5 +889,104 @@ function renderTrash(m){
 }
 
 })();
+
+/* ---------------------------------------------------------------------------
+   20 Aug 2026 - "not to miss arrivals can you push to check inbox now and then?
+   can you give check arrivals inbox button in the port arrival/ port and stock?"
+
+   Appended, nothing above touched. Calls the Check Arrivals Inbox server script,
+   which is read-only - it creates nothing. It answers one question: has any email
+   from the port agency failed to become a Port Arrival, and did any Port Arrival
+   end up with no blocks in it.
+   --------------------------------------------------------------------------- */
+(function () {
+  function esc2(v) { return (v == null ? "" : ("" + v)).replace(/[&<>"]/g, function (c) {
+    return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+
+  function panel(html) {
+    var id = "__inboxchk";
+    var ov = document.getElementById(id);
+    if (!ov) { ov = document.createElement("div"); ov.id = id; document.body.appendChild(ov); }
+    ov.setAttribute("style", "position:fixed;inset:0;background:rgba(15,37,64,.45);z-index:3000;" +
+      "display:flex;align-items:flex-start;justify-content:center;padding:60px 16px;overflow:auto");
+    ov.innerHTML = '<div style="background:#fff;border-radius:12px;max-width:820px;width:100%;' +
+      'box-shadow:0 12px 40px rgba(15,37,64,.3);overflow:hidden">' +
+      '<div style="background:#0F2540;color:#fff;padding:14px 18px;display:flex;align-items:center;gap:10px">' +
+      '<b style="flex:1;font-size:15px">Arrivals inbox check</b>' +
+      '<span id="__inboxclose" style="cursor:pointer;font-size:15px">&#10005;</span></div>' +
+      '<div style="padding:16px 18px;font-size:14px;line-height:1.6">' + html + '</div></div>';
+    ov.onclick = function (e) { if (e.target === ov) ov.remove(); };
+    var c = document.getElementById("__inboxclose"); if (c) c.onclick = function () { ov.remove(); };
+  }
+
+  function run() {
+    panel('<div style="color:#69788a">Checking&hellip;</div>');
+    fetch("/api/method/check_arrivals_inbox", {
+      method: "POST", credentials: "include",
+      headers: { "X-Frappe-CSRF-Token": (window.frappe && window.frappe.csrf_token) || "" }
+    }).then(function (r) { return r.json(); }).then(function (j) {
+      var m = (j && j.message) || {};
+      var missed = m.not_turned_into_an_arrival || [];
+      var empty = m.arrivals_with_no_blocks || [];
+      var ok = (m.processed_fine || []).length;
+      var h = "";
+      if (!missed.length && !empty.length) {
+        h += '<div style="background:#e8f6f0;color:#0f6e56;padding:12px 14px;border-radius:8px;font-weight:700">' +
+             '&#10003; Nothing missed. All ' + ok + ' arrival emails became a Port Arrival.</div>';
+      } else {
+        h += '<div style="background:#fdecea;color:#9c2c20;padding:12px 14px;border-radius:8px;font-weight:700">' +
+             (missed.length + empty.length) + ' need attention &middot; ' + ok + ' processed fine</div>';
+      }
+      if (missed.length) {
+        h += '<div style="margin-top:14px;font-weight:700">Emails that never became an arrival</div><table style="width:100%;border-collapse:collapse;margin-top:6px">';
+        missed.forEach(function (x) {
+          h += '<tr><td style="border-bottom:1px solid #e3e8ee;padding:7px 8px 7px 0;white-space:nowrap;color:#69788a">' +
+               esc2((x.received || "").slice(0, 16)) + '</td><td style="border-bottom:1px solid #e3e8ee;padding:7px 0">' +
+               esc2(x.subject) + '<div style="font-size:12px;color:#69788a">' + esc2(x.sender) +
+               (x.has_attachment ? ' &middot; has an attachment' : ' &middot; no attachment') + '</div></td></tr>';
+        });
+        h += '</table>';
+      }
+      if (empty.length) {
+        h += '<div style="margin-top:14px;font-weight:700">Arrivals with no blocks in them</div><table style="width:100%;border-collapse:collapse;margin-top:6px">';
+        empty.forEach(function (x) {
+          h += '<tr><td style="border-bottom:1px solid #e3e8ee;padding:7px 8px 7px 0"><a target="_top" href="/app/port-arrival/' +
+               encodeURIComponent(x.arrival) + '">' + esc2(x.arrival) + '</a></td>' +
+               '<td style="border-bottom:1px solid #e3e8ee;padding:7px 0;color:#69788a">created ' + esc2((x.created || "").slice(0, 16)) + '</td></tr>';
+        });
+        h += '</table>';
+      }
+      var st = m.inbox_setting || {};
+      if (String(st.email_sync_option || "").toUpperCase() === "UNSEEN") {
+        h += '<div style="margin-top:16px;background:#fffaf0;border-left:4px solid #D4A24A;padding:11px 13px;border-radius:8px;font-size:13.5px">' +
+             '<b>Why an email can be missed:</b> the mailbox is set to pull <b>UNSEEN</b> messages only. ' +
+             'If anyone opens an arrival email in Gmail before the system fetches it, it is marked read and ' +
+             'is never pulled in. Changing that setting to <b>ALL</b> closes the gap.</div>';
+      }
+      h += '<div style="margin-top:14px;font-size:12.5px;color:#69788a">Checked ' + (m.checked || 0) +
+           ' received emails. This check only reads - it creates and changes nothing.</div>';
+      panel(h);
+    }).catch(function (e) {
+      panel('<div style="color:#c0392b">Could not run the check: ' + esc2((e && e.message) || e) + '</div>');
+    });
+  }
+
+  function mount() {
+    var tabs = document.querySelector("#pr .tabs");
+    if (!tabs || tabs.querySelector("[data-inboxchk]")) return;
+    var b = document.createElement("div");
+    b.className = "tab";
+    b.setAttribute("data-inboxchk", "1");
+    b.style.marginLeft = "auto";
+    b.style.cursor = "pointer";
+    b.innerHTML = "&#9993; Check arrivals inbox";
+    b.title = "Has any email from the port agency failed to become a Port Arrival?";
+    b.onclick = run;
+    tabs.appendChild(b);
+  }
+  if (document.readyState === "loading") { document.addEventListener("DOMContentLoaded", mount); }
+  mount();
+  setInterval(mount, 1500);   // the tab strip is re-rendered on navigation
+})();
 </script>
 {% endraw %}
