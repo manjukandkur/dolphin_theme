@@ -763,11 +763,12 @@ function renderQueue(m){
     var unknown=(rv.rows||[]).filter(function(r){return r.bucket==='unknown';});
 
     var h='<div class="frow" style="padding:8px 2px;gap:6px;flex-wrap:wrap">'
-      +'<span class="pill p-orph">'+dup.length+' duplicated numbers</span>'
-      +'<span class="pill p-mis">'+mismatch.length+' real mismatches</span>'
-      +'<span class="pill p-unc">'+unconf+' unconfirmed evidence</span>'
-      +'<span class="pill p-nodim">'+(c.nodim||0)+' nothing to compare</span>'
-      +'<span class="pill p-await">'+unknown.length+' not on any challan</span>'
+      /* 20 Aug 2026 - five jargon counters became three plain states. One row per
+         BLOCK now, so re-sent manifests no longer inflate the numbers. */
+      +'<span class="pill p-load">'+((c.match||0)+(c.tol||0)+(c.nodim||0))+' settled</span>'
+      +'<span class="pill p-await">'+unknown.length+' waiting on paperwork</span>'
+      +'<span class="pill p-mis">'+(mismatch.length+(rv.weight_disagreements||0))+' needs you</span>'
+      +'<span class="pill p-nodim" title="copies from re-sent manifests, folded in">'+(rv.blocks||0)+' blocks &middot; '+(rv.superseded_rows_hidden||0)+' repeat rows hidden</span>'
       +'</div>'
       +'<div class="sub" style="padding:0 2px 10px">Work these one at a time — that is the standing rule, and it is what stopped the last mistake becoming fifty-six. Every action here asks for a reason.</div>';
 
@@ -777,11 +778,11 @@ function renderQueue(m){
     }
 
     if(mismatch.length){
-      h+='<div class="qcard"><div class="qh"><span class="n">'+mismatch.length+'</span> Measurements that genuinely disagree</div>';
+      h+='<div class="qcard"><div class="qh"><span class="n">'+mismatch.length+'</span> Does not match the Buyer Inspection</div>';
       mismatch.slice(0,40).forEach(function(r){
         h+='<div class="qrow"><span class="blkno">'+esc(r.block_no)+'</span>'
           +'<span class="sub">challan '+esc(r.dc||'—')+'</span>'
-          +'<span>DC '+(r.dc_l||'?')+'×'+(r.dc_w||'?')+'×'+(r.dc_h||'?')+'</span>'
+          +'<span title="Buyer Inspection - our measurement, never the challan">ours '+(r.ref_l||r.dc_l||'?')+'×'+(r.ref_w||r.dc_w||'?')+'×'+(r.ref_h||r.dc_h||'?')+'</span>'
           +'<span style="color:#a32d2d">port '+(r.pt_l||'?')+'×'+(r.pt_w||'?')+'×'+(r.pt_h||'?')+'</span>'
           +'<span style="flex:1"></span>'
           +'<span class="rb ok" data-note="'+esc(r.row)+'" data-b="'+esc(r.block_no)+'">Accept with note</span>'
