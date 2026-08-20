@@ -185,6 +185,74 @@ document.getElementById("app").style.display="";
 document.getElementById('q').addEventListener('input',function(){clearTimeout(t);t=setTimeout(go,350);});
 }catch(e){ document.getElementById("loadNote").textContent="Could not load ("+((e&&e.message)||e)+"). Open while logged in to ERPNext."; }
 })();
+
+/* ---- BLK-08 range & list search, appended 20 Aug 2026 ---- */
+/* Range and list search for Trace a Block. Added 19 Aug 2026 on his request:
+   "is it possible to create range search in trace a block and overview and journey ?"
+   Accepts   1332              a single number (unchanged behaviour)
+             1332-1356         a range
+             1332 to 1356      a range
+             1332,1340,1350    a list
+   Quarry block number is tried first, then export number, then record id - the same
+   precedence the page already used. Appended deliberately so it overrides the earlier
+   global go() without touching a line above. */
+(function () {
+  var MAX = 500;
+  function expand(a, b) { var out = []; for (var i = a; i <= b; i++) { out.push(String(i)); } return out; }
+  function parseQuery(raw) {
+    var s = String(raw || "").trim();
+    if (!s) { return null; }
+    var m = s.match(/^(\d+)\s*(?:-|to|\.\.)\s*(\d+)$/i);
+    if (m) {
+      var a = parseInt(m[1], 10), b = parseInt(m[2], 10);
+      if (a > b) { var t = a; a = b; b = t; }
+      if (b - a + 1 > MAX) { return { error: "That range is " + (b - a + 1) + " blocks. Please keep it to " + MAX + " or fewer." }; }
+      return { list: expand(a, b), label: a + "-" + b, many: true };
+    }
+    if (s.indexOf(",") !== -1) {
+      var many = s.split(",").map(function (x) { return x.trim(); }).filter(Boolean);
+      if (many.length > MAX) { return { error: "That is " + many.length + " numbers. Please keep it to " + MAX + " or fewer." }; }
+      return { list: many, label: many.length + " numbers", many: true };
+    }
+    return { list: [s], label: s, many: false };
+  }
+  function sortBlocks(bl) {
+    return (bl || []).sort(function (x, y) {
+      var a = parseInt(x.block_number, 10), b = parseInt(y.block_number, 10);
+      if (isNaN(a) || isNaN(b)) { return String(x.block_number).localeCompare(String(y.block_number)); }
+      return a - b;
+    });
+  }
+  window.go = function () {
+    var R = document.getElementById("result");
+    if (!R) { return; }
+    var q = parseQuery(document.getElementById("q").value);
+    if (!q) { R.innerHTML = '<div class="empty">Enter a block number, a range like <b>1332-1356</b>, or a list like <b>1332,1340</b>.</div>'; return; }
+    if (q.error) { R.innerHTML = '<div class="empty">' + q.error + '</div>'; return; }
+    apiFind([["block_number", "in", q.list]])
+      .then(function (bl) { return (bl && bl.length) ? bl : apiFind([["export_block_no", "in", q.list]]); })
+      .then(function (bl) { return (bl && bl.length) ? bl : apiFind([["name", "in", q.list]]); })
+      .then(function (bl) {
+        bl = sortBlocks(bl);
+        render(q.label, bl);
+        if (q.many) {
+          var found = {};
+          bl.forEach(function (b) {
+            found[String(b.block_number)] = 1;
+            if (b.export_block_no) { found[String(b.export_block_no)] = 1; }
+            found[String(b.name)] = 1;
+          });
+          var missing = q.list.filter(function (n) { return !found[n]; });
+          var head = '<div class="empty" style="text-align:left">Showing <b>' + bl.length + '</b> of ' + q.list.length + ' asked for.' +
+            (missing.length ? ' Not found: <b>' + missing.join(", ") + '</b>' : '') + '</div>';
+          R.innerHTML = head + R.innerHTML;
+        }
+      })
+      .catch(function (e) { R.innerHTML = '<div class="empty">Error: ' + ((e && e.message) || e) + '</div>'; });
+  };
+})();
+
+(function(){var q=document.getElementById('q');if(q){q.placeholder='Block number, range 1332-1356, or list 1332,1340';}})();
 </script>
 </body>
 </html>

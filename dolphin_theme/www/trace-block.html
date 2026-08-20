@@ -101,6 +101,97 @@ function go(){var q=document.getElementById('q').value.trim();if(!q){document.ge
 api([['block_number','=',q]]).then(function(bl){ if(bl.length) return bl; return api([['export_block_no','=',q]]); }).then(function(bl){ if(bl.length) return bl; return api([['name','=',q]]); }).then(function(bl){ render(q,bl); }).catch(function(e){document.getElementById('result').innerHTML='<div class="empty">Error: '+esc(e.message)+'</div>';});
 }
 document.getElementById('q').addEventListener('input',function(){clearTimeout(t);t=setTimeout(go,350);});
+/* BLK-08: expose render() so the appended range-search block can reuse it. Added line only. */
+window.__tbRender=render;
+})();
+</script>
+<script>
+/* ---- BLK-08 range & list search, appended 20 Aug 2026 ----
+   trace-block.html's original script lives inside an IIFE, so `window.go = ...`
+   (which is what works on overview.html) would NOT be picked up here, and
+   `apiFind` does not exist on this page at all - it is `api`, capped at 5 rows.
+   So this block brings its own uncapped fetch, detaches the original input
+   listener by replacing the node, and reuses the page's own render() via
+   window.__tbRender. Nothing existing is modified.
+     1332            single number  (unchanged behaviour)
+     1332-1356       range
+     1332 to 1356    range
+     1332,1340,1350  list
+   Precedence unchanged: quarry block number, then export number, then record id. */
+(function () {
+  var MAX = 500;
+  var FL = ['name','block_number','export_block_no','status','delivery_challan','buyer_inspection','source_quarry_inspection','granite_quality_grade','length_gross','width_gross','height_gross','gross_volume'];
+  function apiFind(filters) {
+    var u = '/api/method/frappe.client.get_list?doctype=Quarry Block'
+      + '&filters=' + encodeURIComponent(JSON.stringify(filters))
+      + '&fields=' + encodeURIComponent(JSON.stringify(FL))
+      + '&limit_page_length=0';
+    return fetch(u, { credentials: 'include', headers: { Accept: 'application/json' } })
+      .then(function (r) { return r.json(); })
+      .then(function (j) { return j.message || []; });
+  }
+  function expand(a, b) { var out = []; for (var i = a; i <= b; i++) { out.push(String(i)); } return out; }
+  function parseQuery(raw) {
+    var s = String(raw || "").trim();
+    if (!s) { return null; }
+    var m = s.match(/^(\d+)\s*(?:-|to|\.\.)\s*(\d+)$/i);
+    if (m) {
+      var a = parseInt(m[1], 10), b = parseInt(m[2], 10);
+      if (a > b) { var t = a; a = b; b = t; }
+      if (b - a + 1 > MAX) { return { error: "That range is " + (b - a + 1) + " blocks. Please keep it to " + MAX + " or fewer." }; }
+      return { list: expand(a, b), label: a + "-" + b, many: true };
+    }
+    if (s.indexOf(",") !== -1) {
+      var many = s.split(",").map(function (x) { return x.trim(); }).filter(Boolean);
+      if (many.length > MAX) { return { error: "That is " + many.length + " numbers. Please keep it to " + MAX + " or fewer." }; }
+      return { list: many, label: many.length + " numbers", many: true };
+    }
+    return { list: [s], label: s, many: false };
+  }
+  function sortBlocks(bl) {
+    return (bl || []).sort(function (x, y) {
+      var a = parseInt(x.block_number, 10), b = parseInt(y.block_number, 10);
+      if (isNaN(a) || isNaN(b)) { return String(x.block_number).localeCompare(String(y.block_number)); }
+      return a - b;
+    });
+  }
+  function run() {
+    var R = document.getElementById("result");
+    if (!R || !window.__tbRender) { return; }
+    var box = document.getElementById("q");
+    var q = parseQuery(box ? box.value : "");
+    if (!q) { R.innerHTML = '<div class="empty">Enter a block number, a range like <b>1332-1356</b>, or a list like <b>1332,1340</b>.</div>'; return; }
+    if (q.error) { R.innerHTML = '<div class="empty">' + q.error + '</div>'; return; }
+    apiFind([["block_number", "in", q.list]])
+      .then(function (bl) { return (bl && bl.length) ? bl : apiFind([["export_block_no", "in", q.list]]); })
+      .then(function (bl) { return (bl && bl.length) ? bl : apiFind([["name", "in", q.list]]); })
+      .then(function (bl) {
+        bl = sortBlocks(bl);
+        window.__tbRender(q.label, bl);
+        if (q.many) {
+          var found = {};
+          bl.forEach(function (b) {
+            found[String(b.block_number)] = 1;
+            if (b.export_block_no) { found[String(b.export_block_no)] = 1; }
+            found[String(b.name)] = 1;
+          });
+          var missing = q.list.filter(function (n) { return !found[n]; });
+          var head = '<div class="empty" style="text-align:left">Showing <b>' + bl.length + '</b> of ' + q.list.length + ' asked for.' +
+            (missing.length ? ' Not found: <b>' + missing.join(", ") + '</b>' : '') + '</div>';
+          R.innerHTML = head + R.innerHTML;
+        }
+      })
+      .catch(function (e) { R.innerHTML = '<div class="empty">Error: ' + ((e && e.message) || e) + '</div>'; });
+  }
+  var old = document.getElementById("q");
+  if (old && old.parentNode) {
+    var fresh = old.cloneNode(true);
+    old.parentNode.replaceChild(fresh, old);
+    fresh.placeholder = "Block number, range 1332-1356, or list 1332,1340";
+    var t = null;
+    fresh.addEventListener("input", function () { clearTimeout(t); t = setTimeout(run, 350); });
+    try { fresh.focus(); } catch (e) {}
+  }
 })();
 </script>
 {% endraw %}
