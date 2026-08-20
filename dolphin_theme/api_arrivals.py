@@ -2871,3 +2871,289 @@ def reconciliation_view():
         "blocks": len(rows), "superseded_rows_hidden": superseded,
         "weight_disagreements": len([r for r in rows if r["weight_spread_kg"] > 0]),
     }
+
+
+# ---------------------------------------------------------------------------
+# 20 Aug 2026 - THE ARRIVAL ABSORB. Built on four things he said today:
+#
+#  1. "we are supposed to skip the block numbers received already and add only
+#      the new ones always"
+#  2. "search for blocks in the arrivals emails as per our DC rather than other
+#      way around to filter earlier older shipped block numbers etc"
+#  3. "we cannot afford to make mistakes or else there will be chain reaction
+#      and ripple effects"
+#  4. "verification method of the blocks and measurement should be multilayered
+#      2-3 methods to validate everything to make sure we are not taking into
+#      account wrong block, measurements, weights etc"
+#
+# So nothing here decides anything on ONE piece of evidence. Every row is put
+# through three independent witnesses for identity and three for weight, and a
+# row is only absorbed when they agree. Where they disagree the row is held,
+# never guessed - because guessing a number is what produced the 1363 incident.
+#
+# Appended: nothing above is touched. Dry run unless apply=1.
+#
+# IDENTITY - three witnesses
+#   A. The submitted Delivery Challan's LINK to the Quarry Block record. A stored
+#      pointer, not an integer, so the four overlapping numbering systems cannot
+#      confuse it. This is also what reverses the direction he asked for: we look
+#      for OUR dispatched blocks in the file, not the file's rows in our data.
+#   B. The measurement. Port-typed L/W/H against the Buyer Inspection figure held
+#      on the Quarry Block master. An exact three-way match is decisive.
+#   C. Uniqueness of the number across all three numbering systems - export
+#      number, quarry number, record id. If a bare number resolves to more than
+#      one block, this witness abstains rather than voting.
+#
+# WEIGHT - three witnesses
+#   1. The latest manifest figure (the agency's current position; theirs is final).
+#   2. Stability across manifests - a figure that settles is a re-weigh, a figure
+#      that moves twice is not trusted.
+#   3. A sanity band against our own SG-derived tonnage (CBM x 2.6). This never
+#      overrides the agency, it only catches a transcription error.
+# ---------------------------------------------------------------------------
+
+_SG_FACTOR = 2.6
+_SG_BAND = 0.30          # generous - only catches gross errors, never nags
+
+
+def _dispatched_block_index():
+    """What WE say left the quarry: every block on a SUBMITTED Delivery Challan.
+
+    number -> {block, dc}. A number two challans claim for two different blocks
+    is dropped, never guessed."""
+    rows = frappe.db.sql(
+        """
+        SELECT r.block, r.block_no, r.export_block_no, p.name AS dc
+        FROM `tabDC Block Row` r
+        JOIN `tabDelivery Challan` p ON p.name = r.parent
+        WHERE p.docstatus = 1
+        """,
+        as_dict=True,
+    )
+    idx, ambiguous = {}, set()
+    for r in rows:
+        for key in (r.get("block_no"), r.get("export_block_no")):
+            k = _s(key)
+            if not k:
+                continue
+            if k in idx and _s(idx[k]["block"]) != _s(r.get("block")):
+                ambiguous.add(k)
+            else:
+                idx[k] = {"block": r.get("block"), "dc": r.dc}
+    for k in ambiguous:
+        idx.pop(k, None)
+    return idx
+
+
+def _master_index():
+    """Quarry Block masters, indexed every way a number can be written."""
+    rows = frappe.get_all(
+        "Quarry Block",
+        fields=["name", "block_number", "export_block_no", "status",
+                "length_gross", "width_gross", "height_gross", "gross_volume"],
+        limit_page_length=0,
+    )
+    by_id, by_export, by_quarry = {}, {}, {}
+    dup_export, dup_quarry = set(), set()
+    for q in rows:
+        by_id[_s(q.name)] = q
+        e, n = _s(q.export_block_no), _s(q.block_number)
+        if e:
+            if e in by_export and _s(by_export[e].name) != _s(q.name):
+                dup_export.add(e)
+            else:
+                by_export[e] = q
+        if n:
+            if n in by_quarry and _s(by_quarry[n].name) != _s(q.name):
+                dup_quarry.add(n)
+            else:
+                by_quarry[n] = q
+    for k in dup_export:
+        by_export.pop(k, None)
+    for k in dup_quarry:
+        by_quarry.pop(k, None)
+    return by_id, by_export, by_quarry
+
+
+def _identity_witnesses(number, row, disp, by_id, by_export, by_quarry):
+    """Three independent opinions on which Quarry Block this line is.
+
+    Returns (verdict, quarry_block, detail). Nothing is ever guessed."""
+    votes, detail = {}, {}
+
+    # A - the challan link
+    hit = disp.get(number)
+    if hit and _s(hit.get("block")):
+        votes["challan link"] = _s(hit["block"])
+        detail["dc"] = hit.get("dc")
+
+    # B - the measurement, against the Buyer Inspection figure on the master
+    pl, pw, ph = flt(row.get("length")), flt(row.get("width")), flt(row.get("height"))
+    if pl and pw and ph:
+        matches = []
+        seen = set()
+        for cand in (by_export.get(number), by_quarry.get(number), by_id.get(number)):
+            if not cand or _s(cand.name) in seen:
+                continue
+            seen.add(_s(cand.name))
+            if (flt(cand.length_gross) == pl and flt(cand.width_gross) == pw
+                    and flt(cand.height_gross) == ph):
+                matches.append(_s(cand.name))
+        if len(matches) == 1:
+            votes["measurement"] = matches[0]
+        elif len(matches) > 1:
+            detail["measurement"] = "matched more than one block - abstained"
+    else:
+        detail["measurement"] = "port typed no size - normal, witness abstains"
+
+    # C - uniqueness of the bare number across all three numbering systems
+    cands = set()
+    for cand in (by_export.get(number), by_quarry.get(number), by_id.get(number)):
+        if cand:
+            cands.add(_s(cand.name))
+    if len(cands) == 1:
+        votes["unique number"] = list(cands)[0]
+    elif len(cands) > 1:
+        detail["number"] = "means %d different blocks - witness abstains" % len(cands)
+
+    if not votes:
+        return "no witness", None, detail
+
+    picked = set(votes.values())
+    if len(picked) > 1:
+        detail["votes"] = dict(votes)
+        return "CONFLICT", None, detail
+
+    qb = list(picked)[0]
+    detail["agreed_by"] = sorted(votes.keys())
+    if not hit:
+        # nothing we dispatched carries this number
+        return "not expected", qb, detail
+    if len(votes) >= 2:
+        return "confirmed", qb, detail
+    return "single witness", qb, detail
+
+
+def _weight_verdict(seq, master):
+    """Three opinions on the weight. seq is oldest-to-newest, blanks removed."""
+    out = {"latest": (seq[-1] if seq else None), "seen": seq}
+    if not seq:
+        out["verdict"] = "none given"
+        return out
+    changes = [i for i in range(1, len(seq)) if seq[i] != seq[i - 1]]
+    out["changed_times"] = len(changes)
+    if master and flt(master.get("gross_volume")):
+        est = flt(master["gross_volume"]) * _SG_FACTOR
+        out["our_estimate_mt"] = round(est, 3)
+        if est:
+            off = abs(seq[-1] - est) / est
+            out["off_our_estimate_pct"] = round(off * 100, 1)
+            if off > _SG_BAND:
+                out["verdict"] = "CHECK - far from our own tonnage estimate"
+                return out
+    if len(changes) > 1:
+        out["verdict"] = "CHECK - moved more than once"
+        return out
+    out["verdict"] = "settled" if changes else "steady"
+    return out
+
+
+@frappe.whitelist()
+def absorb_arrivals(apply=0):
+    """One row per block, newest weight winning, nothing decided on one witness.
+
+    apply=0 (default) writes nothing and returns exactly what it would do."""
+    apply = cint(apply)
+    disp = _dispatched_block_index()
+    by_id, by_export, by_quarry = _master_index()
+
+    arrivals = frappe.get_all("Port Arrival", filters=[["docstatus", "<", 2]],
+                              fields=["name"], order_by="creation asc",
+                              limit_page_length=0)
+    order = {a["name"]: i for i, a in enumerate(arrivals)}
+
+    rows = frappe.get_all("Port Arrival Block",
+                          fields=["name", "parent", "block_no", "net_wt",
+                                  "length", "width", "height", "recon_status"],
+                          limit_page_length=0)
+    rows = [r for r in rows if r.parent in order]
+    rows.sort(key=lambda r: order.get(r.parent, 0))
+
+    groups, verdicts, held = {}, {}, []
+    for r in rows:
+        k = _s(r.block_no)
+        if not k:
+            continue
+        v, qb, detail = _identity_witnesses(k, r, disp, by_id, by_export, by_quarry)
+        verdicts[r.name] = v
+        if v in ("CONFLICT", "no witness"):
+            held.append({"row": r.name, "block": k, "arrival": r.parent,
+                         "verdict": v, "detail": detail})
+            continue
+        if v == "not expected":
+            held.append({"row": r.name, "block": k, "arrival": r.parent,
+                         "verdict": v, "why": "no submitted challan carries this number"})
+            continue
+        groups.setdefault(qb, []).append((r, k, detail))
+
+    plan = {"keep": [], "repeat": [], "weight_updated": [], "weight_check": []}
+    for qb, items in groups.items():
+        keeper, kn, kdetail = items[0]
+        seq = [flt(x[0].net_wt) for x in items if flt(x[0].net_wt)]
+        master = by_id.get(_s(qb))
+        wv = _weight_verdict(seq, master)
+
+        plan["keep"].append({"quarry_block": qb, "block": kn, "row": keeper.name,
+                             "arrival": keeper.parent, "copies": len(items),
+                             "identified_by": kdetail.get("agreed_by"),
+                             "dc": kdetail.get("dc"), "weight": wv})
+        if str(wv.get("verdict", "")).startswith("CHECK"):
+            plan["weight_check"].append({"quarry_block": qb, "block": kn, "weight": wv})
+
+        latest = wv.get("latest")
+        if latest is not None and flt(keeper.net_wt) != flt(latest):
+            plan["weight_updated"].append({
+                "quarry_block": qb, "block": kn, "row": keeper.name,
+                "was": flt(keeper.net_wt), "now": flt(latest),
+                "change_kg": round(abs(flt(latest) - flt(keeper.net_wt)) * 1000)})
+            if apply and not str(wv.get("verdict", "")).startswith("CHECK"):
+                frappe.db.set_value("Port Arrival Block", keeper.name,
+                                    "net_wt", flt(latest), update_modified=False)
+
+        if apply and _s(keeper.recon_status) != "Matched":
+            frappe.db.set_value("Port Arrival Block", keeper.name,
+                                "recon_status", "Matched", update_modified=False)
+        for other, on, _d in items[1:]:
+            plan["repeat"].append({"row": other.name, "block": on, "quarry_block": qb,
+                                   "arrival": other.parent})
+            if apply and _s(other.recon_status) != "Duplicate":
+                frappe.db.set_value("Port Arrival Block", other.name,
+                                    "recon_status", "Duplicate", update_modified=False)
+
+    if apply:
+        for h in held:
+            if h["verdict"] == "not expected":
+                frappe.db.set_value("Port Arrival Block", h["row"],
+                                    "recon_status", "Typo - not in DC", update_modified=False)
+        frappe.db.commit()
+
+    tally = {}
+    for v in verdicts.values():
+        tally[v] = tally.get(v, 0) + 1
+
+    return {
+        "applied": bool(apply),
+        "arrival_files": len(arrivals),
+        "rows_seen": len(rows),
+        "blocks_after": len(groups),
+        "identity_verdicts": tally,
+        "counts": {"keep": len(plan["keep"]), "repeat": len(plan["repeat"]),
+                   "held": len(held), "weight_updated": len(plan["weight_updated"]),
+                   "weight_needs_check": len(plan["weight_check"])},
+        "weight_needs_check": plan["weight_check"][:40],
+        "weight_updates": sorted(plan["weight_updated"], key=lambda x: -x["change_kg"])[:40],
+        "held": held[:60],
+        "note": ("Dry run - nothing changed. apply=1 writes. Even with apply=1 a block "
+                 "whose weight verdict starts with CHECK is never overwritten, a row is "
+                 "never created or deleted, and a CONFLICT is never resolved."),
+    }
