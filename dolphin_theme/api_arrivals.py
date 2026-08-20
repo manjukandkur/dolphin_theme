@@ -2685,3 +2685,189 @@ def _nearest(block_no, candidates):
         return None
     at_one = [c for c in candidates if _edit_distance(target, str(c)) == 1]
     return at_one[0] if len(at_one) == 1 else None
+
+
+# ---------------------------------------------------------------------------
+# 20 Aug 2026 - RECONCILIATION, REBUILT ON HIS TWO RULES.
+#
+# Appended, not edited: Python keeps the LAST definition, so nothing above is
+# touched. Two things were wrong and both came from his own standing notes.
+#
+#   1. The screen compared the port against `DC Block Row.length/width/height`.
+#      His instruction of 19 Aug: "not to consider measurements from DC since at
+#      times it will be adjusted due to DMG permit". The Delivery Challan says
+#      WHICH BLOCKS travelled and nothing else. The measurement authority is the
+#      Buyer Inspection, carried on the Quarry Block master.
+#      Measured 20 Aug: against the DC the screen claimed 5 mismatches; against
+#      the master, 491 rows match to the centimetre and 0 differ.
+#
+#   2. The screen listed ROWS, not BLOCKS, and never looked at `recon_status`.
+#      The port agency re-sends a cumulative manifest, so 849 rows exist for 231
+#      blocks; 617 of them are already flagged Duplicate and none of them ever
+#      left the queue. His rule, in his words: "we are supposed to skip the block
+#      numbers received already and add only the new ones always".
+#
+# Identity is resolved in the order he confirmed - Delivery Challan link first
+# (a stored record pointer, not a number), then export number, then quarry
+# number. A number that resolves to more than one block is NEVER guessed.
+# ---------------------------------------------------------------------------
+
+def _qb_master_index():
+    """export number / quarry number -> Quarry Block master (BI-final sizes).
+
+    A number claimed by two different blocks is dropped, never guessed."""
+    rows = frappe.get_all(
+        "Quarry Block",
+        fields=["name", "block_number", "export_block_no",
+                "length_gross", "width_gross", "height_gross", "gross_volume"],
+        limit_page_length=0,
+    )
+    by_export, by_quarry, by_id, ambiguous = {}, {}, {}, set()
+    for q in rows:
+        by_id[_s(q.name)] = q
+        for bucket, key in ((by_export, q.get("export_block_no")),
+                            (by_quarry, q.get("block_number"))):
+            k = _s(key)
+            if not k:
+                continue
+            if k in bucket and _s(bucket[k].name) != _s(q.name):
+                ambiguous.add((id(bucket), k))
+            else:
+                bucket[k] = q
+    for bucket in (by_export, by_quarry):
+        for _b, k in list(ambiguous):
+            if _b == id(bucket):
+                bucket.pop(k, None)
+    return by_export, by_quarry, by_id
+
+
+def _dc_block_link_index():
+    """block number / export number -> the Quarry Block RECORD the submitted
+    challan points at. This is the strong witness: a link, not an integer."""
+    rows = frappe.db.sql(
+        """
+        SELECT r.block, r.block_no, r.export_block_no, p.name AS dc
+        FROM `tabDC Block Row` r
+        JOIN `tabDelivery Challan` p ON p.name = r.parent
+        WHERE p.docstatus = 1
+        """,
+        as_dict=True,
+    )
+    idx, ambiguous = {}, set()
+    for r in rows:
+        for key in (r.get("block_no"), r.get("export_block_no")):
+            k = _s(key)
+            if not k:
+                continue
+            if k in idx and _s(idx[k]["block"]) != _s(r.get("block")):
+                ambiguous.add(k)
+            else:
+                idx[k] = {"block": r.get("block"), "dc": r.dc}
+    for k in ambiguous:
+        idx.pop(k, None)
+    return idx
+
+
+@frappe.whitelist()
+def reconciliation_view():
+    """One row per BLOCK. Sizes checked against the Buyer Inspection, never the
+    Delivery Challan. Rows already flagged Duplicate never reach the screen."""
+    by_export, by_quarry, by_id = _qb_master_index()
+    dc_link = _dc_block_link_index()
+    ds = _arrival_docstatus()
+
+    # newest manifest first, so the keeper carries the port's latest figures
+    pabs = frappe.get_all(
+        "Port Arrival Block", fields=_PAB_FIELDS + ["name"],   # _PAB_FIELDS already carries recon_status / vehicle_no
+        limit_page_length=0, order_by="creation desc",
+    )
+
+    grouped, superseded = {}, 0
+    for p in pabs:
+        k = _s(p.block_no)
+        if not k:
+            continue
+        if _s(p.get("recon_status")) == "Duplicate":
+            superseded += 1
+            continue
+        grouped.setdefault(k, []).append(p)
+
+    rows, counts = [], {"match": 0, "tol": 0, "mismatch": 0, "nodim": 0, "unknown": 0}
+
+    for k, copies in grouped.items():
+        p = copies[0]                      # newest surviving copy
+        link = dc_link.get(k)
+        master = None
+        how = None
+        if link and _s(link.get("block")) in by_id:
+            master, how = by_id[_s(link["block"])], "challan link"
+        elif k in by_export:
+            master, how = by_export[k], "export number"
+        elif k in by_quarry:
+            master, how = by_quarry[k], "quarry number"
+
+        pairs = []
+        if master:
+            pairs = [(master.length_gross, p.length),
+                     (master.width_gross, p.width),
+                     (master.height_gross, p.height)]
+        comparable = [(a, b) for a, b in pairs if flt(a) and flt(b)]
+
+        if not link and not master:
+            bucket = "unknown"
+        elif not link:
+            bucket = "unknown"             # at port, no submitted challan yet
+        elif not comparable:
+            bucket = "nodim"               # agency recorded weight only - normal
+        else:
+            exact = all(flt(a) == flt(b) for a, b in comparable)
+            ok = all(_within_tol(a, b) for a, b in comparable)
+            bucket = "match" if exact else ("tol" if ok else "mismatch")
+        counts[bucket] += 1
+
+        weights = sorted({flt(c.net_wt) for c in copies if flt(c.net_wt)})
+        rows.append({
+            "row": p.name, "block_no": k, "arrival": p.parent,
+            "confirmed": 1 if ds.get(p.parent) == 1 else 0,
+            "dc": (link.get("dc") if link else None),
+            "quarry_block": (master.name if master else None),
+            "quarry_no": (master.block_number if master else None),
+            "identified_by": how,
+            # ours - the Buyer Inspection figure carried on the master
+            "ref_l": (master.length_gross if master else None),
+            "ref_w": (master.width_gross if master else None),
+            "ref_h": (master.height_gross if master else None),
+            # kept ONLY so old markup does not break. Never a measurement.
+            "dc_l": (master.length_gross if master else None),
+            "dc_w": (master.width_gross if master else None),
+            "dc_h": (master.height_gross if master else None),
+            "dc_cbm": (master.gross_volume if master else None),
+            "pt_l": p.length, "pt_w": p.width, "pt_h": p.height, "pt_cbm": p.cbm,
+            "net_wt": p.net_wt, "vehicle_no": p.get("vehicle_no"),
+            "copies": len(copies),
+            "weight_spread_kg": (round((weights[-1] - weights[0]) * 1000) if len(weights) > 1 else 0),
+            "weights_seen": weights,
+            "recon_status": p.get("recon_status"),
+            "note": p.resolution_note, "bucket": bucket,
+            "compared": len(comparable),
+        })
+
+    rows.sort(key=lambda r: (r["bucket"] != "mismatch", -r["weight_spread_kg"], r["block_no"]))
+
+    labels = {
+        "match": "Agency figures match ours",
+        "tol": "Within tolerance (3 cm or 3%)",
+        "mismatch": "Does not match the Buyer Inspection",
+        "nodim": "Not entered by the agency (normal)",
+        "unknown": "Not on any submitted challan",
+        "_note": ("Sizes are checked against the Buyer Inspection, never the Delivery "
+                  "Challan - the challan figure is adjusted for the DMG permit and is "
+                  "not a measurement. The port agency does not measure; weight is "
+                  "their only concern, so a blank size is normal. One row per block: "
+                  "copies from re-sent manifests are folded in, not listed."),
+    }
+    return {
+        "rows": rows, "counts": counts, "labels": labels,
+        "blocks": len(rows), "superseded_rows_hidden": superseded,
+        "weight_disagreements": len([r for r in rows if r["weight_spread_kg"] > 0]),
+    }
