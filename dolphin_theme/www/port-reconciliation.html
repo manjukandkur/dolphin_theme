@@ -921,10 +921,11 @@ function renderTrash(m){
 
   function run() {
     panel('<div style="color:#69788a">Checking&hellip;</div>');
-    fetch("/api/method/check_arrivals_inbox", {
-      method: "POST", credentials: "include",
-      headers: { "X-Frappe-CSRF-Token": (window.frappe && window.frappe.csrf_token) || "" }
-    }).then(function (r) { return r.json(); }).then(function (j) {
+    /* GET, not POST. On a portal page window.frappe.csrf_token does not exist, so a
+       POST arrives without a valid token and Frappe quietly runs it as Guest - which
+       returned "0 emails checked" the first time this shipped. GET reads correctly. */
+    fetch("/api/method/check_arrivals_inbox", { credentials: "include" })
+      .then(function (r) { return r.json(); }).then(function (j) {
       var m = (j && j.message) || {};
       var missed = m.not_turned_into_an_arrival || [];
       var empty = m.arrivals_with_no_blocks || [];
@@ -973,7 +974,13 @@ function renderTrash(m){
 
   function mount() {
     var tabs = document.querySelector("#pr .tabs");
-    if (!tabs || tabs.querySelector("[data-inboxchk]")) return;
+    if (!tabs) return;
+    var already = tabs.querySelector("[data-inboxchk]");
+    if (already) {
+      // the page appends its own tabs after ours, so keep pushing it to the end
+      if (tabs.lastElementChild !== already) { tabs.appendChild(already); }
+      return;
+    }
     var b = document.createElement("div");
     b.className = "tab";
     b.setAttribute("data-inboxchk", "1");
