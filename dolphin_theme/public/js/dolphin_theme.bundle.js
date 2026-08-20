@@ -1607,3 +1607,276 @@ frappe.listview_settings = frappe.listview_settings || {};
     }
   } catch (e) {}
 })();
+
+/* ===========================================================================
+   20 Aug 2026 - THE FLOATING TICKER. His words across the afternoon:
+     "compact floating invisible visible with colours denoting the grades sizes
+      and quantity stage in one glance and like iphone photos gallery style
+      zoom in zoom out", then "add it above the workspace and try to make it
+      more versatile and worth it".
+
+   Sits above the existing #dolphin-ws-fab (right:18px, bottom:18px) so neither
+   moves and nothing lands over a Save button. Hidden on the Dolphin workspace,
+   where the full strip is already on screen - two of the same thing is worse
+   than one.
+
+   COLOUR CARRIES ONE MEANING: grade. Quantity is the size of the mark, stage is
+   the position, size category is the next zoom level. Four meanings on one
+   channel cannot be read. The six grade hues below were re-stepped because the
+   theme's originals failed a colourblind check - B #2F80ED and B1 #7F77DD were
+   dE 8.6 apart in normal vision (floor is 15) and dE 2.5 under protanopia, i.e.
+   the same colour. These pass every check in light and dark.
+   =========================================================================== */
+(function () {
+  if (window.__diFab) { return; }
+  window.__diFab = 1;
+
+  var GRADE = { A: "#0E9F6E", B: "#2563EB", B1: "#EA580C", B2: "#9333EA",
+                C: "#DC2626", D: "#0891B2" };
+  var NOGRADE = "#c7ced6", NAVY = "#0F2540", RED = "#c0392b";
+  var EVERY = 60000, data = null, open = false, last = 0;
+
+  function e6(v) { return (v == null ? "" : ("" + v)).replace(/[&<>"]/g, function (c) {
+    return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  function gcol(g) { return GRADE[String(g || "").trim()] || NOGRADE; }
+  function onWorkspace() {
+    var p = location.pathname || "";
+    return /\/(app|desk)\/dolphin\/?$/.test(p) || /\/(app|desk)\/?$/.test(p);
+  }
+
+  function css() {
+    if (document.getElementById("di-fab-css")) { return; }
+    var s = document.createElement("style");
+    s.id = "di-fab-css";
+    s.textContent =
+      "#di-fab{position:fixed;right:18px;bottom:66px;z-index:1049;display:inline-flex;align-items:center;" +
+      "gap:7px;background:" + NAVY + ";color:#fff;border:none;border-radius:999px;padding:7px 13px;" +
+      "font-size:12px;line-height:1;font-weight:600;cursor:pointer;box-shadow:0 3px 12px rgba(15,37,64,.3);" +
+      "transition:opacity .18s}" +
+      "#di-fab.quiet{opacity:.55}#di-fab:hover{opacity:1}" +
+      "#di-fab .dot{width:7px;height:7px;border-radius:50%;background:" + RED + ";flex:none}" +
+      "#di-fab.quiet .dot{background:#6b7d8f}" +
+      "#di-fab .mini{display:flex;gap:2px;margin-left:2px}" +
+      "#di-fab .mini i{display:block;width:3px;height:12px;border-radius:1px}" +
+      "#di-panel{position:fixed;right:18px;bottom:104px;z-index:1049;width:440px;max-width:calc(100vw - 36px);" +
+      "max-height:72vh;overflow:auto;background:#fff;border:1px solid #e3e8ee;border-radius:12px;" +
+      "box-shadow:0 12px 40px rgba(15,37,64,.28);padding:14px 16px 16px;display:none}" +
+      "#di-panel.on{display:block}" +
+      "#di-panel h4{font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;color:#7c8896;font-weight:700;margin:0 0 8px}" +
+      "#di-panel .row{display:flex;align-items:center;gap:9px;padding:7px 0;border-bottom:1px solid #f1f4f8;font-size:12.8px;cursor:pointer}" +
+      "#di-panel .row:hover{background:#f8fafc}" +
+      "#di-panel .row b{color:" + NAVY + ";min-width:22px;text-align:right}" +
+      "#di-panel .row .d{font-size:11px;color:#95a0ad;margin-left:auto;font-family:ui-monospace,Menlo,monospace}" +
+      "#di-panel .strip{display:flex;align-items:flex-end;gap:4px;margin-top:4px}" +
+      "#di-panel .st{flex:1;min-width:0;cursor:pointer}" +
+      "#di-panel .st.dim{opacity:.25}#di-panel .st.hit{outline:2px solid #D4A24A;outline-offset:2px;border-radius:4px}" +
+      "#di-panel .stack{display:flex;flex-direction:column-reverse;height:34px;border-radius:3px 3px 0 0;overflow:hidden;gap:2px}" +
+      "#di-panel .stack i{display:block;width:100%}" +
+      "#di-panel .sn{font-family:Georgia,serif;font-size:14px;margin-top:4px;line-height:1;color:" + NAVY + "}" +
+      "#di-panel .sn.r{color:" + RED + "}" +
+      "#di-panel .sl{font-size:9.5px;color:#5c6a7a;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}" +
+      "#di-panel .sbox{display:flex;align-items:center;gap:7px;background:#f6f8fa;border:1px solid #d6dde5;" +
+      "border-radius:8px;padding:6px 10px;margin:10px 0 4px}" +
+      "#di-panel .sbox input{border:0;background:transparent;font-size:12.5px;flex:1;outline:none;" +
+      "font-family:ui-monospace,Menlo,monospace;color:" + NAVY + "}" +
+      "#di-panel .chip{display:inline-flex;align-items:baseline;gap:5px;padding:2px 8px;border-radius:999px;" +
+      "background:#f4f6f8;margin:0 4px 4px 0;font-size:11.5px}" +
+      "#di-panel .chip i{width:8px;height:8px;border-radius:2px;display:block;align-self:center}" +
+      "#di-panel .x{float:right;cursor:pointer;color:#95a0ad;font-size:14px;line-height:1}";
+    document.head.appendChild(s);
+  }
+
+  function stackFor(s) {
+    var by = s.by_grade || null;
+    if (!by || !by.length) {
+      return '<i style="height:' + (s.n ? 22 : 4) + "px;background:" +
+        (s.n ? NOGRADE : "#f5d9d5") + (s.n ? "" : ";border-top:2px solid " + RED) + '"></i>';
+    }
+    var tot = 0;
+    by.forEach(function (g) { tot += g.n; });
+    return by.map(function (g) {
+      var h = Math.max(3, Math.round((g.n / (tot || 1)) * 30));
+      return '<i style="height:' + h + "px;background:" + gcol(g.k) + '"></i>';
+    }).join("");
+  }
+
+  function drawPanel(p, q) {
+    var d = data || {}, stages = d.stages || [], att = d.attention || { items: [], total: 0 };
+    var max = 1;
+    stages.forEach(function (s) { if (s.n > max) { max = s.n; } });
+
+    var h = '<span class="x" id="di-x">&#10005;</span><h4>Needs a person &mdash; ' + (att.total || 0) + "</h4>";
+    if (!att.total) {
+      h += '<div style="font-size:12.5px;color:#0f6e56;padding:2px 0 6px">&#10003; Nothing is stuck.</div>';
+    } else {
+      (att.items || []).forEach(function (it) {
+        if (!it.n) { return; }
+        h += '<div class="row" data-go="' + e6(it.go) + '"><b>' + it.n + "</b><span>" + e6(it.label) +
+          '</span><span class="d">' + e6(it.detail || "") + "</span></div>";
+      });
+    }
+
+    h += '<h4 style="margin-top:14px">Where everything is</h4><div class="strip">';
+    stages.forEach(function (s, i) {
+      var hitq = q && q.stages && q.stages[s.label] != null;
+      var cls = q ? (hitq ? "st hit" : "st dim") : "st";
+      var shown = hitq ? q.stages[s.label] : s.n;
+      h += (i ? '<span style="color:#c8d1da;font-size:11px;padding:0 1px 22px">&rsaquo;</span>' : "") +
+        '<span class="' + cls + '" data-stage="' + e6(s.status || "") + '">' +
+        '<span style="display:flex;align-items:flex-end;height:34px">' + stackFor(s) + "</span>" +
+        '<span class="sn' + (shown ? "" : " r") + '">' + shown + "</span>" +
+        '<span class="sl">' + e6(s.label) + "</span></span>";
+    });
+    h += "</div>";
+
+    h += '<div class="sbox"><span style="color:#D4A24A">&#128269;</span>' +
+      '<input id="di-q" placeholder="block &middot; 1332-1356 &middot; 1332,1340" value="' +
+      e6((q && q.raw) || "") + '"></div>';
+    if (q) {
+      h += '<div style="font-size:12px;padding:4px 0 2px"><b>' + q.found + "</b> of " + q.asked + " found" +
+        (q.missing.length ? ' &middot; <span style="color:' + RED + '">not found ' + e6(q.missing.slice(0, 10).join(", ")) + "</span>" : "") +
+        "</div>";
+    }
+
+    var chips = function (title, arr) {
+      if (!arr || !arr.length) { return ""; }
+      return '<h4 style="margin-top:12px">' + title + "</h4>" + arr.map(function (x) {
+        return '<span class="chip"><i style="background:' + (title === "Grade" ? gcol(x.k) : "#aab4c0") +
+          '"></i><b style="color:' + NAVY + '">' + e6(x.k) + "</b><span style='color:#5c6a7a'>" + x.n + "</span></span>";
+      }).join("");
+    };
+    h += chips("Grade", d.by_grade) + chips("Size", d.by_size) + chips("Pit", d.by_pit);
+    p.innerHTML = h;
+
+    var x = document.getElementById("di-x");
+    if (x) { x.onclick = function (e) { e.stopPropagation(); hide(); }; }
+    p.querySelectorAll("[data-go]").forEach(function (el) {
+      el.onclick = function () { window.location.href = el.getAttribute("data-go"); };
+    });
+    p.querySelectorAll("[data-stage]").forEach(function (el) {
+      el.onclick = function () {
+        var st = el.getAttribute("data-stage");
+        if (st) { window.location.href = "/app/quarry-block?status=" + encodeURIComponent(st); }
+      };
+    });
+    var inp = document.getElementById("di-q");
+    if (inp) {
+      var t = null;
+      inp.oninput = function () { clearTimeout(t); t = setTimeout(function () { search(inp.value); }, 350); };
+      if (q && q.raw) { inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); }
+    }
+  }
+
+  function parseList(raw) {
+    var s = String(raw || "").trim();
+    if (!s) { return null; }
+    var m = s.match(/^(\d+)\s*(?:-|to|\.\.)\s*(\d+)$/i);
+    if (m) {
+      var a = parseInt(m[1], 10), b = parseInt(m[2], 10);
+      if (a > b) { var t = a; a = b; b = t; }
+      if (b - a + 1 > 500) { return null; }
+      var o = [];
+      for (var i = a; i <= b; i++) { o.push(String(i)); }
+      return o;
+    }
+    return s.split(",").map(function (x) { return x.trim(); }).filter(Boolean);
+  }
+
+  var STAGE_OF = { "In Stock": "In Stock", "Buyer Marked": "Buyer Marked",
+    "In Delivery Challan": "In Challan", "Dispatched/Transported": "Dispatched",
+    "At Port": "At Port", "At Bannikoppa Station yard": "At Port" };
+
+  function search(raw) {
+    var list = parseList(raw);
+    var p = document.getElementById("di-panel");
+    if (!p) { return; }
+    if (!list || !list.length) { drawPanel(p, null); return; }
+    var u = "/api/method/frappe.client.get_list?doctype=Quarry Block&limit_page_length=0&fields=" +
+      encodeURIComponent(JSON.stringify(["name", "block_number", "export_block_no", "status"]));
+    function go(field) {
+      return fetch(u + "&filters=" + encodeURIComponent(JSON.stringify([[field, "in", list]])),
+        { credentials: "include" }).then(function (r) { return r.json(); })
+        .then(function (j) { return j.message || []; });
+    }
+    go("block_number")
+      .then(function (b) { return b.length ? b : go("export_block_no"); })
+      .then(function (b) { return b.length ? b : go("name"); })
+      .then(function (b) {
+        var st = {}, seen = {};
+        b.forEach(function (x) {
+          var lab = STAGE_OF[String(x.status || "").trim()] || "Dispatched";
+          st[lab] = (st[lab] || 0) + 1;
+          seen[String(x.block_number)] = 1;
+          if (x.export_block_no) { seen[String(x.export_block_no)] = 1; }
+          seen[String(x.name)] = 1;
+        });
+        drawPanel(p, { raw: raw, found: b.length, asked: list.length,
+          missing: list.filter(function (n) { return !seen[n]; }), stages: st });
+      })
+      .catch(function () { drawPanel(p, null); });
+  }
+
+  function show() {
+    var p = document.getElementById("di-panel");
+    if (!p) { return; }
+    open = true; p.classList.add("on"); drawPanel(p, null);
+  }
+  function hide() {
+    var p = document.getElementById("di-panel");
+    if (p) { p.classList.remove("on"); }
+    open = false;
+  }
+
+  function paint() {
+    var f = document.getElementById("di-fab");
+    if (!f || !data) { return; }
+    var n = (data.attention || {}).total || 0;
+    var mini = (data.by_grade || []).slice(0, 4).map(function (g) {
+      return '<i style="background:' + gcol(g.k) + '"></i>';
+    }).join("");
+    f.className = n ? "" : "quiet";
+    f.innerHTML = '<span class="dot"></span>' + (n ? ("<b>" + n + "</b> need you") : "All clear") +
+      '<span class="mini">' + mini + "</span>";
+    f.title = n ? (n + " thing(s) waiting on a person") : "Nothing is stuck";
+  }
+
+  function mount() {
+    if (onWorkspace()) {
+      var g = document.getElementById("di-fab"), gp = document.getElementById("di-panel");
+      if (g) { g.style.display = "none"; }
+      if (gp) { gp.classList.remove("on"); }
+      return;
+    }
+    css();
+    var f = document.getElementById("di-fab");
+    if (!f) {
+      f = document.createElement("button");
+      f.id = "di-fab"; f.type = "button"; f.className = "quiet";
+      f.innerHTML = '<span class="dot"></span>&hellip;';
+      document.body.appendChild(f);
+      f.onclick = function (e) { e.stopPropagation(); if (open) { hide(); } else { show(); } };
+      var p = document.createElement("div");
+      p.id = "di-panel";
+      document.body.appendChild(p);
+      p.addEventListener("click", function (e) { e.stopPropagation(); });
+      document.addEventListener("click", function () { if (open) { hide(); } });
+      document.addEventListener("keydown", function (e) { if (e.key === "Escape" && open) { hide(); } });
+    }
+    f.style.display = "";
+    paint();
+  }
+
+  function refresh(force) {
+    var now = Date.now();
+    if (!force && now - last < EVERY) { return; }
+    last = now;
+    fetch("/api/method/stock_pipeline", { credentials: "include" })
+      .then(function (r) { return r.json(); })
+      .then(function (j) { if (j && j.message) { data = j.message; paint(); if (open) { drawPanel(document.getElementById("di-panel"), null); } } })
+      .catch(function () {});
+  }
+
+  setInterval(function () { mount(); refresh(false); }, 5000);
+  setTimeout(function () { mount(); refresh(true); }, 1100);
+  window.addEventListener("focus", function () { refresh(true); });
+})();
