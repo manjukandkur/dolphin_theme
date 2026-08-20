@@ -3157,3 +3157,72 @@ def absorb_arrivals(apply=0):
                  "whose weight verdict starts with CHECK is never overwritten, a row is "
                  "never created or deleted, and a CONFLICT is never resolved."),
     }
+
+
+# ---------------------------------------------------------------------------
+# 20 Aug 2026 - UNDO GOES EXACTLY ONE RUNG. His design, his words:
+#
+#   "my idea is to undo style one step backward so if you want to reopen an
+#    exported lot then shouldnt it be export shipment lot draft?"
+#   "from export shipment lot one step undo is to return all the blocks to at
+#    port isnt it ?"
+#
+# He is right, and the code did not work that way. The old reopen_lot did THREE
+# things in one click: put the lot back to Ready, emptied its block table, and
+# returned every block to At Port - so reopening a 56-block lot to correct a BL
+# number destroyed the 56-block grouping and it had to be rebuilt by hand. That
+# is the chain reaction he is trying to avoid.
+#
+# The ladder, one rung per click, each landing in the state it was in just before:
+#
+#   Exported            -> undo -> Shipping Document, unlocked, blocks untouched
+#                                  (sd_return_from_exported - already correct)
+#   Shipping Document   -> undo -> Export Shipment Lot back to DRAFT, the
+#                                  Shipping Document unlinked, THE BLOCKS STAY
+#                                  IN THE LOT                    <- reopen_lot
+#   Export Shipment Lot -> undo -> every block back to At Port, lot emptied
+#                                  (return_blocks_from_lot - already correct)
+#
+# Appended, so nothing above is edited. reopen_lot below replaces the earlier
+# definition and no longer touches a single block.
+# ---------------------------------------------------------------------------
+
+@frappe.whitelist()
+def reopen_lot(lot=None):
+    """One rung back from a shipped/exported lot: the lot returns to draft and
+    the Shipping Document is unlinked. Blocks are NOT touched and stay in the
+    lot - emptying the lot is the NEXT rung down, return_blocks_from_lot."""
+    if not lot:
+        frappe.throw("No lot given.")
+    d = frappe.get_doc("Export Shipment Lot", lot)
+
+    was = {
+        "status": d.get("status"),
+        "shipped": d.get("shipped"),
+        "shipping_document": d.get("shipping_document"),
+    }
+
+    if d.meta.has_field("status"):
+        d.status = "Ready"
+    if d.meta.has_field("shipped"):
+        d.shipped = 0
+    for f in ("ship_date", "bl_no"):
+        if d.meta.has_field(f):
+            d.set(f, None)
+    if d.meta.has_field("shipping_document"):
+        d.shipping_document = None
+    d.flags.ignore_mandatory = True
+    d.save(ignore_permissions=True)
+    frappe.db.commit()
+
+    kept = len(d.get("blocks") or [])
+    return {
+        "name": lot,
+        "status": "Ready",
+        "blocks_kept_in_lot": kept,
+        "shipping_document_unlinked": was.get("shipping_document") or None,
+        "blocks_returned_to_port": 0,
+        "message": ("Lot %s is back to draft with its %d block(s) still in it. "
+                    "To send those blocks back to At Port, use the next undo - "
+                    "Return all blocks to At Port." % (lot, kept)),
+    }
