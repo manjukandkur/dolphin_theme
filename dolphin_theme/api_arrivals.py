@@ -3492,3 +3492,200 @@ def arrival_xls_grid(file=None, communication=None, arrival=None, max_rows=600, 
         "file_url": fdoc.file_url,
         "sheets": out_sheets,
     }
+
+
+# ---------------------------------------------------------------------------
+# EXPORT, IN ONE PIECE  (21 Aug 2026, evening)
+#
+# What was wrong, and it was proven by running it rather than by reading it:
+# `sd_mark_exported` set the lot's status with frappe.db.set_value. A direct database
+# write does not fire DocType events, so the After Save cascade that was supposed to move
+# the blocks never ran. Tested live on XIAMENBLESS-BL-260727-02 and restored immediately:
+#
+#     lot     Ready -> Shipped -> Ready
+#     blocks  56 Dispatched/Transported -> 56 Dispatched/Transported -> unchanged
+#
+# So the instant a shipment was marked exported the three records disagreed:
+# document Exported, lot Shipped, blocks still Dispatched — and the board went on reading
+# 0 Exported after a ship had sailed. This is the same class of fault as the one that lost
+# 56 blocks last week, only with the polarity reversed.
+#
+# These two functions do the whole thing in one place, in one action, in both directions:
+#   * the customs fields are compulsory, as they always were
+#   * document, lot and every block move together, or nothing moves
+#   * each block's previous status is recorded on it, so the way back restores exactly
+#     what was there instead of guessing
+#   * both directions demand a person's name and write what they did onto the document
+# ---------------------------------------------------------------------------
+
+EXPORT_BLOCK_STATUS = "Shipped"
+
+
+def _lot_block_names(lot_name):
+    """Every quarry block on a lot, in order, de-duplicated."""
+    rows = frappe.get_all(
+        "Shipment Lot Block",
+        filters={"parent": lot_name, "parenttype": "Export Shipment Lot"},
+        fields=["block"],
+        order_by="idx asc",
+    )
+    out = []
+    for r in rows:
+        b = _s(r.get("block"))
+        if b and b not in out and frappe.db.exists("Quarry Block", b):
+            out.append(b)
+    return out
+
+
+def _sd_lot(sd_name):
+    lot = _s(frappe.db.get_value("Shipping Document", sd_name, "source_lot"))
+    if not lot:
+        lot = _s(frappe.db.get_value("Export Shipment Lot", {"shipping_document": sd_name}, "name"))
+    return lot
+
+
+@frappe.whitelist()
+def export_shipment(shipping_document=None, person=None, note=None, dry_run=0):
+    """Mark a shipment exported: document, lot and every block, together.
+
+    dry_run=1 reports exactly what would move and changes nothing."""
+    sd = _s(shipping_document)
+    person = _s(person)
+    dry = _s(dry_run) in ("1", "true", "True")
+
+    if not sd:
+        frappe.throw("No shipping document given.")
+    if not frappe.db.exists("Shipping Document", sd):
+        frappe.throw("Shipping Document " + sd + " not found.")
+    if not person and not dry:
+        frappe.throw("Choose your name before marking this exported.")
+
+    row = frappe.db.get_value(
+        "Shipping Document", sd,
+        ["export_status", "shipping_bill_no", "sb_date", "bl_no", "bl_date"],
+        as_dict=True) or {}
+
+    if _s(row.get("export_status")) == "Exported":
+        frappe.throw(sd + " is already marked EXPORTED.")
+
+    # the customs fields stay compulsory - this is the rule that has been doing its job
+    missing = []
+    for fname, label in (("shipping_bill_no", "Shipping Bill No"), ("sb_date", "SB Date")):
+        if not _s(row.get(fname)):
+            missing.append(label)
+    if missing:
+        frappe.throw(
+            "Cannot mark " + sd + " as exported. These are compulsory on the invoice and "
+            "are still empty: " + ", ".join(missing) + ".")
+
+    lot = _sd_lot(sd)
+    blocks = _lot_block_names(lot) if lot else []
+
+    before = {}
+    for b in blocks:
+        before[b] = _s(frappe.db.get_value("Quarry Block", b, "status"))
+
+    plan = {
+        "shipping_document": sd,
+        "lot": lot,
+        "blocks": len(blocks),
+        "block_statuses_now": before,
+        "would_set_blocks_to": EXPORT_BLOCK_STATUS,
+        "dry_run": True,
+    }
+    if dry:
+        return plan
+
+    stamp = frappe.utils.now()
+    frappe.db.set_value("Shipping Document", sd, "export_status", "Exported")
+    frappe.db.set_value("Shipping Document", sd, "exported_on", stamp)
+    frappe.db.set_value("Shipping Document", sd, "exported_by_person", person)
+
+    if lot:
+        frappe.db.set_value("Export Shipment Lot", lot, "status", "Shipped")
+
+    moved = 0
+    for b in blocks:
+        # remembered so the way back restores what was actually there
+        frappe.db.set_value("Quarry Block", b, "status_before_export", before.get(b) or "")
+        frappe.db.set_value("Quarry Block", b, "status", EXPORT_BLOCK_STATUS)
+        moved += 1
+
+    line = ("MARKED AS EXPORTED by " + person + " | login: " + frappe.session.user
+            + " | lot: " + (lot or "-") + " | blocks moved to " + EXPORT_BLOCK_STATUS
+            + ": " + str(moved))
+    if _s(note):
+        line += " | note: " + _s(note)
+    frappe.get_doc({
+        "doctype": "Comment", "comment_type": "Comment",
+        "reference_doctype": "Shipping Document", "reference_name": sd,
+        "content": line,
+    }).insert(ignore_permissions=True)
+
+    frappe.db.commit()
+    return {"ok": 1, "status": "Exported", "shipping_document": sd,
+            "lot": lot, "blocks_moved": moved}
+
+
+@frappe.whitelist()
+def unexport_shipment(shipping_document=None, person=None, reason=None, dry_run=0):
+    """Undo an export: document back to Draft, lot back to Ready, and every block back to
+    whatever it read before the export. A reason is compulsory, as it is on every other
+    way back in this system."""
+    sd = _s(shipping_document)
+    person = _s(person)
+    reason = _s(reason)
+    dry = _s(dry_run) in ("1", "true", "True")
+
+    if not sd:
+        frappe.throw("No shipping document given.")
+    if not frappe.db.exists("Shipping Document", sd):
+        frappe.throw("Shipping Document " + sd + " not found.")
+    if not dry:
+        if not person:
+            frappe.throw("Choose your name before undoing an export.")
+        if not reason:
+            frappe.throw("Say why this export is being undone. It is written onto the document.")
+
+    cur = _s(frappe.db.get_value("Shipping Document", sd, "export_status"))
+    if cur != "Exported":
+        frappe.throw(sd + " is not marked exported, so there is nothing to undo.")
+
+    lot = _sd_lot(sd)
+    blocks = _lot_block_names(lot) if lot else []
+
+    restore, stuck = {}, []
+    for b in blocks:
+        prev = _s(frappe.db.get_value("Quarry Block", b, "status_before_export"))
+        if prev:
+            restore[b] = prev
+        else:
+            stuck.append(b)
+
+    if dry:
+        return {"shipping_document": sd, "lot": lot, "blocks": len(blocks),
+                "would_restore": restore, "no_previous_status_recorded": stuck,
+                "dry_run": True}
+
+    frappe.db.set_value("Shipping Document", sd, "export_status", "Draft")
+    if lot and _s(frappe.db.get_value("Export Shipment Lot", lot, "status")) == "Shipped":
+        frappe.db.set_value("Export Shipment Lot", lot, "status", "Ready")
+
+    for b, prev in restore.items():
+        frappe.db.set_value("Quarry Block", b, "status", prev)
+        frappe.db.set_value("Quarry Block", b, "status_before_export", "")
+
+    line = ("EXPORT UNDONE by " + person + " | login: " + frappe.session.user
+            + " | reason: " + reason + " | lot: " + (lot or "-")
+            + " | blocks put back: " + str(len(restore)))
+    if stuck:
+        line += (" | NO PREVIOUS STATUS RECORDED, left untouched: " + ", ".join(stuck[:60]))
+    frappe.get_doc({
+        "doctype": "Comment", "comment_type": "Comment",
+        "reference_doctype": "Shipping Document", "reference_name": sd,
+        "content": line,
+    }).insert(ignore_permissions=True)
+
+    frappe.db.commit()
+    return {"ok": 1, "status": "Draft", "shipping_document": sd, "lot": lot,
+            "blocks_put_back": len(restore), "left_untouched": stuck}
