@@ -3322,3 +3322,149 @@ def reopen_lot(lot=None, reason=None):
                     "Recorded against %s. To send those blocks back to At Port, use the next "
                     "undo - Return all blocks to At Port." % (lot, kept, who)),
     }
+
+
+# ---------------------------------------------------------------------------
+# SHOW THE ARRIVAL SHEET AS THE PORT SENT IT  (21 Aug 2026)
+# His words: "this message should show the arrival xls as is as pop up inside",
+# and earlier: "if you add as is xls ... it will be best to see there itself to
+# understand and either accept or remove, confirm, push to next step".
+#
+# The attachments are real legacy BIFF .xls (OLE2, magic D0 CF 11 E0), so the
+# browser cannot render them and openpyxl cannot read them. xlrd can, and this
+# app already uses it in _parse_arrival_xls, so the same reader is reused here.
+#
+# This returns the grid VERBATIM - every row, every cell, no interpretation,
+# no matching, no filtering. It is a viewer, not an importer: it creates
+# nothing and changes nothing.
+# ---------------------------------------------------------------------------
+
+def _xls_cell_out(sh, r, c, book):
+    """One cell, rendered the way a person reading the sheet would expect."""
+    try:
+        ct = sh.cell_type(r, c)
+        v = sh.cell_value(r, c)
+    except Exception:
+        return ""
+    if ct in (0, 6):
+        return ""
+    if ct == 1:
+        return _xls_s(v)
+    if ct == 2:
+        try:
+            f = float(v)
+            return str(int(f)) if f == int(f) else str(round(f, 3))
+        except Exception:
+            return _xls_s(v)
+    if ct == 3:
+        try:
+            import xlrd
+            d = xlrd.xldate.xldate_as_datetime(v, book.datemode)
+            return d.strftime("%d-%b-%Y") if (d.hour == 0 and d.minute == 0) else d.strftime("%d-%b-%Y %H:%M")
+        except Exception:
+            return _xls_s(v)
+    if ct == 4:
+        return "TRUE" if v else "FALSE"
+    if ct == 5:
+        return "#ERR"
+    return _xls_s(v)
+
+
+@frappe.whitelist()
+def arrival_xls_grid(file=None, communication=None, arrival=None, max_rows=600, max_cols=30):
+    """The arrival .xls exactly as received. Read-only.
+
+    file          - File docname or file_url of the attachment
+    communication - Communication docname; the first spreadsheet attached to it is used
+    arrival       - Port Arrival docname; the first spreadsheet attached to it is used
+    """
+    if not frappe.has_permission("Port Arrival", "read"):
+        frappe.throw("You do not have permission to view arrival sheets.")
+
+    max_rows = int(max_rows or 600)
+    max_cols = int(max_cols or 30)
+
+    fdoc = None
+    if file:
+        if frappe.db.exists("File", file):
+            fdoc = frappe.get_doc("File", file)
+        else:
+            nm = frappe.db.get_value("File", {"file_url": file}, "name")
+            if nm:
+                fdoc = frappe.get_doc("File", nm)
+    if fdoc is None and communication:
+        rows = frappe.get_all(
+            "File",
+            filters={"attached_to_doctype": "Communication", "attached_to_name": communication},
+            fields=["name", "file_name"],
+            order_by="creation asc",
+            limit_page_length=0,
+        )
+        for r in rows:
+            if (r.get("file_name") or "").lower().endswith((".xls", ".xlsx")):
+                fdoc = frappe.get_doc("File", r["name"])
+                break
+    if fdoc is None and arrival:
+        rows = frappe.get_all(
+            "File",
+            filters={"attached_to_doctype": "Port Arrival", "attached_to_name": arrival},
+            fields=["name", "file_name"],
+            order_by="creation asc",
+            limit_page_length=0,
+        )
+        for r in rows:
+            if (r.get("file_name") or "").lower().endswith((".xls", ".xlsx")):
+                fdoc = frappe.get_doc("File", r["name"])
+                break
+    if fdoc is None:
+        return {"ok": 0, "error": "No spreadsheet attached to this record."}
+
+    try:
+        content = fdoc.get_content()
+    except Exception as e:
+        return {"ok": 0, "error": "Could not read the attachment: %s" % e}
+
+    try:
+        import xlrd
+    except Exception:
+        return {"ok": 0, "error": "The .xls reader (xlrd) is not installed on this bench."}
+
+    try:
+        wb = xlrd.open_workbook(file_contents=content)
+    except Exception as e:
+        return {"ok": 0, "error": "This file is not a readable .xls: %s" % e}
+
+    single = wb.nsheets == 1
+    out_sheets = []
+    for sh in wb.sheets():
+        used = False
+        try:
+            used = bool(_xls_is_dolphin_sheet(sh, single))
+        except Exception:
+            used = False
+        nrows = min(sh.nrows, max_rows)
+        ncols = min(sh.ncols, max_cols)
+        grid = []
+        for r in range(nrows):
+            line = []
+            for c in range(ncols):
+                line.append(_xls_cell_out(sh, r, c, wb))
+            if any(x != "" for x in line):
+                grid.append({"n": r + 1, "c": line})
+        out_sheets.append({
+            "name": sh.name,
+            "rows": grid,
+            "nrows": sh.nrows,
+            "ncols": sh.ncols,
+            "shown_rows": nrows,
+            "shown_cols": ncols,
+            "truncated": bool(sh.nrows > nrows or sh.ncols > ncols),
+            "is_arrival_sheet": used,
+        })
+
+    return {
+        "ok": 1,
+        "file_name": fdoc.file_name,
+        "file_url": fdoc.file_url,
+        "sheets": out_sheets,
+    }
