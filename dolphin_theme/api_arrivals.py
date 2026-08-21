@@ -1033,7 +1033,7 @@ def _block_status_index():
 # state, so a correction made to the data shows on the page immediately (A3).
 _LADDER_STATE = {
     "Dispatched/Transported": "await",
-    "In Delivery Challan": "await",
+    # "In Delivery Challan" is deliberately ABSENT — see PRE_DISPATCH below.
     "At Port": "port",
     "At Bannikoppa Station yard": "port",
     "Reconciled": "recon",
@@ -1042,6 +1042,18 @@ _LADDER_STATE = {
     "Shipped": "load",
     "Sold": "load",
 }
+
+# A BLOCK IS DISPATCHED ONLY WHEN ITS CHALLAN IS SUBMITTED (his rule, 21 Aug 2026).
+#
+# His words: "Blocks in Dc draft should not be listed under stock and port ... Dc drafts
+# are created in advance since the DMG website demands all the details ready while issuing
+# permits hence the draft. You consider blocks dispatched only after submission of DC".
+#
+# A draft challan is permit paperwork, not a dispatch. Until now a block whose own status
+# still read "In Delivery Challan" was mapped to "await" and listed on Port & Stock as a
+# transported block awaiting arrival — which is how block 247 appeared at the port while
+# it was still sitting on a draft challan. These statuses mean the block has NOT left.
+PRE_DISPATCH = {"In Stock", "Buyer Marked", "In Delivery Challan"}
 
 # Labels the page shows for each state, kept server-side so every screen agrees.
 STATE_LABELS = {
@@ -1109,6 +1121,18 @@ def ledger_view():
             lot = next((lots[k] for k in keys if k in lots), None)
             qb = next((qbs[k] for k in keys if k in qbs), None)
             qstat = _s(qb["status"]) if qb else ""
+
+            # A block that has not been dispatched does not belong on this page at all
+            # (his rule, 21 Aug 2026 — see PRE_DISPATCH). It is on a submitted challan
+            # here, but its own status still says it never left; that happens when a
+            # later DRAFT challan re-added it and pulled it back to "In Delivery Challan".
+            # Two exceptions, both of which must stay visible rather than be hidden:
+            #   * a CONFIRMED arrival saying it did reach the port — a real contradiction
+            #   * membership of an export shipment lot — 37 blocks are in a lot today
+            #     while their status still reads In Stock; dropping those would empty
+            #     the "In lot" count, which would be a worse lie than the one being fixed.
+            if qstat in PRE_DISPATCH and pa is None and lot is None:
+                continue
 
             # State, in order of authority:
             #   1. the block's own status, when it is one the ladder knows
