@@ -60,6 +60,31 @@ function load(){
   api('Quarry Block',{status:['in',['Buyer Marked','In Stock']]},['name']).then(function(qbs){
     var names=qbs.map(function(x){return x.name;});
     if(!names.length){ROWS=[];render();return;}
+    // R-3, 21 Aug 2026. His words: "local tax invoice blocks after submitted it should
+    // not show in pending loading currently showing. Since loading is local buyer
+    // responsibility". Submitting an invoice already marks its blocks Sold, which drops
+    // them from the filter above — but that is a frappe.db.set_value with no audit trail
+    // and it can fail silently. So the invoice itself is asked directly as well: a block
+    // on ANY submitted Local Tax Invoice is off this list, whatever its status says.
+    sold_on_invoice(names).then(function(sold){
+      names = names.filter(function(n){ return !sold[String(n)]; });
+      if(!names.length){ROWS=[];render();return;}
+      load_bi(names);
+    });
+  });
+}
+
+// blocks that sit on a submitted Local Tax Invoice -> {block: 1}
+function sold_on_invoice(names){
+  return api('Local Tax Invoice',{docstatus:1},['name']).then(function(invs){
+    var ids=invs.map(function(x){return x.name;});
+    if(!ids.length){ return {}; }
+    return api('Tax Invoice Block',{parent:['in',ids]},['block','parent'],'Local Tax Invoice')
+      .then(function(rows){ var m={}; rows.forEach(function(r){ if(r.block) m[String(r.block)]=1; }); return m; });
+  }).catch(function(){ return {}; });   // never let this hide the whole list
+}
+
+function load_bi(names){
     // 2) BI child rows for these blocks (measurements + parent BI)
     api('Buyer Inspection Block',{block:['in',names]},['parent','block','block_no','export_block_no','length_gross','width_gross','height_gross','gross_tonnage'],'Buyer Inspection').then(function(brs){
       var parents=[];brs.forEach(function(b){if(parents.indexOf(b.parent)<0)parents.push(b.parent);});
@@ -77,8 +102,7 @@ function load(){
           render();
         });
       });
-    });
-  }).catch(function(){$('body').innerHTML='<div class="empty">Could not load. Reload to retry.</div>';});
+    }).catch(function(){$('body').innerHTML='<div class="empty">Could not load. Reload to retry.</div>';});
 }
 
 function stats(){var ton=0,bis={};ROWS.forEach(function(r){ton+=r.t;bis[r.bi]=1;});$('s-blk').textContent=ROWS.length;$('s-bi').textContent=Object.keys(bis).length;$('s-ton').textContent=ton.toFixed(1)+' t';}
