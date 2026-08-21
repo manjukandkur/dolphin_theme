@@ -204,11 +204,16 @@ function renderCmp(m){
     var d=(j&&j.message)||{},list=d.detail||[];
     if(!list.length){m.innerHTML='<div class="empty">Nothing to compare yet.</div>';return;}
     var rows='';
-    list.sort(function(a,b){
-      var ra=(String(a.verdict||'').indexOf('FLAG')===0)?0:(String(a.verdict||'').indexOf('Agrees')===0?2:1);
-      var rb=(String(b.verdict||'').indexOf('FLAG')===0)?0:(String(b.verdict||'').indexOf('Agrees')===0?2:1);
-      return ra-rb;
-    });
+    /* Work first, settled second, nothing-to-do last. Ranking "not sent" alongside
+       "incomplete" buried the 37 challans that need a person under 93 that do not. */
+    function rank(r){
+      var v=String(r.verdict||'');
+      if(v.indexOf('FLAG')===0)return 0;
+      if(v.indexOf('Incomplete')===0)return 1;
+      if(v.indexOf('Agrees')===0)return 2;
+      return 3;
+    }
+    list.sort(function(a,b){ return rank(a)-rank(b); });
     list.forEach(function(r){
       var v=String(r.verdict||''),cls,txt;
       if(v.indexOf('FLAG')===0){cls='p-orph';txt='Out by '+Math.abs(+r.difference).toFixed(2)+' MT';}
