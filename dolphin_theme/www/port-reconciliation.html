@@ -346,7 +346,7 @@ function renderStock(){if(VMODE==='dc'){renderDC();return;}
   var h='<table><thead><tr><th style="width:22px"><input type="checkbox" class="selall" title="Select all"></th><th>Block</th><th>Delivery Challan</th><th>Source BI '+DOT+' Consignee</th><th>DC size</th><th>Port size</th><th>Ton</th><th>Age</th><th>State</th><th>Action</th><th style="width:22px"></th></tr></thead><tbody>';
   list.forEach(function(r,i){
     var k=key(r),age=ageDays(r.arrival),ageC=age==null?'<span class="sub">'+DASH+'</span>':'<span style="'+(age>30?'color:#a32d2d;font-weight:700':(age>20?'color:#8a5a12':'color:#5f6b7a'))+'">'+age+'d</span>';
-    var canSel=(r.state==='port'||r.state==='await');
+    var canSel=(r.state==='port'||r.state==='await'||r.state==='unconfirmed');   /* 22 Aug: unconfirmed rows must be selectable or the bulk move can never reach them */
     h+='<tr'+(SEL[k]?' class="sel"':(r.state==='await'?' class="await-row"':''))+'><td>'+(canSel?'<input type="checkbox" class="ck" data-i="'+i+'"'+(SEL[k]?' checked':'')+'>':'')+'</td>'
       +'<td><span class="blk">'+esc(r.export_block_no||r.block_no||'')+'</span></td>'
       +'<td>'+(r.dc?'<span class="dc" data-doc="dc" data-i="'+i+'">'+esc((window.DCMAP&&DCMAP[r.dc])||r.dc)+'</span> <span class="eye" data-doc="dc" data-i="'+i+'">'+U(128196)+'</span>'+_dcSub(r.dc):'<span class="sub">no challan</span>')+'</td>'
@@ -499,8 +499,12 @@ $('openbtn').addEventListener('click',function(){toggleImp();msg('Opening stock:
 loadAll();
 
 function action(r,i){
-var nt=(['await','mis','dmg','held','orphan'].indexOf(r.state)>=0)?'<span class="rb" data-act="note" data-i="'+i+'" title="Add reason / note">'+U(128221)+'</span>':'';
-if(r.state==='await')return '<span class="rb gold" data-act="move" data-i="'+i+'">'+AR+' Move to At Port</span>'+nt;
+var nt=(['await','unconfirmed','mis','dmg','held','orphan'].indexOf(r.state)>=0)?'<span class="rb" data-act="note" data-i="'+i+'" title="Add reason / note">'+U(128221)+'</span>':'';
+/* 22 Aug 2026. THIS is the action() that runs - the file declares it twice and the second
+   wins, so a fix to the first one above was dead code. 'unconfirmed' means an arrival sheet
+   names the block but that sheet is still a draft; every arrival is a draft today, so 219
+   of 256 rows sat here with no way to At Port at all. */
+if(r.state==='await'||r.state==='unconfirmed')return '<span class="rb gold" data-act="move" data-i="'+i+'">'+AR+' Move to At Port</span>'+nt;
 if(r.state==='port')return '<span class="rb pri" data-act="push" data-i="'+i+'">Push to lot</span>';
 if(r.state==='mis')return '<span class="rb pri" data-act="use_dc" data-i="'+i+'">Use DC</span><span class="rb ok" data-act="accept" data-i="'+i+'">Accept</span>'+nt;
 if(r.state==='dmg')return '<span class="rb" data-act="hold" data-i="'+i+'">Hold</span><span class="rb ok" data-act="accept" data-i="'+i+'">OK</span>'+nt;
