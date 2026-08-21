@@ -966,7 +966,7 @@ function renderTrash(m){
     if (!ov) { ov = document.createElement("div"); ov.id = id; document.body.appendChild(ov); }
     ov.setAttribute("style", "position:fixed;inset:0;background:rgba(15,37,64,.45);z-index:3000;" +
       "display:flex;align-items:flex-start;justify-content:center;padding:60px 16px;overflow:auto");
-    ov.innerHTML = '<div style="background:#fff;border-radius:12px;max-width:820px;width:100%;' +
+    ov.innerHTML = '<div style="background:#fff;border-radius:12px;max-width:1080px;width:100%;' +
       'box-shadow:0 12px 40px rgba(15,37,64,.3);overflow:hidden">' +
       '<div style="background:#0F2540;color:#fff;padding:14px 18px;display:flex;align-items:center;gap:10px">' +
       '<b style="flex:1;font-size:15px">Arrivals inbox check</b>' +
@@ -1000,7 +1000,9 @@ function renderTrash(m){
           h += '<tr><td style="border-bottom:1px solid #e3e8ee;padding:7px 8px 7px 0;white-space:nowrap;color:#69788a">' +
                esc2((x.received || "").slice(0, 16)) + '</td><td style="border-bottom:1px solid #e3e8ee;padding:7px 0">' +
                esc2(x.subject) + '<div style="font-size:12px;color:#69788a">' + esc2(x.sender) +
-               (x.has_attachment ? ' &middot; has an attachment' : ' &middot; no attachment') + '</div></td></tr>';
+               (x.has_attachment ? ' &middot; has an attachment' : ' &middot; no attachment') +
+               (x.email ? ' &middot; <a href="#" data-xls-email="' + esc2(x.email) + '" style="color:#b8892f;font-weight:700">View sheet</a>' : '') +
+               '</div><div class="xlshost"></div></td></tr>';
         });
         h += '</table>';
       }
@@ -1009,9 +1011,13 @@ function renderTrash(m){
          customs checklist or a bill, not a fault - listed quietly, never counted. */
       var others = m.other_documents || [];
       if (others.length) {
-        h += '<div style="margin-top:16px;font-size:12.5px;color:#69788a">Also received, not arrival lists (bills, customs checklists) &mdash; nothing to do: ' +
-             others.map(function (x) { return esc2(x.arrival) + (x.subject ? ' <span style="color:#95a0ad">' + esc2(x.subject) + '</span>' : ''); }).join(', ') +
-             '</div>';
+        h += '<div style="margin-top:16px;font-size:12.5px;color:#69788a">Also received, not arrival lists (bills, customs checklists) &mdash; nothing to do:</div>';
+        others.forEach(function (x) {
+          h += '<div style="font-size:12.5px;color:#69788a;padding:5px 0;border-bottom:1px solid #f1f4f8">' +
+               esc2(x.arrival) + (x.subject ? ' <span style="color:#95a0ad">' + esc2(x.subject) + '</span>' : '') +
+               ' &middot; <a href="#" data-xls-arr="' + esc2(x.arrival) + '" style="color:#b8892f;font-weight:700">View sheet</a>' +
+               '<div class="xlshost"></div></div>';
+        });
       }
       var st = m.inbox_setting || {};
       if (String(st.email_sync_option || "").toUpperCase() === "UNSEEN") {
@@ -1023,8 +1029,82 @@ function renderTrash(m){
       h += '<div style="margin-top:14px;font-size:12.5px;color:#69788a">Checked ' + (m.checked || 0) +
            ' received emails. This check only reads - it creates and changes nothing.</div>';
       panel(h);
+      wireSheetLinks();
     }).catch(function (e) {
       panel('<div style="color:#c0392b">Could not run the check: ' + esc2((e && e.message) || e) + '</div>');
+    });
+  }
+
+  /* ------------------------------------------------------------------
+     SHOW THE SHEET AS THE PORT SENT IT  (21 Aug 2026)
+     His words: "this message should show the arrival xls as is as pop up inside".
+     The attachments are real legacy BIFF .xls, which no browser can render, so
+     the server reads them with xlrd and hands back the grid verbatim. This is a
+     viewer only - it creates nothing, matches nothing, changes nothing.
+     ------------------------------------------------------------------ */
+  function sheetTable(sh) {
+    var t = '<div style="font-size:12px;color:#69788a;margin:8px 0 4px">' +
+      '<b style="color:#16304F">' + esc2(sh.name) + '</b> &middot; ' + sh.nrows + ' rows &times; ' + sh.ncols + ' columns' +
+      (sh.is_arrival_sheet ? ' &middot; <span style="color:#0f6e56;font-weight:700">this is the sheet we read</span>' : '') +
+      (sh.truncated ? ' &middot; <span style="color:#b0402f">showing the first ' + sh.shown_rows + ' rows</span>' : '') +
+      '</div>';
+    t += '<div style="max-height:340px;overflow:auto;border:1px solid #dde3ea;border-radius:8px">' +
+         '<table style="border-collapse:collapse;font-size:11.5px;white-space:nowrap">';
+    (sh.rows || []).forEach(function (r) {
+      t += '<tr><td style="border:1px solid #eef1f5;padding:2px 6px;color:#a8b2bd;background:#fafbfc;position:sticky;left:0">' + r.n + '</td>';
+      (r.c || []).forEach(function (cell) {
+        t += '<td style="border:1px solid #eef1f5;padding:2px 6px">' + esc2(cell) + '</td>';
+      });
+      t += '</tr>';
+    });
+    t += '</table></div>';
+    return t;
+  }
+
+  function loadSheet(host, qs, link) {
+    if (host.getAttribute("data-loaded")) {
+      var on = host.style.display !== "none";
+      host.style.display = on ? "none" : "block";
+      if (link) { link.textContent = on ? "View sheet" : "Hide sheet"; }
+      return;
+    }
+    host.style.display = "block";
+    host.innerHTML = '<div style="font-size:12px;color:#69788a;padding:6px 0">Opening the sheet&hellip;</div>';
+    fetch("/api/method/dolphin_theme.api_arrivals.arrival_xls_grid?" + qs, { credentials: "include" })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        var m = (j && j.message) || {};
+        if (!m.ok) {
+          host.innerHTML = '<div style="font-size:12px;color:#b0402f;padding:6px 0">' +
+            esc2(m.error || "Could not open the sheet.") + '</div>';
+          return;
+        }
+        var html = '<div style="font-size:12px;color:#16304F;margin-top:8px"><b>' + esc2(m.file_name) + '</b>' +
+          (m.file_url ? ' &middot; <a href="' + esc2(m.file_url) + '" style="color:#b8892f">download the original</a>' : '') + '</div>';
+        (m.sheets || []).forEach(function (sh) { html += sheetTable(sh); });
+        host.innerHTML = html;
+        host.setAttribute("data-loaded", "1");
+        if (link) { link.textContent = "Hide sheet"; }
+      })
+      .catch(function (e) {
+        host.innerHTML = '<div style="font-size:12px;color:#b0402f;padding:6px 0">Could not open the sheet: ' +
+          esc2((e && e.message) || e) + '</div>';
+      });
+  }
+
+  function wireSheetLinks() {
+    var ov = document.getElementById("__inboxchk");
+    if (!ov) { return; }
+    ov.querySelectorAll("[data-xls-email],[data-xls-arr]").forEach(function (a) {
+      a.onclick = function (e) {
+        e.preventDefault();
+        var wrap = a.closest("td") || a.parentElement.parentElement;
+        var host = wrap ? wrap.querySelector(".xlshost") : null;
+        if (!host) { return; }
+        var em = a.getAttribute("data-xls-email");
+        var ar = a.getAttribute("data-xls-arr");
+        loadSheet(host, em ? ("communication=" + encodeURIComponent(em)) : ("arrival=" + encodeURIComponent(ar)), a);
+      };
     });
   }
 
@@ -1043,14 +1123,17 @@ function renderTrash(m){
     var b = document.createElement("button");
     b.type = "button";
     b.setAttribute("data-inboxchk", "1");
+    /* 21 Aug 2026, second pass: "Check arrivals make it look like a button better".
+       An outlined control still reads as a tab next to a tab strip. Solid gold,
+       raised, with a shadow - unmistakably a thing you press. */
     b.style.cssText = "margin-left:auto;align-self:center;cursor:pointer;" +
-      "background:#fff;border:1px solid #16304F;color:#16304F;border-radius:8px;" +
-      "padding:6px 14px;font-size:12.5px;font-weight:600;white-space:nowrap;" +
-      "display:inline-flex;align-items:center;gap:6px";
-    b.innerHTML = "<span style='font-size:13px'>&#9993;</span> Check for missed arrival emails";
+      "background:#D4A24A;border:1px solid #b8892f;color:#2b1f06;border-radius:9px;" +
+      "padding:8px 16px;font-size:13px;font-weight:700;white-space:nowrap;" +
+      "display:inline-flex;align-items:center;gap:7px;box-shadow:0 2px 5px rgba(15,37,64,.22)";
+    b.innerHTML = "<span style='font-size:14px'>&#9993;</span> Check for missed arrival emails";
     b.title = "Has any email from the port agency failed to become an arrival?";
-    b.addEventListener("mouseenter", function () { b.style.background = "#16304F"; b.style.color = "#fff"; });
-    b.addEventListener("mouseleave", function () { b.style.background = "#fff"; b.style.color = "#16304F"; });
+    b.addEventListener("mouseenter", function () { b.style.background = "#e0b05a"; b.style.boxShadow = "0 3px 9px rgba(15,37,64,.3)"; });
+    b.addEventListener("mouseleave", function () { b.style.background = "#D4A24A"; b.style.boxShadow = "0 2px 5px rgba(15,37,64,.22)"; });
     b.onclick = run;
     tabs.appendChild(b);
   }
