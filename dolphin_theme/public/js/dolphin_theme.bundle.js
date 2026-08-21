@@ -1811,8 +1811,13 @@ frappe.listview_settings = frappe.listview_settings || {};
       /* his words: "this ticker is of no use since we already have a trace a block" - the
          search box was a straight duplicate of Trace a Block, so it goes. */
       "#di-panel .sbox{display:none}" +
-      "#di-zoom{float:right;cursor:pointer;color:#7c8896;font-size:12px;margin-right:10px;line-height:1}" +
-      "#di-zoom:hover{color:" + NAVY + "}" +
+      /* 21 Aug 2026: "user wont understand shortcut to bird eye make it look like a
+         small button". A glyph with a label is not a button - give it a border, a fill
+         and padding so it reads as something you press. */
+      "#di-zoom{float:right;cursor:pointer;font-size:11px;margin-right:9px;line-height:1;" +
+      "border:1px solid #c9d2dc;background:#f6f8fb;color:#3d4855;border-radius:6px;" +
+      "padding:4px 9px;font-weight:600;letter-spacing:.01em}" +
+      "#di-zoom:hover{background:" + NAVY + ";color:#fff;border-color:" + NAVY + "}" +
       /* the bird's eye - iPhone-Photos style: the card scales up into a full sheet */
       "#di-sheet{position:fixed;inset:0;z-index:1060;background:rgba(15,37,64,.55);display:none;" +
       "align-items:center;justify-content:center;padding:20px}" +
@@ -1850,7 +1855,12 @@ frappe.listview_settings = frappe.listview_settings || {};
       "#di-sheet .rowx{display:flex;align-items:center;gap:9px;padding:6px 0;border-bottom:1px solid #f1f4f8;font-size:12.8px;cursor:pointer}" +
       "#di-sheet .rowx b{color:" + NAVY + ";min-width:22px;text-align:right}" +
       "#di-sheet .rowx .d{font-size:11px;color:#95a0ad;margin-left:auto;font-family:ui-monospace,Menlo,monospace}" +
-      "#di-sheet .cls{float:right;cursor:pointer;color:#95a0ad;font-size:15px;line-height:1;margin-left:10px}";
+      "#di-sheet .hdr{display:flex;align-items:flex-start;gap:8px;margin-bottom:2px}" +
+      "#di-sheet .hdr .sp{flex:1;min-width:0}" +
+      "#di-sheet .cls{cursor:pointer;border:1px solid #c9d2dc;background:#f6f8fb;color:#3d4855;" +
+      "border-radius:7px;height:28px;min-width:28px;padding:0 9px;display:inline-flex;align-items:center;" +
+      "justify-content:center;gap:5px;font-size:12px;font-weight:600;line-height:1;flex:none}" +
+      "#di-sheet .cls:hover{background:" + NAVY + ";color:#fff;border-color:" + NAVY + "}";
     document.head.appendChild(s);
   }
 
@@ -1874,7 +1884,7 @@ frappe.listview_settings = frappe.listview_settings || {};
     stages.forEach(function (s) { if (s.n > max) { max = s.n; } });
 
     var h = '<span class="x" id="di-x">&#10005;</span>' +
-      '<span id="di-zoom" title="Bird&rsquo;s eye \u2014 the whole pipeline, stock and paperwork on one screen">&#9974; Bird&rsquo;s eye</span>' +
+      '<button type="button" id="di-zoom" title="Bird&rsquo;s eye \u2014 the whole pipeline, stock and paperwork on one screen">&#9974; Bird&rsquo;s eye</button>' +
       '<h4>Needs a person &mdash; ' + (att.total || 0) + "</h4>";
     if (!att.total) {
       h += '<div style="font-size:12.5px;color:#0f6e56;padding:2px 0 6px">&#10003; Nothing is stuck.</div>';
@@ -2072,12 +2082,14 @@ frappe.listview_settings = frappe.listview_settings || {};
     stages.forEach(function (x) { if ((x.n || 0) > max) { max = x.n; } });
 
     var h = '<div class="card">';
-    h += '<span class="cls" id="di-sheet-x" title="Close">&#10005;</span>';
-    h += '<span class="cls" id="di-sheet-min" title="Back to the small view">&#8722;</span>';
-    h += "<h3>Dolphin International &mdash; bird&rsquo;s eye</h3>";
-    h += '<div style="font-size:11px;color:#95a0ad;margin-top:2px">' +
+    h += '<div class="hdr"><div class="sp">' +
+      "<h3>Dolphin International &mdash; bird&rsquo;s eye</h3>" +
+      '<div style="font-size:11px;color:#95a0ad;margin-top:2px">' +
       (d.total_blocks || 0) + " blocks tracked &middot; as of " +
-      e6(String(d.as_of || "").slice(11, 16)) + "</div>";
+      e6(String(d.as_of || "").slice(11, 16)) + "</div></div>" +
+      '<button type="button" class="cls" id="di-sheet-min" title="Back to the small view">&#8722; Smaller</button>' +
+      '<button type="button" class="cls" id="di-sheet-x" title="Close">&#10005;</button>' +
+      "</div>";
 
     h += '<div class="grid" style="grid-template-columns:1fr"><div class="bx"><h5>Where every block is</h5><div class="flow">';
     stages.forEach(function (st, i) {
