@@ -702,7 +702,15 @@ frappe.provide("dolphin");
       if ((b.textContent || "").trim() === "Save") abSaveBtn = b;
     });
 
+    /* 21 Aug 2026: the dropdown listed "Mark as Exported" TWICE. abHarvest can return
+       the same action more than once - the button and its group wrapper both match -
+       and only the chip was deduped. Dedupe the menu items too, keyed on group+label
+       so two genuinely different actions sharing a label both survive. */
+    var abSeenItem = {};
     abHarvest(head).forEach(function (it) {
+      var abKey = ((it.group || "") + "|" + (it.label || "")).trim();
+      if (abSeenItem[abKey]) { return; }
+      abSeenItem[abKey] = 1;
       var mi = abItem(it.label, (function (el) { return function () { abForward(el); }; })(it.el));
       if (abIsAddBlocks(it)) addMenu.appendChild(mi); else actMenu.appendChild(mi);
 
@@ -762,7 +770,11 @@ frappe.provide("dolphin");
     var actMenu = bar.querySelector("[data-di-dd='act'] .di-ab-menu");
     if (!actMenu) return;
     actMenu.innerHTML = "";
+    var abSeenList = {};
     abHarvest(head).forEach(function (it) {
+      var abKeyL = ((it.group || "") + "|" + (it.label || "")).trim();
+      if (abSeenList[abKeyL]) { return; }
+      abSeenList[abKeyL] = 1;
       var mi = abItem(it.label, (function (el) { return function () { abForward(el); }; })(it.el));
       actMenu.appendChild(mi);
       (it.groupEl || it.el).classList.add("di-ab-harvested");
