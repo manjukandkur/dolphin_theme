@@ -164,7 +164,7 @@ function pill(st){var s=SP[st]||['p-port',st];return '<span class="pill '+s[0]+'
 function dcSize(r){if(!r.dc_l&&!r.dc_w&&!r.dc_h)return DASH;return (r.dc_l||'?')+X+(r.dc_w||'?')+X+(r.dc_h||'?');}
 function ptSize(r){if(r.state==='await')return '<span class="sub">not yet arrived</span>';if(!r.pt_l&&!r.pt_w&&!r.pt_h)return DASH;var mis=(r.dc_h&&r.pt_h&&(''+r.dc_h)!==(''+r.pt_h));return (r.pt_l||'?')+X+(r.pt_w||'?')+X+(mis?'<span class="d">'+r.pt_h+'</span>':(r.pt_h||'?'));}
 
-var RSUB='queue';
+var RSUB='b2b';   /* 21 Aug 2026: the sheet is the work, so the screen opens on it */
 function _fx(n){var x=(+n);if(n==null||isNaN(x))return '0.00';return x.toFixed(2);}
 var PORTABBR={'krishnapatnam':'INKRI1','inkri':'INKRI1','inkri1':'INKRI1','nhava sheva':'INNSA1','jawaharlal nehru':'INNSA1','jnpt':'INNSA1','innsa':'INNSA1','innsa1':'INNSA1','chennai':'INMAA1','inmaa':'INMAA1','inmaa1':'INMAA1','kakinada':'INKAK1','inkak':'INKAK1','inkak1':'INKAK1','mundra':'INMUN1','inmun':'INMUN1','kolkata':'INCCU1','inccu':'INCCU1','cochin':'INCOK1','kochi':'INCOK1','incok':'INCOK1','mangalore':'INNML1','innml':'INNML1','mormugao':'INMRM1','mormugao (goa)':'INMRM1','goa':'INMRM1','inmrm':'INMRM1','inmrm1':'INMRM1'};function portAbbr(p){if(!p)return '';var k=(''+p).trim().toLowerCase();return PORTABBR[k]||p;}function _blkList(arr,cap){cap=cap||6;var ns=arr.map(function(b){return (''+b).replace(/^[A-Za-z]+-?/,'');});var s='Blocks: '+ns.slice(0,cap).join(', ');var ex=ns.length-cap;return s+(ex>0?(' +'+ex+' more'):'');}function _dcAgg(dc){var t='',p='',mt=0,bl=[];LED.forEach(function(r){if((r.dc||'')!==dc)return;if(!t&&r.truck)t=r.truck;if(!p&&(r.port_code||r.port))p=(r.port_code||r.port);mt+=(+r.ton||0);if(r.export_block_no||r.block_no)bl.push(r.export_block_no||r.block_no);});return {truck:t,port:p,mt:mt,blocks:bl};}function _dcSub(dc){if(!dc)return '';var a=_dcAgg(dc);var parts=[];if(a.truck)parts.push('&#128667; '+esc(a.truck));parts.push(_blkList(a.blocks));parts.push(a.mt.toFixed(2)+' MT');var pa=portAbbr(a.port);if(pa)parts.push(esc(pa));return '<div class="sub" style="font-size:11.5px;margin-top:1px;color:#1f2a3a;font-weight:500">'+parts.join(' &#183; ')+'</div>';}function fmtDate(d){if(!d)return '';var m=(''+d).match(/^(\d{4})-(\d{2})-(\d{2})/);return m?(m[3]+'-'+m[2]+'-'+m[1]):(''+d);}
 function _dcGroups(){var g={};LED.forEach(function(r){if(r.source!=='dc')return;var k=r.dc;if(!k)return;(g[k]=g[k]||{dc:k,rows:[]}).rows.push(r);});return g;}
@@ -173,7 +173,7 @@ function rcSelected(sel){var out=[];document.querySelectorAll('#rcmain '+sel+':c
 function renderRecon(){
   var pane=$('p-recon');
   if(!pane){pane=document.createElement('div');pane.className='pane';pane.id='p-recon';var host=$('p-stock');(host?host.parentNode:$('pr')).appendChild(pane);}
-  var subs=[['queue','Review queue'],['dup','Duplicates'],['cmp','DC-wise comparison'],['b2b','XLS block-to-block'],['lot','Ready for export lot'],['trash','Trash'],['src','XLS source']];
+  var subs=[['b2b','Block to block'],['cmp','DC to DC comparison'],['lot','Ready for export lot'],['queue','Needs you'],['dup','Duplicates'],['src','Sheets as received']];
   var bar='<div class="tb" style="flex-wrap:wrap;gap:3px">';
   subs.forEach(function(s){bar+='<span class="vtog'+(RSUB===s[0]?' on':'')+'" data-rs="'+s[0]+'">'+s[1]+'</span>';});
   bar+='</div>';
@@ -185,33 +185,59 @@ function renderRecon(){
   else if(RSUB==='lot')renderReady(m);
   else if(RSUB==='queue')renderQueue(m);
   else if(RSUB==='dup')renderDupes(m);
-  else if(RSUB==='trash')renderTrash(m);
+  else if(RSUB==='trash')renderTrash(m);   /* no tab any more - Refused replaces it */
   else renderSrc(m);
 }
 function renderCmp(m){
-  var g=_dcGroups(),keys=Object.keys(g).sort(),rows='',nM=0,nT=0,nX=0,nN=0;
-  keys.forEach(function(k){
-    var rs=g[k].rows;
-    var truck=(rs[0]&&rs[0].truck)||'',pc=(rs[0]&&(rs[0].port_code||rs[0].port))||'';
-    var arrived=rs.filter(function(r){return r.state!=='await';}).length,awaiting=rs.length-arrived;
-    var dcMT=rs.reduce(function(a,r){return a+(+r.ton||0);},0);
-    var xlsMT=rs.reduce(function(a,r){return a+(+r.net_wt||0);},0);
-    var dcm=(window.DCMAP&&DCMAP[k])||k,d2=xlsMT-dcMT,lim=Math.max(0.3,dcMT*0.03),status,cls;
-    /* B30 (17 Aug 2026).  The old logic called every challan a mismatch, because
-       xlsMT sums net_wt and net_wt is 0.00 on all 849 arrival rows — there is no
-       weight recorded at the port at all.  Comparing a real number against a
-       missing one and calling the difference a mismatch is not reconciliation,
-       it is noise.  A challan with nothing to compare now says so. */
-    if(arrived===0){status='All awaiting';cls='p-await';}
-    else if(awaiting>0){status=arrived+'/'+rs.length+' arrived';cls='p-await';}
-    else if(!xlsMT){status='No weight recorded';cls='p-nodim';nN++;}
-    else if(Math.abs(d2)<=0.05){status='Match';cls='p-load';nM++;}
-    else if(Math.abs(d2)<=lim){status='Within tol';cls='p-mis';nT++;}
-    else{status='Mismatch';cls='p-orph';nX++;}
-    var dcolor=(arrived>0&&awaiting===0&&Math.abs(d2)>lim)?' style="color:#a32d2d;font-weight:600"':'';
-    rows+='<tr><td><b>'+esc(dcm)+'</b></td><td class="sub">'+esc(truck)+'</td><td>'+rs.length+'</td><td>'+_fx(dcMT)+'</td><td>'+(arrived?_fx(xlsMT):DASH)+'</td><td'+dcolor+'>'+((arrived&&awaiting===0)?((d2>=0?'+':'')+_fx(d2)):DASH)+'</td><td><span class="pill '+cls+'">'+status+'</span></td><td class="sub">'+esc(pc)+'</td></tr>';
+  /* DC TO DC COMPARISON  (21 Aug 2026)
+     His rule, and the whole reason this is done per challan rather than per block:
+     "Agency weighs the whole truck and deduct the tare weight and divide the tonnage
+      randomly between the blocks ... so DC to DC should be compared too".
+     A per-block weight from the agency is a share of one truckload, not a measurement of
+     that block, so comparing block to block is meaningless. One challan is one truck is
+     one weighing, and at the total the arbitrary split cancels itself out.
+     The old version of this function summed net_wt per challan and called almost
+     everything a mismatch; its own comment admitted it was noise. This asks the server
+     instead - dc_weight_check does the identity resolution and the guard below. */
+  m.innerHTML='<div class="sub" style="padding:14px 2px">Comparing every challan against the agency&#39;s weighbridge&hellip;</div>';
+  post('dc_weight_check',{}).then(function(j){
+    var d=(j&&j.message)||{},list=d.detail||[];
+    if(!list.length){m.innerHTML='<div class="empty">Nothing to compare yet.</div>';return;}
+    var rows='';
+    list.sort(function(a,b){
+      var ra=(String(a.verdict||'').indexOf('FLAG')===0)?0:(String(a.verdict||'').indexOf('Agrees')===0?2:1);
+      var rb=(String(b.verdict||'').indexOf('FLAG')===0)?0:(String(b.verdict||'').indexOf('Agrees')===0?2:1);
+      return ra-rb;
+    });
+    list.forEach(function(r){
+      var v=String(r.verdict||''),cls,txt;
+      if(v.indexOf('FLAG')===0){cls='p-orph';txt='Out by '+Math.abs(+r.difference).toFixed(2)+' MT';}
+      else if(v.indexOf('Agrees')===0){cls='p-load';txt='Within 1 MT';}
+      else if(v.indexOf('Incomplete')===0){cls='p-mis';txt=r.agency_rows+' of '+r.blocks+' on their sheet';}
+      else {cls='p-nodim';txt='Not sent yet';}
+      var diff=(r.difference===null||r.difference===undefined)?DASH:((r.difference>=0?'+':'')+(+r.difference).toFixed(3));
+      var dcolor=(v.indexOf('FLAG')===0)?' style="color:#a32d2d;font-weight:600"':'';
+      rows+='<tr><td><b>'+esc(r.challan_no||r.dc)+'</b><div class="sub">'+esc(r.dc)+'</div></td>'
+          + '<td class="sub">'+esc(r.our_vehicle||'')+'</td>'
+          + '<td>'+r.blocks+'</td>'
+          + '<td style="background:#e8f1fc;color:#0c447c">'+(+r.our_total).toFixed(3)+'</td>'
+          + '<td style="background:#faf1de;color:#7a5b12">'+((r.their_total===null||r.their_total===undefined)?DASH:(+r.their_total).toFixed(2))+'</td>'
+          + '<td'+dcolor+'>'+diff+'</td>'
+          + '<td><span class="pill '+cls+'">'+txt+'</span></td>'
+          + '<td class="sub">'+esc(r.state||'')+'</td></tr>';
+    });
+    m.innerHTML='<div class="frow" style="padding:8px 2px;gap:6px">'
+      + '<span class="pill p-load">'+(d.agree||0)+' agree</span>'
+      + '<span class="pill p-orph">'+(d.flagged||0)+' out by more than 1 MT</span>'
+      + '<span class="pill p-mis">'+(d.incomplete||0)+' incomplete</span>'
+      + '<span class="pill p-nodim">'+(d.agency_never_sent||0)+' not sent</span></div>'
+      + '<div class="sub" style="padding:0 2px 8px">One challan is one truck is one weighing, so weight is compared total against total, never block against block. '
+      + '<b>Totals are only compared when every block of the challan is on their sheet</b> &mdash; an incomplete challan is a missing row, not a weight difference, and gets no verdict.</div>'
+      + '<table><thead><tr><th>Challan</th><th>Vehicle</th><th>Blk</th><th>Our MT</th><th>Agency MT</th><th>'+U(916)+' MT</th><th>Verdict</th><th></th></tr></thead><tbody>'+rows+'</tbody></table>'
+      + '<div class="sub" style="margin-top:8px;padding:0 2px">Tolerance 1 MT on the challan total.</div>';
+  }).catch(function(){
+    m.innerHTML='<div class="empty">Could not run the comparison. Reload to retry.</div>';
   });
-  m.innerHTML='<div class="frow" style="padding:8px 2px;gap:6px"><span class="pill p-load">'+nM+' match</span><span class="pill p-mis">'+nT+' within tol</span><span class="pill p-orph">'+nX+' mismatch</span><span class="pill p-nodim">'+nN+' no weight recorded</span></div><div class="sub" style="padding:0 2px 8px">A challan with no arrival weight is not a mismatch. Until a weight is captured at the port there is nothing to reconcile against, and it is counted separately.</div><table><thead><tr><th>DC</th><th>Truck</th><th>Blk</th><th>DC MT</th><th>XLS MT</th><th>'+U(916)+'</th><th>Status</th><th>Port</th></tr></thead><tbody>'+rows+'</tbody></table><div class="sub" style="margin-top:8px;padding:0 2px">DC stored tonnage vs summed arrival net weight per challan. Tolerance 3% or 0.3 MT.</div>';
 }
 function renderB2B(m){
   var rows='',nready=0;
