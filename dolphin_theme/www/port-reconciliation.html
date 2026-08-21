@@ -477,6 +477,10 @@ function doImport(){var f=$('impfile').files[0];var m=$('impmsg');m.style.displa
 /* tabs (panel closes on switch) */
 function tab(t){closePanel();document.querySelectorAll('#pr .tab').forEach(function(x){x.classList.toggle('on',x.dataset.t===t);});document.querySelectorAll('#pr .pane').forEach(function(p){p.classList.remove('on');});$('p-'+t).classList.add('on');}
 document.querySelectorAll('#pr .tab').forEach(function(x){x.addEventListener('click',function(){tab(x.dataset.t);});});
+/* 22 Aug 2026, his call: "let landing be default on reconciliation page". Reconciliation
+   is the only screen with work on it, so that is where the page opens. The pane is built
+   on demand by renderRecon, so it has to be rendered before the switch. */
+try{ renderRecon(); tab('recon'); }catch(e){}
 document.querySelectorAll('#flrow .fl').forEach(function(f){f.addEventListener('click',function(){FILT=f.dataset.f;VMODE='blk';$('v-blk').classList.add('on');$('v-dc').classList.remove('on');$('flrow').style.display='';document.querySelectorAll('#flrow .fl').forEach(function(x){x.classList.remove('on');});f.classList.add('on');closePanel();renderStock();});});
 $('v-blk').addEventListener('click',function(){VMODE='blk';this.classList.add('on');$('v-dc').classList.remove('on');$('flrow').style.display='';closePanel();renderStock();});
 $('v-dc').addEventListener('click',function(){VMODE='dc';this.classList.add('on');$('v-blk').classList.remove('on');$('flrow').style.display='none';closePanel();renderDC();});
