@@ -652,7 +652,12 @@ frappe.provide("dolphin");
      the dropdown, so nothing is taken away from anyone used to finding them there. */
   function abIsLifecycle(it) {
     var s = ((it.group || "") + " " + (it.label || "")).toLowerCase();
-    return /mark as sold|mark as exported|mark shipped|confirm sale|return to draft|return from exported|return to export shipment lot/.test(s);
+    /* 21 Aug 2026, his model and it is the right one: "mark as exported should be under
+       shipping documents only right? under export shipment lot there should be button to
+       move it to shipping documents?" - that button exists but was buried two clicks deep
+       in Actions. Moving a lot on to its Shipping Document is a lifecycle step, so it gets
+       a chip on the bar like the rest. */
+    return /mark as sold|mark as exported|mark shipped|confirm sale|return to draft|return from exported|return to export shipment lot|create shipping document/.test(s);
   }
   function abIsAddBlocks(it) {
     var s = ((it.group || "") + " " + (it.label || "")).toLowerCase();
