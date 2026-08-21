@@ -657,7 +657,7 @@ frappe.provide("dolphin");
        move it to shipping documents?" - that button exists but was buried two clicks deep
        in Actions. Moving a lot on to its Shipping Document is a lifecycle step, so it gets
        a chip on the bar like the rest. */
-    return /mark as sold|mark as exported|mark shipped|confirm sale|return to draft|return from exported|return to export shipment lot|create shipping document|open shipping document/.test(s);
+    return /mark as sold|mark as exported|mark shipped|confirm sale|return to draft|return from exported|return to export shipment lot|create shipping document|open shipping document|fix lot & blocks/.test(s);
   }
   function abIsAddBlocks(it) {
     var s = ((it.group || "") + " " + (it.label || "")).toLowerCase();
