@@ -152,7 +152,7 @@
 (function(){
 function U(n){return String.fromCodePoint(n);}
 var X=U(215),DOT=U(183),DASH=U(8212),CHK=U(10003),AR=U(8594),TRI=U(9656),ARL=U(9666);
-var TOKEN=null,LED=[],LOTS=[],ARRS=[],ADATE={},FILT='await',Q='',VMODE='blk',SEL={},PANEL_I=null;
+var TOKEN=null,LED=[],LOTS=[],ARRS=[],ADATE={},FILT='all'   /* 22 Aug: 'await' is empty while every arrival is a draft, and the screen opened blank */,Q='',VMODE='blk',SEL={},PANEL_I=null;
 function esc(s){return (s==null?'':(''+s)).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
 function $(id){return document.getElementById(id);}
 function api(dt,f,fl,lim){var u='/api/method/frappe.client.get_list?doctype='+encodeURIComponent(dt)+'&filters='+encodeURIComponent(JSON.stringify(f))+'&fields='+encodeURIComponent(JSON.stringify(fl))+'&limit_page_length='+(lim||0);return fetch(u,{credentials:'include'}).then(function(r){return r.json();}).then(function(j){return j.message||[];});}
@@ -489,6 +489,7 @@ document.querySelectorAll('#pr .tab').forEach(function(x){x.addEventListener('cl
    is the only screen with work on it, so that is where the page opens. The pane is built
    on demand by renderRecon, so it has to be rendered before the switch. */
 try{ renderRecon(); tab('recon'); }catch(e){}
+(function(){var f0=document.querySelector('#flrow .fl[data-f="all"]');if(f0){document.querySelectorAll('#flrow .fl').forEach(function(x){x.classList.remove('on');});f0.classList.add('on');}})();
 document.querySelectorAll('#flrow .fl').forEach(function(f){f.addEventListener('click',function(){FILT=f.dataset.f;VMODE='blk';$('v-blk').classList.add('on');$('v-dc').classList.remove('on');$('flrow').style.display='';document.querySelectorAll('#flrow .fl').forEach(function(x){x.classList.remove('on');});f.classList.add('on');closePanel();renderStock();});});
 $('v-blk').addEventListener('click',function(){VMODE='blk';this.classList.add('on');$('v-dc').classList.remove('on');$('flrow').style.display='';closePanel();renderStock();});
 $('v-dc').addEventListener('click',function(){VMODE='dc';this.classList.add('on');$('v-blk').classList.remove('on');$('flrow').style.display='none';closePanel();renderDC();});
