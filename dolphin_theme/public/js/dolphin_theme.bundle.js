@@ -748,6 +748,106 @@ frappe.provide("dolphin");
   }
   /* Day31: list-view action bar — keeps Add (native primary) / Import / Refresh visible,
      harvests the rest of the Client-Script list buttons into a navy Actions dropdown. */
+  /* ---------------------------------------------------------------------------
+     STICKY FILTERS - 21 Aug 2026. His report: "filter is confusing if I click on
+     somewhere and filter never resets after refresh etc either make it obvious
+     that filter is on or off on refresh".
+
+     He is right, and it is worse than confusing. His Shipping Document list read
+     "1 of 1" with a filter he did not set on purpose, while five documents existed.
+     A list that silently hides rows is a list you cannot trust, and on a shipment
+     that is a real hazard - "where did that document go".
+
+     Two changes, which together cover both halves of what he asked for:
+       1. A sticky filter is CLEARED on a fresh page load. Filters set while working
+          survive moving around the app; they do not survive a refresh. A filter that
+          came from the URL (?status=Dispatched) is NEVER cleared - that one was asked
+          for on purpose, and it is how the bird's-eye stage links work.
+       2. Whenever a filter is on, a gold banner says so, says how many rows are being
+          hidden, and clears it in one click.
+     --------------------------------------------------------------------------- */
+  var diFreshLoad = true;
+  var diTotalCache = {};
+
+  function diFilterCss() {
+    if (document.getElementById("di-filter-css")) { return; }
+    var st = document.createElement("style");
+    st.id = "di-filter-css";
+    st.textContent =
+      ".di-filterbanner{display:flex;align-items:center;gap:9px;margin:0 0 8px;padding:8px 13px;" +
+      "background:#fdf6e8;border:1px solid #D4A24A;border-left:5px solid #D4A24A;border-radius:9px;" +
+      "font-size:12.8px;color:#6b4a0e}" +
+      ".di-filterbanner b{color:#8a5a12}" +
+      ".di-fb-dot{width:8px;height:8px;border-radius:50%;background:#D4A24A;flex:none}" +
+      ".di-fb-clear{margin-left:auto;border:1px solid #b8892f;background:#fff;color:#6b4a0e;" +
+      "border-radius:7px;padding:3px 12px;font-size:12px;cursor:pointer;white-space:nowrap}" +
+      ".di-fb-clear:hover{background:#D4A24A;color:#3a2a05}";
+    document.head.appendChild(st);
+  }
+
+  function diFilterCount() {
+    try {
+      var f = window.cur_list && cur_list.filter_area && cur_list.filter_area.get();
+      if (f && f.length != null) { return f.length; }
+    } catch (e) {}
+    return 0;
+  }
+  function diUrlHasFilter() {
+    var q = location.search || "";
+    return q.length > 1 && q.indexOf("=") > -1;
+  }
+  function diClearFilters() {
+    try { cur_list.filter_area.clear(); }
+    catch (e) { try { location.href = location.pathname; } catch (e2) {} }
+  }
+
+  function diPaintFilterBanner(head) {
+    var lv = window.cur_list;
+    if (!lv || !head) { return; }
+    var host = head.parentElement || head;
+    var n = diFilterCount();
+    var b = host.querySelector(".di-filterbanner");
+    if (!n) { if (b) { b.remove(); } return; }
+    diFilterCss();
+    if (!b) {
+      b = document.createElement("div");
+      b.className = "di-filterbanner";
+      host.insertBefore(b, head.nextSibling);
+    }
+    var shown = 0;
+    try { shown = (lv.data || []).length; } catch (e) {}
+    var dt = lv.doctype;
+    var tot = diTotalCache[dt];
+    if (tot == null) {
+      diTotalCache[dt] = -1;
+      try {
+        frappe.db.count(dt).then(function (c) {
+          diTotalCache[dt] = c;
+          try { diPaintFilterBanner(head); } catch (e) {}
+        });
+      } catch (e) {}
+    }
+    var hid = (tot != null && tot >= 0 && tot > shown) ? (tot - shown) : 0;
+    var of = (tot != null && tot >= 0) ? (" of " + tot) : "";
+    b.innerHTML = '<span class="di-fb-dot"></span><b>Filter on</b>&nbsp;&mdash; showing ' +
+      shown + of + (hid ? (", <b>" + hid + " hidden</b>") : "") +
+      '. <button type="button" class="di-fb-clear">Clear filter &amp; show all</button>';
+    var cb = b.querySelector(".di-fb-clear");
+    if (cb) { cb.onclick = function (e) { e.stopPropagation(); diClearFilters(); }; }
+  }
+
+  function diFilterGuard(head) {
+    if (!window.cur_list) { return; }
+    if (diFreshLoad) {
+      diFreshLoad = false;
+      if (!diUrlHasFilter() && diFilterCount() > 0) {
+        diClearFilters();
+        return;
+      }
+    }
+    diPaintFilterBanner(head);
+  }
+
   function buildListBar(head) {
     var bar = head.querySelector(".di-actionbar");
     if (!bar) {
@@ -782,6 +882,7 @@ frappe.provide("dolphin");
     if (!actMenu.querySelector(".di-ab-item")) {
       var e = document.createElement("div"); e.className = "di-ab-empty"; e.textContent = "No extra actions"; actMenu.appendChild(e);
     }
+    diFilterGuard(head);
   }
 
   /* Day31 persistence fix: insert into the ACTIVE page's action area, not a stale/hidden
