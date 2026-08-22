@@ -2354,3 +2354,71 @@ frappe.listview_settings = frappe.listview_settings || {};
   setTimeout(function () { mount(); refresh(true); }, 1100);
   window.addEventListener("focus", function () { refresh(true); });
 })();
+
+/* ============================================================================
+   EVERY DROPDOWN MUST LOOK LIKE A DROPDOWN — 22 Aug 2026.
+
+   His words: "this is the case wherever there is dropdown user has to know it
+   else he will be stuck."
+
+   A Frappe Link or Select field looks exactly like a plain text box until you
+   click it, so a person who does not already know the field is a list simply
+   stops. A caret on the right of every one of them, and a placeholder that says
+   what to do, costs nothing and removes the guess.
+
+   CSS-only for the caret, so there is nothing to throw and nothing to keep in
+   sync. The placeholder is set on a light poll, guarded, and never touches a
+   field a person has already filled.
+   ============================================================================ */
+(function () {
+  if (window.__dolphinDropdownHint) { return; }
+  window.__dolphinDropdownHint = true;
+
+  function addCss() {
+    if (document.getElementById("dolphin-dropdown-hint-css")) { return; }
+    var css =
+      '.frappe-control[data-fieldtype="Link"] .control-input,' +
+      '.frappe-control[data-fieldtype="Select"] .control-input,' +
+      '.frappe-control[data-fieldtype="Dynamic Link"] .control-input{position:relative}' +
+      '.frappe-control[data-fieldtype="Link"] .control-input::after,' +
+      '.frappe-control[data-fieldtype="Dynamic Link"] .control-input::after{' +
+      'content:"\\25BE";position:absolute;right:10px;top:50%;transform:translateY(-50%);' +
+      'pointer-events:none;color:#8a929c;font-size:11px;line-height:1}' +
+      '.frappe-control[data-fieldtype="Link"] .control-input input,' +
+      '.frappe-control[data-fieldtype="Dynamic Link"] .control-input input{padding-right:24px}';
+    var st = document.createElement("style");
+    st.id = "dolphin-dropdown-hint-css";
+    st.textContent = css;
+    (document.head || document.documentElement).appendChild(st);
+  }
+
+  function hintPlaceholders() {
+    try {
+      var sel = '.frappe-control[data-fieldtype="Link"] input,' +
+                '.frappe-control[data-fieldtype="Dynamic Link"] input';
+      var list = document.querySelectorAll(sel);
+      for (var i = 0; i < list.length; i++) {
+        var el = list[i];
+        if (el.getAttribute("data-di-hinted")) { continue; }
+        if (el.value) { continue; }
+        var ph = el.getAttribute("placeholder");
+        if (!ph || ph === "") {
+          el.setAttribute("placeholder", "Click to choose…");
+        }
+        el.setAttribute("data-di-hinted", "1");
+      }
+    } catch (e) { /* a hint must never break a form */ }
+  }
+
+  function start() {
+    addCss();
+    hintPlaceholders();
+    setInterval(hintPlaceholders, 1500);
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", start);
+  } else {
+    start();
+  }
+})();
