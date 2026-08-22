@@ -1,4 +1,122 @@
 /* ============================================================
+   DOLPHIN HANDLER GUARD — added 22 Aug 2026.
+
+   WHY THIS EXISTS (his words): "after deploy nothing previously
+   implemented should change but it keeps happening why?"
+
+   Because every Client Script for a doctype is concatenated into ONE
+   blob and every 'refresh' handler runs in ONE chain. Frappe's wrapper
+   RE-THROWS on the first handler that errors, so every handler AFTER it
+   silently never runs. No dialog, no banner — the screen just quietly
+   loses a button.
+
+   Measured on 22 Aug 2026: 'Local Tax Invoice - Number & Confirm' called
+   frm.dashboard.set_headline_safe(...), which does not exist in this
+   Frappe build. It threw on every submitted invoice, and everything
+   registered after it died — including the Return to Draft button.
+
+   This guard wraps every handler registered through frappe.ui.form.on
+   BEFORE Frappe wraps it, so a failure is contained instead of
+   re-thrown: the rest of the chain keeps running. The failure is NOT
+   hidden — it is logged to the console and shown as a red pill on the
+   page, because a silent failure is the thing we are trying to kill.
+   ============================================================ */
+(function () {
+  if (window.__dolphinHandlerGuard) { return; }
+
+  function install() {
+    if (!(window.frappe && frappe.ui && frappe.ui.form && frappe.ui.form.on)) { return false; }
+    if (window.__dolphinHandlerGuard) { return true; }
+    window.__dolphinHandlerGuard = true;
+    window.dolphinScriptFailures = window.dolphinScriptFailures || [];
+
+    function showBadge() {
+      var n = window.dolphinScriptFailures.length;
+      if (!n || !document.body) { return; }
+      var el = document.getElementById("dolphin-script-guard-pill");
+      if (!el) {
+        el = document.createElement("div");
+        el.id = "dolphin-script-guard-pill";
+        el.style.cssText =
+          "position:fixed;left:14px;bottom:14px;z-index:1060;background:#b3242b;color:#fff;" +
+          "border-radius:16px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer;" +
+          "box-shadow:0 2px 8px rgba(0,0,0,.3);font-family:inherit";
+        el.title = "A script on this page failed. Other scripts were kept running. Click for detail.";
+        el.onclick = function () {
+          var rows = window.dolphinScriptFailures.map(function (f) {
+            return "<tr><td style='padding:4px 8px;border-bottom:1px solid #eee'>" + f.doctype +
+              "</td><td style='padding:4px 8px;border-bottom:1px solid #eee'>" + f.event +
+              "</td><td style='padding:4px 8px;border-bottom:1px solid #eee'>" + f.message + "</td></tr>";
+          }).join("");
+          var d = new frappe.ui.Dialog({
+            title: "Scripts that failed on this page",
+            fields: [{ fieldtype: "HTML", fieldname: "body" }]
+          });
+          d.fields_dict.body.$wrapper.html(
+            "<div style='font-size:12px;margin-bottom:8px'>These were contained so the rest of the page kept working. " +
+            "Report them — a contained failure is still a fault.</div>" +
+            "<table style='width:100%;border-collapse:collapse;font-size:12px'>" +
+            "<tr><th style='text-align:left;padding:4px 8px'>Doctype</th>" +
+            "<th style='text-align:left;padding:4px 8px'>Event</th>" +
+            "<th style='text-align:left;padding:4px 8px'>Error</th></tr>" + rows + "</table>");
+          d.show();
+        };
+        document.body.appendChild(el);
+      }
+      el.textContent = n === 1 ? "1 script failed on this page" : n + " scripts failed on this page";
+    }
+    window.dolphinShowScriptFailures = showBadge;
+
+    function wrap(doctype, event, fn) {
+      if (typeof fn !== "function") { return fn; }
+      return function () {
+        try {
+          return fn.apply(this, arguments);
+        } catch (e) {
+          var msg = String((e && e.message) || e);
+          var seen = window.dolphinScriptFailures.some(function (f) {
+            return f.doctype === doctype && f.event === event && f.message === msg;
+          });
+          if (!seen) { window.dolphinScriptFailures.push({ doctype: doctype, event: event, message: msg }); }
+          try {
+            console.error("[Dolphin guard] " + doctype + " / " + event +
+              " threw and was contained so later scripts still run:", e);
+          } catch (x) { /* ignore */ }
+          try { showBadge(); } catch (x) { /* ignore */ }
+          return undefined;
+        }
+      };
+    }
+
+    var origOn = frappe.ui.form.on;
+    frappe.ui.form.on = function (doctype, a, b) {
+      try {
+        if (typeof a === "string" && typeof b === "function") {
+          return origOn.call(this, doctype, a, wrap(doctype, a, b));
+        }
+        if (a && typeof a === "object") {
+          var safe = {};
+          Object.keys(a).forEach(function (k) { safe[k] = wrap(doctype, k, a[k]); });
+          return origOn.call(this, doctype, safe);
+        }
+      } catch (e) {
+        try { console.error("[Dolphin guard] could not wrap handlers for " + doctype, e); } catch (x) { /* ignore */ }
+      }
+      return origOn.apply(this, arguments);
+    };
+    return true;
+  }
+
+  if (!install()) {
+    var tries = 0;
+    var t = setInterval(function () {
+      tries += 1;
+      if (install() || tries > 200) { clearInterval(t); }
+    }, 25);
+  }
+})();
+
+/* ============================================================
    Dolphin International - desk theme: branding + navigation
    Loaded via app_include_js on every desk page.
    Provides, on EVERY page (current and future doctypes):
