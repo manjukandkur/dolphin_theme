@@ -826,7 +826,16 @@ $('v-blk').addEventListener('click',function(){VMODE='blk';this.classList.add('o
 $('v-dc').addEventListener('click',function(){VMODE='dc';this.classList.add('on');$('v-blk').classList.remove('on');$('flrow').style.display='none';closePanel();renderDC();});
 $('q').addEventListener('input',function(){Q=this.value.trim().toLowerCase();renderStock();});
 var __ib=$('impbtn');if(__ib)__ib.addEventListener('click',toggleImp);$('impbtn2').addEventListener('click',function(){tab('recon');RSUB='src';renderRecon();toggleImp();});var __sy=$('syncbtn');if(__sy)__sy.addEventListener('click',function(){msg('Checking for new mail…');post('dolphin_theme.api_arrivals.sync_arrivals_email',{}).then(function(j){var pr=((j&&j.message&&j.message.parsed)||[]);if(pr.length){var mm=pr.reduce(function(t,x){return t+(x.blocks||0);},0);msg(CHK+' Imported '+pr.length+' arrival'+(pr.length>1?'s':'')+' '+DOT+' '+mm+' block rows');}else{msg('Checked '+DOT+' no new arrivals to import');}loadAll();}).catch(function(){msg('Sync failed',1);});});$('impx').addEventListener('click',toggleImp);$('impgo').addEventListener('click',doImport);
-$('addbtn').addEventListener('click',function(){var b=prompt('Add block at port - enter: block, L, W, H (cm)');if(!b)return;var p=b.split(/[\s,]+/);post('dolphin_theme.api_arrivals.move_to_at_port',{blocks:[{block_no:p[0]}]}).then(function(){msg('Added '+p[0]+' at port');loadAll();});});
+/* 22 Aug 2026: the last native prompt() on this page. It froze the tab and told the
+   user nothing, so it is asked the same way as every other question here. */
+var __ab=$('addbtn');if(__ab)__ab.addEventListener('click',function(){
+  askReason('Add one block at the port','Type the block number. Size can be filled in afterwards on the block itself.',
+    function(v){var p=String(v).split(/[\s,]+/);
+      post('dolphin_theme.api_arrivals.move_to_at_port',{blocks:[{block_no:p[0]}]})
+        .then(function(){msg('Added '+p[0]+' at port');loadAll();})
+        .catch(function(){msg('Could not add it',1);});
+    },{ok:'Add it'});
+});
 $('openbtn').addEventListener('click',function(){toggleImp();msg('Opening stock: paste/import via the .xls box, or use + Add at port for one block',0);});
 loadAll();
 
@@ -1229,36 +1238,52 @@ setInterval(ensureNewLotBtn,1000);
    stopped responding entirely. It also looks like browser junk rather than part
    of the app. This is the same in-page dialog every other reason uses.
    ============================================================================ */
-function askReason(title,hint,cb){
+/* ASKING WHY, WITHOUT A BROWSER BOX. 22 Aug 2026.
+
+   His words: "this is ambigious check now simplify it. If this is like delete then
+   where is trash? give trash access to ilkal user too and allow to put it back if
+   needed from trash. Saves lot of my work since only they will know why they delete
+   or put it back and hope every move is logged".
+
+   So: no native prompt() anywhere (it freezes the page and says nothing about where
+   the row goes), the ready-made reasons are the ones his team actually gives, and
+   the dialog says in one line where the row lands and who can bring it back.
+
+   opts = { chips:[...], ok:'label', foot:'html shown under the buttons' }          */
+function askReason(title,hint,cb,opts){
+  opts=opts||{};
   var old=document.getElementById('__ask'); if(old)old.remove();
   var ov=document.createElement('div'); ov.id='__ask';
   ov.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(15,37,64,.45);z-index:100003;display:flex;align-items:center;justify-content:center';
-  ov.innerHTML='<div style="background:#fff;border-radius:12px;width:460px;max-width:94vw;box-shadow:0 18px 50px rgba(0,0,0,.3)">'
+  var chips='';
+  (opts.chips||[]).forEach(function(c,i){
+    chips+='<span class="rb __chip" data-c="'+esc(c)+'" style="margin:0 6px 6px 0;display:inline-block;font-size:12px">'+esc(c)+'</span>';
+  });
+  ov.innerHTML='<div style="background:#fff;border-radius:12px;width:520px;max-width:94vw;box-shadow:0 18px 50px rgba(0,0,0,.3)">'
     +'<div style="padding:14px 18px;border-bottom:1px solid #eef2f6;font-weight:700;color:#0F2540;font-size:14px">'+esc(title)+'</div>'
     +'<div style="padding:14px 18px">'
-    +(hint?('<div class="sub" style="font-size:12px;margin-bottom:8px">'+hint+'</div>'):'')
-    +'<textarea id="__askt" placeholder="A few words is enough. It stays with the block and shows in Trace." style="width:100%;min-height:74px;border:1px solid #cfd4dc;border-radius:8px;padding:8px;font-size:13px"></textarea>'
+    +(hint?('<div class="sub" style="font-size:12px;margin-bottom:10px">'+hint+'</div>'):'')
+    +(chips?('<div style="margin-bottom:8px">'+chips+'</div>'):'')
+    +'<textarea id="__askt" placeholder="Or type it in your own words." style="width:100%;min-height:64px;border:1px solid #cfd4dc;border-radius:8px;padding:8px;font-size:13px"></textarea>'
     +'<div class="sub" id="__askw" style="color:#a32d2d;font-size:12px;height:16px"></div></div>'
-    +'<div style="padding:12px 18px;border-top:1px solid #eef2f6;text-align:right">'
-    +'<span class="rb" id="__askc" style="margin-right:8px;color:#8a929c">Cancel</span>'
-    +'<span class="rb pri" id="__asko">Save the reason</span></div></div>';
+    +'<div style="padding:12px 18px;border-top:1px solid #eef2f6;display:flex;align-items:center;justify-content:space-between">'
+    +'<div class="sub" style="font-size:11.5px">'+(opts.foot||'')+'</div>'
+    +'<div><span class="rb" id="__askc" style="margin-right:8px;color:#8a929c">Cancel</span>'
+    +'<span class="rb pri" id="__asko">'+esc(opts.ok||'Save the reason')+'</span></div></div></div>';
   document.body.appendChild(ov);
   var ta=ov.querySelector('#__askt'); setTimeout(function(){try{ta.focus();}catch(e){}},60);
+  ov.querySelectorAll('.__chip').forEach(function(el){el.addEventListener('click',function(){
+    ta.value=el.dataset.c; ov.querySelector('#__askw').textContent=''; ta.focus();
+  });});
   ov.addEventListener('mousedown',function(e){if(e.target===ov)ov.remove();});
   ov.querySelector('#__askc').addEventListener('click',function(){ov.remove();});
   ov.querySelector('#__asko').addEventListener('click',function(){
     var v=(ta.value||'').trim();
-    if(v.length<4){ov.querySelector('#__askw').textContent='A real reason is needed — a few words at least.';return;}
+    if(v.length<4){ov.querySelector('#__askw').textContent='Pick one above, or type a few words.';return;}
     ov.remove(); cb(v);
   });
 }
-function _reason(prompt_text){
-  var why=prompt(prompt_text);
-  if(why===null)return null;
-  why=(why||'').trim();
-  if(why.length<4){alert('A real reason is needed — a few words at least. It stays with the block and shows in Trace.');return null;}
-  return why;
-}
+var TRASH_FOOT='It goes to the <b>Trash</b> tab on this page. Ilkal can bring it back.';
 function _machine(){
   try{ return localStorage.getItem('dolphin_machine') || (navigator.platform||'')+' · '+(navigator.userAgent.indexOf('Mac')>=0?'Mac':'PC'); }
   catch(e){ return 'un-named device'; }
@@ -1332,25 +1357,47 @@ function renderQueue(m){
 
 function wireQueueActions(m){
   m.querySelectorAll('[data-note]').forEach(function(el){el.addEventListener('click',function(){
-    var note=_reason('Accept block '+el.dataset.b+' — what is the note?\n\nIt is written onto the block, so it will show in Trace and in "find by note" afterwards.');
-    if(!note)return;
-    post('dolphin_theme.api_arrivals.accept_with_note',{row:el.dataset.note,note:note,machine:_machine()})
-      .then(function(j){var r=(j&&j.message)||{};msg(r.message||(CHK+' '+el.dataset.b+' accepted with note'));loadAll();renderRecon();})
-      .catch(function(){msg('Could not accept',1);});
+    askReason('Accept block '+el.dataset.b,
+      'The note is written onto the block, so it shows in Trace and in "find by note" afterwards.',
+      function(note){
+        post('dolphin_theme.api_arrivals.accept_with_note',{row:el.dataset.note,note:note,machine:_machine()})
+          .then(function(j){var r=(j&&j.message)||{};msg(r.message||(CHK+' '+el.dataset.b+' accepted with note'));loadAll();renderRecon();})
+          .catch(function(){msg('Could not accept',1);});
+      },{ok:'Accept the block',chips:[
+        'Spoke to the agency — it is correct',
+        'Agency mistake, sorted',
+        'Size difference is arithmetic, not a fault',
+        'Opening stock — no challan'
+      ]});
   });});
   m.querySelectorAll('[data-rej]').forEach(function(el){el.addEventListener('click',function(){
-    var why=_reason('Reject the acceptance of '+el.dataset.b+' — why?\n\nThe row goes back to unresolved and the block comes off At Port.');
-    if(!why)return;
-    post('dolphin_theme.api_arrivals.reject_acceptance',{row:el.dataset.rej,reason:why,machine:_machine()})
-      .then(function(){msg(CHK+' Acceptance rejected for '+el.dataset.b);loadAll();renderRecon();})
-      .catch(function(){msg('Could not reject',1);});
+    askReason('Undo the acceptance of block '+el.dataset.b,
+      'The row goes back to unresolved and the block comes off At Port. Nothing is deleted.',
+      function(why){
+        post('dolphin_theme.api_arrivals.reject_acceptance',{row:el.dataset.rej,reason:why,machine:_machine()})
+          .then(function(){msg(CHK+' Acceptance undone for '+el.dataset.b);loadAll();renderRecon();})
+          .catch(function(){msg('Could not undo',1);});
+      },{ok:'Send it back',chips:[
+        'Accepted by mistake',
+        'Agency corrected their sheet',
+        'Wrong block number',
+        'Still checking with the agency'
+      ]});
   });});
   m.querySelectorAll('[data-del]').forEach(function(el){el.addEventListener('click',function(){
-    var why=_reason('Remove this arrival row for '+el.dataset.b+' — why?\n\nNothing is destroyed. It goes to the Trash and can be brought back.');
-    if(!why)return;
-    post('dolphin_theme.api_arrivals.remove_arrival_row',{row:el.dataset.del,reason:why,machine:_machine()})
-      .then(function(){msg(CHK+' Moved to Trash — recoverable');loadAll();renderRecon();})
-      .catch(function(){msg('Could not remove',1);});
+    askReason('Move this arrival row for '+el.dataset.b+' to the Trash',
+      'This does not delete anything. The row leaves this list and waits in the Trash.',
+      function(why){
+        post('dolphin_theme.api_arrivals.remove_arrival_row',{row:el.dataset.del,reason:why,machine:_machine()})
+          .then(function(){msg(CHK+' Moved to the Trash tab — Ilkal can bring it back');loadAll();renderRecon();})
+          .catch(function(){msg('Could not move it',1);});
+      },{ok:'Move to Trash',foot:TRASH_FOOT,chips:[
+        'Same block listed twice by the agency',
+        'Shipping agency mistake, sorted',
+        'It is correct, no problem',
+        'Wrong sheet — not this block',
+        'Number typed wrong'
+      ]});
   });});
 }
 
@@ -1466,11 +1513,18 @@ function renderTrash(m){
       h+='</tbody></table>';
       m.innerHTML=h;
       m.querySelectorAll('[data-restore]').forEach(function(el){el.addEventListener('click',function(){
-        var why=_reason('Recover block '+el.dataset.restore+' from the Trash — why?');
-        if(!why)return;
-        post('dolphin_theme.lifecycle.restore_from_trash',{block:el.dataset.restore,from_name:el.dataset.from,reason:why,machine:_machine()})
-          .then(function(){msg(CHK+' Recovered');renderRecon();loadAll();})
-          .catch(function(){msg('Could not recover — recovery is restricted to Owner/Admin',1);});
+        askReason('Bring block '+el.dataset.restore+' back from the Trash',
+          'It returns to the list it came from, and this recovery is logged with your name.',
+          function(why){
+            post('dolphin_theme.lifecycle.restore_from_trash',{block:el.dataset.restore,from_name:el.dataset.from,reason:why,machine:_machine()})
+              .then(function(){msg(CHK+' Brought back');renderRecon();loadAll();})
+              .catch(function(){msg('Could not bring it back',1);});
+          },{ok:'Bring it back',chips:[
+            'Removed by mistake',
+            'Agency re-sent the row',
+            'Needed for the challan',
+            'The block is genuinely at the port'
+          ]});
       });});
     });
 }
