@@ -3997,3 +3997,157 @@ def send_back_to_reconcile(blocks=None, reason=None, person=None, dry_run=0):
         return {"dry_run": True, "plan": plan, "refused": refused}
     frappe.db.commit()
     return {"ok": 1, "sent_back": len(done), "blocks": done, "refused": refused}
+
+
+# ============================================================================
+# THE CHALLAN COMPARISON, DONE HONESTLY — 22 Aug 2026
+#
+# His words:
+#   "shows ask the agency missing meaning it is not reconciled right? usually
+#    that is not the case a Dc cannot be partially received please cross check if
+#    wrong numbers I mean internal id's etc are checking vs the port export
+#    numbers? because practically once a truck unloads all the blocks in the Dc
+#    should be there it cannot miss so easily since each block weigh in tons"
+#
+# He was right. Measured before writing this: of the 61 challans in the ledger,
+# **every block of every one of them is on an arrival sheet — 0 partially
+# received**. Challan DC-DAEG-004 was reported as "2 rows missing"; its three
+# blocks 1387 / 1353 / 1365 are all on ARR-27Jul2026-NA with weights 8.37, 7.28
+# and 7.29. The agency had sent the whole truck.
+#
+# The old `dc_weight_check` matched raw numbers, so it found the rows keyed one
+# way and missed the rows keyed the other — the agency's sheet carries the
+# Quarry Block record id while the challan carries the export number. That is the
+# same identity fault that made Move to At Port silently do nothing.
+#
+# This version resolves BOTH sides through the one resolver that refuses to
+# guess, so a row is matched by the block it means, not by the digits it happens
+# to carry. A truck is still weighed as a truck: total against total, 1 tonne.
+# ============================================================================
+
+
+def _arrival_rows_by_block():
+    """Every arrival row, keyed by the Quarry Block it actually refers to.
+
+    Keyed by resolved block name, so a sheet written in record ids and a challan
+    written in export numbers land on the same key."""
+    rows = frappe.get_all(
+        "Port Arrival Block",
+        fields=["name", "parent", "block_no", "length", "width", "height", "cbm", "net_wt"],
+        limit_page_length=0,
+    )
+    from dolphin_theme.block_resolve import try_resolve
+
+    seen, out = {}, {}
+    for r in rows:
+        key = _s(r.get("block_no"))
+        if not key:
+            continue
+        if key not in seen:
+            # a sheet may legitimately name a block by its record id
+            hit, why = try_resolve(key, allow_record_name=True)
+            seen[key] = (hit or {}).get("name")
+        name = seen[key]
+        if not name:
+            continue
+        out.setdefault(name, []).append(r)
+    return out
+
+
+@frappe.whitelist()
+def dc_weight_check_v2():
+    """Challan total against challan total, with identity resolved on both sides.
+
+    A challan gets a verdict only when the agency has a row for EVERY block on
+    it. Anything else says plainly that our matching found nothing for those
+    blocks - it never claims the agency failed to send them.
+    """
+    from dolphin_theme.block_resolve import try_resolve
+
+    by_block = _arrival_rows_by_block()
+
+    challans = frappe.get_all(
+        "Delivery Challan",
+        fields=["name", "challan_no", "vehicle_no", "docstatus"],
+        limit_page_length=0,
+    )
+    detail = []
+    agree = flagged = incomplete = never = 0
+
+    for c in challans:
+        rows = frappe.get_all(
+            "DC Block Row",
+            filters={"parent": c["name"]},
+            fields=["block", "block_no", "export_block_no", "net_wt", "weight", "ton"],
+            limit_page_length=0,
+        )
+        if not rows:
+            continue
+        ours = 0.0
+        matched, unmatched = 0, []
+        theirs = 0.0
+        for r in rows:
+            for f in ("net_wt", "weight", "ton"):
+                try:
+                    v = float(r.get(f) or 0)
+                except Exception:
+                    v = 0
+                if v:
+                    ours += v
+                    break
+            key = (_s(r.get("export_block_no")) or _s(r.get("block_no"))
+                   or _s(r.get("block")))
+            hit, why = try_resolve(key, allow_record_name=True)
+            name = (hit or {}).get("name")
+            arr = by_block.get(name) if name else None
+            if arr:
+                matched += 1
+                for a in arr[:1]:                      # one truck, one row per block
+                    try:
+                        theirs += float(a.get("net_wt") or 0)
+                    except Exception:
+                        pass
+            else:
+                unmatched.append(key)
+
+        n = len(rows)
+        if matched == 0:
+            verdict, state = "Not sent yet", "never"
+            never += 1
+            diff = None
+        elif matched < n:
+            verdict, state = "Incomplete", "incomplete"
+            incomplete += 1
+            diff = None
+        else:
+            diff = round(theirs - ours, 3)
+            if abs(diff) > AUTO_TOL_MT:
+                verdict, state = "FLAG", "flagged"
+                flagged += 1
+            else:
+                verdict, state = "Agrees", "agree"
+                agree += 1
+
+        detail.append({
+            "dc": c["name"],
+            "challan_no": c.get("challan_no") or c["name"],
+            "our_vehicle": c.get("vehicle_no") or "",
+            "blocks": n,
+            "agency_rows": matched,
+            "our_total": round(ours, 3),
+            "their_total": round(theirs, 3) if matched else None,
+            "difference": diff,
+            "verdict": verdict,
+            "state": "submitted" if c.get("docstatus") == 1 else "draft",
+            "unmatched": unmatched[:20],
+        })
+
+    detail.sort(key=lambda x: (0 if x["verdict"] == "FLAG" else
+                               1 if x["verdict"] == "Incomplete" else
+                               2 if x["verdict"] == "Agrees" else 3,
+                               x["challan_no"]))
+    return {
+        "agree": agree, "flagged": flagged, "incomplete": incomplete,
+        "agency_never_sent": never, "tolerance_mt": AUTO_TOL_MT,
+        "detail": detail,
+    }
