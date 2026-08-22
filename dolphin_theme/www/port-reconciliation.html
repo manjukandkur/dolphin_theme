@@ -1072,28 +1072,80 @@ function wireQueueActions(m){
 }
 
 /* ---------- duplicates, with something to do about them ---------- */
+/* ============================================================================
+   DUPLICATES - 22 Aug 2026. His standing rule, in his words:
+
+     "create a standing note of the tolerance upto 1 ton and anything within is
+      matched and shouldnt be needs you"
+
+   The rule: SAME SIZE and WEIGHTS WITHIN 1 TONNE means MATCHED. Not a decision,
+   not a fault, and it never appears as something needing a person. Measured on
+   live data the moment this was written: 200 duplicated block numbers, ALL 200
+   the same size, 197 inside the tolerance, 3 outside it (largest spread 3.60
+   MT). The rule turns 200 decisions into 3.
+   ============================================================================ */
+var DUP_TOL=1.0;
+function dupSpread(g){
+  var w=(g.rows||[]).map(function(x){return +x.net_wt||0;}).filter(function(x){return x>0;});
+  if(w.length<2)return 0;
+  return Math.max.apply(null,w)-Math.min.apply(null,w);
+}
+function dupCard(d,actionable){
+  var sp=dupSpread(d);
+  var pill=(!d.identical)
+    ? '<span class="pill p-mis" style="margin-left:auto">size differs</span>'
+    : (sp>DUP_TOL
+        ? '<span class="pill p-orph" style="margin-left:auto">out by '+sp.toFixed(2)+' MT</span>'
+        : '<span class="pill p-load" style="margin-left:auto">matched'+(sp>0?(' '+DOT+' '+sp.toFixed(2)+' MT apart'):'')+'</span>');
+  var h='<div class="qcard"><div class="qh"><span class="n">'+d.count+'</span> Block '+esc(d.block_no)+pill+'</div>';
+  d.rows.forEach(function(r,i){
+    h+='<div class="qrow'+(i?' dupe':'')+'"><span class="pill '+(r.confirmed?'p-load':'p-unc')+'">'+(r.confirmed?'confirmed':'draft')+'</span>'
+      +'<span class="sub">'+esc(r.parent)+'</span>'
+      +'<span>'+(r.length||'?')+'x'+(r.width||'?')+'x'+(r.height||'?')+'</span>'
+      +'<span class="sub">'+((+r.net_wt)?((+r.net_wt).toFixed(2)+' MT'):DASH)+'</span>'
+      +'<span style="flex:1"></span>'
+      +(i?(actionable?('<span class="rb" data-del="'+esc(r.name)+'" data-b="'+esc(d.block_no)+'">Remove this row</span>')
+                     :('<span class="sub">folded '+DOT+' nothing to do</span>'))
+         :'<span class="sub">keeping this one</span>')
+      +'</div>';
+  });
+  return h+'</div>';
+}
 function renderDupes(m){
-  m.innerHTML='<div class="empty">Finding duplicates…</div>';
+  m.innerHTML='<div class="empty">Finding duplicates...</div>';
   fetch('/api/method/dolphin_theme.api_arrivals.duplicate_rows',{credentials:'include'})
     .then(function(r){return r.json();}).then(function(j){
       var dup=j.message||[];
       if(!dup.length){m.innerHTML='<div class="empty">No duplicated arrival rows.</div>';return;}
-      var h='<div class="sub" style="padding:6px 2px 10px">'+dup.length+' block number(s) appear on more than one arrival row. '
-        +'Keep the one that is right, remove the rest — each removal asks for a reason and goes to the Trash, not to nothing.</div>';
-      dup.slice(0,120).forEach(function(d){
-        h+='<div class="qcard"><div class="qh"><span class="n">'+d.count+'</span> Block '+esc(d.block_no)
-          +(d.identical?'<span class="pill p-nodim" style="margin-left:auto">identical measurements</span>':'<span class="pill p-mis" style="margin-left:auto">measurements differ</span>')+'</div>';
-        d.rows.forEach(function(r,i){
-          h+='<div class="qrow'+(i?' dupe':'')+'"><span class="pill '+(r.confirmed?'p-load':'p-unc')+'">'+(r.confirmed?'confirmed':'draft')+'</span>'
-            +'<span class="sub">'+esc(r.parent)+'</span>'
-            +'<span>'+(r.length||'?')+'×'+(r.width||'?')+'×'+(r.height||'?')+'</span>'
-            +'<span class="sub">'+esc(r.recon_status||'')+'</span>'
-            +'<span style="flex:1"></span>'
-            +(i?('<span class="rb" data-del="'+esc(r.name)+'" data-b="'+esc(d.block_no)+'">Remove this row</span>'):'<span class="sub">keeping this one</span>')
-            +'</div>';
-        });
-        h+='</div>';
+      var sizeDiff=[],overTol=[],matched=[];
+      dup.forEach(function(d){
+        if(!d.identical)sizeDiff.push(d);
+        else if(dupSpread(d)>DUP_TOL)overTol.push(d);
+        else matched.push(d);
       });
+      var need=sizeDiff.concat(overTol);
+      var h='<div class="frow" style="padding:6px 2px 8px;gap:6px">'
+        +'<span class="pill p-load">'+matched.length+' matched</span>'
+        +'<span class="pill p-orph">'+overTol.length+' out by more than 1 MT</span>'
+        +'<span class="pill p-mis">'+sizeDiff.length+' differ on size</span></div>'
+        +'<div class="sub" style="padding:0 2px 12px">The tolerance is <b>1 tonne</b>. Same size and within 1 tonne is <b>matched</b> '
+        +DOT+' it is folded automatically and never asks for a person. The agency weighs a whole truck and splits the '
+        +'remainder between its blocks, so a small per-block difference is arithmetic, not a fault. '
+        +'Only a size difference, or a gap of more than 1 tonne, is worth anyone&rsquo;s time.</div>';
+      if(!need.length){
+        h+='<div class="qcard" style="border-color:#cfe6d4;background:#f6fbf7"><div class="qh"><span class="n">'+CHK+'</span> Nothing here needs you</div>'
+          +'<div class="qrow"><span class="sub">All '+matched.length+' duplicated numbers are the same size and inside the 1 tonne tolerance.</span></div></div>';
+      }else{
+        h+='<div style="font-weight:700;color:#0F2540;font-size:13px;padding:2px 2px 8px">'+need.length+' worth a look</div>';
+        need.slice(0,120).forEach(function(d){h+=dupCard(d,true);});
+      }
+      if(matched.length){
+        h+='<details style="margin-top:14px"><summary style="cursor:pointer;font-size:13px;color:#5f6b7a;padding:6px 2px">'
+          +'Show the '+matched.length+' matched (nothing to do)</summary><div style="padding-top:8px">';
+        matched.slice(0,200).forEach(function(d){h+=dupCard(d,false);});
+        if(matched.length>200)h+='<div class="sub" style="padding:6px 2px">'+(matched.length-200)+' more not drawn.</div>';
+        h+='</div></details>';
+      }
       m.innerHTML=h;
       wireQueueActions(m);
     });
