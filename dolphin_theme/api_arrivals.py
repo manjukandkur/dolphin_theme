@@ -4148,11 +4148,26 @@ def _arrival_rows_by_block():
 
     Keyed by resolved block name, so a sheet written in record ids and a challan
     written in export numbers land on the same key."""
+    # 22 Aug 2026, evening. He asked "is this correct?" of a screen showing
+    # "Out by 8.33 MT" on a challan whose every block read "not on their sheet".
+    # It was not. Two faults, both here:
+    #   * this pulled rows from DRAFT arrival sheets and treated them as a
+    #     confirmed weighing. ledger_view has refused to do that since 17 Aug;
+    #     the comparison did not, so the two screens contradicted each other.
+    #   * a block can sit on several sheets (198 duplicates). Taking "the first
+    #     row found" can assemble one challan's agency total out of rows from
+    #     different trucks on different days. That produced -34.82 MT on a
+    #     two-block truck.
+    # Both are fixed: docstatus travels with every row, and the caller may only
+    # give a verdict when every row came from ONE sheet.
+    _ds = _arrival_docstatus()
     rows = frappe.get_all(
         "Port Arrival Block",
         fields=["name", "parent", "block_no", "length", "width", "height", "cbm", "net_wt"],
         limit_page_length=0,
     )
+    for _r in rows:
+        _r["submitted"] = 1 if _ds.get(_r.get("parent")) == 1 else 0
     from dolphin_theme.block_resolve import try_resolve
 
     seen, out, id_only = {}, {}, set()
@@ -4231,6 +4246,7 @@ def dc_weight_check_v2():
         ours = 0.0
         matched, unmatched = 0, []
         theirs = 0.0
+        sheets, per_block, draft_sheet = set(), [], False
         for r in rows:
             try:
                 ours += float(r.get("gross_tonnage") or 0)
@@ -4243,21 +4259,46 @@ def dc_weight_check_v2():
             arr = by_block.get(name) if name else None
             if arr:
                 matched += 1
-                for a in arr[:1]:                      # one truck, one row per block
-                    try:
-                        theirs += float(a.get("net_wt") or 0)
-                    except Exception:
-                        pass
+                for a in arr:
+                    sheets.add(_s(a.get("parent")))
+                    if not a.get("submitted"):
+                        draft_sheet = True
+                a0 = arr[0]
+                per_block.append({"block": key,
+                                  "sheet": _s(a0.get("parent")),
+                                  "submitted": 1 if a0.get("submitted") else 0,
+                                  "port_l": a0.get("length"), "port_w": a0.get("width"),
+                                  "port_h": a0.get("height"), "port_mt": a0.get("net_wt"),
+                                  "on_more_than_one_sheet": len(arr) > 1})
+                try:
+                    theirs += float(a0.get("net_wt") or 0)
+                except Exception:
+                    pass
             else:
                 unmatched.append(key)
+                per_block.append({"block": key, "sheet": None, "submitted": 0,
+                                  "port_l": None, "port_w": None, "port_h": None,
+                                  "port_mt": None, "on_more_than_one_sheet": False})
 
+        # A verdict is only honest when ALL of these hold. Any one missing and the
+        # figures are shown for information with no verdict at all - never a red
+        # number that cannot be justified.
         n = len(rows)
+        one_sheet = len(sheets) == 1
         if matched == 0:
             verdict, state = "Not sent yet", "never"
             never += 1
             diff = None
         elif matched < n:
             verdict, state = "Incomplete", "incomplete"
+            incomplete += 1
+            diff = None
+        elif draft_sheet:
+            verdict, state = "Unconfirmed sheet", "incomplete"
+            incomplete += 1
+            diff = None
+        elif not one_sheet:
+            verdict, state = "Rows from more than one sheet", "incomplete"
             incomplete += 1
             diff = None
         else:
@@ -4281,6 +4322,9 @@ def dc_weight_check_v2():
             "verdict": verdict,
             "state": "submitted" if c.get("docstatus") == 1 else "draft",
             "unmatched": unmatched[:20],
+            "sheets": sorted([x for x in sheets if x])[:6],
+            "any_draft_sheet": 1 if draft_sheet else 0,
+            "per_block": per_block,
         })
 
     detail.sort(key=lambda x: (0 if x["verdict"] == "FLAG" else
