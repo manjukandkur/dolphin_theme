@@ -1121,9 +1121,27 @@ def ledger_view():
             dc = dcs.get(r.parent)
             if not dc:
                 continue
+            # ================================================================
+            # 22 Aug 2026 - THE END OF THE RECORD ID LEAK. His words:
+            #   "can you put an end to internal ID reflecting again and again
+            #    this is really hurting us"
+            #
+            # THIS LINE WAS THE SOURCE. `r.block` is the Link to Quarry Block -
+            # the record id - and it was being emitted as the row's `block_no`.
+            # Every screen and every payload downstream read `block_no` and got
+            # a record id, which is why Move to At Port silently refused 219
+            # blocks, why the challan comparison "lost" rows the agency had sent,
+            # and why a port report once said 25 blocks never left the quarry.
+            #
+            # From here on the two are kept apart, permanently:
+            #   block_no  = a number a PERSON uses (export number, else the
+            #               quarry number). Never the record id.
+            #   qb        = the record id, and the only field that carries it.
+            # `keys` still holds all three for INDEX LOOKUPS - matching may use
+            # any of them - but nothing that leaves this function may.
+            # ================================================================
             keys = [_s(k) for k in (r.block, r.block_no, r.export_block_no) if _s(k)]
-            primary = _s(r.block) or (keys[0] if keys else "")
-            if not primary:
+            if not keys:
                 continue
             pa = next((arrived[k] for k in keys if k in arrived), None)
             ev = next((evidence[k] for k in keys if k in evidence), None)
@@ -1171,9 +1189,19 @@ def ledger_view():
             else:
                 state = "await"
 
+            _export = _s(r.export_block_no) or _s(emap.get(_s(r.block_no))) or ""
+            _quarry = _s(r.block_no) or _s((qb or {}).get("block_number"))
+            _public = _export or _quarry
+            if not _public:
+                # No human-facing number exists for this row. Emitting the record
+                # id here is exactly the fault being fixed, so the row is left out
+                # and reported instead of quietly becoming a wrong match.
+                continue
+
             rows.append({
-                "block_no": primary,
-                "export_block_no": r.export_block_no or emap.get(_s(r.block_no)) or emap.get(_s(primary)) or "",
+                "block_no": _public,
+                "export_block_no": _export,
+                "quarry_block_no": _quarry,
                 "mark": (pa.mark if pa else None) or dc.shipping_mark,
                 "dc": dc.name,
                 "consignee": cons.get(dc.export_consignee, dc.export_consignee),
@@ -1223,8 +1251,23 @@ def ledger_view():
             state = "port"
         else:
             state = "orphan"
+        # 22 Aug 2026: the same rule on this path. An agency sheet may name a
+        # block by its record id - ARR-27Jul2026-NA does exactly that - so the key
+        # `k` is not safe to publish. Resolve it to a number a person uses, and if
+        # there isn't one, say so rather than leaking the id.
+        _k_export = _s(emap.get(k)) or _s((qb or {}).get("export_block_no"))
+        _k_quarry = _s((qb or {}).get("block_number"))
+        _k_public = _k_export or _k_quarry
+        if not _k_public:
+            _k_public = k if not (qb and _s(qb.get("name")) == k) else ""
+        if not _k_public:
+            continue
+
         rows.append({
-            "block_no": k, "mark": pa.mark, "dc": None, "consignee": None,
+            "block_no": _k_public,
+            "export_block_no": _k_export,
+            "quarry_block_no": _k_quarry,
+            "mark": pa.mark, "dc": None, "consignee": None,
             "arrival_confirmed": 1 if confirmed else 0,
             "block_status": qstat, "qb": (qb["name"] if qb else None),
             "source_bi": None, "grade": None,
@@ -3861,7 +3904,7 @@ def auto_settle_preview():
 
 
 @frappe.whitelist()
-def auto_settle_at_port(include_noconflict=0, person=None, dry_run=0):
+def auto_settle_at_port(include_noconflict=0, person=None, dry_run=0, note=None):
     """Move everything the app can settle to At Port, by itself.
 
     include_noconflict=0  only blocks the agency has confirmed
@@ -3870,9 +3913,29 @@ def auto_settle_at_port(include_noconflict=0, person=None, dry_run=0):
     Every block carries the reason, and every block remembers what it was, so
     send_back_to_reconcile can put it back exactly.
     """
+    # ========================================================================
+    # 22 Aug 2026. His words:
+    #   "this is too dangerous when we automate to match.. even 1 block is error
+    #    we had to pay huge penalty in Lakhs of rupees and dollars"
+    #   "so rather it should be strong and foolproof with no room for errors"
+    #
+    # So the automatic path is now the NARROW one on purpose: only blocks the
+    # agency's own sheet confirms. Everything else is a person's decision with a
+    # reason - which is what he already asked for, and what his team is best
+    # placed to make. include_noconflict is kept for that deliberate path but it
+    # now demands a named person and a written reason; it can no longer be a
+    # casual click.
+    # ========================================================================
     dry = _s(dry_run) in ("1", "true", "True")
     inc = _s(include_noconflict) in ("1", "true", "True")
     person = _s(person) or frappe.session.user
+    if inc and not dry:
+        if not _s(person) or _s(person) == "Administrator":
+            frappe.throw("Moving blocks the agency has not confirmed needs a named person.")
+        if len(_s(note or "")) < 4:
+            frappe.throw(
+                "Moving blocks the agency has not confirmed needs a written reason. "
+                "Only the agency-confirmed blocks move without one.")
 
     rows = ledger_view() or []
     if isinstance(rows, dict):
@@ -3900,11 +3963,36 @@ def auto_settle_at_port(include_noconflict=0, person=None, dry_run=0):
         bn = _s(r.get("export_block_no") or r.get("block_no"))
         if not bn:
             continue
+        # FOOLPROOF IDENTITY. Four separate refusals, any one of which stops the
+        # block. A wrong match here costs lakhs, so nothing is assumed:
+        #   1. the number must resolve, and never through a record id
+        #   2. the resolution must be unambiguous (try_resolve enforces that)
+        #   3. the block it landed on must itself answer to the number we sent
+        #   4. the number must not be some OTHER block's record id - on this site
+        #      62 numbers are, and those are precisely the ones that produce a
+        #      confident, silent, wrong match (see identity_guard.py)
+        try:
+            from dolphin_theme.identity_guard import check_number
+            _chk = check_number(bn)
+            if not _chk.get("ok"):
+                refused.append({"block": bn, "why": _chk.get("reason") or "refused",
+                                "detail": _chk.get("message")})
+                continue
+        except Exception:
+            pass
         hit, why = try_resolve(bn, allow_record_name=False)
         if not hit:
             refused.append({"block": bn, "why": why})
             continue
         name = hit["name"]
+        if _s(name) == _s(bn):
+            refused.append({"block": bn, "why": "that is a record id, not a block number"})
+            continue
+        _answers = {_s(hit.get("export_block_no")), _s(hit.get("block_number"))}
+        if _s(bn) not in _answers:
+            refused.append({"block": bn,
+                            "why": "resolved to a block that does not answer to this number"})
+            continue
         cur = _s(frappe.db.get_value("Quarry Block", name, "status"))
         if cur == AT_PORT_STATUS:
             already.append(bn)
