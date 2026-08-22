@@ -4461,10 +4461,36 @@ def dc_weight_check_v2():
     by_number = _arrival_rows_by_number()
     q2e, e2q = _other_number_index()
 
-    # rows from sheets that are written in export numbers, keyed by that number
+    # THE AGENCY SENDS A RUNNING STOCK LIST, NOT ONE SHEET PER TRUCK.
+    #
+    # 23 Aug 2026, counted on the live site:
+    #
+    #     ARR-30Jul2026-NA    199 distinct numbers
+    #     ARR-30Jul2026-NA-2  192   - shares 192 with the one above
+    #     ARR-05Aug2026-NA    200   - shares 199
+    #     ARR-13Aug2026-NA    200   - shares 199
+    #
+    # Four sheets, the same 200 blocks. And the 31 blocks that were on the 27 Jul
+    # sheet but have since dropped off it are, every one of them, already in a
+    # shipment lot. So each sheet is the agency telling us what is standing at the
+    # port THAT DAY - a block joins the list when it arrives and leaves it when it
+    # is loaded.
+    #
+    # That is also what the 198 "duplicates" were: not duplicates at all, the same
+    # list arriving again the following week.
+    #
+    # So a block is read from the LATEST sheet that carries it. One weight per
+    # block, chosen by date and not by whichever row was found first - which is
+    # what produced -34.82 MT on a two-block truck back on 22 Aug.
     _system, _expmap, _qrymap = _sheet_number_system()
     _ds_all = _arrival_docstatus()
-    by_export = {}
+    _when = {}
+    for a in frappe.get_all("Port Arrival",
+                            fields=["name", "arrival_date", "creation"],
+                            limit_page_length=0):
+        _when[_s(a.name)] = _s(a.get("arrival_date") or a.get("creation"))
+
+    by_export, _seen_at = {}, {}
     for r in frappe.get_all(
             "Port Arrival Block",
             fields=["name", "parent", "block_no", "length", "width", "height",
@@ -4477,7 +4503,12 @@ def dc_weight_check_v2():
         if len(_expmap.get(k, set())) != 1:
             continue                      # two blocks export under it - never guess
         r["submitted"] = 1 if _ds_all.get(sheet) == 1 else 0
-        by_export.setdefault(k, []).append(r)
+        when = _when.get(sheet, "")
+        # keep the newest row for this block, and only that one
+        if k in _seen_at and _seen_at[k] >= when:
+            continue
+        _seen_at[k] = when
+        by_export[k] = [r]
 
     def _agency_rows(written, quarry_no, export_no):
         """The agency's rows for one block on a challan, found the way a person
@@ -4591,7 +4622,14 @@ def dc_weight_check_v2():
         # figures are shown for information with no verdict at all - never a red
         # number that cannot be justified.
         n = len(rows)
-        one_sheet = len(sheets) == 1
+        # 23 Aug 2026: "all rows from ONE sheet" was the right guard when a sheet
+        # was thought to be one truck's weighing. It is the wrong guard for a
+        # running stock list, where a block naturally appears on every sheet since
+        # it arrived - it refused a verdict on almost every challan for a reason
+        # that is not a fault. What actually has to hold is that no block is
+        # counted twice, and that is now guaranteed upstream: exactly one row per
+        # block, taken from the newest sheet carrying it.
+        one_sheet = True
         if matched == 0:
             verdict, state = "Not sent yet", "never"
             never += 1
