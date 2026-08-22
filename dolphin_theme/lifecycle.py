@@ -68,6 +68,22 @@ REVERSE_TAG = "[DI-REVERSE]"
 
 RECOVERY_ROLES = {"Dolphin Owner", "Dolphin Super Admin", "Dolphin Admin", "System Manager"}
 
+# 22 Aug 2026, his instruction, verbatim:
+#   "give trash access to ilkal user too and allow to put it back if needed from
+#    trash. Saves lot of my work since only they will know why they delete or put
+#    it back and hope every move is logged"
+#
+# He is right. The person who took a row off the sheet is the only one who knows
+# why, and making him the bottleneck for putting it back helps nobody. Bringing a
+# row back is not destructive - it restores exactly what was removed - and both
+# the removal and the restore are written onto the block with reason, person and
+# machine, so Trace shows the whole round trip. Setting up the stage ladder stays
+# admin-only; that is a different kind of action.
+TRASH_ROLES = RECOVERY_ROLES | {
+    "Dolphin Ilkal", "Dolphin Bangalore", "Dolphin Quarry",
+    "Dolphin Local Sales", "Dolphin Sales", "Dolphin Entry",
+}
+
 
 # ---------------------------------------------------------------------------
 # One-time, idempotent: make the new stages selectable
@@ -453,7 +469,7 @@ def restore_from_trash(block=None, from_name=None, reason=None, machine=None,
 
     Recovery is restricted by role (A1 Option A). When Option B lands, the
     password check goes into `_authorise` and this signature already accepts it."""
-    _require_role(RECOVERY_ROLES, "recover a block from the Trash")
+    _require_role(TRASH_ROLES, "bring a block back from the Trash")
     auth = _authorise(reason, machine, password, person)
     try:
         hit = resolve_one(block, allow_record_name=True)
