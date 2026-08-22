@@ -123,7 +123,7 @@
       <span class="gh" id="addbtn">+ Add at port</span><span class="gh" id="openbtn">&#9638; Opening stock</span>
     </div>
     <div class="frow" id="flrow">
-      <span class="fl on" data-f="await">Awaiting arrival</span><span class="fl" data-f="all">All</span><span class="fl" data-f="port">At port</span>
+      <span class="fl" data-f="await">Awaiting arrival</span><span class="fl on" data-f="all">All</span><span class="fl" data-f="port">At port</span>
       <span class="fl" data-f="lot">In lot</span><span class="fl" data-f="flag">Needs attention</span><span class="fl" data-f="excess">Excess</span><span class="fl" data-f="load">Loaded</span>
     </div>
     <div class="bulk" id="bulk">
@@ -524,11 +524,19 @@ function renderSrc(m){
       var email=(s.provenance==='email');
       var badge='<span class="pill '+(email?'p-port':'p-await')+'">'+(email?'Arrivals email':'Direct import')+'</span>';
       var who=email?esc(s.sender||'dolphin.arrivals@gmail.com'):'uploaded';
+      /* 22 Aug, his words: "spreadsheets should open as pop up rather downloading everytime
+         to view". Every sheet now opens in the viewer that already existed. The download did
+         not disappear - it is inside the pop-up as "Download original .xls", where it belongs:
+         you look first, you save only if you want the file. */
       var isFile=(s.file&&(''+s.file).charAt(0)==='/');
-      var nm=isFile?('<a href="'+esc(s.file)+'" target="_blank" style="color:#185fa5;text-decoration:none">'+esc(s.file)+'</a>')
-                   :('<span class="srcopen" data-arr="'+esc(s.arrival)+'" style="color:#185fa5;cursor:pointer">'+esc(s.file||s.arrival)+'</span>');
-      var act=isFile?('<a class="rb" href="'+esc(s.file)+'" target="_blank" title="Open the .xls file">'+U(11015)+' Open xls</a>')
-                    :('<span class="rb" data-arr="'+esc(s.arrival)+'" title="Open arrival record">'+U(128065)+' View</span>');
+      var shortName=isFile?String(s.file).split('/').pop():(s.file||s.arrival);
+      var canView=!!s.arrival;
+      var nm=canView
+        ? ('<span class="srcopen" data-arr="'+esc(s.arrival)+'" style="color:#185fa5;cursor:pointer" title="Open the sheet here">'+esc(shortName)+'</span>')
+        : ('<a href="'+esc(s.file)+'" target="_blank" style="color:#185fa5;text-decoration:none">'+esc(shortName)+'</a>');
+      var act=canView
+        ? ('<span class="rb" data-arr="'+esc(s.arrival)+'" title="Open the sheet here, without downloading it">'+U(128065)+' Open sheet</span>')
+        : ('<a class="rb" href="'+esc(s.file)+'" target="_blank" title="No record behind this file - opens the raw .xls">'+U(11015)+' Open file</a>');
       h+='<div style="display:flex;align-items:center;gap:10px;padding:10px 4px;border-bottom:1px solid #eef2f6"><span class="eye" data-arr="'+esc(s.arrival)+'" style="cursor:pointer">'+U(email?9993:8593)+'</span><div style="flex:1"><div>'+nm+' <span class="sub">'+DOT+' '+esc(s.sheet||'')+' '+DOT+' '+s.rows+' rows</span></div><div class="sub">'+badge+' '+who+'</div></div>'+act+'<span class="sub" style="margin-left:8px">'+esc(s.date||'')+'</span></div>';
     });
     m.innerHTML=h;
@@ -761,7 +769,7 @@ ov.addEventListener('click',function(e){if(e.target===ov)closePanel();});
 function closePanel(){var ov=$('__ov');if(ov){ov.className='pop';ov.innerHTML='';}}
 
 
-function openArrivalXls(name){var ov=$('__ov');if(!ov){ov=document.createElement('div');ov.id='__ov';document.body.appendChild(ov);}ov.className='pop on';ov.innerHTML='<div class="popbox"><div class="pophd"><b style="flex:1;font-size:13px">'+esc(name)+' · source XLS</b><span class="rb" id="__prt">'+U(128424)+' Print / PDF</span><span class="rb" id="__cl">✕ Close</span></div><div id="__xg" style="padding:12px;overflow:auto;max-height:76vh"><div class="sub">Loading sheet…</div></div></div>';var cl=ov.querySelector('#__cl');if(cl)cl.addEventListener('click',closePanel);var prt=ov.querySelector('#__prt');if(prt)prt.addEventListener('click',function(){var g=document.getElementById('__xg');if(!g)return;var w=window.open('','_blank');if(!w)return;w.document.write('<html><head><title>'+esc(name)+'</title><style>table{border-collapse:collapse;font-family:monospace;font-size:11px}td{border:.5px solid #999;padding:2px 6px;white-space:nowrap}</style></head><body><h3>'+esc(name)+'</h3>'+g.innerHTML+'</body></html>');w.document.close();w.focus();setTimeout(function(){w.print();},300);});ov.addEventListener('click',function(e){if(e.target===ov)closePanel();});fetch('/api/method/dolphin_theme.api_arrivals.arrival_xls_grid?arrival='+encodeURIComponent(name),{credentials:'include'}).then(function(r){return r.json();}).then(function(j){var m=(j&&j.message)||{};var box=document.getElementById('__xg');if(!box)return;if(m.error){box.innerHTML='<div class="sub" style="color:#a32d2d">'+esc(m.error)+'</div>';return;}var g=m.grid||[],tg=m.tags||[];if(!g.length){box.innerHTML='<div class="sub">Empty sheet</div>';return;}var col={parsed:'#eaf3de',skip:'#f1efe8',head:'#eceae3',pre:'#ffffff'};var h='<div class="sub" style="margin-bottom:8px">Sheet <b>'+esc(m.sheet||'')+'</b>'+(m.file?' · <a href="'+esc(m.file)+'" target="_blank" style="color:#2490ef">&#8595; Download original .xls</a>':'')+' · '+((m.counts&&m.counts.parsed)||0)+' parsed · '+((m.counts&&m.counts.skipped)||0)+' skipped</div><table style="border-collapse:collapse;font-size:11px;font-family:monospace">';var CO=m.colors||[],hasC=!!m.has_colors;g.forEach(function(row,ri){var rowbg=hasC?'#ffffff':(col[tg[ri]]||'#ffffff');var crow=CO[ri]||[];h+='<tr><td style="border:.5px solid #d3d1c7;padding:2px 6px;color:#8a8880;background:#fbfbf9">'+(ri+1)+'</td>';row.forEach(function(cv,ci){var bg=(crow[ci]||rowbg);h+='<td style="border:.5px solid #d3d1c7;padding:2px 6px;white-space:nowrap;background:'+bg+'">'+esc(cv==null?'':cv)+'</td>';});h+='</tr>';});h+='</table><div class="sub" style="margin-top:8px"><span style="background:#eaf3de;padding:1px 6px">parsed</span> <span style="background:#f1efe8;padding:1px 6px">skipped</span></div>';box.innerHTML=h;}).catch(function(){var box=document.getElementById('__xg');if(box)box.innerHTML='<div class="sub" style="color:#a32d2d">Could not load sheet (endpoint may still be deploying).</div>';});}
+function openArrivalXls(name){var ov=$('__ov');if(!ov){ov=document.createElement('div');ov.id='__ov';document.body.appendChild(ov);}ov.className='pop on';ov.innerHTML='<div class="popbox"><div class="pophd"><b style="flex:1;font-size:13px">'+esc(name)+' · source XLS</b><span class="rb" id="__prt">'+U(128424)+' Print / PDF</span><span class="rb" id="__cl">✕ Close</span></div><div id="__xg" style="padding:12px;overflow:auto;max-height:76vh"><div class="sub">Loading sheet…</div></div></div>';var cl=ov.querySelector('#__cl');if(cl)cl.addEventListener('click',closePanel);var prt=ov.querySelector('#__prt');if(prt)prt.addEventListener('click',function(){var g=document.getElementById('__xg');if(!g)return;var w=window.open('','_blank');if(!w)return;w.document.write('<html><head><title>'+esc(name)+'</title><style>table{border-collapse:collapse;font-family:monospace;font-size:11px}td{border:.5px solid #999;padding:2px 6px;white-space:nowrap}</style></head><body><h3>'+esc(name)+'</h3>'+g.innerHTML+'</body></html>');w.document.close();w.focus();setTimeout(function(){w.print();},300);});ov.addEventListener('click',function(e){if(e.target===ov)closePanel();});fetch('/api/method/dolphin_theme.api_arrivals.arrival_xls_grid?arrival='+encodeURIComponent(name),{credentials:'include'}).then(function(r){return r.json();}).then(function(j){var m=(j&&j.message)||{};var box=document.getElementById('__xg');if(!box)return;if(m.error){var _pl=/no spreadsheet/i.test(String(m.error))?'This record has no spreadsheet behind it '+DOT+' it came in as an email with nothing to read, or the sheet was never attached. Nothing is wrong with the record.':esc(m.error);box.innerHTML='<div class="sub" style="padding:6px 2px">'+_pl+'</div>';return;}var g=m.grid||[],tg=m.tags||[];if(!g.length){box.innerHTML='<div class="sub">Empty sheet</div>';return;}var col={parsed:'#eaf3de',skip:'#f1efe8',head:'#eceae3',pre:'#ffffff'};var h='<div class="sub" style="margin-bottom:8px">Sheet <b>'+esc(m.sheet||'')+'</b>'+(m.file?' · <a href="'+esc(m.file)+'" target="_blank" style="color:#2490ef">&#8595; Download original .xls</a>':'')+' · '+((m.counts&&m.counts.parsed)||0)+' parsed · '+((m.counts&&m.counts.skipped)||0)+' skipped</div><table style="border-collapse:collapse;font-size:11px;font-family:monospace">';var CO=m.colors||[],hasC=!!m.has_colors;g.forEach(function(row,ri){var rowbg=hasC?'#ffffff':(col[tg[ri]]||'#ffffff');var crow=CO[ri]||[];h+='<tr><td style="border:.5px solid #d3d1c7;padding:2px 6px;color:#8a8880;background:#fbfbf9">'+(ri+1)+'</td>';row.forEach(function(cv,ci){var bg=(crow[ci]||rowbg);h+='<td style="border:.5px solid #d3d1c7;padding:2px 6px;white-space:nowrap;background:'+bg+'">'+esc(cv==null?'':cv)+'</td>';});h+='</tr>';});h+='</table><div class="sub" style="margin-top:8px"><span style="background:#eaf3de;padding:1px 6px">parsed</span> <span style="background:#f1efe8;padding:1px 6px">skipped</span></div>';box.innerHTML=h;}).catch(function(){var box=document.getElementById('__xg');if(box)box.innerHTML='<div class="sub" style="color:#a32d2d">Could not load sheet (endpoint may still be deploying).</div>';});}
 
 function addHeaderNav(){
   if(window.self!==window.top) return; /* embedded in desk page -> desk provides nav */
@@ -1317,19 +1325,27 @@ function renderTrash(m){
       var ok = (m.processed_fine || []).length;
       var h = "";
       if (!missed.length) {
+        /* 22 Aug, his words: "it is hard for layman to understand what you are trying to say
+           simply say received new mails on so and so date but they were not arrival mails with
+           xls attachment etc your message is scary". Nothing here is an alarm - it is a mailbox
+           summary. Plain words, calm colours. */
         h += '<div style="background:#e8f6f0;color:#0f6e56;padding:12px 14px;border-radius:8px;font-weight:700">' +
-             '&#10003; Nothing missed. All ' + ok + ' arrival emails became a Port Arrival.</div>';
+             '&#10003; All ' + ok + ' arrival sheet(s) loaded. Nothing waiting.</div>';
       } else {
-        h += '<div style="background:#fdecea;color:#9c2c20;padding:12px 14px;border-radius:8px;font-weight:700">' +
-             missed.length + ' arrival email(s) never became an arrival &middot; ' + ok + ' processed fine</div>';
+        h += '<div style="background:#fff7ec;color:#8a5a12;padding:12px 14px;border-radius:8px;font-weight:700">' +
+             ok + ' arrival sheet(s) loaded. ' + missed.length + ' other mail' + (missed.length===1?'':'s') +
+             ' arrived that we could not read as an arrival sheet &mdash; listed below so you can see what came in.</div>';
       }
       if (missed.length) {
-        h += '<div style="margin-top:14px;font-weight:700">Emails that never became an arrival</div><table style="width:100%;border-collapse:collapse;margin-top:6px">';
+        h += '<div style="margin-top:14px;font-weight:700">Mail received that was not an arrival sheet</div>'
+           + '<div class="sub" style="font-size:12px;margin:2px 0 6px">These are ordinary emails &mdash; usually no .xls attached, or the attachment was not a block list. '
+           + 'Nothing is lost and nothing is broken. Open one to see what came in.</div>'
+           + '<table style="width:100%;border-collapse:collapse;margin-top:6px">';
         missed.forEach(function (x) {
           h += '<tr><td style="border-bottom:1px solid #e3e8ee;padding:7px 8px 7px 0;white-space:nowrap;color:#69788a">' +
                esc2((x.received || "").slice(0, 16)) + '</td><td style="border-bottom:1px solid #e3e8ee;padding:7px 0">' +
                esc2(x.subject) + '<div style="font-size:12px;color:#69788a">' + esc2(x.sender) +
-               (x.has_attachment ? ' &middot; has an attachment' : ' &middot; no attachment') +
+               (x.has_attachment ? ' &middot; had an attachment, but it was not a block list' : ' &middot; no .xls attached') +
                (x.email ? ' &middot; <a href="#" data-xls-email="' + esc2(x.email) + '" style="color:#b8892f;font-weight:700">View sheet</a>' : '') +
                '</div><div class="xlshost"></div></td></tr>';
         });
