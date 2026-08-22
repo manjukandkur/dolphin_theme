@@ -203,43 +203,139 @@ function renderCmp(m){
   post('dc_weight_check',{}).then(function(j){
     var d=(j&&j.message)||{},list=d.detail||[];
     if(!list.length){m.innerHTML='<div class="empty">Nothing to compare yet.</div>';return;}
-    var rows='';
-    /* Work first, settled second, nothing-to-do last. Ranking "not sent" alongside
-       "incomplete" buried the 37 challans that need a person under 93 that do not. */
-    function rank(r){
-      var v=String(r.verdict||'');
-      if(v.indexOf('FLAG')===0)return 0;
-      if(v.indexOf('Incomplete')===0)return 1;
-      if(v.indexOf('Agrees')===0)return 2;
-      return 3;
-    }
-    list.sort(function(a,b){ return rank(a)-rank(b); });
-    list.forEach(function(r){
+    /* ========================================================================
+       22 Aug 2026. His words: "please resolve this also in similar since this
+       adds to more confusion rather than helping".
+
+       He was right, and the confusion was ours. On an incomplete challan the
+       screen printed "Our MT 34.199" beside "Agency MT 8.37" — which reads as a
+       26 tonne discrepancy when it is nothing of the sort: the agency had sent
+       1 row of 3, so 8.37 is one block's share, not a total. **A partial sum is
+       not a total and must never be shown next to one.** Those cells are now
+       blank with the count of missing rows, and the whole group is folded away
+       under its own heading, because a missing row from the agency is a
+       conversation with them, not work for his staff.
+       ======================================================================== */
+    function cmpRow(r,showTheirs){
       var v=String(r.verdict||''),cls,txt;
       if(v.indexOf('FLAG')===0){cls='p-orph';txt='Out by '+Math.abs(+r.difference).toFixed(2)+' MT';}
       else if(v.indexOf('Agrees')===0){cls='p-load';txt='Within 1 MT';}
-      else if(v.indexOf('Incomplete')===0){cls='p-mis';var _miss=(+r.blocks||0)-(+r.agency_rows||0);txt=_miss+' row'+(_miss===1?'':'s')+' missing '+DASH+' ask the agency';}
+      else if(v.indexOf('Incomplete')===0){cls='p-mis';var _m=(+r.blocks||0)-(+r.agency_rows||0);txt=_m+' row'+(_m===1?'':'s')+' missing '+DASH+' ask the agency';}
       else {cls='p-nodim';txt='Not sent yet';}
-      var diff=(r.difference===null||r.difference===undefined)?DASH:((r.difference>=0?'+':'')+(+r.difference).toFixed(3));
+      var theirs=showTheirs
+        ? ((r.their_total===null||r.their_total===undefined)?DASH:(+r.their_total).toFixed(2))
+        : ('<span class="sub">'+(+r.agency_rows||0)+' of '+(+r.blocks||0)+' rows</span>');
+      var diff=(showTheirs&&!(r.difference===null||r.difference===undefined))
+        ? ((r.difference>=0?'+':'')+(+r.difference).toFixed(3)) : DASH;
       var dcolor=(v.indexOf('FLAG')===0)?' style="color:#a32d2d;font-weight:600"':'';
-      rows+='<tr><td><b>'+esc(r.challan_no||r.dc)+'</b><div class="sub">'+esc(r.dc)+'</div></td>'
-          + '<td class="sub">'+esc(r.our_vehicle||'')+'</td>'
-          + '<td>'+r.blocks+'</td>'
-          + '<td style="background:#e8f1fc;color:#0c447c">'+(+r.our_total).toFixed(3)+'</td>'
-          + '<td style="background:#faf1de;color:#7a5b12">'+((r.their_total===null||r.their_total===undefined)?DASH:(+r.their_total).toFixed(2))+'</td>'
-          + '<td'+dcolor+'>'+diff+'</td>'
-          + '<td><span class="pill '+cls+'">'+txt+'</span></td>'
-          + '<td class="sub">'+esc(r.state||'')+'</td></tr>';
+      /* 22 Aug, his words: "you have missed out so many things like DC blocks with dc eye
+         view etc and moving options to at port by selecting". Both are back, on every row:
+         a tick box to select the challan, the eye that opens the challan document, and a
+         caret that lists the challan's own blocks inline. */
+      var mine=(typeof LED!=='undefined'?LED:[]).filter(function(x){return x.dc===r.dc;});
+      var movable=mine.filter(function(x){return x.state!=='port'&&x.state!=='lot'&&x.state!=='load';});
+      return '<tr><td>'+(movable.length?('<input type="checkbox" class="dcck" data-dc="'+esc(r.dc)+'">'):'')
+        + '<b style="margin-left:6px">'+esc(r.challan_no||r.dc)+'</b>'
+        + ' <span class="eye" data-dcdoc="'+esc(r.dc)+'" title="Open this challan">'+U(128065)+'</span>'
+        + (mine.length?(' <span class="eye" data-dcexp="'+esc(r.dc)+'" title="Show the blocks on this challan">'+U(9662)+'</span>'):'')
+        + '<div class="sub">'+esc(r.dc)+(movable.length?(' '+DOT+' '+movable.length+' not at port'):'')+'</div></td>'
+        + '<td class="sub">'+esc(r.our_vehicle||'')+'</td>'
+        + '<td>'+r.blocks+'</td>'
+        + '<td style="background:#e8f1fc;color:#0c447c">'+(+r.our_total).toFixed(3)+'</td>'
+        + '<td style="background:#faf1de;color:#7a5b12">'+theirs+'</td>'
+        + '<td'+dcolor+'>'+diff+'</td>'
+        + '<td><span class="pill '+cls+'">'+txt+'</span></td>'
+        + '<td class="sub">'+esc(r.state||'')+'</td></tr>'
+        + (mine.length?('<tr class="dcexp" data-for="'+esc(r.dc)+'" style="display:none"><td colspan="8" style="background:#fafbfd;padding:10px 12px">'
+            /* 22 Aug, his words: "every Dc to Dc should be one Dc to port blocks details of the
+               respective blocks of that Dc". So opening a challan shows ITS blocks, ours beside
+               theirs, one line each - the same two-sided shape as the Block to block sheet, but
+               scoped to this one truck. A block the agency never sent says so in words. */
+            + '<div class="sub" style="margin-bottom:6px"><b>'+esc(r.challan_no||r.dc)+'</b> '+DOT+' '+mine.length+' block'+(mine.length===1?'':'s')+' on this challan, ours beside the port&rsquo;s</div>'
+            + '<table style="width:100%"><thead><tr>'
+            + '<th>Block</th>'
+            + '<th style="background:#eaf1fb;color:#0c447c">Our size</th><th style="background:#eaf1fb;color:#0c447c">Our MT</th>'
+            + '<th style="background:#f6f3ea;color:#9a7414">Port size</th><th style="background:#f6f3ea;color:#9a7414">Port MT</th>'
+            + '<th>'+U(916)+' MT</th><th>Status</th></tr></thead><tbody>'
+            + mine.map(function(x){
+                var gotPort=!!(x.pt_l||x.pt_w||x.pt_h||x.pt_cbm||x.net_wt);
+                var ourMt=(+x.ton||0), ptMt=(+x.net_wt||0);
+                var dlt=(gotPort&&ourMt&&ptMt)?(ptMt-ourMt):null;
+                return '<tr><td><span class="blk">'+esc(x.export_block_no||x.block_no||'')+'</span></td>'
+                  + '<td style="background:#f4f8fd">'+((x.dc_l||x.dc_w||x.dc_h)?((x.dc_l||0)+X+(x.dc_w||0)+X+(x.dc_h||0)):DASH)+'</td>'
+                  + '<td style="background:#f4f8fd">'+(ourMt?ourMt.toFixed(2):DASH)+'</td>'
+                  + '<td style="background:#faf8f2">'+(gotPort?((x.pt_l||x.pt_w||x.pt_h)?((x.pt_l||0)+X+(x.pt_w||0)+X+(x.pt_h||0)):DASH):'<span class="sub">not on their sheet</span>')+'</td>'
+                  + '<td style="background:#faf8f2">'+(ptMt?ptMt.toFixed(2):DASH)+'</td>'
+                  + '<td'+((dlt!==null&&Math.abs(dlt)>DUP_TOL)?' style="color:#a32d2d;font-weight:600"':'')+'>'+(dlt===null?DASH:((dlt>=0?'+':'')+dlt.toFixed(2)))+'</td>'
+                  + '<td>'+pill(x.state)+'</td></tr>';
+              }).join('')
+            + '</tbody></table>'
+            + '<div class="sub" style="margin-top:6px">Per-block weights are the agency&rsquo;s own split of one truck weighing '+DOT+' the verdict is taken on the challan total, with a 1 tonne tolerance.</div>'
+            + '</td></tr>'):'');
+    }
+    function cmpTable(arr,showTheirs){
+      return '<table><thead><tr><th>Challan</th><th>Vehicle</th><th>Blk</th><th>Our MT</th><th>Agency MT</th><th>'+U(916)+' MT</th><th>Verdict</th><th></th></tr></thead><tbody>'
+        + arr.map(function(r){return cmpRow(r,showTheirs);}).join('') + '</tbody></table>';
+    }
+    var flagged=[],agreed=[],partial=[],never=[];
+    list.forEach(function(r){
+      var v=String(r.verdict||'');
+      if(v.indexOf('FLAG')===0)flagged.push(r);
+      else if(v.indexOf('Agrees')===0)agreed.push(r);
+      else if(v.indexOf('Incomplete')===0)partial.push(r);
+      else never.push(r);
     });
-    m.innerHTML='<div class="frow" style="padding:8px 2px;gap:6px">'
-      + '<span class="pill p-load">'+(d.agree||0)+' agree</span>'
-      + '<span class="pill p-orph">'+(d.flagged||0)+' out by more than 1 MT</span>'
-      + '<span class="pill p-mis">'+(d.incomplete||0)+' incomplete</span>'
-      + '<span class="pill p-nodim">'+(d.agency_never_sent||0)+' not sent</span></div>'
-      + '<div class="sub" style="padding:0 2px 8px">One challan is one truck is one weighing, so weight is compared total against total, never block against block. '
-      + '<b>Totals are only compared when every block of the challan is on their sheet</b> &mdash; an incomplete challan is a missing row, not a weight difference, and gets no verdict.</div>'
-      + '<table><thead><tr><th>Challan</th><th>Vehicle</th><th>Blk</th><th>Our MT</th><th>Agency MT</th><th>'+U(916)+' MT</th><th>Verdict</th><th></th></tr></thead><tbody>'+rows+'</tbody></table>'
-      + '<div class="sub" style="margin-top:8px;padding:0 2px">Tolerance 1 MT on the challan total.</div>';
+    var h='<div class="frow" style="padding:8px 2px;gap:6px">'
+      + '<span class="pill p-orph">'+flagged.length+' out by more than 1 MT</span>'
+      + '<span class="pill p-load">'+agreed.length+' agree</span>'
+      + '<span class="pill p-mis">'+partial.length+' waiting on the agency</span>'
+      + '<span class="pill p-nodim">'+never.length+' never sent</span></div>'
+      + '<div class="sub" style="padding:0 2px 12px">One challan is one truck is one weighing, so weight is compared '
+      + '<b>total against total</b>, never block against block, with a <b>1 tonne</b> tolerance. '
+      + 'Where the agency has not sent every row of a challan there is <b>no total to compare</b>, so no figure is '
+      + 'shown and no verdict is given — that is their paperwork to chase, not work for your team. '
+      + 'Blocks can be pushed to At Port without waiting for it.</div>'
+      + '<div class="frow" style="padding:0 2px 10px;gap:8px;align-items:center">'
+      + '<span class="sub" id="cmp-sel" style="flex:1">No challans ticked</span>'
+      + '<button class="rb pri" id="cmp-push" title="Send every not-yet-at-port block on the ticked challans to At Port">'+AR+' Push ticked challans to At Port</button></div>';
+    if(flagged.length){
+      h+='<div style="font-weight:700;color:#0F2540;font-size:13px;padding:2px 2px 8px">'+flagged.length+' worth a look</div>'+cmpTable(flagged,true);
+    }else{
+      h+='<div class="qcard" style="border-color:#cfe6d4;background:#f6fbf7"><div class="qh"><span class="n">'+CHK+'</span> Nothing here needs you</div>'
+        + '<div class="qrow"><span class="sub">Every challan the agency has fully sent agrees within 1 tonne.</span></div></div>';
+    }
+    function fold(title,arr,showTheirs){
+      if(!arr.length)return '';
+      return '<details style="margin-top:12px"><summary style="cursor:pointer;font-size:13px;color:#5f6b7a;padding:6px 2px">'
+        + title.replace('{n}',arr.length) + '</summary><div style="padding-top:8px">' + cmpTable(arr,showTheirs) + '</div></details>';
+    }
+    h+=fold('Show the {n} waiting on the agency (no total to compare)',partial,false);
+    h+=fold('Show the {n} agreed within 1 tonne',agreed,true);
+    h+=fold('Show the {n} the agency never sent',never,false);
+    m.innerHTML=h;
+    m.querySelectorAll('[data-dcdoc]').forEach(function(x){x.addEventListener('click',function(){openPanel('Delivery Challan',x.dataset.dcdoc,'Dolphin Delivery Challan');});});
+    m.querySelectorAll('[data-dcexp]').forEach(function(x){x.addEventListener('click',function(){
+      var tr=m.querySelector('tr.dcexp[data-for="'+x.dataset.dcexp+'"]');
+      if(!tr)return;
+      var open=(tr.style.display!=='none');
+      tr.style.display=open?'none':'';
+      x.innerHTML=U(open?9662:9652);
+    });});
+    function cmpTicked(){return [].slice.call(m.querySelectorAll('.dcck:checked')).map(function(c){return c.dataset.dc;});}
+    function cmpCount(){
+      var t=cmpTicked();
+      var n=(typeof LED!=='undefined'?LED:[]).filter(function(x){return t.indexOf(x.dc)>=0&&x.state!=='port'&&x.state!=='lot'&&x.state!=='load';}).length;
+      $('cmp-sel').textContent=t.length?(t.length+' challan'+(t.length===1?'':'s')+' ticked '+DOT+' '+n+' block'+(n===1?'':'s')+' would move'):'No challans ticked';
+    }
+    m.querySelectorAll('.dcck').forEach(function(c){c.addEventListener('change',cmpCount);});
+    var cp=$('cmp-push');
+    if(cp)cp.addEventListener('click',function(){
+      var t=cmpTicked();
+      if(!t.length){msg('Tick the challans you want to send to At Port',1);return;}
+      var rows=(typeof LED!=='undefined'?LED:[]).filter(function(x){return t.indexOf(x.dc)>=0&&x.state!=='port'&&x.state!=='lot'&&x.state!=='load';});
+      if(!rows.length){msg('Every block on those challans is already at the port',1);return;}
+      openBulkResolve(rows);
+    });
   }).catch(function(){
     m.innerHTML='<div class="empty">Could not run the comparison. Reload to retry.</div>';
   });
