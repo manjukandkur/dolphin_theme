@@ -120,9 +120,14 @@
     <div class="tb">
       <span class="vtog on" id="v-blk">&#9636; All transported</span><span class="vtog" id="v-dc">&#8693; Group by DC</span>
       <input id="q" placeholder="Search block / DC / BI / consignee / mark" style="flex:1;min-width:150px">
-      <span class="gh" id="addbtn">+ Add at port</span><span class="gh" id="openbtn">&#9638; Opening stock</span>
+      <span class="gh" id="addbtn" style="display:none">+ Add at port</span><span class="gh" id="openbtn" style="display:none">&#9638; Opening stock</span>
     </div>
-    <div class="frow" id="flrow">
+    <!-- 22 Aug 2026, his words: "stock at port should simply give all the details and history of each
+         block after reconcilation and nothing else no strings attached." The filter chips, the two
+         add buttons and every row action are gone from this screen: it is a register now, and a
+         register does not make decisions. They are hidden rather than deleted so nothing that
+         references them can throw - the failure mode this system keeps producing. -->
+    <div class="frow" id="flrow" style="display:none">
       <span class="fl" data-f="await">Awaiting arrival</span><span class="fl on" data-f="all">All</span><span class="fl" data-f="port">At port</span>
       <span class="fl" data-f="lot">In lot</span><span class="fl" data-f="flag">Needs attention</span><span class="fl" data-f="excess">Excess</span><span class="fl" data-f="load">Loaded</span>
     </div>
@@ -136,7 +141,7 @@
       <div class="main" id="stmain"><div class="empty">Loading&#8230;</div></div>
       <div class="panel" id="panel"></div>
     </div>
-    <div class="foot" id="foot">One row per transported block, with its full trace. <b>Push to lot</b> is enabled only for <b>At port</b> blocks.</div>
+    <div class="foot" id="foot">One row per block, with its full history. <b>This screen decides nothing</b> &mdash; a block is settled on <b>Reconcile</b> before it gets here, and lots are built from <b>Shipment Lots</b>.</div>
   </div>
   <div class="pane" id="p-arr">
     <div class="tb"><input id="aq" placeholder="Search arrivals&#8230;" style="flex:1;min-width:160px"><span class="imp" id="syncbtn" style="margin-right:6px">&#8635; Check new email</span><span class="imp" id="impbtn2">&#8593; Import .xls</span></div>
@@ -578,11 +583,17 @@ function passFilt(st){if(FILT==='all')return true;if(FILT==='flag')return ['mis'
 function key(r){return (r.arrival||'')+'|'+r.block_no;}
 function renderStock(){if(VMODE==='dc'){renderDC();return;}
   var list=LED.filter(matchQ).filter(function(r){return passFilt(r.state);});
-  if(!list.length){$('stmain').innerHTML='<div class="empty">No blocks match this filter</div>';return;}
+  if(!list.length){$('stmain').innerHTML='<div class="empty" style="padding:26px 12px;line-height:1.6">'
+    +'<div style="font-weight:700;color:#0F2540;margin-bottom:6px">Nothing to show here yet</div>'
+    +'<div class="sub">This is the register of blocks that have left the quarry. Blocks appear here as their '
+    +'challan is submitted, and they read <b>At port</b> once they are settled and pushed from <b>Reconcile</b>.</div></div>';return;}
   var h='<table><thead><tr><th style="width:22px"><input type="checkbox" class="selall" title="Select all"></th><th>Block</th><th>Delivery Challan</th><th>Source BI '+DOT+' Consignee</th><th>DC size</th><th>Port size</th><th>Ton</th><th>Age</th><th>State</th><th>Action</th><th style="width:22px"></th></tr></thead><tbody>';
   list.forEach(function(r,i){
     var k=key(r),age=ageDays(r.arrival),ageC=age==null?'<span class="sub">'+DASH+'</span>':'<span style="'+(age>30?'color:#a32d2d;font-weight:700':(age>20?'color:#8a5a12':'color:#5f6b7a'))+'">'+age+'d</span>';
-    var canSel=(r.state==='port'||r.state==='await'||r.state==='unconfirmed');   /* 22 Aug: unconfirmed rows must be selectable or the bulk move can never reach them */
+    /* 22 Aug 2026: Stock at Port is a register. Nothing is selected here and nothing is decided
+       here - every decision lives on Reconcile, and a block only reaches this screen once it is
+       settled. Selection stays off. */
+    var canSel=false;
     h+='<tr'+(SEL[k]?' class="sel"':(r.state==='await'?' class="await-row"':''))+'><td>'+(canSel?'<input type="checkbox" class="ck" data-i="'+i+'"'+(SEL[k]?' checked':'')+'>':'')+'</td>'
       +'<td><span class="blk">'+esc(r.export_block_no||r.block_no||'')+'</span></td>'
       +'<td>'+(r.dc?'<span class="dc" data-doc="dc" data-i="'+i+'">'+esc((window.DCMAP&&DCMAP[r.dc])||r.dc)+'</span> <span class="eye" data-doc="dc" data-i="'+i+'">'+U(128196)+'</span>'+_dcSub(r.dc):'<span class="sub">no challan</span>')+'</td>'
@@ -726,8 +737,8 @@ document.querySelectorAll('#pr .tab').forEach(function(x){x.addEventListener('cl
    on demand by renderRecon, so it has to be rendered before the switch. */
 try{ renderRecon(); tab('recon'); }catch(e){}
 (function(){var f0=document.querySelector('#flrow .fl[data-f="all"]');if(f0){document.querySelectorAll('#flrow .fl').forEach(function(x){x.classList.remove('on');});f0.classList.add('on');}})();
-document.querySelectorAll('#flrow .fl').forEach(function(f){f.addEventListener('click',function(){FILT=f.dataset.f;VMODE='blk';$('v-blk').classList.add('on');$('v-dc').classList.remove('on');$('flrow').style.display='';document.querySelectorAll('#flrow .fl').forEach(function(x){x.classList.remove('on');});f.classList.add('on');closePanel();renderStock();});});
-$('v-blk').addEventListener('click',function(){VMODE='blk';this.classList.add('on');$('v-dc').classList.remove('on');$('flrow').style.display='';closePanel();renderStock();});
+document.querySelectorAll('#flrow .fl').forEach(function(f){f.addEventListener('click',function(){FILT=f.dataset.f;VMODE='blk';$('v-blk').classList.add('on');$('v-dc').classList.remove('on');$('flrow').style.display='none';document.querySelectorAll('#flrow .fl').forEach(function(x){x.classList.remove('on');});f.classList.add('on');closePanel();renderStock();});});
+$('v-blk').addEventListener('click',function(){VMODE='blk';this.classList.add('on');$('v-dc').classList.remove('on');$('flrow').style.display='none';closePanel();renderStock();});
 $('v-dc').addEventListener('click',function(){VMODE='dc';this.classList.add('on');$('v-blk').classList.remove('on');$('flrow').style.display='none';closePanel();renderDC();});
 $('q').addEventListener('input',function(){Q=this.value.trim().toLowerCase();renderStock();});
 var __ib=$('impbtn');if(__ib)__ib.addEventListener('click',toggleImp);$('impbtn2').addEventListener('click',function(){tab('recon');RSUB='src';renderRecon();toggleImp();});var __sy=$('syncbtn');if(__sy)__sy.addEventListener('click',function(){msg('Checking for new mail…');post('dolphin_theme.api_arrivals.sync_arrivals_email',{}).then(function(j){var pr=((j&&j.message&&j.message.parsed)||[]);if(pr.length){var mm=pr.reduce(function(t,x){return t+(x.blocks||0);},0);msg(CHK+' Imported '+pr.length+' arrival'+(pr.length>1?'s':'')+' '+DOT+' '+mm+' block rows');}else{msg('Checked '+DOT+' no new arrivals to import');}loadAll();}).catch(function(){msg('Sync failed',1);});});$('impx').addEventListener('click',toggleImp);$('impgo').addEventListener('click',doImport);
@@ -735,19 +746,32 @@ $('addbtn').addEventListener('click',function(){var b=prompt('Add block at port 
 $('openbtn').addEventListener('click',function(){toggleImp();msg('Opening stock: paste/import via the .xls box, or use + Add at port for one block',0);});
 loadAll();
 
+/* 22 Aug 2026: the register's only link - "settle it on Reconcile" - has to actually go there.
+   Delegated, so it works on every row that is drawn later. */
+document.addEventListener('click',function(e){
+  var a=e.target&&e.target.closest?e.target.closest('[data-goto-recon]'):null;
+  if(!a)return;
+  e.preventDefault();
+  var t=document.querySelector('.tab[data-t="recon"]');
+  if(t)t.click();
+});
+
 function action(r,i){
 var nt=(['await','unconfirmed','mis','dmg','held','orphan'].indexOf(r.state)>=0)?'<span class="rb" data-act="note" data-i="'+i+'" title="Add reason / note">'+U(128221)+'</span>':'';
 /* 22 Aug 2026. THIS is the action() that runs - the file declares it twice and the second
    wins, so a fix to the first one above was dead code. 'unconfirmed' means an arrival sheet
    names the block but that sheet is still a draft; every arrival is a draft today, so 219
    of 256 rows sat here with no way to At Port at all. */
-if(r.state==='await'||r.state==='unconfirmed')return '<span class="rb gold" data-act="move" data-i="'+i+'">'+AR+' Move to At Port</span>'+nt;
-if(r.state==='port')return '<span class="rb pri" data-act="push" data-i="'+i+'">Push to lot</span>';
-if(r.state==='mis')return '<span class="rb pri" data-act="use_dc" data-i="'+i+'">Use DC</span><span class="rb ok" data-act="accept" data-i="'+i+'">Accept</span>'+nt;
-if(r.state==='dmg')return '<span class="rb" data-act="hold" data-i="'+i+'">Hold</span><span class="rb ok" data-act="accept" data-i="'+i+'">OK</span>'+nt;
-if(r.state==='held')return '<span class="rb ok" data-act="accept" data-i="'+i+'">Release</span>'+nt;
-if(r.state==='orphan')return '<span class="rb ok" data-act="accept" data-i="'+i+'">Accept as extra</span>'+nt;
+/* 22 Aug 2026 - THE REGISTER RULE. His words: "stock at port should simply give all the details
+   and history of each block after reconcilation and nothing else no strings attached. whatever
+   issues it must be sorted before arriving here right?"
+
+   So this column carries INFORMATION ONLY. Every decision - move to At Port, resolve, accept,
+   hold, push to a lot - now lives on Reconcile, where a block cannot leave unsettled. A block
+   that is still unsettled says so, and says where to go and settle it. */
 if(r.state==='lot'||r.state==='load')return '<span class="dc" data-doc="lot" data-i="'+i+'">'+esc(r.lot_title||r.lot||'')+' '+U(128196)+'</span>';
+if(r.state==='await'||r.state==='unconfirmed')return '<span class="sub">not settled '+DOT+' <a href="#" data-goto-recon="1" style="color:#b8892f;font-weight:700">settle it on Reconcile</a></span>';
+if(['mis','dmg','held','orphan'].indexOf(r.state)>=0)return '<span class="sub">needs a decision '+DOT+' <a href="#" data-goto-recon="1" style="color:#b8892f;font-weight:700">settle it on Reconcile</a></span>';
 return '';
 }
 function renderArr(){var el=$('arrlist');if(!ARRS.length){el.innerHTML='<div class="empty">No arrivals</div>';return;}var aq=($('aq').value||'').toLowerCase();
