@@ -822,15 +822,17 @@ document.addEventListener('click',function(e){
   e.preventDefault();
   var r=LED[+b.dataset.sendback]; if(!r)return;
   var bn=r.export_block_no||r.block_no;
-  var why=_reason('Send block '+bn+' back to Reconcile - what is wrong with it?');
-  if(!why)return;
-  post('dolphin_theme.api_arrivals.send_back_to_reconcile',{blocks:[{block_no:bn}],reason:why})
-    .then(function(j){
-      var m=(j&&j.message)||{};
-      if(m.sent_back){msg(CHK+' '+bn+' is back on Reconcile');}
-      else{msg('Could not send it back'+((m.refused||[])[0]?(': '+m.refused[0].why):''),1);}
-      loadAll();
-    }).catch(function(){msg('Could not send it back',1);});
+  askReason('Send block '+bn+' back to Reconcile',
+    'It goes back to exactly the status it held before it reached the port, and stays there until it is sorted.',
+    function(why){
+      post('dolphin_theme.api_arrivals.send_back_to_reconcile',{blocks:[{block_no:bn}],reason:why})
+        .then(function(j){
+          var m=(j&&j.message)||{};
+          if(m.sent_back){msg(CHK+' '+bn+' is back on Reconcile');}
+          else{msg('Could not send it back'+((m.refused||[])[0]?(': '+m.refused[0].why):''),1);}
+          loadAll();
+        }).catch(function(){msg('Could not send it back',1);});
+    });
 });
 
 function action(r,i){
@@ -1183,6 +1185,38 @@ setInterval(ensureNewLotBtn,1000);
    afterwards (B34).
    ====================================================================== */
 
+
+/* ============================================================================
+   22 Aug 2026 - a reason must never be asked for with a native prompt().
+
+   Found by testing: clicking "Send back to Reconcile" opened the browser's own
+   prompt box, which FREEZES the whole page until it is dismissed - the tab
+   stopped responding entirely. It also looks like browser junk rather than part
+   of the app. This is the same in-page dialog every other reason uses.
+   ============================================================================ */
+function askReason(title,hint,cb){
+  var old=document.getElementById('__ask'); if(old)old.remove();
+  var ov=document.createElement('div'); ov.id='__ask';
+  ov.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(15,37,64,.45);z-index:100003;display:flex;align-items:center;justify-content:center';
+  ov.innerHTML='<div style="background:#fff;border-radius:12px;width:460px;max-width:94vw;box-shadow:0 18px 50px rgba(0,0,0,.3)">'
+    +'<div style="padding:14px 18px;border-bottom:1px solid #eef2f6;font-weight:700;color:#0F2540;font-size:14px">'+esc(title)+'</div>'
+    +'<div style="padding:14px 18px">'
+    +(hint?('<div class="sub" style="font-size:12px;margin-bottom:8px">'+hint+'</div>'):'')
+    +'<textarea id="__askt" placeholder="A few words is enough. It stays with the block and shows in Trace." style="width:100%;min-height:74px;border:1px solid #cfd4dc;border-radius:8px;padding:8px;font-size:13px"></textarea>'
+    +'<div class="sub" id="__askw" style="color:#a32d2d;font-size:12px;height:16px"></div></div>'
+    +'<div style="padding:12px 18px;border-top:1px solid #eef2f6;text-align:right">'
+    +'<span class="rb" id="__askc" style="margin-right:8px;color:#8a929c">Cancel</span>'
+    +'<span class="rb pri" id="__asko">Save the reason</span></div></div>';
+  document.body.appendChild(ov);
+  var ta=ov.querySelector('#__askt'); setTimeout(function(){try{ta.focus();}catch(e){}},60);
+  ov.addEventListener('mousedown',function(e){if(e.target===ov)ov.remove();});
+  ov.querySelector('#__askc').addEventListener('click',function(){ov.remove();});
+  ov.querySelector('#__asko').addEventListener('click',function(){
+    var v=(ta.value||'').trim();
+    if(v.length<4){ov.querySelector('#__askw').textContent='A real reason is needed — a few words at least.';return;}
+    ov.remove(); cb(v);
+  });
+}
 function _reason(prompt_text){
   var why=prompt(prompt_text);
   if(why===null)return null;
