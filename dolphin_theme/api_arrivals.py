@@ -4126,19 +4126,38 @@ def _arrival_rows_by_block():
     )
     from dolphin_theme.block_resolve import try_resolve
 
-    seen, out = {}, {}
+    seen, out, id_only = {}, {}, set()
     for r in rows:
         key = _s(r.get("block_no"))
         if not key:
             continue
         if key not in seen:
-            # a sheet may legitimately name a block by its record id
-            hit, why = try_resolve(key, allow_record_name=True)
+            # ================================================================
+            # 22 Aug 2026 - ORDER MATTERS, AND GETTING IT WRONG PICKS THE WRONG
+            # BLOCK. Proved on live data:
+            #
+            #   "1353" as a BLOCK NUMBER  -> Quarry Block 1865
+            #   "1353" as a RECORD ID     -> a different block (export 803)
+            #
+            # Same digits, two different blocks. So a number is ALWAYS read as a
+            # block number first. Only when it means nothing as a block number -
+            # as "1387" does, which is a record id and nothing else - is it read
+            # as a record id, and then it is marked so the caller knows.
+            # ================================================================
+            hit, why = try_resolve(key, allow_record_name=False)
+            via_id = False
+            if not hit:
+                hit, why = try_resolve(key, allow_record_name=True)
+                via_id = bool(hit)
             seen[key] = (hit or {}).get("name")
+            if via_id and hit:
+                id_only.add(_s(hit.get("name")))
         name = seen[key]
         if not name:
             continue
         out.setdefault(name, []).append(r)
+    # id_only is not returned today, but it is the list worth watching: those are
+    # the arrival rows that only made sense as a record id.
     return out
 
 
