@@ -4066,11 +4066,20 @@ def dc_weight_check_v2():
 
     by_block = _arrival_rows_by_block()
 
-    challans = frappe.get_all(
-        "Delivery Challan",
-        fields=["name", "challan_no", "vehicle_no", "docstatus"],
-        limit_page_length=0,
-    )
+    # 22 Aug 2026: the real field names on this site are dc_no / delivery_challan_no /
+    # vehicle. Read the meta rather than assuming - the first version guessed and the
+    # query died with "Unknown column 'challan_no'". Never guess a field name.
+    meta = frappe.get_meta("Delivery Challan")
+    num_field = next((f for f in ("dc_no", "delivery_challan_no", "challan_no")
+                      if meta.has_field(f)), None)
+    veh_field = next((f for f in ("vehicle", "vehicle_no", "driver")
+                      if meta.has_field(f)), None)
+    fields = ["name", "docstatus"]
+    if num_field:
+        fields.append(num_field)
+    if veh_field:
+        fields.append(veh_field)
+    challans = frappe.get_all("Delivery Challan", fields=fields, limit_page_length=0)
     detail = []
     agree = flagged = incomplete = never = 0
 
@@ -4078,7 +4087,7 @@ def dc_weight_check_v2():
         rows = frappe.get_all(
             "DC Block Row",
             filters={"parent": c["name"]},
-            fields=["block", "block_no", "export_block_no", "net_wt", "weight", "ton"],
+            fields=["block", "block_no", "export_block_no", "gross_tonnage"],
             limit_page_length=0,
         )
         if not rows:
@@ -4087,14 +4096,10 @@ def dc_weight_check_v2():
         matched, unmatched = 0, []
         theirs = 0.0
         for r in rows:
-            for f in ("net_wt", "weight", "ton"):
-                try:
-                    v = float(r.get(f) or 0)
-                except Exception:
-                    v = 0
-                if v:
-                    ours += v
-                    break
+            try:
+                ours += float(r.get("gross_tonnage") or 0)
+            except Exception:
+                pass
             key = (_s(r.get("export_block_no")) or _s(r.get("block_no"))
                    or _s(r.get("block")))
             hit, why = try_resolve(key, allow_record_name=True)
@@ -4130,8 +4135,8 @@ def dc_weight_check_v2():
 
         detail.append({
             "dc": c["name"],
-            "challan_no": c.get("challan_no") or c["name"],
-            "our_vehicle": c.get("vehicle_no") or "",
+            "challan_no": (c.get(num_field) if num_field else None) or c["name"],
+            "our_vehicle": (c.get(veh_field) if veh_field else "") or "",
             "blocks": n,
             "agency_rows": matched,
             "our_total": round(ours, 3),
