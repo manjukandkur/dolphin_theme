@@ -229,6 +229,8 @@ function renderCmp(m){
       var v=String(r.verdict||''),cls,txt;
       if(v.indexOf('FLAG')===0){cls='p-orph';txt='Out by '+Math.abs(+r.difference).toFixed(2)+' MT';}
       else if(v.indexOf('Agrees')===0){cls='p-load';txt='Within 1 MT';}
+      else if(v.indexOf('Unconfirmed sheet')===0){cls='p-nodim';txt='sheet not submitted yet '+DASH+' no verdict';}
+      else if(v.indexOf('Rows from more than one')===0){cls='p-mis';txt='rows come from '+((r.sheets||[]).length)+' different sheets '+DASH+' no verdict';}
       else if(v.indexOf('Incomplete')===0){cls='p-mis';var _m=(+r.blocks||0)-(+r.agency_rows||0);
         txt='we could not match '+_m+' of '+(+r.blocks||0)+' blocks'+((r.unmatched||[]).length?(' ('+r.unmatched.slice(0,4).join(', ')+')'):'');}
       else {cls='p-nodim';txt='Not sent yet';}
@@ -266,18 +268,23 @@ function renderCmp(m){
             + '<th>Block</th>'
             + '<th style="background:#eaf1fb;color:#0c447c">Our size</th><th style="background:#eaf1fb;color:#0c447c">Our MT</th>'
             + '<th style="background:#f6f3ea;color:#9a7414">Port size</th><th style="background:#f6f3ea;color:#9a7414">Port MT</th>'
-            + '<th>'+U(916)+' MT</th><th>Status</th></tr></thead><tbody>'
-            + mine.map(function(x){
-                var gotPort=!!(x.pt_l||x.pt_w||x.pt_h||x.pt_cbm||x.net_wt);
-                var ourMt=(+x.ton||0), ptMt=(+x.net_wt||0);
-                var dlt=(gotPort&&ourMt&&ptMt)?(ptMt-ourMt):null;
-                return '<tr><td><span class="blk">'+esc(x.export_block_no||x.block_no||'')+'</span></td>'
-                  + '<td style="background:#f4f8fd">'+((x.dc_l||x.dc_w||x.dc_h)?((x.dc_l||0)+X+(x.dc_w||0)+X+(x.dc_h||0)):DASH)+'</td>'
+            + '<th>'+U(916)+' MT</th><th>Which sheet</th></tr></thead><tbody>'
+            /* 22 Aug, evening. This read the ledger while the verdict above read the
+               arrival rows, so a challan could say "Out by 8.33 MT" while every block
+               under it said "not on their sheet". Both now come from the SAME place -
+               the comparison's own per-block detail - so they cannot contradict. */
+            + (r.per_block||[]).map(function(pb){
+                var led=mine.filter(function(z){return String(z.export_block_no||z.block_no)===String(pb.block);})[0]||{};
+                var ourMt=(+led.ton||0), ptMt=(+pb.port_mt||0);
+                var dlt=(ptMt&&ourMt)?(ptMt-ourMt):null;
+                var got=!!(pb.port_l||pb.port_w||pb.port_h||pb.port_mt);
+                return '<tr><td><span class="blk">'+esc(pb.block||'')+'</span></td>'
+                  + '<td style="background:#f4f8fd">'+((led.dc_l||led.dc_w||led.dc_h)?((led.dc_l||0)+X+(led.dc_w||0)+X+(led.dc_h||0)):DASH)+'</td>'
                   + '<td style="background:#f4f8fd">'+(ourMt?ourMt.toFixed(2):DASH)+'</td>'
-                  + '<td style="background:#faf8f2">'+(gotPort?((x.pt_l||x.pt_w||x.pt_h)?((x.pt_l||0)+X+(x.pt_w||0)+X+(x.pt_h||0)):DASH):'<span class="sub">not on their sheet</span>')+'</td>'
+                  + '<td style="background:#faf8f2">'+(got?((pb.port_l||pb.port_w||pb.port_h)?((pb.port_l||0)+X+(pb.port_w||0)+X+(pb.port_h||0)):DASH):'<span class="sub">we could not match it</span>')+'</td>'
                   + '<td style="background:#faf8f2">'+(ptMt?ptMt.toFixed(2):DASH)+'</td>'
                   + '<td'+((dlt!==null&&Math.abs(dlt)>DUP_TOL)?' style="color:#a32d2d;font-weight:600"':'')+'>'+(dlt===null?DASH:((dlt>=0?'+':'')+dlt.toFixed(2)))+'</td>'
-                  + '<td>'+pill(x.state)+'</td></tr>';
+                  + '<td class="sub">'+(pb.sheet?(esc(pb.sheet)+(pb.submitted?'':' '+DOT+' draft')):DASH)+(pb.on_more_than_one_sheet?(' '+DOT+' on more than one sheet'):'')+'</td></tr>';
               }).join('')
             + '</tbody></table>'
             + '<div class="sub" style="margin-top:6px">Per-block weights are the agency&rsquo;s own split of one truck weighing '+DOT+' the verdict is taken on the challan total, with a 1 tonne tolerance.</div>'
@@ -305,6 +312,8 @@ function renderCmp(m){
       + 'A truck does not unload half a load: if a block on a challan is not matched here it is almost always '
       + '<b>our matching</b>, not their paperwork — the agency writes one number for a block and the challan '
       + 'carries another. Those rows say so plainly, and no verdict is given until every block is matched. '
+      + 'A weight verdict is only given when <b>every block matched, all from one sheet, and that sheet is submitted</b> '
+      + '&mdash; anything else shows the figures with <b>no verdict</b> rather than a number that cannot be justified. '
       + 'Blocks can be pushed to At Port without waiting for any of it.</div>'
       + '<div class="frow" style="padding:0 2px 10px;gap:8px;align-items:center">'
       + '<span class="sub" id="cmp-sel" style="flex:1">No challans ticked</span>'
