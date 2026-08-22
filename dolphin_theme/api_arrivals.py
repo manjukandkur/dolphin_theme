@@ -3897,6 +3897,27 @@ def unexport_shipment(shipping_document=None, person=None, reason=None, dry_run=
 AT_PORT_STATUS = "At Port"
 AUTO_TOL_MT = 1.0          # his standing rule: one tonne, and inside it is matched
 
+# A BLOCK CANNOT GROW ON THE WAY TO THE PORT. 23 Aug 2026.
+#
+# Measured across the 27 Jul sheet, our challan size against the port's, block by
+# block: 9 the same, 19 where the port is 70-90% of ours, 28 below 70%, and NOT
+# ONE where the port is bigger. A difference that only ever runs one way is not
+# measurement error and it is not crossed numbers - both of those scatter in both
+# directions. It is material coming off the block: it is dressed and squared at
+# the port, and the port measures what is standing there afterwards.
+#
+# So "Out by 8.33 MT" was the wrong thing to say. Our figure is the rough quarry
+# block; theirs is the dressed block. The honest reading:
+#
+#   port HEAVIER than we dispatched, past the tonne -> impossible, always flag
+#   port lighter                                    -> dressing loss, not a fault
+#   port very much lighter                          -> worth a look, not an alarm
+#
+# WHAT I DO NOT KNOW, and he does: how much loss is ordinary for his stone. Until
+# he tells me, "very much lighter" is set at less than half, which nobody would
+# call ordinary dressing. One number, one place, easy to change.
+DRESSING_LOOK_AT_IT = 0.50
+
 
 def _prev_field_ready():
     """Make sure Quarry Block has somewhere to remember what it was before At Port.
@@ -4648,9 +4669,17 @@ def dc_weight_check_v2():
             diff = None
         else:
             diff = round(theirs - ours, 3)
-            if abs(diff) > AUTO_TOL_MT:
+            kept = (theirs / ours) if ours else 1.0
+            if diff > AUTO_TOL_MT:
+                # heavier at the port than what left the quarry - cannot happen
                 verdict, state = "FLAG", "flagged"
                 flagged += 1
+            elif kept < DRESSING_LOOK_AT_IT:
+                verdict, state = "FLAG", "flagged"
+                flagged += 1
+            elif diff < -AUTO_TOL_MT:
+                verdict, state = "Dressed", "agree"
+                agree += 1
             else:
                 verdict, state = "Agrees", "agree"
                 agree += 1
