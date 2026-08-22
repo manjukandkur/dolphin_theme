@@ -38,6 +38,7 @@ Nothing here runs without `confirm="YES"`, and `plan()` never changes anything.
 """
 
 import json
+from contextlib import contextmanager
 
 import frappe
 
@@ -70,6 +71,44 @@ def _new_name(old):
     if n >= OFFSET:
         return o                      # already moved
     return str(n + OFFSET)
+
+
+@contextmanager
+def _loose_sql_mode():
+    """WHY THE THIRD ATTEMPT STOPPED AT THE VERY FIRST BLOCK, and what this is.
+
+    22 Aug 2026. The run refused with:
+
+        Stopped at 1902 -> 1001902: (1292, "Truncated incorrect DECIMAL value:
+        'Buyer Inspection - Add to Local Invoice'")
+
+    Nothing is wrong with block 1902. Quarry Block is an autoincrement doctype, so
+    Frappe hands the rename an INTEGER name. Deep inside, it updates the audit trail
+    with `WHERE docname = 1902` - a number against `tabVersion.docname`, which is a
+    text column holding every doctype's ids, Client Script names included. MariaDB
+    then tries to read 'Buyer Inspection - Add to Local Invoice' as a decimal, and
+    under strict mode that warning is raised as an error. It is the database
+    complaining about an unrelated row, not about our blocks.
+
+    So for the length of the renames only, this asks the database to treat that as
+    the warning it is. The statements running inside are Frappe's own link updates;
+    the mode is put back the moment the block finishes, error or not, and run()
+    still verifies the count and every status afterwards.
+    """
+    prev = None
+    try:
+        prev = frappe.db.sql("SELECT @@session.sql_mode")[0][0]
+        frappe.db.sql("SET SESSION sql_mode = %s", ("",))
+    except Exception:
+        prev = None
+    try:
+        yield
+    finally:
+        if prev is not None:
+            try:
+                frappe.db.sql("SET SESSION sql_mode = %s", (prev,))
+            except Exception:
+                pass
 
 
 def _blocks():
@@ -214,22 +253,23 @@ def run(confirm=None, limit=0):
     file_name, file_url = _save_map(payload)
 
     done = []
-    for r in renames:
-        try:
-            # 22 Aug 2026: `frappe.rename_doc` (the top-level alias) does NOT take
-            # ignore_permissions - only `frappe.model.rename_doc.rename_doc` does.
-            # The first run stopped here having renamed nothing, which is exactly
-            # what the guard is for. Calling the real function directly.
-            _rename("Quarry Block", r["from"], r["to"],
-                    force=True, merge=False, ignore_permissions=True,
-                    show_alert=False)
-            done.append(r)
-        except Exception as e:
-            payload["failed_at"] = {"rename": r, "error": str(e)}
-            frappe.db.commit()
-            frappe.throw("Stopped at {0} -> {1}: {2}. {3} renames were done and the "
-                         "map is saved as {4} - revert() can put them back."
-                         .format(r["from"], r["to"], e, len(done), file_name))
+    with _loose_sql_mode():
+        for r in renames:
+            try:
+                # 22 Aug 2026: `frappe.rename_doc` (the top-level alias) does NOT take
+                # ignore_permissions - only `frappe.model.rename_doc.rename_doc` does.
+                # The first run stopped here having renamed nothing, which is exactly
+                # what the guard is for. Calling the real function directly.
+                _rename("Quarry Block", r["from"], r["to"],
+                        force=True, merge=False, ignore_permissions=True,
+                        show_alert=False)
+                done.append(r)
+            except Exception as e:
+                payload["failed_at"] = {"rename": r, "error": str(e)}
+                frappe.db.commit()
+                frappe.throw("Stopped at {0} -> {1}: {2}. {3} renames were done and the "
+                             "map is saved as {4} - revert() can put them back."
+                             .format(r["from"], r["to"], e, len(done), file_name))
 
     frappe.db.commit()
 
@@ -281,12 +321,13 @@ def revert(confirm=None, map_file=None):
     for name in names:
         doc = frappe.get_doc("File", name)
         payload = json.loads(doc.get_content())
-        for r in reversed(payload.get("renames") or []):
-            if frappe.db.exists("Quarry Block", r["to"]):
-                _rename("Quarry Block", r["to"], r["from"],
-                        force=True, merge=False, ignore_permissions=True,
-                        show_alert=False)
-                back += 1
+        with _loose_sql_mode():
+            for r in reversed(payload.get("renames") or []):
+                if frappe.db.exists("Quarry Block", r["to"]):
+                    _rename("Quarry Block", r["to"], r["from"],
+                            force=True, merge=False, ignore_permissions=True,
+                            show_alert=False)
+                    back += 1
         for a in (payload.get("arrival_rows") or []):
             if frappe.db.exists("Port Arrival Block", a["row"]):
                 frappe.db.set_value("Port Arrival Block", a["row"], "block_no",
