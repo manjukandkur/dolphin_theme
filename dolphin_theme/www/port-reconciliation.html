@@ -205,7 +205,11 @@ function renderCmp(m){
      everything a mismatch; its own comment admitted it was noise. This asks the server
      instead - dc_weight_check does the identity resolution and the guard below. */
   m.innerHTML='<div class="sub" style="padding:14px 2px">Comparing every challan against the agency&#39;s weighbridge&hellip;</div>';
-  post('dc_weight_check',{}).then(function(j){
+  /* 22 Aug 2026: the old `dc_weight_check` Server Script matched raw numbers, so a sheet keyed
+     by record id and a challan keyed by export number never met, and it reported the agency as
+     having failed to send rows it had actually sent. Measured: 0 of 61 challans were genuinely
+     partial. `dc_weight_check_v2` resolves identity on BOTH sides first. */
+  post('dolphin_theme.api_arrivals.dc_weight_check_v2',{}).then(function(j){
     var d=(j&&j.message)||{},list=d.detail||[];
     if(!list.length){m.innerHTML='<div class="empty">Nothing to compare yet.</div>';return;}
     /* ========================================================================
@@ -225,7 +229,8 @@ function renderCmp(m){
       var v=String(r.verdict||''),cls,txt;
       if(v.indexOf('FLAG')===0){cls='p-orph';txt='Out by '+Math.abs(+r.difference).toFixed(2)+' MT';}
       else if(v.indexOf('Agrees')===0){cls='p-load';txt='Within 1 MT';}
-      else if(v.indexOf('Incomplete')===0){cls='p-mis';var _m=(+r.blocks||0)-(+r.agency_rows||0);txt=_m+' row'+(_m===1?'':'s')+' missing '+DASH+' ask the agency';}
+      else if(v.indexOf('Incomplete')===0){cls='p-mis';var _m=(+r.blocks||0)-(+r.agency_rows||0);
+        txt='we could not match '+_m+' of '+(+r.blocks||0)+' blocks'+((r.unmatched||[]).length?(' ('+r.unmatched.slice(0,4).join(', ')+')'):'');}
       else {cls='p-nodim';txt='Not sent yet';}
       var theirs=showTheirs
         ? ((r.their_total===null||r.their_total===undefined)?DASH:(+r.their_total).toFixed(2))
@@ -293,13 +298,14 @@ function renderCmp(m){
     var h='<div class="frow" style="padding:8px 2px;gap:6px">'
       + '<span class="pill p-orph">'+flagged.length+' out by more than 1 MT</span>'
       + '<span class="pill p-load">'+agreed.length+' agree</span>'
-      + '<span class="pill p-mis">'+partial.length+' waiting on the agency</span>'
+      + '<span class="pill p-mis">'+partial.length+' not fully matched</span>'
       + '<span class="pill p-nodim">'+never.length+' never sent</span></div>'
       + '<div class="sub" style="padding:0 2px 12px">One challan is one truck is one weighing, so weight is compared '
       + '<b>total against total</b>, never block against block, with a <b>1 tonne</b> tolerance. '
-      + 'Where the agency has not sent every row of a challan there is <b>no total to compare</b>, so no figure is '
-      + 'shown and no verdict is given — that is their paperwork to chase, not work for your team. '
-      + 'Blocks can be pushed to At Port without waiting for it.</div>'
+      + 'A truck does not unload half a load: if a block on a challan is not matched here it is almost always '
+      + '<b>our matching</b>, not their paperwork — the agency writes one number for a block and the challan '
+      + 'carries another. Those rows say so plainly, and no verdict is given until every block is matched. '
+      + 'Blocks can be pushed to At Port without waiting for any of it.</div>'
       + '<div class="frow" style="padding:0 2px 10px;gap:8px;align-items:center">'
       + '<span class="sub" id="cmp-sel" style="flex:1">No challans ticked</span>'
       + '<button class="rb pri" id="cmp-push" title="Send every not-yet-at-port block on the ticked challans to At Port">'+AR+' Push ticked challans to At Port</button></div>';
@@ -314,7 +320,7 @@ function renderCmp(m){
       return '<details style="margin-top:12px"><summary style="cursor:pointer;font-size:13px;color:#5f6b7a;padding:6px 2px">'
         + title.replace('{n}',arr.length) + '</summary><div style="padding-top:8px">' + cmpTable(arr,showTheirs) + '</div></details>';
     }
-    h+=fold('Show the {n} waiting on the agency (no total to compare)',partial,false);
+    h+=fold('Show the {n} we could not fully match (no total to compare yet)',partial,false);
     h+=fold('Show the {n} agreed within 1 tonne',agreed,true);
     h+=fold('Show the {n} the agency never sent',never,false);
     m.innerHTML=h;
