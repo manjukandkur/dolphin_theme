@@ -486,13 +486,19 @@ function drawAutoBar(){
       return;
     }
     bar.innerHTML='<div style="background:#eef6ff;border:1px solid #cfe0f5;border-radius:10px;padding:12px 14px;margin-bottom:10px">'
-      +'<div style="font-weight:700;color:#0F2540;font-size:13px;margin-bottom:4px">The app can settle '+tot+' of these by itself</div>'
+      /* 22 Aug: "even 1 block is error we had to pay huge penalty in Lakhs" and "it should be
+         strong and foolproof". So the app now moves ONLY what the agency's own sheet confirms.
+         The rest is a person's decision with a reason - tick them and use Resolve selected. */
+      +'<div style="font-weight:700;color:#0F2540;font-size:13px;margin-bottom:4px">'+v+' can be settled by the app itself</div>'
       +'<div class="sub" style="font-size:12px;margin-bottom:9px">'
-        +'<b>'+v+'</b> the agency has confirmed '+DOT+' <b>'+n+'</b> with nothing contradicting them (the agency simply never sent a row)'
-        +(c?(' '+DOT+' <b>'+c+'</b> genuinely need a person'):'')
-        +'. Tolerance is 1 tonne. Every block keeps what it was, so any of them can be sent back to Reconcile with one click.</div>'
+        +'<b>'+v+'</b> the agency&rsquo;s own sheet confirms &mdash; size agrees and the challan total is inside 1 tonne. '
+        +'These move automatically.<br>'
+        +'<b>'+n+'</b> have nothing contradicting them, but <b>the agency never sent a row</b>, so nothing confirms them. '
+        +'<b>The app will not move those by itself.</b> Tick them and use <b>Resolve selected</b> &mdash; your team knows the '
+        +'ground truth, and the reason is recorded against every block.'
+        +(c?('<br><b>'+c+'</b> genuinely need a decision.'):'')
+        +'<br>Every move is reversible: <b>Send back to Reconcile</b> restores the exact status the block held before.</div>'
       +(v?('<button class="rb pri" id="auto-v">'+CHK+' Settle the '+v+' the agency confirmed</button> '):'')
-      +'<button class="rb gold" id="auto-all">'+AR+' Settle all '+tot+' and send them to At Port</button> '
       +'<span class="rb" id="auto-dry" style="color:#5f6b7a">Show me the list first</span>'
       +'</div>';
     function run(inc,label){
@@ -507,8 +513,7 @@ function drawAutoBar(){
         loadAll();
       }).catch(function(){msg('Auto-reconcile failed',1);});
     }
-    var a=$('auto-v'); if(a)a.addEventListener('click',function(){run(false,'the confirmed ones');});
-    var b=$('auto-all'); if(b)b.addEventListener('click',function(){run(true,'all of them');});
+    var a=$('auto-v'); if(a)a.addEventListener('click',function(){run(false,'the '+v+' the agency confirmed');});
     var d=$('auto-dry'); if(d)d.addEventListener('click',function(){
       post('dolphin_theme.api_arrivals.auto_settle_at_port',{include_noconflict:1,dry_run:1}).then(function(k){
         var r=(k&&k.message)||{};
