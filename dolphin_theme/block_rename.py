@@ -41,6 +41,8 @@ import json
 
 import frappe
 
+from frappe.model.rename_doc import rename_doc as _rename
+
 from dolphin_theme.block_resolve import _s
 
 PREFIX = "QB-"
@@ -175,9 +177,13 @@ def run(confirm=None):
     done = []
     for r in renames:
         try:
-            frappe.rename_doc("Quarry Block", r["from"], r["to"],
-                              force=True, merge=False, ignore_permissions=True,
-                              show_alert=False)
+            # 22 Aug 2026: `frappe.rename_doc` (the top-level alias) does NOT take
+            # ignore_permissions - only `frappe.model.rename_doc.rename_doc` does.
+            # The first run stopped here having renamed nothing, which is exactly
+            # what the guard is for. Calling the real function directly.
+            _rename("Quarry Block", r["from"], r["to"],
+                    force=True, merge=False, ignore_permissions=True,
+                    show_alert=False)
             done.append(r)
         except Exception as e:
             payload["failed_at"] = {"rename": r, "error": str(e)}
@@ -235,9 +241,9 @@ def revert(confirm=None, map_file=None):
     back = 0
     for r in reversed(payload.get("renames") or []):
         if frappe.db.exists("Quarry Block", r["to"]):
-            frappe.rename_doc("Quarry Block", r["to"], r["from"],
-                              force=True, merge=False, ignore_permissions=True,
-                              show_alert=False)
+            _rename("Quarry Block", r["to"], r["from"],
+                    force=True, merge=False, ignore_permissions=True,
+                    show_alert=False)
             back += 1
 
     rows_back = 0
