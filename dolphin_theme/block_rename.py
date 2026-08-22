@@ -45,16 +45,31 @@ from frappe.model.rename_doc import rename_doc as _rename
 
 from dolphin_theme.block_resolve import _s
 
-PREFIX = "QB-"
-WIDTH = 5
+# 22 Aug 2026, second attempt. The `QB-` prefix is IMPOSSIBLE here: Quarry Block
+# is named with autoincrement, so Frappe stores `name` in an INTEGER column and
+# refuses any text name ("No Name Specified for Quarry Block"). Two attempts
+# stopped at the first block having renamed nothing - which is what the guard is
+# for.
+#
+# His answer, and it is the better one: "yes great idea of 7 numbers easy no
+# hassle better than alpha numeric go ahead."
+#
+# The ids stay integers and simply move out of the range block numbers occupy.
+# Quarry and export numbers here are 3-4 digits; every id becomes 7. A
+# seven-digit number can then only be an id and a four-digit one only a block
+# number - the ambiguity gone without touching a single column type.
+OFFSET = 1000000
 MAP_FILE = "dolphin_block_rename_map.json"
 
 
 def _new_name(old):
     o = _s(old)
     if not o.isdigit():
-        return o            # already renamed, or never numeric
-    return "{0}{1:0{2}d}".format(PREFIX, int(o), WIDTH)
+        return o                      # not an autoincrement id - leave it alone
+    n = int(o)
+    if n >= OFFSET:
+        return o                      # already moved
+    return str(n + OFFSET)
 
 
 def _blocks():

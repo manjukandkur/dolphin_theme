@@ -4220,6 +4220,16 @@ def dc_weight_check_v2():
     # 22 Aug 2026: the real field names on this site are dc_no / delivery_challan_no /
     # vehicle. Read the meta rather than assuming - the first version guessed and the
     # query died with "Unknown column 'challan_no'". Never guess a field name.
+    # 22 Aug 2026, his instruction, verbatim: "What ever Dc not submitted should
+    # not be listed or considered here it will be in Dc list, Dc consolidated etc.
+    # whatever we are speaking at port, port and stock is simply after dC
+    # submitted dispatched so make it strict that anywhere it is same in draft is
+    # not submitted and consider as done only after draft."
+    #
+    # A draft challan is DMG permit paperwork, not a dispatch. It has no business
+    # on any port screen. ledger_view has filtered on docstatus 1 since 17 Aug;
+    # this did not, which is why 135 challans appeared here when only 62 have
+    # actually left the quarry.
     meta = frappe.get_meta("Delivery Challan")
     num_field = next((f for f in ("dc_no", "delivery_challan_no", "challan_no")
                       if meta.has_field(f)), None)
@@ -4230,7 +4240,8 @@ def dc_weight_check_v2():
         fields.append(num_field)
     if veh_field:
         fields.append(veh_field)
-    challans = frappe.get_all("Delivery Challan", fields=fields, limit_page_length=0)
+    challans = frappe.get_all("Delivery Challan", filters={"docstatus": 1},
+                              fields=fields, limit_page_length=0)
     detail = []
     agree = flagged = incomplete = never = 0
 
