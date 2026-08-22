@@ -135,13 +135,29 @@ def _draft_checks():
     rows = A.ledger_view() or []
     if isinstance(rows, dict):
         rows = rows.get("rows") or []
-    leaked = []
+    # A draft-only block on the page is a fault ONLY when nothing else puts it
+    # there. Two things legitimately do, and hiding either would hide something
+    # worse than it shows:
+    #   * the agency says it arrived - our paperwork and theirs disagree, and that
+    #     disagreement is exactly what a person needs to see
+    #   * it is already in a shipment lot
+    leaked, contradiction = [], []
     for r in rows:
+        hit = None
         for k in (_s(r.get("export_block_no")), _s(r.get("block_no")),
                   _s(r.get("qb"))):
             if k and k in only_draft:
-                leaked.append({"block": k, "draft_challan": only_draft[k]})
+                hit = k
                 break
+        if not hit:
+            continue
+        item = {"block": hit, "draft_challan": only_draft[hit],
+                "arrival": _s(r.get("arrival")), "lot": _s(r.get("lot")),
+                "shown_as": _s(r.get("state"))}
+        if r.get("arrival") or r.get("lot"):
+            contradiction.append(item)
+        else:
+            leaked.append(item)
 
     # the DC-to-DC screen must not list a draft challan at all
     dcd = A.dc_weight_check_v2() or {}
@@ -153,6 +169,12 @@ def _draft_checks():
                "A block that is only on a draft challan is not listed at the port",
                not leaked, _cap(leaked),
                "A draft challan is DMG paperwork. These blocks have not left."),
+        _check("draft.our_paperwork_agrees_with_theirs",
+               "No block where the agency says arrived and our challan is still a draft",
+               not contradiction, _cap(contradiction),
+               "Not an app fault - a real disagreement. The agency has these at the "
+               "port while our challan for them was never submitted. Either submit "
+               "the challan or ask the agency which block they actually received."),
         _check("draft.not_in_dc_to_dc",
                "DC to DC compares submitted challans only",
                not dcd_leak, _cap(dcd_leak),
@@ -316,13 +338,14 @@ def _lot_checks():
     rows = A.ledger_view() or []
     if isinstance(rows, dict):
         rows = rows.get("rows") or []
-    state = {}
+    state, evidence = {}, {}
     for r in rows:
         for k in (_s(r.get("export_block_no")), _s(r.get("block_no"))):
             if k:
                 state.setdefault(k, _s(r.get("state")))
+                evidence.setdefault(k, bool(r.get("arrival")))
 
-    seen, twice, not_at_port = {}, [], []
+    seen, twice, no_evidence, unconfirmed = {}, [], [], []
     for l in (A.lots_view() or []):
         lot = _s(l.get("name"))
         for b in (l.get("block_nos") or []):
@@ -334,17 +357,25 @@ def _lot_checks():
             seen[bn] = lot
             st = state.get(bn)
             if st in ("await", "unconfirmed"):
-                not_at_port.append({"block": bn, "lot": lot, "state": st})
+                # An unconfirmed sheet is a missing signature, not a missing block.
+                # Separate the two so a real gap is never buried under a paperwork one.
+                (unconfirmed if evidence.get(bn) else no_evidence).append(
+                    {"block": bn, "lot": lot, "state": st})
 
     return [
         _check("lots.one_lot_per_block", "No block is in two lots",
                not twice, _cap(twice),
                "The same block cannot be shipped twice."),
-        _check("lots.only_blocks_at_the_port",
-               "Every block in a lot has reached the port",
-               not not_at_port, _cap(not_at_port),
-               "A lot is built from Stock at Port - a block still awaiting "
-               "arrival has no business in one."),
+        _check("lots.only_blocks_the_port_has_seen",
+               "No block sits in a lot with nothing saying it ever arrived",
+               not no_evidence, _cap(no_evidence),
+               "A lot is built from Stock at Port - a block with no arrival row "
+               "at all has no business in one."),
+        _check("lots.blocks_waiting_on_a_confirmed_sheet",
+               "Every block in a lot rests on a confirmed arrival sheet",
+               not unconfirmed, _cap(unconfirmed),
+               "The agency did send these, but the sheet has not been confirmed on "
+               "the Arrivals tab. Confirm the sheet and they settle."),
     ]
 
 

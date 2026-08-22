@@ -2041,6 +2041,86 @@ def parse_email_arrivals(limit=60):
 
 
 @frappe.whitelist()
+def confirm_arrival_sheet(arrival=None, note=None, machine=None):
+    """A person says: this is the sheet the agency sent us.
+
+    22 Aug 2026. Every Port Arrival on this site is a draft - not one has ever been
+    confirmed - and that single missing step is what leaves 58 challans without a
+    weight verdict and blocks reading "arrival evidence, unconfirmed". The app is
+    right to withhold those: on his rule, "even 1 block is error we had to pay huge
+    penalty in Lakhs of rupees and dollars", so nothing is taken as proof of arrival
+    until a person has looked at the sheet.
+
+    This is that step, and nothing more. It does not move a single block; it only
+    makes the sheet count. What the block figures then unlock is decided by the same
+    tolerance and matching rules as before.
+    """
+    if not arrival:
+        return {"error": "No sheet named."}
+    try:
+        pa = frappe.get_doc("Port Arrival", arrival)
+    except Exception:
+        return {"error": "That sheet no longer exists."}
+    if pa.docstatus == 1:
+        return {"ok": 1, "already": 1, "blocks": len(pa.blocks or []),
+                "message": "That sheet was already confirmed."}
+    if pa.docstatus == 2:
+        return {"error": "That sheet was cancelled. Re-import it rather than confirming it."}
+    if not (pa.blocks or []):
+        return {"error": "That sheet has no block rows on it - nothing to confirm."}
+
+    who = _s(frappe.session.user)
+    stamp = "Confirmed by {0}{1} on {2}{3}".format(
+        who,
+        (" (" + _s(machine) + ")") if _s(machine) else "",
+        frappe.utils.now(),
+        (" - " + _s(note)) if _s(note) else "")
+    try:
+        pa.flags.ignore_permissions = True
+        pa.submit()
+        frappe.db.commit()
+    except Exception as e:
+        frappe.db.rollback()
+        return {"error": "Could not confirm it: {0}".format(e)}
+    try:
+        pa.add_comment("Comment", stamp)
+        frappe.db.commit()
+    except Exception:
+        pass
+    return {"ok": 1, "arrival": pa.name, "blocks": len(pa.blocks or []),
+            "confirmed_by": who, "note": _s(note)}
+
+
+@frappe.whitelist()
+def unconfirm_arrival_sheet(arrival=None, reason=None, machine=None):
+    """Take a confirmation back. The mirror of the button, so confirming is never
+    a one-way door - his rule, "hope this can be reverted if needed"."""
+    if not arrival:
+        return {"error": "No sheet named."}
+    if len(_s(reason)) < 4:
+        return {"error": "Say why in a few words - it stays on the sheet."}
+    try:
+        pa = frappe.get_doc("Port Arrival", arrival)
+    except Exception:
+        return {"error": "That sheet no longer exists."}
+    if pa.docstatus != 1:
+        return {"error": "That sheet is not confirmed."}
+    try:
+        pa.flags.ignore_permissions = True
+        pa.cancel()
+        frappe.db.commit()
+        pa.add_comment("Comment", "Confirmation taken back by {0}{1} on {2} - {3}".format(
+            _s(frappe.session.user),
+            (" (" + _s(machine) + ")") if _s(machine) else "",
+            frappe.utils.now(), _s(reason)))
+        frappe.db.commit()
+    except Exception as e:
+        frappe.db.rollback()
+        return {"error": "Could not take it back: {0}".format(e)}
+    return {"ok": 1, "arrival": pa.name}
+
+
+@frappe.whitelist()
 def reparse_arrival(arrival=None):
     """Re-run the parser on an arrival's stored .xls and refresh its blocks in place."""
     if not arrival:
