@@ -4285,6 +4285,85 @@ def _arrival_rows_by_block():
     return out
 
 
+def _arrival_rows_by_number():
+    """Every arrival row, keyed by THE NUMBER THE AGENCY ACTUALLY WROTE.
+
+    23 Aug 2026. His words, and he was right: "usually that is not the case a Dc
+    cannot be partially received ... practically once a truck unloads all the
+    blocks in the Dc should be there it cannot miss so easily since each block
+    weigh in tons".
+
+    Measured on the live site, of the 110 blocks the screen was reporting as
+    never sent by the agency:
+
+        81  were on the agency's sheet, written EXACTLY as the challan writes them
+         6  were on it under the block's other number
+        23  were genuinely not there
+
+    So 87 of 110 "ask the agency" messages were our matching, not their paperwork -
+    exactly what he said. The cause: matching went challan number -> block RECORD
+    -> arrival rows for that record. Two lookups, and either one failing loses a
+    row whose digits sit in plain sight on both sheets.
+
+    A person does not do that. A person reads the number. So does this now, and
+    the record is used only when the plain number finds nothing.
+
+    THE REASON THIS IS SAFE TODAY AND WOULD NOT HAVE BEEN YESTERDAY: until the
+    seven-digit rename, 62 block numbers were also some other block's record id,
+    so "the number as written" could mean two blocks. It cannot any more. And a
+    number that is STILL claimed by more than one block master is left out of this
+    index entirely rather than guessed - his rule: "even 1 block is error we had to
+    pay huge penalty in Lakhs of rupees and dollars".
+    """
+    _ds = _arrival_docstatus()
+    rows = frappe.get_all(
+        "Port Arrival Block",
+        fields=["name", "parent", "block_no", "length", "width", "height", "cbm", "net_wt"],
+        limit_page_length=0,
+    )
+    # which numbers are unambiguous across every block master
+    owners = {}
+    for b in frappe.get_all("Quarry Block",
+                            fields=["name", "block_number", "export_block_no"],
+                            limit_page_length=0):
+        for f in ("block_number", "export_block_no"):
+            v = _s(b.get(f))
+            if v:
+                owners.setdefault(v, set()).add(_s(b.name))
+    out = {}
+    for r in rows:
+        key = _s(r.get("block_no"))
+        if not key:
+            continue
+        if len(owners.get(key, set())) > 1:
+            continue                      # two blocks answer to it - never guess
+        r["submitted"] = 1 if _ds.get(r.get("parent")) == 1 else 0
+        out.setdefault(key, []).append(r)
+    return out
+
+
+def _other_number_index():
+    """quarry number -> export number and back, so a challan written one way finds
+    a sheet written the other way. Only where the pairing is unambiguous."""
+    q2e, e2q, dupq, dupe = {}, {}, set(), set()
+    for b in frappe.get_all("Quarry Block",
+                            fields=["block_number", "export_block_no"],
+                            limit_page_length=0):
+        q, e = _s(b.get("block_number")), _s(b.get("export_block_no"))
+        if not q or not e:
+            continue
+        if q in q2e and q2e[q] != e:
+            dupq.add(q)
+        if e in e2q and e2q[e] != q:
+            dupe.add(e)
+        q2e[q], e2q[e] = e, q
+    for k in dupq:
+        q2e.pop(k, None)
+    for k in dupe:
+        e2q.pop(k, None)
+    return q2e, e2q
+
+
 @frappe.whitelist()
 def dc_weight_check_v2():
     """Challan total against challan total, with identity resolved on both sides.
@@ -4296,6 +4375,32 @@ def dc_weight_check_v2():
     from dolphin_theme.block_resolve import try_resolve
 
     by_block = _arrival_rows_by_block()
+    by_number = _arrival_rows_by_number()
+    q2e, e2q = _other_number_index()
+
+    def _agency_rows(written, quarry_no, export_no):
+        """The agency's rows for one block on a challan, found the way a person
+        finds them. Returns (rows, how) - `how` says which reading found them, so
+        nothing is matched silently.
+
+        1. the number written on the challan, as written
+        2. the block's other number - challan in quarry numbers, sheet in export
+           numbers, or the other way round
+        3. only then through the block record, which is where the old matcher
+           started and where 87 of 110 blocks were being lost
+        """
+        for k in (_s(written), _s(export_no), _s(quarry_no)):
+            if k and k in by_number:
+                return by_number[k], "number"
+        w = _s(written)
+        for alt in (q2e.get(w), e2q.get(w)):
+            if alt and alt in by_number:
+                return by_number[alt], "other number"
+        hit, _why = try_resolve(w, allow_record_name=True)
+        nm = _s((hit or {}).get("name"))
+        if nm and nm in by_block:
+            return by_block[nm], "block record"
+        return None, ""
 
     # 22 Aug 2026: the real field names on this site are dc_no / delivery_challan_no /
     # vehicle. Read the meta rather than assuming - the first version guessed and the
@@ -4345,9 +4450,8 @@ def dc_weight_check_v2():
                 pass
             key = (_s(r.get("export_block_no")) or _s(r.get("block_no"))
                    or _s(r.get("block")))
-            hit, why = try_resolve(key, allow_record_name=True)
-            name = (hit or {}).get("name")
-            arr = by_block.get(name) if name else None
+            arr, how = _agency_rows(key, _s(r.get("block_no")),
+                                    _s(r.get("export_block_no")))
             if arr:
                 matched += 1
                 for a in arr:
@@ -4357,6 +4461,7 @@ def dc_weight_check_v2():
                 a0 = arr[0]
                 per_block.append({"block": key,
                                   "sheet": _s(a0.get("parent")),
+                                  "found_by": how,
                                   "submitted": 1 if a0.get("submitted") else 0,
                                   "port_l": a0.get("length"), "port_w": a0.get("width"),
                                   "port_h": a0.get("height"), "port_mt": a0.get("net_wt"),
@@ -4368,8 +4473,9 @@ def dc_weight_check_v2():
             else:
                 unmatched.append(key)
                 per_block.append({"block": key, "sheet": None, "submitted": 0,
-                                  "port_l": None, "port_w": None, "port_h": None,
-                                  "port_mt": None, "on_more_than_one_sheet": False})
+                                  "found_by": "", "port_l": None, "port_w": None,
+                                  "port_h": None, "port_mt": None,
+                                  "on_more_than_one_sheet": False})
 
         # A verdict is only honest when ALL of these hold. Any one missing and the
         # figures are shown for information with no verdict at all - never a red

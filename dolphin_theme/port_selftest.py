@@ -247,6 +247,28 @@ def _dc_to_dc_checks():
     d = A.dc_weight_check_v2() or {}
     detail = d.get("detail") or []
 
+    # THE CHECK THAT WOULD HAVE CAUGHT IT. 23 Aug 2026.
+    #
+    # His words: "a Dc cannot be partially received ... practically once a truck
+    # unloads all the blocks in the Dc should be there it cannot miss so easily
+    # since each block weigh in tons". He was right, and the screen was wrong: 81
+    # of the 110 blocks it called "never sent by the agency" were sitting on the
+    # agency's sheet under the very same digits.
+    #
+    # So: take every number the screen reports as unmatched, and simply look for
+    # those digits on the sheets. If they are there, the fault is ours.
+    on_sheet = set()
+    for r in frappe.get_all("Port Arrival Block", fields=["block_no"],
+                            limit_page_length=0):
+        v = _s(r.get("block_no"))
+        if v:
+            on_sheet.add(v)
+    ours_not_theirs = []
+    for c in detail:
+        for u in (c.get("unmatched") or []):
+            if _s(u) in on_sheet:
+                ours_not_theirs.append({"block": _s(u), "dc": _s(c.get("dc"))})
+
     JUDGED = ("FLAG", "Agrees")
     contradictions, draft_judged, mixed_judged, wrong_count = [], [], [], []
     for c in detail:
@@ -274,6 +296,11 @@ def _dc_to_dc_checks():
                                 "rows_under_it": len(on_sheet)})
 
     return [
+        _check("dctodc.never_blames_the_agency_for_our_matching",
+               "Nothing is called 'not sent' while its number sits on their sheet",
+               not ours_not_theirs, _cap(ours_not_theirs, 30),
+               "These numbers ARE on the agency's sheets. Saying the agency did "
+               "not send them sends the team chasing a fault that is ours."),
         _check("dctodc.verdict_agrees_with_blocks",
                "A weight verdict is only given when every block under it was received",
                not contradictions, _cap(contradictions),
