@@ -272,6 +272,90 @@ function atPortDone(m,asked){
   else{msg('Nothing moved '+DOT+' those blocks were already At Port',1);}
   loadAll();
 }
+
+/* ============================================================================
+   BULK RESOLVE - 22 Aug 2026. His words:
+
+     "if the app doesnt resolve reconcilation only thing for the team who can see
+      and speak to shipping agency can manually push it after reconciling manually
+      if it gets harder, so think that as last resort and at least in doing so it
+      should be easily noted the resolve ... like earlier shipping agency mistake
+      or its ok we know that, it is correct no problem etc and one selection of
+      multiple blocks"
+
+   So: tick many, pick ONE reason from his own vocabulary, and it is written onto
+   every one of them - and, if he wants, they go to At Port in the same action.
+   The reason is not optional and it is not free text by default, because a reason
+   nobody can search for is the same as no reason at all.
+   ============================================================================ */
+var BULK_REASONS=[
+  ['ok','It is correct - we know this one, no problem'],
+  ['agency','Shipping agency mistake - sorted with them'],
+  ['notsent','Agency never sent this row'],
+  ['dupe','Duplicate on their sheet - keeping one'],
+  ['legacy','Older block, no arrival record - checked by hand'],
+  ['other','Something else - I will type it']
+];
+function openBulkResolve(rows){
+  var old=document.getElementById('__bulk');if(old)old.remove();
+  var ov=document.createElement('div');ov.id='__bulk';
+  ov.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(15,37,64,.45);z-index:100001;display:flex;align-items:center;justify-content:center';
+  var names=rows.map(function(r){return esc(r.export_block_no||r.block_no||'');});
+  var opts=BULK_REASONS.map(function(o){
+    return '<label style="display:flex;gap:9px;align-items:flex-start;padding:8px 10px;border:1px solid #e7ebf1;border-radius:8px;margin-bottom:6px;cursor:pointer;font-size:13px">'
+      +'<input type="radio" name="__br" value="'+o[0]+'" style="margin-top:2px">'+esc(o[1])+'</label>';
+  }).join('');
+  ov.innerHTML='<div style="background:#fff;border-radius:12px;width:520px;max-width:94vw;max-height:88vh;overflow:auto;box-shadow:0 18px 50px rgba(0,0,0,.3)">'
+    +'<div style="padding:14px 18px;border-bottom:1px solid #eef2f6"><div style="font-weight:700;color:#0F2540;font-size:15px">Resolve '+rows.length+' block'+(rows.length===1?'':'s')+'</div>'
+    +'<div class="sub" style="margin-top:3px;font-size:12px">'+names.slice(0,14).join(', ')+(names.length>14?(' and '+(names.length-14)+' more'):'')+'</div></div>'
+    +'<div style="padding:14px 18px">'
+    +'<div style="font-size:12px;color:#5f6b7a;margin-bottom:8px">Why are these settled? The same reason is written onto every one of them.</div>'
+    +opts
+    +'<textarea id="__brtxt" placeholder="Anything worth remembering (optional unless you chose the last one)" style="width:100%;min-height:62px;border:1px solid #cfd4dc;border-radius:8px;padding:8px;font-size:13px;margin-top:4px"></textarea>'
+    +'<label style="display:flex;gap:8px;align-items:center;margin-top:10px;font-size:13px;cursor:pointer"><input type="checkbox" id="__brmove" checked> and send them to&nbsp;<b>At Port</b></label>'
+    +'<div class="sub" style="font-size:11px;margin-top:6px;color:#8a5a12">A hand-push is the last resort. What you record here stays on the block and shows in Trace a Block.</div>'
+    +'</div>'
+    +'<div style="padding:12px 18px;border-top:1px solid #eef2f6;text-align:right"><span class="rb" id="__brc" style="margin-right:8px;color:#8a929c">Cancel</span><span class="rb pri" id="__brok">Resolve them</span></div>'
+    +'</div>';
+  document.body.appendChild(ov);
+  ov.addEventListener('mousedown',function(e){if(e.target===ov)ov.remove();});
+  ov.querySelector('#__brc').addEventListener('click',function(){ov.remove();});
+  ov.querySelector('#__brok').addEventListener('click',function(){
+    var pick=ov.querySelector('input[name="__br"]:checked');
+    if(!pick){msg('Pick a reason first',1);return;}
+    var label='';BULK_REASONS.forEach(function(o){if(o[0]===pick.value)label=o[1];});
+    var extra=(ov.querySelector('#__brtxt').value||'').trim();
+    if(pick.value==='other'&&extra.length<4){msg('Type what the reason is',1);return;}
+    var note=(pick.value==='other'?extra:(label+(extra?(' '+DOT+' '+extra):'')))+' '+DOT+' '+_machine();
+    var move=ov.querySelector('#__brmove').checked;
+    ov.remove();
+    bulkApply(rows,note,move);
+  });
+}
+function bulkApply(rows,note,move){
+  msg('Recording the reason on '+rows.length+' block'+(rows.length===1?'':'s')+'...');
+  var withArr=rows.filter(function(r){return r.arrival;});
+  var chain=Promise.resolve();
+  var failed=[];
+  withArr.forEach(function(r){
+    chain=chain.then(function(){
+      return post('dolphin_theme.api_arrivals.resolve_block',{arrival:r.arrival,block_no:(r.export_block_no||r.block_no),action:'accept',note:note})
+        .catch(function(){failed.push(r.export_block_no||r.block_no);});
+    });
+  });
+  chain.then(function(){
+    if(!move){
+      if(failed.length){msg(failed.length+' could not be recorded: '+failed.join(', '),1);}
+      else{msg(CHK+' Reason recorded on '+rows.length);}
+      loadAll();return;
+    }
+    var it=rows.filter(function(r){return r.state!=='port'&&r.state!=='lot'&&r.state!=='load';}).map(atPortRow);
+    if(!it.length){msg(CHK+' Reason recorded '+DOT+' they were already At Port');loadAll();return;}
+    return post('dolphin_theme.api_arrivals.move_to_at_port',{blocks:it,note:note})
+      .then(function(j){atPortDone(j&&j.message,it.length);})
+      .catch(function(){msg('Reason recorded, but the move to At Port failed',1);loadAll();});
+  });
+}
 function renderB2B(m){
   var rows='',nready=0;
   LED.forEach(function(r,i){
@@ -304,13 +388,13 @@ function renderB2B(m){
      xls upload was above and easy". The two actions moved back to the TOP of the sheet, where they
      used to be and where the floating Workspace / need-you pills cannot sit on top of them. One
      primary button, and it does the thing this screen is for: send the block to At Port. */
-  m.innerHTML='<div class="frow" style="padding:0 2px 10px;gap:8px;align-items:center"><button class="rb" id="rc-imp" title="If an email was missed, load the agency sheet by hand">&#8593; Import arrivals .xls</button><span class="sub" id="rc-cnt" style="flex:1">'+nready+' block'+(nready===1?'':'s')+' not at port yet</span><button class="rb pri" id="rc-push" title="Send the ticked blocks to At Port">'+AR+' Push to At Port</button></div><table><thead><tr><th style="width:22px" rowspan="2"><input type="checkbox" class="selall" title="Select all"></th><th rowspan="2">Block</th><th rowspan="2">DC</th><th colspan="3" style="text-align:center;background:#eaf1fb;color:#0c447c">Our DC</th><th colspan="3" style="text-align:center;background:#f6f3ea;color:#9a7414">Port XLS</th><th rowspan="2">&#916; MT</th><th rowspan="2">Status</th><th rowspan="2"></th></tr><tr><th style="background:#f4f8fd">Size</th><th style="background:#f4f8fd">CBM</th><th style="background:#f4f8fd">MT</th><th style="background:#faf8f2">Size</th><th style="background:#faf8f2">CBM</th><th style="background:#faf8f2">MT</th></tr></thead><tbody>'+rows+'</tbody></table>';
+  m.innerHTML='<div class="frow" style="padding:0 2px 10px;gap:8px;align-items:center"><button class="rb" id="rc-imp" title="If an email was missed, load the agency sheet by hand">&#8593; Import arrivals .xls</button><span class="sub" id="rc-cnt" style="flex:1">'+nready+' block'+(nready===1?'':'s')+' not at port yet</span><button class="rb" id="rc-bulk" title="Record one reason against every ticked block">&#10003; Resolve selected&hellip;</button><button class="rb pri" id="rc-push" title="Send the ticked blocks to At Port">'+AR+' Push to At Port</button></div><table><thead><tr><th style="width:22px" rowspan="2"><input type="checkbox" class="selall" title="Select all"></th><th rowspan="2">Block</th><th rowspan="2">DC</th><th colspan="3" style="text-align:center;background:#eaf1fb;color:#0c447c">Our DC</th><th colspan="3" style="text-align:center;background:#f6f3ea;color:#9a7414">Port XLS</th><th rowspan="2">&#916; MT</th><th rowspan="2">Status</th><th rowspan="2"></th></tr><tr><th style="background:#f4f8fd">Size</th><th style="background:#f4f8fd">CBM</th><th style="background:#f4f8fd">MT</th><th style="background:#faf8f2">Size</th><th style="background:#faf8f2">CBM</th><th style="background:#faf8f2">MT</th></tr></thead><tbody>'+rows+'</tbody></table>';
   m.querySelectorAll('[data-rslv]').forEach(function(b){b.addEventListener('click',function(){openResolve(LED[+b.dataset.rslv],b);});});
   /* His ask, 22 Aug: the manual .xls import used to be easy to find. It lives on the files
      tab, which is right, but a missed email is discovered while working the sheet - so the
      same panel opens from here too. One import, two doors, no second implementation. */
   var ri=$('rc-imp');if(ri)ri.addEventListener('click',function(){RSUB='src';renderRecon();setTimeout(function(){var b=$('srcimp');if(b)b.click();},250);});
-  var p=$('rc-push');if(p)p.addEventListener('click',function(){var sel=rcSelected('.bck');if(!sel.length){msg('Tick the blocks you want to send to At Port',1);return;}var it=sel.filter(function(r){return r.state!=='port'&&r.state!=='lot'&&r.state!=='load';}).map(atPortRow);if(!it.length){msg('Those blocks are already at the port',1);return;}post('dolphin_theme.api_arrivals.move_to_at_port',{blocks:it}).then(function(j){atPortDone(j&&j.message,it.length);}).catch(function(){msg('Move to At Port failed',1);});});var __sb=m.querySelector('.selall');if(__sb)__sb.addEventListener('change',function(){m.querySelectorAll('.bck').forEach(function(c){c.checked=__sb.checked;});});
+  var p=$('rc-push');if(p)p.addEventListener('click',function(){var sel=rcSelected('.bck');if(!sel.length){msg('Tick the blocks you want to send to At Port',1);return;}var it=sel.filter(function(r){return r.state!=='port'&&r.state!=='lot'&&r.state!=='load';}).map(atPortRow);if(!it.length){msg('Those blocks are already at the port',1);return;}post('dolphin_theme.api_arrivals.move_to_at_port',{blocks:it}).then(function(j){atPortDone(j&&j.message,it.length);}).catch(function(){msg('Move to At Port failed',1);});});var bq=$('rc-bulk');if(bq)bq.addEventListener('click',function(){var sel=rcSelected('.bck');if(!sel.length){msg('Tick the blocks you want to resolve',1);return;}openBulkResolve(sel);});var __sb=m.querySelector('.selall');if(__sb)__sb.addEventListener('change',function(){m.querySelectorAll('.bck').forEach(function(c){c.checked=__sb.checked;});});
 }
 function openResolve(r,btn){
   var old=document.getElementById('__rm');if(old)old.remove();
