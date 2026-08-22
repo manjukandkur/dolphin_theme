@@ -3759,23 +3759,71 @@ def _size_conflict(r):
     return False
 
 
+def _challans_out_of_tolerance(rows):
+    """Which challans are genuinely out by more than a tonne?
+
+    22 Aug 2026, his question: "does the blocks weight ton difference with the port
+    and ours goes auto to at port? it must go, only lesser or higher than 1 ton
+    should be waiting for user decision is it correct?"
+
+    Yes - with one correction, which is his own earlier rule. A PER-BLOCK weight
+    from the agency is their arbitrary split of one truck weighing, so a per-block
+    gap means nothing and must never hold a block up. The tonne is tested where the
+    number is real: CHALLAN TOTAL against CHALLAN TOTAL, and only when they have
+    sent every row of that challan. An incomplete challan gets no verdict at all.
+    """
+    tot = {}
+    for r in rows or []:
+        dc = _s(r.get("dc"))
+        if not dc:
+            continue
+        t = tot.setdefault(dc, {"ours": 0.0, "theirs": 0.0, "rows": 0, "with_port": 0})
+        t["rows"] += 1
+        try:
+            t["ours"] += float(r.get("ton") or 0)
+        except Exception:
+            pass
+        nw = r.get("net_wt")
+        if nw:
+            t["with_port"] += 1
+            try:
+                t["theirs"] += float(nw)
+            except Exception:
+                pass
+    bad = set()
+    for dc, t in tot.items():
+        if not t["with_port"] or t["with_port"] != t["rows"]:
+            continue          # incomplete: a missing row is a missing row, not a gap
+        if not t["ours"] or not t["theirs"]:
+            continue
+        if abs(t["theirs"] - t["ours"]) > AUTO_TOL_MT:
+            bad.add(dc)
+    return bad
+
+
 def _classify_for_auto(rows):
     """Split the ledger into what the app may settle by itself and what it may not.
 
-    verified   the agency sent a row for this block and it does not contradict ours
+    verified   the agency sent a row for this block, nothing contradicts it, and its
+               challan total is inside the one tonne tolerance
     noconflict the block is on a challan of ours, nothing contradicts it, but the
-               agency has not sent a row — his rule: that is a conversation with
-               them, not a reason to hold the block up
-    conflict   sizes disagree — a person decides, always
+               agency has not sent a row - that is a conversation with them, never a
+               reason to hold the block up
+    conflict   sizes disagree, or the challan total is out by more than a tonne - a
+               person decides, always
     settled    already At Port, in a lot, or loaded
     """
     out = {"verified": [], "noconflict": [], "conflict": [], "settled": []}
+    bad_dc = _challans_out_of_tolerance(rows)
     for r in rows or []:
         st = _s(r.get("state"))
         if st in ("port", "lot", "load"):
             out["settled"].append(r)
             continue
         if _size_conflict(r):
+            out["conflict"].append(r)
+            continue
+        if _s(r.get("dc")) in bad_dc:
             out["conflict"].append(r)
             continue
         got_port = any(r.get(k) for k in ("pt_l", "pt_w", "pt_h", "pt_cbm", "net_wt"))
