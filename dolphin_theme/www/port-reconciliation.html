@@ -952,13 +952,27 @@ function renderLotTableInto(el,list,exported){
     var st=_isShipped(l)?'ship':'build';
     var sp=st==='ship'?'<span class="pill p-load">'+U(9875)+' Shipped</span>':'<span class="pill p-port">'+U(9679)+' Building</span>';
     var act=exported?'<span class="sub">'+esc(l.ship_date||l.vessel||DASH)+'</span>':'<span class="rb gold" data-shiplot="'+esc(l.name)+'">'+U(9875)+' Mark shipped</span>';
-    h+='<tr><td><b>'+esc(l.title||l.name)+'</b><div class="sub">'+esc(l.name)+'</div></td><td>'+esc(l.consignee||'')+'</td><td>'+esc(l.vessel||DASH)+'</td><td>'+esc(l.bl_no||DASH)+'</td><td>'+esc(l.ship_date?fmtDate(l.ship_date):DASH)+'</td><td>'+(l.total_blocks||(l.block_nos||[]).length||0)+'</td><td>'+(l.total_cbm||DASH)+'</td><td>'+sp+'</td><td class="di-doc" data-lotdoc="'+esc(l.name)+'">'+(exported?'<span class="sub">&hellip;</span>':'<span class="eye" data-lot="'+esc(l.name)+'">'+U(128196)+'</span>')+'</td><td>'+act+'</td><td><span class="exp" data-lx="'+i+'">'+TRI+'</span></td></tr>'
+    h+='<tr><td><b>'+esc(l.title||l.name)+'</b><div class="sub">'+esc(l.name)+'</div></td><td>'+esc(l.consignee||'')+'</td><td>'+esc(l.vessel||DASH)+'</td><td>'+esc(l.bl_no||DASH)+'</td><td>'+esc(l.ship_date?fmtDate(l.ship_date):DASH)+'</td><td>'+(l.total_blocks||(l.block_nos||[]).length||0)+'</td><td>'+(l.total_cbm||DASH)+'</td><td>'+sp+'</td><td class="di-doc" data-lotdoc="'+esc(l.name)+'">'
+      /* 22 Aug 2026, his words: "need preview eye icon pdf pop up here". The column already
+         opened a print preview, but it was drawn as a flat page glyph nobody reads as a
+         button. An eye, a label and a tooltip - so it looks like what it is. */
+      +(exported?'<span class="sub">&hellip;</span>':'<span class="eye" data-lot="'+esc(l.name)+'" title="Preview the packing list" style="cursor:pointer;white-space:nowrap">'+U(128065)+' <span style="font-size:11px">Preview</span></span>')+'</td><td>'+act+'</td><td><span class="exp" data-lx="'+i+'">'+TRI+'</span></td></tr>'
       +'<tr class="det" id="'+(exported?'ex':'lx')+i+'" style="display:none"><td colspan="11"><div class="trace"><div style="font-size:12px;color:#374151;margin-bottom:6px"><b>Blocks:</b> '+esc((l.block_nos||[]).join(', ')||DASH)+'</div><a class="rb" href="/app/export-shipment-lot/'+encodeURIComponent(l.name)+'" target="_blank">'+U(128196)+' Open lot</a></div></td></tr>';
   });
   h+='</tbody></table>'; el.innerHTML=h;
   var pfx=exported?'ex':'lx';
   el.querySelectorAll('.exp').forEach(function(x){x.addEventListener('click',function(){var d=$(pfx+x.dataset.lx);if(d)d.style.display=d.style.display==='none'?'':'none';});});
-  el.querySelectorAll('[data-lot]').forEach(function(x){x.addEventListener('click',function(){openPanel('Export Shipment Lot',x.dataset.lot,'');});});
+  el.querySelectorAll('[data-lot]').forEach(function(x){x.addEventListener('click',function(){
+    openPanel('Export Shipment Lot',x.dataset.lot,(window.__lotPackFmt||''));
+  });});
+  if(window.__lotPackFmt===undefined){
+    window.__lotPackFmt='';
+    var _p=new URLSearchParams({doctype:'Print Format',filters:JSON.stringify({doc_type:'Export Shipment Lot',disabled:0}),fields:JSON.stringify(['name']),limit_page_length:'1'});
+    fetch('/api/method/frappe.client.get_list?'+_p.toString(),{credentials:'include',headers:{Accept:'application/json'}})
+      .then(function(r){return r.json();})
+      .then(function(j){var a=(j&&j.message)||[];if(a.length)window.__lotPackFmt=a[0].name;})
+      .catch(function(){});
+  }
   el.querySelectorAll('[data-shiplot]').forEach(function(x){x.addEventListener('click',function(){shipLot(x.dataset.shiplot);});});
 
   /* 20 Aug 2026, his words: "this exported should have invoice packing list not
