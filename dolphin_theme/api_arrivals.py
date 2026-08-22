@@ -2065,7 +2065,9 @@ def confirm_arrival_sheet(arrival=None, note=None, machine=None):
         return {"ok": 1, "already": 1, "blocks": len(pa.blocks or []),
                 "message": "That sheet was already confirmed."}
     if pa.docstatus == 2:
-        return {"error": "That sheet was cancelled. Re-import it rather than confirming it."}
+        return {"error": "That sheet is cancelled. Use 'take the confirmation back' "
+                         "first - it puts the sheet into draft, and then it can be "
+                         "confirmed again."}
     if not (pa.blocks or []):
         return {"error": "That sheet has no block rows on it - nothing to confirm."}
 
@@ -2103,21 +2105,42 @@ def unconfirm_arrival_sheet(arrival=None, reason=None, machine=None):
         pa = frappe.get_doc("Port Arrival", arrival)
     except Exception:
         return {"error": "That sheet no longer exists."}
-    if pa.docstatus != 1:
-        return {"error": "That sheet is not confirmed."}
+    if pa.docstatus == 0:
+        return {"ok": 1, "arrival": pa.name, "already": 1,
+                "message": "That sheet is already back in draft."}
+
+    # 23 Aug 2026 - WHY THIS DOES NOT CALL cancel().
+    #
+    # It did, on the first version, and a trial run proved that wrong: Frappe's
+    # cancel puts the document into CANCELLED, not back into draft, and a
+    # cancelled sheet cannot simply be confirmed again - it has to be amended into
+    # a new document with a new name. "Take the confirmation back" has to leave
+    # the sheet exactly as it was before it was confirmed, or it is not an undo at
+    # all, and his rule is plain: "hope this can be reverted if needed or else it
+    # will mess up more than required".
+    #
+    # A Port Arrival is the agency's sheet. It posts no ledger entry and no stock
+    # movement, so its docstatus carries one meaning only - has a person confirmed
+    # it. Putting that back to 0 is precisely the undo, on the parent and on every
+    # row under it.
     try:
-        pa.flags.ignore_permissions = True
-        pa.cancel()
+        frappe.db.set_value("Port Arrival", pa.name, "docstatus", 0,
+                            update_modified=False)
+        for tf in pa.meta.get_table_fields():
+            for row in (pa.get(tf.fieldname) or []):
+                frappe.db.set_value(tf.options, row.name, "docstatus", 0,
+                                    update_modified=False)
         frappe.db.commit()
-        pa.add_comment("Comment", "Confirmation taken back by {0}{1} on {2} - {3}".format(
-            _s(frappe.session.user),
-            (" (" + _s(machine) + ")") if _s(machine) else "",
-            frappe.utils.now(), _s(reason)))
+        frappe.get_doc("Port Arrival", pa.name).add_comment(
+            "Comment", "Confirmation taken back by {0}{1} on {2} - {3}".format(
+                _s(frappe.session.user),
+                (" (" + _s(machine) + ")") if _s(machine) else "",
+                frappe.utils.now(), _s(reason)))
         frappe.db.commit()
     except Exception as e:
         frappe.db.rollback()
         return {"error": "Could not take it back: {0}".format(e)}
-    return {"ok": 1, "arrival": pa.name}
+    return {"ok": 1, "arrival": pa.name, "now": "draft"}
 
 
 @frappe.whitelist()
