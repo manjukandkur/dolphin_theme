@@ -152,10 +152,32 @@ def _save_map(payload):
 
 
 @frappe.whitelist()
-def run(confirm=None):
-    """Do it. Refuses without confirm="YES"."""
+def status():
+    """How far along the rename is. Changes nothing."""
+    blocks = _blocks()
+    old = [b for b in blocks if _s(b.name).isdigit() and int(_s(b.name)) < OFFSET]
+    new = [b for b in blocks if _s(b.name).isdigit() and int(_s(b.name)) >= OFFSET]
+    maps = frappe.get_all("File", filters={"file_name": MAP_FILE},
+                          fields=["name", "creation"], order_by="creation desc")
+    return {"blocks_total": len(blocks), "still_short_ids": len(old),
+            "already_seven_digit": len(new), "map_files": len(maps),
+            "maps": [m.name for m in maps]}
+
+
+@frappe.whitelist()
+def run(confirm=None, limit=0):
+    """Do it. Refuses without confirm="YES".
+
+    `limit` renames at most that many blocks in this call and saves its own map,
+    so hundreds of blocks can be moved in batches instead of in one request that
+    runs long enough to time out half way through. revert() undoes every batch,
+    newest first."""
     if _s(confirm) != "YES":
         frappe.throw('Refusing. Call run(confirm="YES") once you have read plan().')
+    try:
+        limit = int(limit or 0)
+    except Exception:
+        limit = 0
 
     blocks = _blocks()
     by_name = {_s(b.name): b for b in blocks}
@@ -183,6 +205,8 @@ def run(confirm=None):
         if new == old or frappe.db.exists("Quarry Block", new):
             continue
         renames.append({"from": old, "to": new})
+        if limit and len(renames) >= limit:
+            break
 
     payload = {"when": frappe.utils.now(), "by": frappe.session.user,
                "renames": renames, "arrival_rows": row_changes,
@@ -242,32 +266,34 @@ def revert(confirm=None, map_file=None):
     if _s(confirm) != "YES":
         frappe.throw('Refusing. Call revert(confirm="YES").')
 
-    name = _s(map_file)
-    if not name:
-        rows = frappe.get_all("File", filters={"file_name": MAP_FILE},
-                              fields=["name"], order_by="creation desc", limit=1)
-        if not rows:
-            frappe.throw("No rename map found on this site - nothing to revert from.")
-        name = rows[0].name
+    # Every batch saves its own map. Reverting only the newest would leave the
+    # earlier batches renamed, which is exactly the half-done mess he asked me to
+    # make impossible - so with no map named, revert ALL of them, newest first.
+    names = [_s(map_file)] if _s(map_file) else [
+        m.name for m in frappe.get_all("File", filters={"file_name": MAP_FILE},
+                                       fields=["name"], order_by="creation desc")]
+    names = [n for n in names if n]
+    if not names:
+        frappe.throw("No rename map found on this site - nothing to revert from.")
 
-    doc = frappe.get_doc("File", name)
-    payload = json.loads(doc.get_content())
-
-    back = 0
-    for r in reversed(payload.get("renames") or []):
-        if frappe.db.exists("Quarry Block", r["to"]):
-            _rename("Quarry Block", r["to"], r["from"],
-                    force=True, merge=False, ignore_permissions=True,
-                    show_alert=False)
-            back += 1
-
-    rows_back = 0
-    for a in (payload.get("arrival_rows") or []):
-        if frappe.db.exists("Port Arrival Block", a["row"]):
-            frappe.db.set_value("Port Arrival Block", a["row"], "block_no",
-                                a["from"], update_modified=False)
-            rows_back += 1
+    back = rows_back = 0
+    used = []
+    for name in names:
+        doc = frappe.get_doc("File", name)
+        payload = json.loads(doc.get_content())
+        for r in reversed(payload.get("renames") or []):
+            if frappe.db.exists("Quarry Block", r["to"]):
+                _rename("Quarry Block", r["to"], r["from"],
+                        force=True, merge=False, ignore_permissions=True,
+                        show_alert=False)
+                back += 1
+        for a in (payload.get("arrival_rows") or []):
+            if frappe.db.exists("Port Arrival Block", a["row"]):
+                frappe.db.set_value("Port Arrival Block", a["row"], "block_no",
+                                    a["from"], update_modified=False)
+                rows_back += 1
+        used.append(name)
 
     frappe.db.commit()
     return {"ok": 1, "renamed_back": back, "arrival_rows_restored": rows_back,
-            "from_map": name}
+            "from_maps": used}
