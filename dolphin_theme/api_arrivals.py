@@ -1014,6 +1014,32 @@ def _evidence_index():
     return idx
 
 
+def _block_by_name():
+    """Quarry Block keyed by its RECORD NAME only.
+
+    22 Aug 2026 - found while chasing his identity question, and worse than the
+    original fault. `_block_status_index` keys the SAME dictionary by export
+    number, quarry number AND record name. On this site 62 numbers are two of
+    those at once, so `idx["1353"]` resolves to whichever record the loop happened
+    to reach first - block 1353 or block 1865 depending on iteration order. A
+    block's status could therefore be read off the wrong block.
+
+    A DC row carries a real Link to the block. A Link is unambiguous. So where a
+    Link exists it is used, through this index, and nothing is inferred at all.
+    """
+    out = {}
+    try:
+        for qb in frappe.get_all("Quarry Block",
+                                 fields=["name", "block_number", "export_block_no", "status"],
+                                 limit_page_length=0):
+            out[_s(qb.name)] = {"name": qb.name, "status": _s(qb.status),
+                                "block_number": _s(qb.block_number),
+                                "export_block_no": _s(qb.export_block_no)}
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), "Dolphin block by name")
+    return out
+
+
 def _block_status_index():
     """Every identifier a Quarry Block answers to -> (record name, real status).
 
@@ -1099,6 +1125,7 @@ def ledger_view():
     arrived = _arrived_index()          # submitted arrivals only (17 Aug fix)
     evidence = _evidence_index()        # draft arrivals — shown, never counted
     qbs = _block_status_index()         # the block's OWN status is the spine
+    qbn = _block_by_name()              # unambiguous: keyed by record name only
     cons = _consignee_names()
     emap = _export_map()
 
@@ -1146,7 +1173,9 @@ def ledger_view():
             pa = next((arrived[k] for k in keys if k in arrived), None)
             ev = next((evidence[k] for k in keys if k in evidence), None)
             lot = next((lots[k] for k in keys if k in lots), None)
-            qb = next((qbs[k] for k in keys if k in qbs), None)
+            # The Link on the row is authoritative. Only when there is no Link do
+            # we fall back to matching by number, which is where collisions live.
+            qb = qbn.get(_s(r.block)) or next((qbs[k] for k in keys if k in qbs), None)
             qstat = _s(qb["status"]) if qb else ""
 
             # A block that has not been dispatched does not belong on this page at all
