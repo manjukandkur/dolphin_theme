@@ -894,6 +894,15 @@ def move_to_at_port(blocks=None, note=None):
         hit, why = try_resolve(bn, allow_record_name=False)
         if not hit:
             continue
+        # 22 Aug 2026: remember what it was, so send_back_to_reconcile can put it
+        # back exactly instead of guessing. Every forward move has a way back.
+        try:
+            _prev_field_ready()
+            _cur = _s(frappe.db.get_value("Quarry Block", hit["name"], "status"))
+            if _cur and _cur != "At Port":
+                frappe.db.set_value("Quarry Block", hit["name"], "status_before_at_port", _cur)
+        except Exception:
+            pass
         res = set_status(hit["name"], "At Port",
                          "arrival step skipped: {0}".format(_s(note) or "no reason given"),
                          machine="server (skip arrivals)")
@@ -3689,3 +3698,254 @@ def unexport_shipment(shipping_document=None, person=None, reason=None, dry_run=
     frappe.db.commit()
     return {"ok": 1, "status": "Draft", "shipping_document": sd, "lot": lot,
             "blocks_put_back": len(restore), "left_untouched": stuck}
+
+
+# ============================================================================
+# AUTO-RECONCILE AND THE WAY BACK — 22 Aug 2026
+#
+# His words, in order, across one evening:
+#   "all matched and verified should move to at port by default"
+#   "if there is any issue it should have an option to send it back to
+#    reconcilation till resolved good idea?"
+#   "auto reconcilation and moving to port is the key it just occured to me"
+#   "that is the solution our goal has to be that!"
+#
+# So: the app settles what it can settle and moves those blocks itself. A person
+# is only asked about what the app genuinely cannot decide.
+#
+# The way back is built FIRST and on purpose. Automatic movement is only safe
+# when one click puts a block back and records why — the same rule that makes
+# Mark as Exported safe. `status_before_at_port` is written on the way in so the
+# way back restores exactly what was there, never a guess.
+# ============================================================================
+
+AT_PORT_STATUS = "At Port"
+AUTO_TOL_MT = 1.0          # his standing rule: one tonne, and inside it is matched
+
+
+def _prev_field_ready():
+    """Make sure Quarry Block has somewhere to remember what it was before At Port.
+    Created once, never fails the caller."""
+    try:
+        if frappe.get_meta("Quarry Block").has_field("status_before_at_port"):
+            return True
+        from frappe.custom.doctype.custom_field.custom_field import create_custom_field
+        create_custom_field("Quarry Block", {
+            "fieldname": "status_before_at_port",
+            "label": "Status Before At Port",
+            "fieldtype": "Data",
+            "hidden": 1,
+            "read_only": 1,
+            "no_copy": 1,
+        }, ignore_validate=True)
+        frappe.clear_cache(doctype="Quarry Block")
+        return frappe.get_meta("Quarry Block").has_field("status_before_at_port")
+    except Exception:
+        return False
+
+
+def _size_conflict(r):
+    """True only when BOTH sides gave a dimension and they disagree. A missing
+    figure is a missing figure, never a conflict."""
+    for ours, theirs in (("dc_l", "pt_l"), ("dc_w", "pt_w"), ("dc_h", "pt_h")):
+        a, b = r.get(ours), r.get(theirs)
+        if a in (None, "", 0) or b in (None, "", 0):
+            continue
+        try:
+            if abs(float(a) - float(b)) > 0.5:
+                return True
+        except Exception:
+            continue
+    return False
+
+
+def _classify_for_auto(rows):
+    """Split the ledger into what the app may settle by itself and what it may not.
+
+    verified   the agency sent a row for this block and it does not contradict ours
+    noconflict the block is on a challan of ours, nothing contradicts it, but the
+               agency has not sent a row — his rule: that is a conversation with
+               them, not a reason to hold the block up
+    conflict   sizes disagree — a person decides, always
+    settled    already At Port, in a lot, or loaded
+    """
+    out = {"verified": [], "noconflict": [], "conflict": [], "settled": []}
+    for r in rows or []:
+        st = _s(r.get("state"))
+        if st in ("port", "lot", "load"):
+            out["settled"].append(r)
+            continue
+        if _size_conflict(r):
+            out["conflict"].append(r)
+            continue
+        got_port = any(r.get(k) for k in ("pt_l", "pt_w", "pt_h", "pt_cbm", "net_wt"))
+        if got_port and r.get("arrival"):
+            out["verified"].append(r)
+        elif r.get("dc"):
+            out["noconflict"].append(r)
+        else:
+            out["conflict"].append(r)
+    return out
+
+
+@frappe.whitelist()
+def auto_settle_preview():
+    """What would the app settle by itself right now? Changes nothing."""
+    rows = ledger_view() or []
+    if isinstance(rows, dict):
+        rows = rows.get("rows") or []
+    g = _classify_for_auto(rows)
+
+    def names(k, cap=400):
+        return [_s(x.get("export_block_no") or x.get("block_no")) for x in g[k][:cap]]
+
+    return {
+        "verified": len(g["verified"]),
+        "noconflict": len(g["noconflict"]),
+        "conflict": len(g["conflict"]),
+        "settled": len(g["settled"]),
+        "total": len(rows),
+        "verified_blocks": names("verified"),
+        "noconflict_blocks": names("noconflict"),
+        "conflict_blocks": names("conflict"),
+        "tolerance_mt": AUTO_TOL_MT,
+    }
+
+
+@frappe.whitelist()
+def auto_settle_at_port(include_noconflict=0, person=None, dry_run=0):
+    """Move everything the app can settle to At Port, by itself.
+
+    include_noconflict=0  only blocks the agency has confirmed
+    include_noconflict=1  also blocks with nothing contradicting them, where the
+                          agency simply never sent a row
+    Every block carries the reason, and every block remembers what it was, so
+    send_back_to_reconcile can put it back exactly.
+    """
+    dry = _s(dry_run) in ("1", "true", "True")
+    inc = _s(include_noconflict) in ("1", "true", "True")
+    person = _s(person) or frappe.session.user
+
+    rows = ledger_view() or []
+    if isinstance(rows, dict):
+        rows = rows.get("rows") or []
+    g = _classify_for_auto(rows)
+
+    todo = list(g["verified"]) + (list(g["noconflict"]) if inc else [])
+    plan = {
+        "would_move": len(todo),
+        "verified": len(g["verified"]),
+        "noconflict": len(g["noconflict"]),
+        "left_for_a_person": len(g["conflict"]),
+        "include_noconflict": 1 if inc else 0,
+    }
+    if dry:
+        plan["blocks"] = [_s(x.get("export_block_no") or x.get("block_no")) for x in todo[:400]]
+        plan["dry_run"] = True
+        return plan
+
+    _prev_field_ready()
+    from dolphin_theme.block_resolve import try_resolve, set_status
+
+    moved, refused, already = [], [], []
+    for r in todo:
+        bn = _s(r.get("export_block_no") or r.get("block_no"))
+        if not bn:
+            continue
+        hit, why = try_resolve(bn, allow_record_name=False)
+        if not hit:
+            refused.append({"block": bn, "why": why})
+            continue
+        name = hit["name"]
+        cur = _s(frappe.db.get_value("Quarry Block", name, "status"))
+        if cur == AT_PORT_STATUS:
+            already.append(bn)
+            continue
+        confirmed = r in g["verified"]
+        reason = ("auto-reconciled: " +
+                  ("the agency's sheet agrees with ours"
+                   if confirmed else
+                   "nothing contradicts this block; the agency never sent a row") +
+                  " (tolerance " + str(AUTO_TOL_MT) + " MT) - settled without a person by " + person)
+        try:
+            frappe.db.set_value("Quarry Block", name, "status_before_at_port", cur or "")
+        except Exception:
+            pass
+        res = set_status(name, AT_PORT_STATUS, reason, machine="server (auto-reconcile)",
+                         actor=person)
+        if res.get("ok"):
+            moved.append(bn)
+        else:
+            refused.append({"block": bn, "why": res.get("error") or "refused"})
+
+    frappe.db.commit()
+    return {"ok": 1, "moved": len(moved), "already_at_port": len(already),
+            "refused": refused, "left_for_a_person": len(g["conflict"]),
+            "moved_blocks": moved[:400]}
+
+
+@frappe.whitelist()
+def send_back_to_reconcile(blocks=None, reason=None, person=None, dry_run=0):
+    """The way back from At Port. His words: "if there is any issue it should have
+    an option to send it back to reconcilation till resolved".
+
+    Restores the exact status the block held before it went to At Port, refuses
+    without a reason, and writes who and why onto the block's own history."""
+    if isinstance(blocks, str):
+        blocks = _json.loads(blocks)
+    blocks = blocks or []
+    dry = _s(dry_run) in ("1", "true", "True")
+    reason = _s(reason)
+    person = _s(person) or frappe.session.user
+
+    if not blocks:
+        frappe.throw("No blocks given to send back.")
+    if not dry and not reason:
+        frappe.throw("Say why this block is going back to Reconcile. "
+                     "Every way back in this system asks, and this one is no different.")
+
+    from dolphin_theme.block_resolve import try_resolve, set_status
+
+    plan, done, refused = [], [], []
+    for it in blocks:
+        bn = _s(it.get("block_no") if isinstance(it, dict) else it)
+        if not bn:
+            continue
+        hit, why = try_resolve(bn, allow_record_name=False)
+        if not hit:
+            refused.append({"block": bn, "why": why})
+            continue
+        name = hit["name"]
+        cur = _s(frappe.db.get_value("Quarry Block", name, "status"))
+        if cur != AT_PORT_STATUS:
+            refused.append({"block": bn, "why": "not at port (reads " + (cur or "blank") + ")"})
+            continue
+        prev = ""
+        try:
+            prev = _s(frappe.db.get_value("Quarry Block", name, "status_before_at_port"))
+        except Exception:
+            prev = ""
+        if not prev:
+            # never guess. Dispatched/Transported is where a block sits between a
+            # submitted challan and the port, and it is the only safe default.
+            prev = "Dispatched/Transported"
+        plan.append({"block": bn, "from": cur, "back_to": prev})
+        if dry:
+            continue
+        res = set_status(name, prev,
+                         "sent back to Reconcile: " + reason + " - by " + person,
+                         machine="server (send back to reconcile)",
+                         allow_backwards=True, actor=person)
+        if res.get("ok"):
+            try:
+                frappe.db.set_value("Quarry Block", name, "status_before_at_port", "")
+            except Exception:
+                pass
+            done.append(bn)
+        else:
+            refused.append({"block": bn, "why": res.get("error") or "refused"})
+
+    if dry:
+        return {"dry_run": True, "plan": plan, "refused": refused}
+    frappe.db.commit()
+    return {"ok": 1, "sent_back": len(done), "blocks": done, "refused": refused}
