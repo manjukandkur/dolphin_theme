@@ -4342,6 +4342,66 @@ def _arrival_rows_by_number():
     return out
 
 
+def _sheet_number_system():
+    """Which number each agency sheet is written in, decided by the sheet itself.
+
+    23 Aug 2026. After the first fix, 69 blocks were still unmatched - not because
+    the digits were missing but because 103 numbers on this site are BOTH one
+    block's export number and a different block's quarry number. The matcher
+    refused to guess between them, which was right, but it left a third of the
+    board grey.
+
+    Then the sheets answered the question themselves. Counted row by row:
+
+        ARR-27Jul2026-NA     56 rows   56 export numbers   0 quarry numbers
+        ARR-30Jul2026-NA    200 rows  200 export numbers   0 quarry numbers
+        ARR-30Jul2026-NA-2  193 rows  193 export numbers   0 quarry numbers
+        ARR-05Aug2026-NA    200 rows  200 export numbers   0 quarry numbers
+        ARR-13Aug2026-NA    200 rows  200 export numbers   0 quarry numbers
+
+    Not one row on any sheet is a quarry-only number. The agency writes export
+    numbers, because export numbers are what we give them. So on a sheet that
+    reads that way, a number IS an export number and the block it belongs to is
+    not in doubt any more.
+
+    This is measured every time rather than assumed. A sheet only gets read as
+    export numbers when at least four in five of its rows are export numbers and
+    none of them is a quarry-only number. Any sheet that does not pass is left
+    exactly as strict as before - his rule stands: "even 1 block is error we had
+    to pay huge penalty in Lakhs of rupees and dollars".
+    """
+    exp, qry = {}, {}
+    for b in frappe.get_all("Quarry Block",
+                            fields=["name", "block_number", "export_block_no"],
+                            limit_page_length=0):
+        e, q = _s(b.get("export_block_no")), _s(b.get("block_number"))
+        if e:
+            exp.setdefault(e, set()).add(_s(b.name))
+        if q:
+            qry.setdefault(q, set()).add(_s(b.name))
+
+    tally = {}
+    for r in frappe.get_all("Port Arrival Block",
+                            fields=["parent", "block_no"], limit_page_length=0):
+        k = _s(r.get("block_no"))
+        if not k:
+            continue
+        t = tally.setdefault(_s(r.get("parent")), {"rows": 0, "exp": 0, "qry_only": 0})
+        t["rows"] += 1
+        if k in exp:
+            t["exp"] += 1
+        elif k in qry:
+            t["qry_only"] += 1
+
+    system = {}
+    for sheet, t in tally.items():
+        if t["rows"] and not t["qry_only"] and t["exp"] >= 0.8 * t["rows"]:
+            system[sheet] = "export"
+        else:
+            system[sheet] = "unclear"
+    return system, exp, qry
+
+
 def _other_number_index():
     """quarry number -> export number and back, so a challan written one way finds
     a sheet written the other way. Only where the pairing is unambiguous."""
@@ -4378,17 +4438,44 @@ def dc_weight_check_v2():
     by_number = _arrival_rows_by_number()
     q2e, e2q = _other_number_index()
 
+    # rows from sheets that are written in export numbers, keyed by that number
+    _system, _expmap, _qrymap = _sheet_number_system()
+    _ds_all = _arrival_docstatus()
+    by_export = {}
+    for r in frappe.get_all(
+            "Port Arrival Block",
+            fields=["name", "parent", "block_no", "length", "width", "height",
+                    "cbm", "net_wt"],
+            limit_page_length=0):
+        k = _s(r.get("block_no"))
+        sheet = _s(r.get("parent"))
+        if not k or _system.get(sheet) != "export":
+            continue
+        if len(_expmap.get(k, set())) != 1:
+            continue                      # two blocks export under it - never guess
+        r["submitted"] = 1 if _ds_all.get(sheet) == 1 else 0
+        by_export.setdefault(k, []).append(r)
+
     def _agency_rows(written, quarry_no, export_no):
         """The agency's rows for one block on a challan, found the way a person
         finds them. Returns (rows, how) - `how` says which reading found them, so
         nothing is matched silently.
 
-        1. the number written on the challan, as written
-        2. the block's other number - challan in quarry numbers, sheet in export
+        1. the block's EXPORT number, on a sheet that is written in export
+           numbers - the reading the sheets themselves prove is the right one
+        2. the number written on the challan, as written
+        3. the block's other number - challan in quarry numbers, sheet in export
            numbers, or the other way round
-        3. only then through the block record, which is where the old matcher
+        4. only then through the block record, which is where the old matcher
            started and where 87 of 110 blocks were being lost
         """
+        for k in (_s(export_no), _s(written)):
+            if k and k in by_export:
+                return by_export[k], "export number"
+        w0 = _s(written)
+        alt_e = q2e.get(_s(quarry_no)) or q2e.get(w0)
+        if alt_e and alt_e in by_export:
+            return by_export[alt_e], "export number"
         for k in (_s(written), _s(export_no), _s(quarry_no)):
             if k and k in by_number:
                 return by_number[k], "number"
