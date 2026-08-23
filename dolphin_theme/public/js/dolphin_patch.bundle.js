@@ -100,6 +100,203 @@ frappe.provide("dolphin");
   }
   window.dolphin_open_journey = openJourney;
 
+  /* ---- documents and lists open HERE, in a pop-up ----
+     23 Aug 2026, his words: "everything should open in the same page not new page
+     open like a pop up ask if clicked only full new page else pop up fine".
+     A block already opened in a dialog. A challan, an inspection, an arrival sheet,
+     a lot, an invoice, a range or a list used to send the whole window to
+     /trace-block?q=, which threw away whatever he was in the middle of. Now they
+     render in the same dialog, and the full page is one deliberate click away. */
+  var DOC = {
+    dc:  {dt:'Delivery Challan',    label:'Delivery Challan', child:'DC Block Row',
+          num:'delivery_challan_no',
+          f:['name','delivery_challan_no','dc_date','docstatus','vehicle','sale_type','export_consignee'],
+          cf:['block','block_no','export_block_no','length_gross','width_gross','height_gross','gross_volume','gross_tonnage']},
+    bi:  {dt:'Buyer Inspection',    label:'Buyer Inspection', child:'Buyer Inspection Block',
+          f:['name','report_no','report_date','prepared_by','local_buyer','sale_type','marking','docstatus'],
+          cf:['block','block_no','export_block_no','length_gross','width_gross','height_gross','gross_volume','gross_tonnage']},
+    qi:  {dt:'Quarry Inspection',   label:'Quarry Inspection', child:'Quarry Inspection Block',
+          f:['name','docstatus'],
+          cf:['quarry_block_no','length_gross','width_gross','height_gross','gross_volume','gross_tonnage']},
+    arr: {dt:'Port Arrival',        label:'Arrival sheet', child:'Port Arrival Block',
+          f:['name','arrival_date','port','docstatus','email_sender','source_sheet'],
+          cf:['block_no','length','width','height','cbm','net_wt']},
+    lot: {dt:'Export Shipment Lot', label:'Shipment Lot', child:'Shipment Lot Block',
+          f:['name','docstatus'],
+          cf:['block','block_no','length','width','height','cbm','net_tonnage']},
+    inv: {dt:'Local Tax Invoice',   label:'Local Tax Invoice', child:'Tax Invoice Block',
+          f:['name','docstatus','description','block_count'],
+          cf:['block','block_no','block_number_input','length_gross','width_gross','height_gross','gross_volume','quantity_mt']}
+  };
+  var DOCPREFIX = [['DC-','dc'],['LBI-','bi'],['BI-','bi'],['QI-','qi'],['ARR-','arr'],['SL-','lot'],['DI-LTI-','inv']];
+
+  function docParse(raw){
+    var s=String(raw||'').trim(); if(!s) return null;
+    var up=s.toUpperCase();
+    for(var i=0;i<DOCPREFIX.length;i++){ if(up.indexOf(DOCPREFIX[i][0])===0) return {k:DOCPREFIX[i][1], exact:s}; }
+    var m=s.match(/^(dc|bi|qi|arr|lot|inv|invoice|challan)\s*[-_: ]?\s*(.+)$/i);
+    if(!m) return null;
+    var w=m[1].toLowerCase();
+    if(w==='challan') w='dc';
+    if(w==='invoice') w='inv';
+    return {k:w, part:m[2].trim()};
+  }
+  function dq(dt,filters,fields,parent){
+    var u='/api/method/frappe.client.get_list?doctype='+encodeURIComponent(dt)
+      +(parent?('&parent='+encodeURIComponent(parent)):'')
+      +'&filters='+encodeURIComponent(JSON.stringify(filters))
+      +'&fields='+encodeURIComponent(JSON.stringify(fields))+'&limit_page_length=0';
+    return fetch(u,{credentials:'same-origin',headers:{Accept:'application/json'}})
+      .then(function(r){return r.json();}).then(function(j){return j.message||[];})
+      .catch(function(){return [];});
+  }
+  /* "dc 021" must find challan 0021. Challan numbers are typed by hand and the
+     leading zeros are not consistent, so try the number as given, then zero-padded
+     to four, then the bare digits, before falling back to the record id. */
+  function docFind(p){
+    var K=DOC[p.k]; if(!K) return Promise.resolve([]);
+    if(p.exact) return dq(K.dt,[['name','=',p.exact]],K.f);
+    var raw=p.part, bare=raw.replace(/^0+/,'')||raw, tries=[];
+    if(K.num){
+      var forms=[raw];
+      if(/^\d+$/.test(bare)){
+        while(bare.length<4){ bare='0'+bare; }
+        if(forms.indexOf(bare)<0) forms.push(bare);
+        var nz=raw.replace(/^0+/,''); if(nz && forms.indexOf(nz)<0) forms.push(nz);
+      }
+      forms.forEach(function(v){ tries.push([[K.num,'=',v]]); });
+    }
+    tries.push([['name','like','%'+raw]]);
+    tries.push([['name','like','%'+raw+'%']]);
+    var out=Promise.resolve([]);
+    tries.forEach(function(f){ out=out.then(function(r){ return (r&&r.length)?r:dq(K.dt,f,K.f); }); });
+    return out;
+  }
+  function dnum(r){ return r.export_block_no||r.block_number_input||r.block_no||r.quarry_block_no||r.block||''; }
+  function dsize(r){ var L=r.length_gross||r.length,W=r.width_gross||r.width,H=r.height_gross||r.height; return L?(L+'&times;'+W+'&times;'+H):''; }
+  function dcbm(r){ var v=r.gross_volume||r.cbm; return v?(+v).toFixed(3):''; }
+  function dmt(r){ var t=r.gross_tonnage||r.net_tonnage||r.quantity_mt||r.net_wt; return t?(+t).toFixed(3):''; }
+
+  function docTable(rows){
+    if(!rows.length) return '<div style="padding:16px;color:#8a929c;font-size:13px">No blocks on this document.</div>';
+    var cv=0,ct=0;
+    var h='<table style="width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums">'
+      +'<thead><tr>'
+      +['Block','Size','CBM','MT',''].map(function(t,i){
+        return '<th style="text-align:'+(i===2||i===3?'right':'left')+';font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:#8a929c;font-weight:700;padding:8px 14px;border-bottom:1px solid #eef1f5;white-space:nowrap">'+t+'</th>'; }).join('')
+      +'</tr></thead><tbody>';
+    rows.forEach(function(r){
+      cv+=(+(r.gross_volume||r.cbm)||0); ct+=(+(r.gross_tonnage||r.net_tonnage||r.quantity_mt||r.net_wt)||0);
+      var n=dnum(r);
+      h+='<tr><td style="padding:9px 14px;border-bottom:1px solid #eef1f5;font-weight:700">'+esc(n)
+        +(r.block_no&&String(r.block_no)!==String(n)?'<div style="font-weight:400;font-size:12px;color:#8a929c">quarry '+esc(r.block_no)+'</div>':'')+'</td>'
+        +'<td style="padding:9px 14px;border-bottom:1px solid #eef1f5">'+dsize(r)+'</td>'
+        +'<td style="padding:9px 14px;border-bottom:1px solid #eef1f5;text-align:right">'+dcbm(r)+'</td>'
+        +'<td style="padding:9px 14px;border-bottom:1px solid #eef1f5;text-align:right">'+dmt(r)+'</td>'
+        +'<td style="padding:9px 14px;border-bottom:1px solid #eef1f5">'
+        +(n?'<a href="#" class="dip-dtrace" data-n="'+esc(n)+'" style="color:#185fa5;font-size:12px;white-space:nowrap">trace &rarr;</a>':'')+'</td></tr>';
+    });
+    h+='<tr style="background:#f6f8fa;font-weight:700"><td style="padding:9px 14px" colspan="2">'+rows.length+' block(s)</td>'
+      +'<td style="padding:9px 14px;text-align:right">'+cv.toFixed(3)+'</td>'
+      +'<td style="padding:9px 14px;text-align:right">'+ct.toFixed(3)+'</td><td></td></tr>';
+    return h+'</tbody></table>';
+  }
+  function docHead(K,d){
+    var bits=[];
+    ['dc_date','report_date','arrival_date'].forEach(function(k){ if(d[k]) bits.push(esc(d[k])); });
+    if(d.vehicle) bits.push('vehicle <b>'+esc(d.vehicle)+'</b>');
+    if(d.prepared_by) bits.push(esc(d.prepared_by));
+    if(d.local_buyer) bits.push(esc(d.local_buyer));
+    if(d.export_consignee) bits.push('consignee <b>'+esc(d.export_consignee)+'</b>');
+    if(d.marking) bits.push('mark <b>'+esc(d.marking)+'</b>');
+    if(d.port) bits.push(esc(d.port));
+    if(d.source_sheet) bits.push('sheet <b>'+esc(d.source_sheet)+'</b>');
+    if(d.description) bits.push(esc(d.description));
+    if(d.sale_type) bits.push(esc(d.sale_type));
+    var st=(d.docstatus===1)?'Submitted':(d.docstatus===2?'Cancelled':'Draft');
+    var stc=(d.docstatus===1)?['#e1f5ee','#0f6e56']:(d.docstatus===2?['#fbeeec','#9a2f28']:['#eef1f5','#5b6672']);
+    var title=d.delivery_challan_no?(K.label+' '+esc(d.delivery_challan_no)):(K.label+' '+esc(d.name));
+    return '<div style="display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;background:#e6f1fb;padding:12px 14px;margin:-15px -15px 0">'
+      +'<span style="font-size:16px;font-weight:800">'+title+'</span>'
+      +(d.delivery_challan_no?'<span style="font-size:12.5px;color:#6b7280">'+esc(d.name)+'</span>':'')
+      +'<span style="margin-left:auto;font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;background:'+stc[0]+';color:'+stc[1]+';border-radius:11px;padding:2px 9px">'+st+'</span></div>'
+      +(bits.length?'<div style="padding:9px 14px;font-size:12.5px;color:#6b7280;border-bottom:1px solid #eef1f5;margin:0 -15px">'+bits.join(' &middot; ')+'</div>':'');
+  }
+  /* the one place a full page load is still offered - and only if he clicks it */
+  function fullPageFoot(q){
+    return '<div style="display:flex;gap:14px;align-items:center;padding:10px 14px 0;margin:0 -15px;font-size:12px;color:#8a929c">'
+      +'<span>Click a block to trace it &mdash; this stays open.</span>'
+      +'<a href="/trace-block?q='+encodeURIComponent(q)+'" class="dip-full" style="margin-left:auto;color:#185fa5;font-weight:600">Open the full page &rarr;</a></div>';
+  }
+  function wireDialog(d,q){
+    d.$wrapper.find('.dip-dtrace').on('click',function(e){ e.preventDefault(); openJourney(this.getAttribute('data-n')); });
+  }
+  function openDocument(v){
+    var p=docParse(v); if(!p) return false;
+    var K=DOC[p.k];
+    docFind(p).then(function(ds){
+      if(!ds.length){
+        var d0=new frappe.ui.Dialog({title:K.label,fields:[{fieldtype:'HTML',fieldname:'j'}]});
+        d0.fields_dict.j.$wrapper.html('<div style="padding:8px 0;font-size:14px">No <b>'+esc(K.label)+'</b> found for &ldquo;'+esc(p.exact||p.part)+'&rdquo;.</div>'
+          +'<div style="font-size:12.5px;color:#8a929c">Challan numbers are stored with their leading zeros &mdash; 21, 021 and 0021 are all tried.</div>');
+        d0.show(); return;
+      }
+      if(ds.length>1){
+        var dp=new frappe.ui.Dialog({title:ds.length+' documents match that',fields:[{fieldtype:'HTML',fieldname:'j'}]});
+        dp.fields_dict.j.$wrapper.html(ds.map(function(x){
+          return '<div style="padding:9px 0;border-bottom:1px solid #eef1f5;font-size:13.5px"><a href="#" class="dip-pick" data-n="'+esc(x.name)+'" style="color:#185fa5;font-weight:700">'+esc(x.name)+'</a>'
+            +(x.delivery_challan_no?(' &middot; no '+esc(x.delivery_challan_no)):'')
+            +' &middot; '+((x.docstatus===1)?'submitted':(x.docstatus===2?'cancelled':'draft'))+'</div>'; }).join(''));
+        dp.show();
+        dp.$wrapper.find('.dip-pick').on('click',function(e){ e.preventDefault(); dp.hide(); openDocument(this.getAttribute('data-n')); });
+        return;
+      }
+      var doc=ds[0];
+      dq(K.child,[['parent','=',doc.name]],K.cf,K.dt).then(function(rows){
+        var d=new frappe.ui.Dialog({title:K.label,fields:[{fieldtype:'HTML',fieldname:'j'}]});
+        d.fields_dict.j.$wrapper.html(docHead(K,doc)+'<div style="margin:0 -15px">'+docTable(rows)+'</div>'+fullPageFoot(v));
+        d.show(); wireDialog(d,v);
+      });
+    });
+    return true;
+  }
+  /* a range or a list of block numbers, also in a pop-up */
+  function expandList(v){
+    var t=String(v||'').trim();
+    var m=t.match(/^(\d+)\s*(?:-|to|\.\.)\s*(\d+)$/i);
+    if(m){
+      var a=parseInt(m[1],10), b=parseInt(m[2],10), out=[];
+      if(b<a){ var s=a; a=b; b=s; }
+      if(b-a>600) b=a+600;
+      for(var i=a;i<=b;i++) out.push(String(i));
+      return out;
+    }
+    return t.split(/[\s,\-\/;|]+/).map(function(x){return x.trim();}).filter(Boolean);
+  }
+  function openList(v){
+    var nums=expandList(v); if(!nums.length) return false;
+    dq('Quarry Block',[['block_number','in',nums]],['name','block_number','export_block_no','status','length_gross','width_gross','height_gross','gross_volume','gross_tonnage'])
+      .then(function(a){
+        return dq('Quarry Block',[['export_block_no','in',nums]],['name','block_number','export_block_no','status','length_gross','width_gross','height_gross','gross_volume','gross_tonnage'])
+          .then(function(b){
+            var seen={}, all=[];
+            a.concat(b).forEach(function(r){ if(!seen[r.name]){ seen[r.name]=1; all.push(r); } });
+            return all;
+          });
+      })
+      .then(function(rows){
+        var d=new frappe.ui.Dialog({title:nums.length+' block numbers',fields:[{fieldtype:'HTML',fieldname:'j'}]});
+        var missing=nums.filter(function(n){
+          return !rows.some(function(r){ return String(r.block_number)===n || String(r.export_block_no)===n; });
+        });
+        var body='<div style="margin:0 -15px">'+docTable(rows)+'</div>';
+        if(missing.length) body+='<div style="padding:10px 14px 0;margin:0 -15px;font-size:12.5px;color:#8a5a12">Not found: '+esc(missing.join(', '))+'</div>';
+        d.fields_dict.j.$wrapper.html(body+fullPageFoot(v));
+        d.show(); wireDialog(d,v);
+      });
+    return true;
+  }
+
   // ---- live partial-match dropdown for the single top trace box ----
   function ensureResultsBox(){
     var box=document.getElementById('dip-trace-results');
@@ -135,15 +332,25 @@ frappe.provide("dolphin");
       if(parts.length>2){ for(var i=0;i<parts.length;i++){ if(!/^[A-Za-z0-9]+$/.test(parts[i])) return null; } return 'list'; }
       return null;
     }
-    function dipHandOver(v){ window.location.href='/trace-block?q='+encodeURIComponent(String(v).trim()); }
-    inp.addEventListener('keydown',function(e){ if(e.key==='Enter' && dipKind(inp.value)){ e.preventDefault(); dipHandOver(inp.value); } });
+    /* 23 Aug 2026: this used to be window.location.href. It now opens the same
+       pop-up a block opens in, so the page underneath survives. The full page is
+       a link inside the pop-up, taken only if he asks for it. */
+    function dipHandOver(v){
+      var t=String(v||'').trim(); if(!t) return;
+      var k=dipKind(t);
+      if(k==='document'){ if(openDocument(t)) return; }
+      if(k==='range'||k==='list'){ if(openList(t)) return; }
+      openJourney(t);
+    }
+    inp.addEventListener('keydown',function(e){ if(e.key==='Enter' && dipKind(inp.value)){ e.preventDefault(); var v=inp.value; box.style.display='none'; inp.value=''; dipHandOver(v); } });
     inp.addEventListener('input',function(){ clearTimeout(timer); var q=(inp.value||'').trim(); if(q.length<1){box.style.display='none';return;}
       var kind=dipKind(q);
       if(kind){
         box.innerHTML='<div class="dip-go" style="padding:10px 12px;cursor:pointer;color:#185fa5;font-weight:600">Open this '
-          +(kind==='document'?'document':kind)+' in Trace a block &rarr;</div>';
+          +(kind==='document'?'document':kind)+' &rarr;</div>'
+          +'<div style="padding:0 12px 9px;font-size:11.5px;color:#98a2b3">Opens here, over this page.</div>';
         place(); box.style.display='block';
-        var g=box.querySelector('.dip-go'); if(g){ g.addEventListener('mousedown',function(ev){ ev.preventDefault(); dipHandOver(q); }); }
+        var g=box.querySelector('.dip-go'); if(g){ g.addEventListener('mousedown',function(ev){ ev.preventDefault(); box.style.display='none'; inp.value=''; dipHandOver(q); }); }
         return;
       }
       timer=setTimeout(function(){ searchBlocks(q).then(function(rows){
@@ -161,7 +368,15 @@ frappe.provide("dolphin");
         if(!inp.getAttribute('data-dip')){
           var c=inp.cloneNode(true); c.setAttribute('data-dip','1'); c.className=inp.className;
           inp.parentNode.replaceChild(c,inp);
-          c.addEventListener('keydown',function(ev){ if(ev.key==='Enter'){ ev.preventDefault(); ev.stopPropagation(); var box=document.getElementById('dip-trace-results'); var first=box&&box.querySelector('.dip-row'); if(first){ box.style.display='none'; c.value=''; openJourney(first.getAttribute('data-b')); } else { openJourney((c.value||'').trim()); } } });
+          c.addEventListener('keydown',function(ev){ if(ev.key==='Enter'){ ev.preventDefault(); ev.stopPropagation();
+            var box=document.getElementById('dip-trace-results');
+            var v=(c.value||'').trim();
+            /* a document or a list answers for itself; only a bare block number
+               falls through to the dropdown's first row */
+            if(docParse(v)){ if(box) box.style.display='none'; c.value=''; openDocument(v); return; }
+            var first=box&&box.querySelector('.dip-row');
+            if(first){ box.style.display='none'; c.value=''; openJourney(first.getAttribute('data-b')); }
+            else { openJourney(v); } } });
           attachTypeahead(c);
         } else { attachTypeahead(inp); }
       });
