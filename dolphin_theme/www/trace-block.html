@@ -162,6 +162,13 @@ var t=null;
   setInterval(__hlRun,800);
 })();
 function go(){var q=document.getElementById('q').value.trim();if(!q){document.getElementById('result').innerHTML='<div class="empty">Enter a block number above.</div>';return;}
+/* 23 Aug 2026, measured. Typing "lot 26" fired NINE requests and rendered the
+   card twice: three Quarry Block lookups for text that is obviously a document,
+   then the document search, then the block search overwriting it, then the
+   document search running the whole thing again to win the space back.
+   "dc 0133" is not a block number. Leave it alone and the rest stops happening. */
+if(window.__dipIsDoc && window.__dipIsDoc(q)){
+document.getElementById('result').innerHTML='<div class="empty">Looking up <b>'+esc(q)+'</b>&hellip;</div>';return;}
 api([['block_number','=',q]]).then(function(bl){ if(bl.length) return bl; return api([['export_block_no','=',q]]); }).then(function(bl){ if(bl.length) return bl; return api([['name','=',q]]); }).then(function(bl){ render(q,bl); }).catch(function(e){document.getElementById('result').innerHTML='<div class="empty">Error: '+esc(e.message)+'</div>';});
 }
 document.getElementById('q').addEventListener('input',function(){clearTimeout(t);t=setTimeout(go,350);});
@@ -254,6 +261,16 @@ window.__tbRender=render;
     var q = parseQuery(box ? box.value : "");
     if (!q) { R.innerHTML = '<div class="empty">Enter a block number, a range like <b>1332-1356</b>, or a list like <b>1332,1340</b>.</div>'; return; }
     if (q.error) { R.innerHTML = '<div class="empty">' + q.error + '</div>'; return; }
+    /* 23 Aug 2026. THIS is the block search that actually runs - this block
+       replaces the input node, which detaches the original listener, so the
+       same guard put on go() was sitting in dead code. "dc 0133" is not a block
+       number: three Quarry Block lookups for it, and the "No block found" line
+       written over a document card, both start here. */
+    var raw = box ? String(box.value || "").trim() : "";
+    if (window.__dipIsDoc && window.__dipIsDoc(raw)) {
+      R.innerHTML = '<div class="empty">Looking up <b>' + raw.replace(/[&<>"]/g, "") + '</b>&hellip;</div>';
+      return;
+    }
     apiFind([["block_number", "in", q.list]])
       .then(function (bl) { return (bl && bl.length) ? bl : apiFind([["export_block_no", "in", q.list]]); })
       .then(function (bl) { return (bl && bl.length) ? bl : apiFind([["name", "in", q.list]]); })
@@ -456,6 +473,12 @@ window.__tbRender=render;
      the block search's 350ms - and then checks its own card actually survived,
      redrawing once if the block search overwrote it. Neither search knows about
      the other; this just makes the document the one that wins when it is one. */
+  function wireDoc(R){
+    R.querySelectorAll('.dtrace').forEach(function(a){
+      a.onclick=function(e){ e.preventDefault();
+        var box=document.getElementById('q'); if(box){ box.value=a.dataset.n; box.dispatchEvent(new Event('input',{bubbles:true})); } };
+    });
+  }
   function stillOurs(){
     var R=document.getElementById('result');
     return !!(R && R.querySelector('.doccard, .docpick'));
@@ -469,7 +492,16 @@ window.__tbRender=render;
       clearTimeout(t);
       t=setTimeout(function(){
         show(p).then(function(){
-          setTimeout(function(){ if(!stillOurs() && parseDoc(box.value)){ show(p); } }, 450);
+          /* 23 Aug 2026. The block search no longer writes over a document, so
+             this is a belt-and-braces catch, not the normal path. Put the card
+             we already built back rather than running the whole lookup again -
+             that second run was doubling every document search. */
+          var R=document.getElementById('result');
+          var keep=R?R.innerHTML:'';
+          setTimeout(function(){
+            if(!stillOurs() && parseDoc(box.value)===null){ return; }
+            if(!stillOurs() && keep){ R.innerHTML=keep; wireDoc(R); }
+          }, 450);
         });
       }, 380);   /* was 620ms. The block search debounces at 350, so 380 still
                         lets it go first, and the document card lands sooner. */
