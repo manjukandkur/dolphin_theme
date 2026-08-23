@@ -8,10 +8,16 @@
 #tbapp .sub{font-size:12px;opacity:.85;margin-top:2px}
 #tbapp .sbx{display:flex;gap:8px;margin:14px 0}
 #tbapp input{flex:1;padding:11px 14px;border:1px solid #cfd4dc;border-radius:8px;font-size:15px}
-#tbapp .hint{font-size:11px;color:#8a929c;margin:-6px 2px 10px}
+#tbapp .msrc{color:#0b6b3a;font-weight:600}.mplain{color:#8a929c}
+.hint{font-size:11px;color:#8a929c;margin:-6px 2px 10px}
 #tbapp .card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:18px;margin-top:8px}
 #tbapp .bhead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px}
 #tbapp .bno{font-size:22px;font-weight:800;letter-spacing:.01em}
+#tbapp .bhead{gap:26px}
+#tbapp .nwrap{display:inline-flex;flex-direction:column;line-height:1.15}
+#tbapp .nlab{font-size:10px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:#8a929c;margin-bottom:1px}
+#tbapp .bno.exp{color:#0c447c}
+#tbapp .nyet{font-size:18px;font-weight:600;color:#b3bac4}
 #tbapp .meta{font-size:12px;color:#6b7280}
 #tbapp .badge{font-size:12px;padding:3px 12px;border-radius:12px;font-weight:700}
 #tbapp .idrule{font-size:11px;color:#94a0af;margin:2px 0 14px}
@@ -34,8 +40,8 @@
 </style>
 <div id="tbapp">
 <div class="hd"><div class="ic">&#9678;</div><div><h1>Trace a block</h1><div class="sub">Dolphin International &middot; type any quarry block number or export number to see its full journey</div></div></div>
-<div class="sbx"><input id="q" placeholder="Quarry block number or export number&hellip;" autofocus></div>
-<div class="hint">Tip: quarry block number works up to Delivery Challan &middot; export number works from At Port onward. Either one finds the block.</div>
+<div class="sbx"><input id="q" placeholder="Block number, range, list &mdash; or DC 0133, BI 112&hellip;" autofocus></div>
+<div class="hint">Type a <b>block number</b> &mdash; quarry or export, either one finds it &middot; a <b>range</b> 1332-1356 &middot; a <b>list</b> 1332,1340 &middot; or a <b>document</b>: <b>DC 0133</b>, <b>BI 112</b>, <b>QI 017</b>, <b>ARR 27Jul</b>, <b>LOT 26</b>, <b>INV 0050</b> &mdash; or paste the full id, DC-GCHG-061.</div>
 <div id="result"><div class="empty">Enter a block number above.</div></div>
 </div>
 <script>
@@ -45,6 +51,50 @@ var SC={'In Stock':['#eaf3de','#3b6d11'],'Buyer Marked':['#faeeda','#854f0b'],'I
 var RANK={'In Stock':0,'Buyer Marked':1,'In Delivery Challan':2,'Dispatched/Transported':3,'At Port':4,'At Bannikoppa Station yard':4,'Shipped':5,'Sold':6};
 var FL=['name','block_number','export_block_no','status','delivery_challan','buyer_inspection','source_quarry_inspection','granite_quality_grade','length_gross','width_gross','height_gross','gross_volume'];
 function api(filters){var u='/api/method/frappe.client.get_list?doctype=Quarry Block&filters='+encodeURIComponent(JSON.stringify(filters))+'&fields='+encodeURIComponent(JSON.stringify(FL))+'&limit_page_length=5';return fetch(u,{credentials:'include'}).then(function(r){return r.json();}).then(function(j){return j.message||[];});}
+// A range search can ask for hundreds of blocks at once, and the whole list goes
+// into the query string. Fetch in batches so the URL can never get too long, and
+// report whether every batch actually came back - a silent failure here would
+// label good blocks 'no buyer measurement', which is worse than saying nothing.
+function bidims(names){
+if(!names.length){return Promise.resolve({ok:true,map:{}});}
+var CH=80,parts=[],i;
+for(i=0;i<names.length;i+=CH){parts.push(names.slice(i,i+CH));}
+var map={},ok=true;
+function one(part){
+var u='/api/method/frappe.client.get_list?doctype='+encodeURIComponent('Buyer Inspection Block')
++'&parent='+encodeURIComponent('Buyer Inspection')
++'&filters='+encodeURIComponent(JSON.stringify([['block','in',part]]))
++'&fields='+encodeURIComponent(JSON.stringify(['parent','block','length_gross','width_gross','height_gross','gross_volume','gross_tonnage','modified']))
++'&order_by='+encodeURIComponent('modified asc')+'&limit_page_length=0';
+return fetch(u,{credentials:'include',headers:{Accept:'application/json'}}).then(function(r){
+if(!r.ok){ok=false;return null;}
+return r.json();
+}).then(function(j){
+if(!j){return;}
+(j.message||[]).forEach(function(r){if(r.block&&r.length_gross){map[String(r.block)]=r;}});
+}).catch(function(){ok=false;});
+}
+return parts.reduce(function(p,part){return p.then(function(){return one(part);});},Promise.resolve())
+.then(function(){return {ok:ok,map:map};});
+}
+// The buyer inspection reading is what the block is sold on. The quarry reading
+// is the record of what came out of the pit and never changes. Show the one in use.
+function mline(b,src,known){
+var g=b.granite_quality_grade?esc(b.granite_quality_grade)+' &middot; ':'';
+var L,W,H,V,tail;
+if(src){L=src.length_gross;W=src.width_gross;H=src.height_gross;V=src.gross_volume;
+tail=' &middot; <span class="msrc">buyer inspection '+esc(src.parent)+'</span>';}
+else {L=b.length_gross;W=b.width_gross;H=b.height_gross;V=b.gross_volume;
+// Say nothing until the lookup has answered. And never scold here: a block with
+// no buyer inspection simply has not been sold yet - that is how it is, not a
+// fault. The warning about pricing on a quarry reading belongs on the invoice
+// and the challan, where the money is, not on a lookup screen.
+tail=known?' &middot; <span class="mplain">quarry reading</span>':'';}
+if(!L&&!W&&!H){return g?g.replace(/ &middot; $/,''):'';}
+var dim=(L||'')+'&times;'+(W||'')+'&times;'+(H||'');
+var cbm=V?(' &middot; '+(+V).toFixed(2)+' cbm'):'';
+return g+dim+cbm+tail;
+}
 function pdf(dt,nm,fmt){return '/api/method/frappe.utils.print_format.download_pdf?doctype='+encodeURIComponent(dt)+'&name='+encodeURIComponent(nm)+'&format='+encodeURIComponent(fmt)+'&no_letterhead=0';}
 function esc(s){return (s==null?'':(''+s)).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
 function eye(dt,nm,fmt){return nm?'<a class="eye" href="'+pdf(dt,nm,fmt)+'" target="_blank">&#128065; PDF</a>':'';}
@@ -79,14 +129,21 @@ var sc=SC[b.status]||['#f1efe8','#444441'];
 var dim=(b.length_gross||'')+'&times;'+(b.width_gross||'')+'&times;'+(b.height_gross||'');
 var cbm=b.gross_volume?(' &middot; '+(+b.gross_volume).toFixed(2)+' cbm'):'';
 return '<div class="card">'
-+'<div class="bhead"><span class="bno">Block '+esc(b.block_number||b.name)+'</span>'
-+(b.export_block_no?'<span class="meta">export '+esc(b.export_block_no)+'</span>':'')
++'<div class="bhead">'
++'<span class="nwrap"><span class="nlab">Quarry no</span><span class="bno">'+esc(b.block_number||b.name)+'</span></span>'
++'<span class="nwrap"><span class="nlab">Export no</span>'
++(b.export_block_no?'<span class="bno exp">'+esc(b.export_block_no)+'</span>':'<span class="nyet">not yet</span>')
++'</span>'
 +'<span class="badge" style="margin-left:auto;background:'+sc[0]+';color:'+sc[1]+'">&#128205; '+esc(b.status||'')+'</span></div>'
-+'<div class="meta">'+esc(b.granite_quality_grade||'')+(dim!=='&times;&times;'?(' &middot; '+dim+cbm):'')+'</div>'
++'<div class="meta" id="mline-'+esc(b.name)+'">'+mline(b,null,false)+'</div>'
 +'<div class="idrule">Quarry block number up to Delivery Challan &middot; export number from Transport onward</div>'
 +journey(b)
 +'</div>';
 }).join('')+'<div class="foot">Dolphin International &middot; Trace a block</div>';
+bidims(bl.map(function(b){return b.name;})).then(function(res){
+bl.forEach(function(b){var el=document.getElementById('mline-'+b.name);
+if(el){el.innerHTML=mline(b,res.map[String(b.name)]||null,res.ok);}});
+});
 }
 var t=null;
 /* Highlight searched block row in yellow (added 27 Jul 2026) */
@@ -194,4 +251,196 @@ window.__tbRender=render;
   }
 })();
 </script>
+
+<script>
+/* ---- DOCUMENT SEARCH, 23 Aug 2026 ------------------------------------------
+   His words: "I am looking a solution like trace block on all the pages for DC,
+   BI search etc" and "the text below trace block should mention like enter DC
+   and numer eg Dc 1033 etc user will know".
+
+   A bare number is always a BLOCK. A word in front makes it a DOCUMENT. Measured
+   on the live site the day this was written: 947 block numbers, 211 document ids,
+   0 that could be confused - every document id carries letters. The only
+   look-alike is the hand-typed challan number, and none of the 135 of those
+   collides with a block number. The word prefix keeps it that way for good.
+
+   This block runs BEFORE the block search and only takes over when it recognises
+   a document. Everything else falls through untouched.                        */
+(function () {
+  var KINDS = {
+    dc:  {dt:'Delivery Challan',   label:'Delivery Challan', child:'DC Block Row',
+          num:'delivery_challan_no', fields:['name','delivery_challan_no','dc_date','docstatus','vehicle','sale_type','export_consignee'],
+          cf:['block','block_no','length_gross','width_gross','height_gross','gross_volume','gross_tonnage']},
+    bi:  {dt:'Buyer Inspection',   label:'Buyer Inspection', child:'Buyer Inspection Block',
+          fields:['name','report_no','report_date','prepared_by','local_buyer','sale_type','marking'],
+          cf:['block','block_no','export_block_no','length_gross','width_gross','height_gross','gross_volume','gross_tonnage']},
+    qi:  {dt:'Quarry Inspection',  label:'Quarry Inspection', child:'Quarry Inspection Block',
+          fields:['name','creation'],
+          cf:['quarry_block_no','length_gross','width_gross','height_gross','gross_volume','gross_tonnage']},
+    arr: {dt:'Port Arrival',       label:'Arrival sheet', child:'Port Arrival Block',
+          fields:['name','arrival_date','port','docstatus','email_sender','source_sheet'],
+          cf:['block_no','length','width','height','cbm','net_wt']},
+    lot: {dt:'Export Shipment Lot',label:'Shipment Lot', child:'Shipment Lot Block',
+          fields:['name','creation'],
+          cf:['block','block_no','length','width','height','cbm','net_tonnage']},
+    inv: {dt:'Local Tax Invoice',  label:'Local Tax Invoice', child:'Tax Invoice Block',
+          fields:['name','docstatus','description','block_count'],
+          cf:['block','block_no','block_number_input','length_gross','width_gross','height_gross','gross_volume','quantity_mt']}
+  };
+  var IDPREFIX = [['DC-','dc'],['LBI-','bi'],['BI-','bi'],['QI-','qi'],['ARR-','arr'],['SL-','lot'],['DI-LTI-','inv']];
+
+  function esc2(v){ return (v==null?'':(''+v)).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+  function api(dt, filters, fields, parent){
+    var u='/api/method/frappe.client.get_list?doctype='+encodeURIComponent(dt)
+      +(parent?('&parent='+encodeURIComponent(parent)):'')
+      +'&filters='+encodeURIComponent(JSON.stringify(filters))
+      +'&fields='+encodeURIComponent(JSON.stringify(fields))+'&limit_page_length=0';
+    return fetch(u,{credentials:'include',headers:{Accept:'application/json'}})
+      .then(function(r){return r.json();}).then(function(j){return j.message||[];})
+      .catch(function(){return [];});
+  }
+  /* what did they type? */
+  function parseDoc(raw){
+    var s=String(raw||'').trim();
+    if(!s){ return null; }
+    var up=s.toUpperCase();
+    for(var i=0;i<IDPREFIX.length;i++){
+      if(up.indexOf(IDPREFIX[i][0])===0){ return {k:IDPREFIX[i][1], exact:s}; }
+    }
+    var m=s.match(/^(dc|bi|qi|arr|lot|inv|invoice|challan|inspection)\s*[-_:]?\s*(.+)$/i);
+    if(!m){ return null; }
+    var w=m[1].toLowerCase();
+    if(w==='challan'){ w='dc'; }
+    if(w==='invoice'){ w='inv'; }
+    if(w==='inspection'){ return null; }   /* ambiguous - QI or BI. Make them say which. */
+    return {k:w, part:m[2].trim()};
+  }
+  function findDocs(p){
+    var K=KINDS[p.k]; if(!K){ return Promise.resolve([]); }
+    if(p.exact){ return api(K.dt,[['name','=',p.exact]],K.fields); }
+    var tries=[];
+    if(K.num){ tries.push([[K.num,'=',p.part]]); }
+    tries.push([['name','like','%'+p.part]]);
+    tries.push([['name','like','%'+p.part+'%']]);
+    var out=Promise.resolve([]);
+    tries.forEach(function(f){
+      out=out.then(function(r){ return (r&&r.length)?r:api(K.dt,f,K.fields); });
+    });
+    return out;
+  }
+  function head(K,d){
+    var bits=[];
+    if(d.dc_date){ bits.push(esc2(d.dc_date)); }
+    if(d.report_date){ bits.push(esc2(d.report_date)); }
+    if(d.arrival_date){ bits.push(esc2(d.arrival_date)); }
+    if(d.vehicle){ bits.push('vehicle <b>'+esc2(d.vehicle)+'</b>'); }
+    if(d.prepared_by){ bits.push(esc2(d.prepared_by)); }
+    if(d.local_buyer){ bits.push(esc2(d.local_buyer)); }
+    if(d.export_consignee){ bits.push('consignee <b>'+esc2(d.export_consignee)+'</b>'); }
+    if(d.marking){ bits.push('mark <b>'+esc2(d.marking)+'</b>'); }
+    if(d.port){ bits.push(esc2(d.port)); }
+    if(d.source_sheet){ bits.push('sheet <b>'+esc2(d.source_sheet)+'</b>'); }
+    if(d.description){ bits.push(esc2(d.description)); }
+    if(d.sale_type){ bits.push(esc2(d.sale_type)); }
+    var st=(d.docstatus===1)?'Submitted':(d.docstatus===2?'Cancelled':(d.docstatus===0?'Draft':''));
+    var title=d.delivery_challan_no?(K.label+' '+esc2(d.delivery_challan_no)):(K.label+' '+esc2(d.name));
+    return '<div class="dochd"><span class="doct">'+title+'</span>'
+      +(d.delivery_challan_no?'<span class="docm">'+esc2(d.name)+'</span>':'')
+      +(st?'<span class="docst">'+st+'</span>':'')+'</div>'
+      +(bits.length?'<div class="dockv">'+bits.join(' &middot; ')+'</div>':'');
+  }
+  function num(r){ return r.export_block_no||r.block_number_input||r.block_no||r.quarry_block_no||''; }
+  function size(r){
+    var L=r.length_gross||r.length, W=r.width_gross||r.width, H=r.height_gross||r.height;
+    return (L?(L+'&times;'+W+'&times;'+H):'');
+  }
+  function vol(r){ var v=r.gross_volume||r.cbm; return v?(+v).toFixed(3):''; }
+  function ton(r){ var t=r.gross_tonnage||r.net_tonnage||r.quantity_mt||r.net_wt; return t?(+t).toFixed(3):''; }
+  function table(rows){
+    if(!rows.length){ return '<div class="docempty">No blocks on this document.</div>'; }
+    var cv=0,ct=0;
+    var h='<table class="doct2"><thead><tr><th>Block</th><th>Size</th><th class="r">CBM</th><th class="r">MT</th><th></th></tr></thead><tbody>';
+    rows.forEach(function(r){
+      cv+=(+(r.gross_volume||r.cbm)||0); ct+=(+(r.gross_tonnage||r.net_tonnage||r.quantity_mt||r.net_wt)||0);
+      var n=num(r);
+      h+='<tr><td class="bnum">'+esc2(n)+(r.block_no&&r.block_no!==n?'<div class="qsub">quarry '+esc2(r.block_no)+'</div>':'')+'</td>'
+        +'<td>'+size(r)+'</td><td class="r">'+vol(r)+'</td><td class="r">'+ton(r)+'</td>'
+        +'<td>'+(n?'<a href="#" class="dtrace" data-n="'+esc2(n)+'">trace &rarr;</a>':'')+'</td></tr>';
+    });
+    h+='<tr class="doctot"><td colspan="2">'+rows.length+' block(s)</td><td class="r">'+cv.toFixed(3)+'</td><td class="r">'+ct.toFixed(3)+'</td><td></td></tr>';
+    return h+'</tbody></table>';
+  }
+  function show(p){
+    var R=document.getElementById('result');
+    R.innerHTML='<div class="empty">Looking for that document&hellip;</div>';
+    var K=KINDS[p.k];
+    return findDocs(p).then(function(ds){
+      if(!ds.length){ R.innerHTML='<div class="empty">No '+esc2(K.label)+' found for <b>'+esc2(p.exact||p.part)+'</b>.</div>'; return true; }
+      if(ds.length>1){
+        var h='<div class="card"><div class="docpick"><b>'+ds.length+' documents match that.</b> Which one?</div>';
+        ds.forEach(function(d){ h+='<div class="dockv"><a href="#" class="dpick" data-n="'+esc2(d.name)+'"><b>'+esc2(d.name)+'</b></a>'
+          +(d.delivery_challan_no?(' &middot; no '+esc2(d.delivery_challan_no)):'')
+          +' &middot; '+((d.docstatus===1)?'submitted':(d.docstatus===2?'cancelled':'draft'))
+          +(d.dc_date?(' &middot; '+esc2(d.dc_date)):'')+'</div>'; });
+        R.innerHTML=h+'</div>';
+        R.querySelectorAll('.dpick').forEach(function(a){ a.onclick=function(e){ e.preventDefault(); show({k:p.k,exact:a.dataset.n}); }; });
+        return true;
+      }
+      var d=ds[0];
+      return api(K.child,[['parent','=',d.name]],K.cf,K.dt).then(function(rows){
+        R.innerHTML='<div class="card doccard">'+head(K,d)+table(rows)+'</div>'
+          +'<div class="foot">Dolphin International &middot; Trace a block</div>';
+        R.querySelectorAll('.dtrace').forEach(function(a){
+          a.onclick=function(e){ e.preventDefault();
+            var box=document.getElementById('q'); if(box){ box.value=a.dataset.n; box.dispatchEvent(new Event('input',{bubbles:true})); } };
+        });
+        return true;
+      });
+    });
+  }
+  /* sit in front of the input, and only act when it is a document */
+  /* The block search listens on the same input and writes to the same #result.
+     Tested live: it rendered "No block dc 0133 found" straight over the document
+     card. So the document search deliberately runs LAST - a longer debounce than
+     the block search's 350ms - and then checks its own card actually survived,
+     redrawing once if the block search overwrote it. Neither search knows about
+     the other; this just makes the document the one that wins when it is one. */
+  function stillOurs(){
+    var R=document.getElementById('result');
+    return !!(R && R.querySelector('.doccard, .docpick'));
+  }
+  var box=document.getElementById('q');
+  if(box){
+    var t=null;
+    box.addEventListener('input', function(){
+      var p=parseDoc(box.value);
+      if(!p){ return; }              /* not a document - the block search handles it */
+      clearTimeout(t);
+      t=setTimeout(function(){
+        show(p).then(function(){
+          setTimeout(function(){ if(!stillOurs() && parseDoc(box.value)){ show(p); } }, 450);
+        });
+      }, 620);
+    }, true);
+  }
+})();
+</script>
+<style>
+#tbapp .doccard{padding:0;overflow:hidden}
+#tbapp .dochd{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;background:#e6f1fb;padding:12px 16px}
+#tbapp .doct{font-size:17px;font-weight:800}
+#tbapp .docm{font-size:12.5px;color:#6b7280}
+#tbapp .docst{margin-left:auto;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;background:#e1f5ee;color:#0f6e56;border-radius:11px;padding:2px 9px}
+#tbapp .dockv{padding:9px 16px;font-size:12.5px;color:#6b7280;border-bottom:1px solid #eef1f5}
+#tbapp .docempty{padding:16px;color:#8a929c;font-size:13px}
+#tbapp .docpick{padding:12px 16px;font-size:13.5px}
+#tbapp table.doct2{width:100%;border-collapse:collapse;font-size:13px}
+#tbapp table.doct2 th{text-align:left;font-size:10.5px;letter-spacing:.04em;text-transform:uppercase;color:#8a929c;font-weight:700;padding:8px 16px;border-bottom:1px solid #eef1f5;white-space:nowrap}
+#tbapp table.doct2 td{padding:9px 16px;border-bottom:1px solid #eef1f5;font-variant-numeric:tabular-nums}
+#tbapp table.doct2 .r{text-align:right}
+#tbapp table.doct2 .bnum{font-weight:700}
+#tbapp table.doct2 .qsub{font-weight:400;font-size:12px;color:#8a929c}
+#tbapp table.doct2 tr.doctot td{background:#fbfbf9;font-weight:700}
+#tbapp a.dtrace,#tbapp a.dpick{color:#185fa5;text-decoration:none;font-size:12.5px}
+</style>
 {% endraw %}
