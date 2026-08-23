@@ -1384,9 +1384,19 @@ def resolve_block(arrival=None, block_no=None, action="accept", dc=None, length=
 
 @frappe.whitelist()
 def block_availability(blocks=None):
-    """Given block numbers, return {block: dc_name or None} — which challan
-    (draft or submitted) each block already sits on. Powers the Available /
-    on-DC indicator in the add-blocks dialog and the Buyer Inspection screen."""
+    """Given block numbers, return {block: {"dc": name, "draft": 0|1} or None}
+    — which challan each block already sits on. Powers the Available / on-DC
+    indicator in the add-blocks dialog and the Buyer Inspection screen.
+
+    HIS RULE, 23 Aug 2026: "anything inside dc draft shouldnt be considered
+    yet ... only after submit". A draft challan has not dispatched anything,
+    so a block sitting on one is still AVAILABLE. It is worth saying out loud
+    though — otherwise the same block quietly lands on two challans — so the
+    draft is reported with draft=1 and the caller shows it as a note, never
+    as a block. A SUBMITTED challan (draft=0) is the real claim.
+
+    A submitted challan always wins over a draft for the same block.
+    Cancelled challans (docstatus 2) are ignored entirely."""
     import json as _json
     if isinstance(blocks, str):
         blocks = _json.loads(blocks)
@@ -1400,15 +1410,21 @@ def block_availability(blocks=None):
         fields=["parent", "block", "block_no", "export_block_no"],
         limit_page_length=0,
     )
-    # only challans that still count (not cancelled)
-    valid = set(frappe.get_all("Delivery Challan",
-                               filters={"docstatus": ["<", 2]}, pluck="name"))
+    state = {c.name: c.docstatus for c in frappe.get_all(
+        "Delivery Challan", filters={"docstatus": ["<", 2]},
+        fields=["name", "docstatus"])}
     for r in rows:
-        if r.parent not in valid:
+        ds = state.get(r.parent)
+        if ds is None:            # cancelled, or gone
             continue
+        is_draft = 1 if ds == 0 else 0
         for k in (_s(r.block), _s(r.block_no), _s(r.export_block_no)):
-            if k in out and not out[k]:
-                out[k] = r.parent
+            if k not in out:
+                continue
+            cur = out[k]
+            # first answer wins, except a submitted challan displaces a draft
+            if cur is None or (cur.get("draft") and not is_draft):
+                out[k] = {"dc": r.parent, "draft": is_draft}
     return out
 
 
@@ -4025,14 +4041,18 @@ def _challans_out_of_tolerance(rows):
 def _classify_for_auto(rows):
     """Split the ledger into what the app may settle by itself and what it may not.
 
-    verified   the agency sent a row for this block, nothing contradicts it, and its
-               challan total is inside the one tonne tolerance
+    verified   the agency sent a row for this block and its challan total is inside
+               the one tonne tolerance. A size difference does NOT stop it - it is
+               marked size_flag=1 and goes through
     noconflict the block is on a challan of ours, nothing contradicts it, but the
-               agency has not sent a row - that is a conversation with them, never a
-               reason to hold the block up
-    conflict   sizes disagree, or the challan total is out by more than a tonne - a
-               person decides, always
+               agency has not sent a row - reconciliation, per his rule that blocks
+               with no arrival details wait there
+    conflict   the challan total is out by more than a tonne, or there is no challan
+               at all - a person decides, always
     settled    already At Port, in a lot, or loaded
+
+    23 Aug 2026: size is no longer a holding reason. Only three things hold a block
+    now - a duplicate, no arrival row, and a challan more than a tonne out.
     """
     out = {"verified": [], "noconflict": [], "conflict": [], "settled": []}
     bad_dc = _challans_out_of_tolerance(rows)
@@ -4041,9 +4061,13 @@ def _classify_for_auto(rows):
         if st in ("port", "lot", "load"):
             out["settled"].append(r)
             continue
-        if _size_conflict(r):
-            out["conflict"].append(r)
-            continue
+        # 23 Aug 2026. A size difference used to hold the block here. His rule:
+        #   "now that measurement is not port concern if there is variation in the
+        #    port measurement it is actually just a typo error since they dont
+        #    measure at all you can highlight but is should go to at port"
+        # So it is marked and carried, never a reason to stop the block. The mark
+        # travels on the row so the screen can highlight it at the port.
+        r["size_flag"] = 1 if _size_conflict(r) else 0
         if _s(r.get("dc")) in bad_dc:
             out["conflict"].append(r)
             continue

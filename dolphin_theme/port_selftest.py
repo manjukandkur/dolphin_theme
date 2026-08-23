@@ -159,6 +159,24 @@ def _draft_checks():
         else:
             leaked.append(item)
 
+    # block_availability must answer "draft" for a draft, not "taken".
+    # Sample rather than ask about all 947 — the shape is what can regress.
+    avail_wrong = []
+    probe = sorted(only_draft)[:40] + sorted(on_submitted)[:20]
+    if probe:
+        got = A.block_availability(blocks=probe) or {}
+        for b in probe:
+            v = got.get(b)
+            if not isinstance(v, dict) or "draft" not in v:
+                avail_wrong.append({"block": b, "returned": v,
+                                    "why": "not the {dc, draft} shape"})
+            elif b in only_draft and not v.get("draft"):
+                avail_wrong.append({"block": b, "returned": v,
+                                    "why": "only on a draft, reported as taken"})
+            elif b in on_submitted and v.get("draft"):
+                avail_wrong.append({"block": b, "returned": v,
+                                    "why": "on a submitted challan, reported as draft"})
+
     # the DC-to-DC screen must not list a draft challan at all
     dcd = A.dc_weight_check_v2() or {}
     listed = {_s(c.get("dc")) for c in (dcd.get("detail") or [])}
@@ -179,6 +197,13 @@ def _draft_checks():
                "DC to DC compares submitted challans only",
                not dcd_leak, _cap(dcd_leak),
                "A draft challan has no dispatch to compare against."),
+        _check("draft.availability_says_draft",
+               "The add-blocks dialog calls a draft a draft, and still offers the block",
+               not avail_wrong, _cap(avail_wrong),
+               "His rule, 23 Aug 2026: a draft challan does not count until it is "
+               "submitted. block_availability must report it as draft=1 so the "
+               "dialog shows a note and leaves the block selectable — never as a "
+               "claim that removes it."),
         _check("draft.counted",
                "Draft challans on the site right now",
                True, {"draft_challans": len(draft_dcs),
