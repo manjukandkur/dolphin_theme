@@ -123,7 +123,14 @@ return '<div class="journey">'+s.join('')+'</div>';
 }
 function render(q,bl){
 var R=document.getElementById('result');
-if(!bl.length){R.innerHTML='<div class="empty">No block <b>'+esc(q)+'</b> found. Try the other number (quarry vs export).</div>';return;}
+if(!bl.length){
+/* 23 Aug 2026. Typing "dc 021" flashed "No block dc 021 found" for about a
+   second before the document card replaced it - he screenshotted that second.
+   When the text is plainly a document, the block search says nothing at all and
+   leaves the space to the search that is going to answer. */
+if(window.__dipIsDoc && window.__dipIsDoc(q)){
+R.innerHTML='<div class="empty">Looking up <b>'+esc(q)+'</b>&hellip;</div>';return;}
+R.innerHTML='<div class="empty">No block <b>'+esc(q)+'</b> found. Try the other number (quarry vs export).</div>';return;}
 R.innerHTML=bl.map(function(b){
 var sc=SC[b.status]||['#f1efe8','#444441'];
 var dim=(b.length_gross||'')+'&times;'+(b.width_gross||'')+'&times;'+(b.height_gross||'');
@@ -343,11 +350,23 @@ window.__tbRender=render;
     if(w==='inspection'){ return null; }   /* ambiguous - QI or BI. Make them say which. */
     return {k:w, part:m[2].trim()};
   }
+  /* the block search asks this before it says "not found" */
+  window.__dipIsDoc = function(v){ return !!parseDoc(v); };
   function findDocs(p){
     var K=KINDS[p.k]; if(!K){ return Promise.resolve([]); }
     if(p.exact){ return api(K.dt,[['name','=',p.exact]],K.fields); }
     var tries=[];
-    if(K.num){ tries.push([[K.num,'=',p.part]]); }
+    /* Challan numbers are typed by hand and the leading zeros are not consistent,
+       so "dc 21", "dc 021" and "dc 0021" must all reach challan 0021. */
+    if(K.num){
+      var forms=[p.part], bare=p.part.replace(/^0+/,'');
+      if(/^\d+$/.test(p.part)){
+        var pad=bare||p.part; while(pad.length<4){ pad='0'+pad; }
+        if(forms.indexOf(pad)<0){ forms.push(pad); }
+        if(bare && forms.indexOf(bare)<0){ forms.push(bare); }
+      }
+      forms.forEach(function(v){ tries.push([[K.num,'=',v]]); });
+    }
     tries.push([['name','like','%'+p.part]]);
     tries.push([['name','like','%'+p.part+'%']]);
     var out=Promise.resolve([]);
