@@ -203,6 +203,21 @@ window.__tbRender=render;
       if (many.length > MAX) { return { error: "That is " + many.length + " numbers. Please keep it to " + MAX + " or fewer." }; }
       return { list: many, label: many.length + " numbers", many: true };
     }
+    /* 23 Aug 2026: he pasted "214 - 265 - 281 - 286 - 292 - 293" and was told no
+       block matches it, because two numbers round a hyphen is a RANGE and the
+       matcher above had already declined. Three or more numbers joined by
+       hyphens, spaces or slashes is plainly a list, not a range - nobody writes a
+       range with six ends. Read it that way, and accept whatever separator the
+       person happened to type. */
+    var parts = s.split(/[\s\-\/;|]+/).map(function (x) { return x.trim(); }).filter(Boolean);
+    if (parts.length > 2) {
+      var alldigits = true;
+      for (var i = 0; i < parts.length; i++) { if (!/^[A-Za-z0-9]+$/.test(parts[i])) { alldigits = false; } }
+      if (alldigits) {
+        if (parts.length > MAX) { return { error: "That is " + parts.length + " numbers. Please keep it to " + MAX + " or fewer." }; }
+        return { list: parts, label: parts.length + " numbers", many: true };
+      }
+    }
     return { list: [s], label: s, many: false };
   }
   function sortBlocks(bl) {
@@ -212,6 +227,19 @@ window.__tbRender=render;
       return a - b;
     });
   }
+  /* the top bar hands a multi-number query over as ?q= rather than trying to
+     understand it itself - one grammar, in one place. */
+  (function () {
+    try {
+      var qs = new URLSearchParams(window.location.search).get('q');
+      if (!qs) { return; }
+      var box = document.getElementById('q');
+      if (!box) { return; }
+      box.value = qs;
+      setTimeout(function () { box.dispatchEvent(new Event('input', { bubbles: true })); }, 250);
+    } catch (e) { /* no URLSearchParams, no handover */ }
+  })();
+
   function run() {
     var R = document.getElementById("result");
     if (!R || !window.__tbRender) { return; }
