@@ -1446,10 +1446,37 @@ frappe.provide("dolphin");
     box.innerHTML='<div style="display:flex;align-items:center;gap:6px;background:#0f2540;border:1px solid #D4A24A;border-radius:8px;padding:6px 9px"><span style="color:#D4A24A;font-size:13px">&#128269;</span><input class="dtq" placeholder="Trace block no\u2026" style="border:none;background:transparent;color:#fff;font-size:13px;width:100%;outline:none;padding:0;height:auto"></div><div class="dtdd" style="display:none;position:absolute;left:10px;right:10px;top:44px;z-index:1000;background:#fff;border:1px solid #cfd4dc;border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.18);max-height:320px;overflow:auto"></div>';
     sb.insertBefore(box,sb.firstChild);var inp=box.querySelector('.dtq'),dd=box.querySelector('.dtdd'),t=null;
     function render(items,q){if(!q){dd.style.display='none';return;}if(!items.length){dd.innerHTML='<div style="padding:12px;color:#888;font-size:12px;text-align:center">No match</div>';dd.style.display='block';return;}var order=['Block','Appears in','Transport','Truck','Quarry inspection','Buyer inspection','Delivery challan','Arrival','Export shipment lot','Shipping document','Sale lot','Local tax invoice','Buyer','Consignee','Vessel','Shipping agent','Port','Shipping mark','Pit'];var groups={};items.forEach(function(r){(groups[r.t]=groups[r.t]||[]).push(r);});var keys=Object.keys(groups).sort(function(a,b){var ia=order.indexOf(a),ib=order.indexOf(b);return (ia<0?99:ia)-(ib<0?99:ib);});dd.innerHTML=keys.map(function(g){var gi=groups[g];return '<div style="font-size:10px;text-transform:uppercase;color:#8a929c;padding:6px 11px 2px;background:#f6f7f9">'+dtIcon(g)+' '+g+(gi.length>1?' · '+gi.length:'')+'</div>'+gi.map(function(r,idx){var btns=(r.actions||[]).map(function(a,ai){return '<button class="dtb" data-g="'+g+'" data-idx="'+idx+'" data-ai="'+ai+'" style="border:0.5px solid #c9ced6;background:#fff;border-radius:8px;padding:2px 9px;font-size:12px;margin-left:6px;cursor:pointer;color:#1f2a3a">'+a.lb+'</button>';}).join('');return '<div class="dti" style="display:flex;align-items:center;gap:8px;padding:8px 11px;border-top:0.5px solid #eee"><div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:500;color:#1f2a3a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+r.l+'</div>'+(r.s?'<div style="font-size:11px;color:#6b7280">'+r.s+'</div>':'')+'</div>'+btns+'</div>';}).join('');}).join('');dd.style.display='block';dd.querySelectorAll('.dtb').forEach(function(el){el.addEventListener('mousedown',function(ev){ev.preventDefault();ev.stopPropagation();var a=groups[el.dataset.g][+el.dataset.idx].actions[+el.dataset.ai];dd.style.display='none';inp.blur();if(a.on==='trace')window.dolphinTrace(a.key);else if(a.on==='doc')window.dolphinPreview(a.dt,a.name,a.fmt);else if(a.on==='nav')window.location.href=a.route+encodeURIComponent(a.name);});});}
-    inp.addEventListener('input',function(){clearTimeout(t);var q=inp.value;if(!q.trim()){dd.style.display='none';return;}t=setTimeout(function(){dolphinFind(q,function(items){render(items,q);});},280);});
+    /* 23 Aug 2026: he typed "214 - 265 - 281 - 286 - 292 - 293" here and was told
+       no block matches it. This box looks up ONE thing; a list of numbers, a range
+       and a document number are all understood by the Trace page, which has the
+       grammar. So rather than teach the same grammar twice, anything that is
+       plainly more than one number, or is prefixed with a document word, is handed
+       over to that page with ?q= and answered there. */
+    function dtMulti(q){
+      var s=String(q||'').trim(); if(!s) return null;
+      if(/^(dc|bi|qi|arr|lot|inv)\s*[-_: ]?\s*\S+/i.test(s)) return 'document';
+      if(/^\d+\s*(?:-|to|\.\.)\s*\d+$/i.test(s)) return 'range';
+      if(s.indexOf(',')!==-1) return 'list';
+      var parts=s.split(/[\s\-\/;|]+/).filter(Boolean);
+      if(parts.length>2){ for(var i=0;i<parts.length;i++){ if(!/^[A-Za-z0-9]+$/.test(parts[i])) return null; } return 'list'; }
+      return null;
+    }
+    function dtHandOver(q){ window.location.href='/trace-block?q='+encodeURIComponent(q); }
+    inp.addEventListener('input',function(){clearTimeout(t);var q=inp.value;if(!q.trim()){dd.style.display='none';return;}
+      var kind=dtMulti(q);
+      if(kind){
+        dd.innerHTML='<div class="dtb" style="padding:12px;font-size:12.5px;cursor:pointer;color:#0f2540">'
+          +'Open this '+(kind==='document'?'document':(kind==='range'?'range':'list'))+' in <b>Trace a block</b> &rarr;</div>';
+        dd.style.display='block';
+        var go=dd.querySelector('.dtb'); if(go){ go.addEventListener('mousedown',function(){ dtHandOver(q); }); }
+        return;
+      }
+      t=setTimeout(function(){dolphinFind(q,function(items){render(items,q);});},280);});
     inp.addEventListener('focus',function(){if(inp.value.trim()&&dd.children.length)dd.style.display='block';});
     inp.addEventListener('blur',function(){setTimeout(function(){dd.style.display='none';},180);});
-    inp.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();var f=dd.querySelector('.dtb');if(f){f.dispatchEvent(new MouseEvent('mousedown'));}else if(inp.value.trim()){window.dolphinTrace(inp.value.trim());}}});
+    inp.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();
+      if(dtMulti(inp.value)){ dtHandOver(inp.value.trim()); return; }
+      var f=dd.querySelector('.dtb');if(f){f.dispatchEvent(new MouseEvent('mousedown'));}else if(inp.value.trim()){window.dolphinTrace(inp.value.trim());}}});
   }
   setInterval(inject, 1500); setTimeout(inject, 500);
 

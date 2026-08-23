@@ -119,9 +119,36 @@ frappe.provide("dolphin");
     inp.setAttribute('data-diptype','1');
     var box=ensureResultsBox(); var timer=null;
     function place(){ var r=inp.getBoundingClientRect(); box.style.left=(r.left+window.scrollX)+'px'; box.style.top=(r.bottom+window.scrollY+4)+'px'; box.style.width=Math.max(r.width,280)+'px'; }
-    inp.addEventListener('input',function(){ clearTimeout(timer); var q=(inp.value||'').trim(); if(q.length<1){box.style.display='none';return;} timer=setTimeout(function(){ searchBlocks(q).then(function(rows){
+    /* 23 Aug 2026. This box replaces the theme's own one, so the grammar had to
+       land here too. It looks up ONE block; a list, a range and a document number
+       are all understood by the Trace page. Recognise those and hand them over
+       with ?q= rather than telling him the blocks do not exist - which is what
+       "No block matches 214 - 265 - 281 - 286 - 292 - 293" and "No block matches
+       dc 057" were really saying. */
+    function dipKind(v){
+      var t=String(v||'').trim(); if(!t) return null;
+      if(/^(dc|bi|qi|arr|lot|inv)\s*[-_: ]?\s*\S+/i.test(t)) return 'document';
+      if(/^(DC|LBI|BI|QI|ARR|SL|DI)-/i.test(t)) return 'document';
+      if(/^\d+\s*(?:-|to|\.\.)\s*\d+$/i.test(t)) return 'range';
+      if(t.indexOf(',')!==-1) return 'list';
+      var parts=t.split(/[\s\-\/;|]+/).filter(Boolean);
+      if(parts.length>2){ for(var i=0;i<parts.length;i++){ if(!/^[A-Za-z0-9]+$/.test(parts[i])) return null; } return 'list'; }
+      return null;
+    }
+    function dipHandOver(v){ window.location.href='/trace-block?q='+encodeURIComponent(String(v).trim()); }
+    inp.addEventListener('keydown',function(e){ if(e.key==='Enter' && dipKind(inp.value)){ e.preventDefault(); dipHandOver(inp.value); } });
+    inp.addEventListener('input',function(){ clearTimeout(timer); var q=(inp.value||'').trim(); if(q.length<1){box.style.display='none';return;}
+      var kind=dipKind(q);
+      if(kind){
+        box.innerHTML='<div class="dip-go" style="padding:10px 12px;cursor:pointer;color:#185fa5;font-weight:600">Open this '
+          +(kind==='document'?'document':kind)+' in Trace a block &rarr;</div>';
+        place(); box.style.display='block';
+        var g=box.querySelector('.dip-go'); if(g){ g.addEventListener('mousedown',function(ev){ ev.preventDefault(); dipHandOver(q); }); }
+        return;
+      }
+      timer=setTimeout(function(){ searchBlocks(q).then(function(rows){
       if(!rows.length){ box.innerHTML='<div style="padding:10px 12px;color:#98a2b3">No block matches &ldquo;'+esc(q)+'&rdquo;</div>'; }
-      else { box.innerHTML=rows.map(function(b){var c=SC[b.status]||['#eee','#333'];return '<div class="dip-row" data-b="'+esc(b.block_number||b.name)+'" style="padding:8px 12px;border-bottom:1px solid #f2f4f7;cursor:pointer;display:flex;justify-content:space-between;gap:10px;align-items:center"><span><b>'+esc(b.block_number||b.name)+'</b>'+(b.export_block_no?' <span style="color:#8a929c">exp '+esc(b.export_block_no)+'</span>':'')+'</span><span style="background:'+c[0]+';color:'+c[1]+';border-radius:10px;padding:1px 8px;font-size:11px">'+esc(b.status||'')+'</span></div>';}).join(''); }
+      else { box.innerHTML=rows.map(function(b){var c=SC[b.status]||['#eee','#333'];return '<div class="dip-row" data-b="'+esc(b.block_number||b.name)+'" style="padding:8px 12px;border-bottom:1px solid #f2f4f7;cursor:pointer;display:flex;justify-content:space-between;gap:10px;align-items:center"><span><b>'+esc(b.block_number||b.name)+'</b>'+(b.export_block_no?' <span style="color:#185fa5;font-weight:700">exp '+esc(b.export_block_no)+'</span>':'')+'</span><span style="background:'+c[0]+';color:'+c[1]+';border-radius:10px;padding:1px 8px;font-size:11px">'+esc(b.status||'')+'</span></div>';}).join(''); }
       place(); box.style.display='block';
       Array.prototype.forEach.call(box.querySelectorAll('.dip-row'),function(el){ el.addEventListener('mousedown',function(ev){ ev.preventDefault(); box.style.display='none'; inp.value=''; openJourney(el.getAttribute('data-b')); }); });
     }); },220); });
