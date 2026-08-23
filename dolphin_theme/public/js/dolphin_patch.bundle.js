@@ -168,9 +168,14 @@ frappe.provide("dolphin");
     }
     tries.push([['name','like','%'+raw]]);
     tries.push([['name','like','%'+raw+'%']]);
-    var out=Promise.resolve([]);
-    tries.forEach(function(f){ out=out.then(function(r){ return (r&&r.length)?r:dq(K.dt,f,K.f); }); });
-    return out;
+    /* 23 Aug 2026, speed. Sequential, these were up to five round trips before
+       anything appeared. They are independent, so fire them together and take
+       the first match in the order written. Same answer, one round trip. */
+    return Promise.all(tries.map(function(f){ return dq(K.dt,f,K.f); }))
+      .then(function(rs){
+        for(var i=0;i<rs.length;i++){ if(rs[i]&&rs[i].length){ return rs[i]; } }
+        return [];
+      });
   }
   function dnum(r){ return r.export_block_no||r.block_number_input||r.block_no||r.quarry_block_no||r.block||''; }
   function dsize(r){ var L=r.length_gross||r.length,W=r.width_gross||r.width,H=r.height_gross||r.height; return L?(L+'&times;'+W+'&times;'+H):''; }
