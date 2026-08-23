@@ -369,11 +369,15 @@ window.__tbRender=render;
     }
     tries.push([['name','like','%'+p.part]]);
     tries.push([['name','like','%'+p.part+'%']]);
-    var out=Promise.resolve([]);
-    tries.forEach(function(f){
-      out=out.then(function(r){ return (r&&r.length)?r:api(K.dt,f,K.fields); });
-    });
-    return out;
+    /* 23 Aug 2026, speed. These ran one after another - up to five round trips
+       before "lot 26" showed anything, which measured about five seconds. They
+       are independent lookups, so they now go together and the FIRST one that
+       matches, in the order written, wins. Same answer, one round trip. */
+    return Promise.all(tries.map(function(f){ return api(K.dt,f,K.fields); }))
+      .then(function(rs){
+        for(var i=0;i<rs.length;i++){ if(rs[i]&&rs[i].length){ return rs[i]; } }
+        return [];
+      });
   }
   function head(K,d){
     var bits=[];
@@ -467,7 +471,8 @@ window.__tbRender=render;
         show(p).then(function(){
           setTimeout(function(){ if(!stillOurs() && parseDoc(box.value)){ show(p); } }, 450);
         });
-      }, 620);
+      }, 380);   /* was 620ms. The block search debounces at 350, so 380 still
+                        lets it go first, and the document card lands sooner. */
     }, true);
   }
 })();
