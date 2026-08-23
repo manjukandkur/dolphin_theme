@@ -316,10 +316,47 @@ frappe.provide("dolphin");
     var p=new URLSearchParams({doctype:'Quarry Block',or_filters:JSON.stringify([['block_number','like','%'+q+'%'],['export_block_no','like','%'+q+'%']]),fields:JSON.stringify(['name','block_number','export_block_no','status']),limit_page_length:8});
     return fetch('/api/method/frappe.client.get_list?'+p.toString(),{credentials:'same-origin'}).then(function(r){return r.json();}).then(function(j){return j.message||[];}).catch(function(){return [];});
   }
+  function dipKind(v){
+    var t=String(v||'').trim(); if(!t) return null;
+    if(/^(dc|bi|qi|arr|lot|inv)\s*[-_: ]?\s*\S+/i.test(t)) return 'document';
+    if(/^(DC|LBI|BI|QI|ARR|SL|DI)-/i.test(t)) return 'document';
+    if(/^\d+\s*(?:-|to|\.\.)\s*\d+$/i.test(t)) return 'range';
+    if(t.indexOf(',')!==-1) return 'list';
+    var parts=t.split(/[\s\-\/;|]+/).filter(Boolean);
+    if(parts.length>2){ for(var i=0;i<parts.length;i++){ if(!/^[A-Za-z0-9]+$/.test(parts[i])) return null; } return 'list'; }
+    return null;
+  }
+  /* 23 Aug 2026: this used to be window.location.href. It now opens the same
+     pop-up a block opens in, so the page underneath survives. The full page is
+     a link inside the pop-up, taken only if he asks for it. */
+  function dipHandOver(v){
+    var t=String(v||'').trim(); if(!t) return;
+    var k=dipKind(t);
+    if(k==='document'){ if(openDocument(t)) return; }
+    if(k==='range'||k==='list'){ if(openList(t)) return; }
+    openJourney(t);
+  }
+
+  /* 23 Aug 2026, his ask: "range entry text below is missing : eg Enter DC 021,
+     BI-102 etc for user to understand also range entry how to text". The Trace
+     page carries this line under its box; the top bar box had nothing, so people
+     could not know a range or a challan was even allowed here. */
+  var DIP_HINT =
+    '<div style="padding:8px 12px;border-top:1px solid #f2f4f7;background:#fafbfc;'
+    + 'font-size:11px;line-height:1.55;color:#8a929c;border-radius:0 0 8px 8px">'
+    + '<b style="color:#5b6672">Block</b> 1332 &middot; '
+    + '<b style="color:#5b6672">range</b> 1332-1356 &middot; '
+    + '<b style="color:#5b6672">list</b> 1332,1340 &middot; '
+    + '<b style="color:#5b6672">document</b> DC 021, BI 102, QI 017, ARR 27Jul, LOT 26, INV 0050'
+    + '<br>or paste the full id &mdash; DC-GCHG-061. Everything opens here, over this page.'
+    + '</div>';
+
   function attachTypeahead(inp){
     if(inp.getAttribute('data-diptype')) return;
     inp.setAttribute('data-diptype','1');
     var box=ensureResultsBox(); var timer=null;
+    function showHintOnly(){ box.innerHTML=DIP_HINT; place(); box.style.display='block'; }
+    inp.addEventListener('focus',function(){ if(!(inp.value||'').trim()){ showHintOnly(); } });
     function place(){ var r=inp.getBoundingClientRect(); box.style.left=(r.left+window.scrollX)+'px'; box.style.top=(r.bottom+window.scrollY+4)+'px'; box.style.width=Math.max(r.width,280)+'px'; }
     /* 23 Aug 2026. This box replaces the theme's own one, so the grammar had to
        land here too. It looks up ONE block; a list, a range and a document number
@@ -327,40 +364,20 @@ frappe.provide("dolphin");
        with ?q= rather than telling him the blocks do not exist - which is what
        "No block matches 214 - 265 - 281 - 286 - 292 - 293" and "No block matches
        dc 057" were really saying. */
-    function dipKind(v){
-      var t=String(v||'').trim(); if(!t) return null;
-      if(/^(dc|bi|qi|arr|lot|inv)\s*[-_: ]?\s*\S+/i.test(t)) return 'document';
-      if(/^(DC|LBI|BI|QI|ARR|SL|DI)-/i.test(t)) return 'document';
-      if(/^\d+\s*(?:-|to|\.\.)\s*\d+$/i.test(t)) return 'range';
-      if(t.indexOf(',')!==-1) return 'list';
-      var parts=t.split(/[\s\-\/;|]+/).filter(Boolean);
-      if(parts.length>2){ for(var i=0;i<parts.length;i++){ if(!/^[A-Za-z0-9]+$/.test(parts[i])) return null; } return 'list'; }
-      return null;
-    }
-    /* 23 Aug 2026: this used to be window.location.href. It now opens the same
-       pop-up a block opens in, so the page underneath survives. The full page is
-       a link inside the pop-up, taken only if he asks for it. */
-    function dipHandOver(v){
-      var t=String(v||'').trim(); if(!t) return;
-      var k=dipKind(t);
-      if(k==='document'){ if(openDocument(t)) return; }
-      if(k==='range'||k==='list'){ if(openList(t)) return; }
-      openJourney(t);
-    }
     inp.addEventListener('keydown',function(e){ if(e.key==='Enter' && dipKind(inp.value)){ e.preventDefault(); var v=inp.value; box.style.display='none'; inp.value=''; dipHandOver(v); } });
     inp.addEventListener('input',function(){ clearTimeout(timer); var q=(inp.value||'').trim(); if(q.length<1){box.style.display='none';return;}
       var kind=dipKind(q);
       if(kind){
         box.innerHTML='<div class="dip-go" style="padding:10px 12px;cursor:pointer;color:#185fa5;font-weight:600">Open this '
           +(kind==='document'?'document':kind)+' &rarr;</div>'
-          +'<div style="padding:0 12px 9px;font-size:11.5px;color:#98a2b3">Opens here, over this page.</div>';
+          + DIP_HINT;
         place(); box.style.display='block';
         var g=box.querySelector('.dip-go'); if(g){ g.addEventListener('mousedown',function(ev){ ev.preventDefault(); box.style.display='none'; inp.value=''; dipHandOver(q); }); }
         return;
       }
       timer=setTimeout(function(){ searchBlocks(q).then(function(rows){
-      if(!rows.length){ box.innerHTML='<div style="padding:10px 12px;color:#98a2b3">No block matches &ldquo;'+esc(q)+'&rdquo;</div>'; }
-      else { box.innerHTML=rows.map(function(b){var c=SC[b.status]||['#eee','#333'];return '<div class="dip-row" data-b="'+esc(b.block_number||b.name)+'" style="padding:8px 12px;border-bottom:1px solid #f2f4f7;cursor:pointer;display:flex;justify-content:space-between;gap:10px;align-items:center"><span><b>'+esc(b.block_number||b.name)+'</b>'+(b.export_block_no?' <span style="color:#185fa5;font-weight:700">exp '+esc(b.export_block_no)+'</span>':'')+'</span><span style="background:'+c[0]+';color:'+c[1]+';border-radius:10px;padding:1px 8px;font-size:11px">'+esc(b.status||'')+'</span></div>';}).join(''); }
+      if(!rows.length){ box.innerHTML='<div style="padding:10px 12px;color:#98a2b3">No block matches &ldquo;'+esc(q)+'&rdquo;</div>'+DIP_HINT; }
+      else { box.innerHTML=rows.map(function(b){var c=SC[b.status]||['#eee','#333'];return '<div class="dip-row" data-b="'+esc(b.block_number||b.name)+'" style="padding:8px 12px;border-bottom:1px solid #f2f4f7;cursor:pointer;display:flex;justify-content:space-between;gap:10px;align-items:center"><span><b>'+esc(b.block_number||b.name)+'</b>'+(b.export_block_no?' <span style="color:#185fa5;font-weight:700">exp '+esc(b.export_block_no)+'</span>':'')+'</span><span style="background:'+c[0]+';color:'+c[1]+';border-radius:10px;padding:1px 8px;font-size:11px">'+esc(b.status||'')+'</span></div>';}).join('')+DIP_HINT; }
       place(); box.style.display='block';
       Array.prototype.forEach.call(box.querySelectorAll('.dip-row'),function(el){ el.addEventListener('mousedown',function(ev){ ev.preventDefault(); box.style.display='none'; inp.value=''; openJourney(el.getAttribute('data-b')); }); });
     }); },220); });
@@ -372,13 +389,17 @@ frappe.provide("dolphin");
       document.querySelectorAll('input.dtq').forEach(function(inp){
         if(!inp.getAttribute('data-dip')){
           var c=inp.cloneNode(true); c.setAttribute('data-dip','1'); c.className=inp.className;
+          c.setAttribute('placeholder','Block, range 1332-1356, list, or DC 021 / BI 102\u2026');
           inp.parentNode.replaceChild(c,inp);
           c.addEventListener('keydown',function(ev){ if(ev.key==='Enter'){ ev.preventDefault(); ev.stopPropagation();
             var box=document.getElementById('dip-trace-results');
             var v=(c.value||'').trim();
-            /* a document or a list answers for itself; only a bare block number
-               falls through to the dropdown's first row */
-            if(docParse(v)){ if(box) box.style.display='none'; c.value=''; openDocument(v); return; }
+            /* 23 Aug 2026. This handler used to know about documents but not
+               about ranges or lists, so Enter on "802-850" went to the single
+               block lookup and popped "Block 802-850 not found in stock
+               records" over a pop-up that had listed the range correctly.
+               One router now, shared with the dropdown - dipHandOver. */
+            if(dipKind(v)){ if(box) box.style.display='none'; c.value=''; dipHandOver(v); return; }
             var first=box&&box.querySelector('.dip-row');
             if(first){ box.style.display='none'; c.value=''; openJourney(first.getAttribute('data-b')); }
             else { openJourney(v); } } });
