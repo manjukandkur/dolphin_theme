@@ -406,6 +406,100 @@ def _lot_checks():
     ]
 
 
+# ---------------------------------------------------------------------------
+# THE APP CHECKED AGAINST ITSELF  (23 Aug 2026)
+#
+# His words: "in future these kinds of chain or ripple effects should not happen
+# must be verified". This is the check for the fault that caused one of them.
+#
+# api_arrivals.py had TWO functions called arrival_xls_grid. Python keeps only the
+# last, so the Arrivals tab's View sheet button - which reads the first one's shape -
+# received a payload with no .grid in it and reported "Empty sheet" on a file with
+# 200 rows. Nothing errored; the screen simply lied. A name defined twice in one
+# module is silent by nature, so it needs a check rather than a careful reader.
+#
+# A deliberate supersede is allowed: say so in the docstring of the winning one, in
+# the words "supersedes" or "last definition wins", and this check leaves it alone.
+def _duplicate_defs():
+    import ast
+    import os
+    import collections
+
+    base = os.path.dirname(os.path.abspath(__file__))
+    bad = []
+    for fn in sorted(os.listdir(base)):
+        if not fn.endswith(".py"):
+            continue
+        path = os.path.join(base, fn)
+        try:
+            with open(path, "r", encoding="utf-8") as fh:
+                tree = ast.parse(fh.read())
+        except Exception:
+            continue
+        seen = collections.OrderedDict()
+        for node in tree.body:
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                seen.setdefault(node.name, []).append(node)
+        for name, nodes in seen.items():
+            if len(nodes) < 2:
+                continue
+            doc = (ast.get_docstring(nodes[-1]) or "").lower()
+            if "supersedes" in doc or "last definition wins" in doc:
+                continue
+            bad.append("%s: %s defined %d times (lines %s) - only the last one runs"
+                       % (fn, name, len(nodes),
+                          ", ".join(str(n.lineno) for n in nodes)))
+    return [_check(
+        "code.no_name_defined_twice",
+        "No function in the app is defined twice under one name",
+        not bad,
+        _cap(bad),
+        "Rename the newer one, or say 'supersedes' in its docstring if it is meant to win.",
+    )]
+
+
+# 23 Aug 2026, and I caused this one myself: inserting a function above report()
+# left @frappe.whitelist() decorating the NEW function instead of report(), so the
+# self-test stopped being callable and said only "not whitelisted". A decorator
+# separated from its function is invisible until someone calls the endpoint. So
+# the app checks its own doors too.
+def _entry_points():
+    import ast
+    import os
+
+    want = {
+        "port_selftest.py": ["report"],
+        "api_arrivals.py": ["ledger_view", "reconciliation_view", "absorb_arrivals",
+                            "arrival_xls_grid", "arrival_xls_sheets"],
+    }
+    bad = []
+    base = os.path.dirname(os.path.abspath(__file__))
+    for fn in want:
+        path = os.path.join(base, fn)
+        try:
+            with open(path, "r", encoding="utf-8") as fh:
+                tree = ast.parse(fh.read())
+        except Exception:
+            continue
+        got = set()
+        for node in tree.body:
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                for d in node.decorator_list:
+                    if "whitelist" in ast.dump(d):
+                        got.add(node.name)
+        for name in want[fn]:
+            if name not in got:
+                bad.append("%s: %s is not whitelisted - the page that calls it will "
+                           "fail with 'not permitted'" % (fn, name))
+    return [_check(
+        "code.entry_points_are_callable",
+        "Every screen's entry point is still whitelisted",
+        not bad,
+        _cap(bad),
+        "A decorator separated from its function - check what was inserted above it.",
+    )]
+
+
 @frappe.whitelist()
 def report():
     """Run every check. Reads only - changes nothing at all."""
@@ -416,6 +510,8 @@ def report():
         ("DC to DC", _dc_to_dc_checks),
         ("Stock at Port", _at_port_checks),
         ("Shipment Lots", _lot_checks),
+        ("The app itself", _duplicate_defs),
+        ("The app's doors", _entry_points),
     ]
     out, failed, ran = [], 0, 0
     for title, fn in groups:

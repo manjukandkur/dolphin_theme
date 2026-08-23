@@ -2861,6 +2861,7 @@ def reconciliation_view():
 # candidate, and it only ever suggests.
 # ---------------------------------------------------------------------------
 def _dispatched_index():
+    """SUPERSEDES the _dispatched_index earlier in this file (last definition wins)."""
     rows = frappe.db.sql(
         """
         SELECT r.block, r.block_no, r.export_block_no, r.length_gross AS l,
@@ -2888,6 +2889,7 @@ def _dispatched_index():
 
 
 def _nearest(block_no, candidates):
+    """SUPERSEDES the _nearest earlier in this file (last definition wins)."""
     target = str(block_no).strip()
     if len(target) < 3:
         return None
@@ -2978,7 +2980,9 @@ def _dc_block_link_index():
 
 @frappe.whitelist()
 def reconciliation_view():
-    """One row per BLOCK. Sizes checked against the Buyer Inspection, never the
+    """SUPERSEDES the reconciliation_view earlier in this file (last definition wins).
+
+    One row per BLOCK. Sizes checked against the Buyer Inspection, never the
     Delivery Challan. Rows already flagged Duplicate never reach the screen."""
     by_export, by_quarry, by_id = _qb_master_index()
     dc_link = _dc_block_link_index()
@@ -3282,7 +3286,8 @@ def absorb_arrivals(apply=0):
 
     rows = frappe.get_all("Port Arrival Block",
                           fields=["name", "parent", "block_no", "net_wt",
-                                  "length", "width", "height", "recon_status"],
+                                  "length", "width", "height", "recon_status",
+                                  "quarry_block"],
                           limit_page_length=0)
     rows = [r for r in rows if r.parent in order]
     rows.sort(key=lambda r: order.get(r.parent, 0))
@@ -3304,7 +3309,7 @@ def absorb_arrivals(apply=0):
             continue
         groups.setdefault(qb, []).append((r, k, detail))
 
-    plan = {"keep": [], "repeat": [], "weight_updated": [], "weight_check": []}
+    plan = {"keep": [], "repeat": [], "weight_updated": [], "weight_check": [], "linked": []}
     for qb, items in groups.items():
         keeper, kn, kdetail = items[0]
         seq = [flt(x[0].net_wt) for x in items if flt(x[0].net_wt)]
@@ -3331,12 +3336,26 @@ def absorb_arrivals(apply=0):
         if apply and _s(keeper.recon_status) != "Matched":
             frappe.db.set_value("Port Arrival Block", keeper.name,
                                 "recon_status", "Matched", update_modified=False)
+        # 23 Aug 2026: STORE the block this row resolved to. Until today the
+        # resolver did all this work and threw the answer away - quarry_block was
+        # empty on all 849 rows - so every screen downstream had to match the
+        # number as text all over again, and that is where the crossed weights and
+        # the wrong-block At Port moves came from. Three witnesses agreed on this
+        # block; write it down.
+        plan["linked"].append({"row": keeper.name, "block": kn, "quarry_block": qb})
+        if apply and _s(keeper.get("quarry_block")) != _s(qb):
+            frappe.db.set_value("Port Arrival Block", keeper.name,
+                                "quarry_block", qb, update_modified=False)
         for other, on, _d in items[1:]:
             plan["repeat"].append({"row": other.name, "block": on, "quarry_block": qb,
                                    "arrival": other.parent})
             if apply and _s(other.recon_status) != "Duplicate":
                 frappe.db.set_value("Port Arrival Block", other.name,
                                     "recon_status", "Duplicate", update_modified=False)
+            plan["linked"].append({"row": other.name, "block": on, "quarry_block": qb})
+            if apply and _s(other.get("quarry_block")) != _s(qb):
+                frappe.db.set_value("Port Arrival Block", other.name,
+                                    "quarry_block", qb, update_modified=False)
 
     if apply:
         for h in held:
@@ -3357,7 +3376,8 @@ def absorb_arrivals(apply=0):
         "identity_verdicts": tally,
         "counts": {"keep": len(plan["keep"]), "repeat": len(plan["repeat"]),
                    "held": len(held), "weight_updated": len(plan["weight_updated"]),
-                   "weight_needs_check": len(plan["weight_check"])},
+                   "weight_needs_check": len(plan["weight_check"]),
+                   "rows_linked_to_a_block": len(plan["linked"])},
         "weight_needs_check": plan["weight_check"][:40],
         "weight_updates": sorted(plan["weight_updated"], key=lambda x: -x["change_kg"])[:40],
         "held": held[:60],
@@ -3579,8 +3599,13 @@ def _xls_cell_out(sh, r, c, book):
 
 
 @frappe.whitelist()
-def arrival_xls_grid(file=None, communication=None, arrival=None, max_rows=600, max_cols=30):
-    """The arrival .xls exactly as received. Read-only.
+def arrival_xls_sheets(file=None, communication=None, arrival=None, max_rows=600, max_cols=30):
+    """The arrival .xls exactly as received, every sheet in it. Read-only.
+
+    Renamed 23 Aug 2026. It was called arrival_xls_grid, the same name as the
+    viewer above, so Python kept only this one and the Arrivals tab's View sheet
+    button - which reads .grid - got a payload with no .grid in it and showed
+    'Empty sheet' on files with 200 rows in them.
 
     file          - File docname or file_url of the attachment
     communication - Communication docname; the first spreadsheet attached to it is used
