@@ -130,7 +130,16 @@
   <div class="pane on" id="p-stock">
     <div class="bal" id="bal"></div>
     <div class="tb">
-      <span class="vtog on" id="v-blk">&#9636; All transported</span><span class="vtog" id="v-dc">&#8693; Group by DC</span>
+      <!-- 24 Aug 2026, the At Port / Reconciliation split, second half. His question:
+           "it is still the same? not without any problem or reconcilation blocks
+           should be here?" - and he is right. This screen is called Stock at Port
+           and its own footer says a block is settled on Reconcile before it gets
+           here, yet it opened on the WHOLE ledger: 254 transported, of which 2 are
+           actually at the port. It was widened to 'all' on 22 Aug only because the
+           honest view was empty. An empty register is the truth and it must be
+           allowed to say so. So: At port is the default, All transported is one
+           click away and clearly a different question. -->
+      <span class="vtog on" id="v-blk">&#9875; At port</span><span class="vtog" id="v-all">&#9636; All transported</span><span class="vtog" id="v-dc">&#8693; Group by DC</span>
       <input id="q" placeholder="Search any number — quarry, export, DC, BI, consignee, mark, truck" style="flex:1;min-width:150px">
       <span class="gh" id="addbtn" style="display:none">+ Add at port</span><span class="gh" id="openbtn" style="display:none">&#9638; Opening stock</span>
     </div>
@@ -176,7 +185,9 @@
 (function(){
 function U(n){return String.fromCodePoint(n);}
 var X=U(215),DOT=U(183),DASH=U(8212),CHK=U(10003),AR=U(8594),TRI=U(9656),ARL=U(9666);
-var TOKEN=null,LED=[],LOTS=[],ARRS=[],ADATE={},FILT='all'   /* 22 Aug: 'await' is empty while every arrival is a draft, and the screen opened blank */,Q='',VMODE='blk',SEL={},PANEL_I=null;
+var TOKEN=null,LED=[],LOTS=[],ARRS=[],ADATE={},FILT='settled'   /* 24 Aug: the register shows stone that is actually AT PORT - settled,
+     in a lot, or loaded. It opened on 'all' since 22 Aug because the honest view was
+     empty; an empty register is the truth and the empty state now says why. */,Q='',VMODE='blk',SEL={},PANEL_I=null;
 function esc(s){return (s==null?'':(''+s)).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
 function $(id){return document.getElementById(id);}
 function api(dt,f,fl,lim){var u='/api/method/frappe.client.get_list?doctype='+encodeURIComponent(dt)+'&filters='+encodeURIComponent(JSON.stringify(f))+'&fields='+encodeURIComponent(JSON.stringify(fl))+'&limit_page_length='+(lim||0);return fetch(u,{credentials:'include'}).then(function(r){return r.json();}).then(function(j){return j.message||[];});}
@@ -825,14 +836,27 @@ function renderBal(){
    only block_no meant typing the number printed on the screen found nothing.
    23 Aug 2026: search all of them, plus the DC, BI, consignee and mark. */
 function matchQ(r){if(!Q)return true;var t=((r.block_no||'')+' '+(r.export_block_no||'')+' '+(r.quarry_block_no||'')+' '+(r.dc||'')+' '+(r.source_bi||'')+' '+(r.consignee||'')+' '+(r.mark||'')+' '+(r.lot||'')+' '+(r.truck||'')).toLowerCase();return t.indexOf(Q)>=0;}
-function passFilt(st){if(FILT==='all')return true;if(FILT==='flag')return ['mis','dmg','held'].indexOf(st)>=0;if(FILT==='excess')return st==='orphan';return st===FILT;}
+function passFilt(st){if(FILT==='all')return true;
+  /* settled = a person decided it is here. Nothing else belongs on this register. */
+  if(FILT==='settled')return ['port','lot','load'].indexOf(st)>=0;
+  if(FILT==='flag')return ['mis','dmg','held'].indexOf(st)>=0;if(FILT==='excess')return st==='orphan';return st===FILT;}
 function key(r){return (r.arrival||'')+'|'+r.block_no;}
 function renderStock(){if(VMODE==='dc'){renderDC();return;}
   var list=LED.filter(matchQ).filter(function(r){return passFilt(r.state);});
-  if(!list.length){$('stmain').innerHTML='<div class="empty" style="padding:26px 12px;line-height:1.6">'
-    +'<div style="font-weight:700;color:#0F2540;margin-bottom:6px">Nothing to show here yet</div>'
-    +'<div class="sub">This is the register of blocks that have left the quarry. Blocks appear here as their '
-    +'challan is submitted, and they read <b>At port</b> once they are settled and pushed from <b>Reconcile</b>.</div></div>';return;}
+  if(!list.length){
+    /* 24 Aug 2026. An empty register is not a broken screen - it is the answer. But it
+       must say WHY it is empty and where the work actually is, or it reads as a fault. */
+    var nHeld=LED.filter(function(r){return ['port','lot','load'].indexOf(r.state)<0 && r.dc;}).length;
+    var why=(FILT==='settled')
+      ? '<div class="sub">Nothing has been settled to the port yet.'
+        +(nHeld?(' <b>'+nHeld+'</b> block'+(nHeld===1?' is':'s are')+' waiting on <b>Reconciliation</b> - a block only reaches this register once a person settles it there.'):'')
+        +'<br><br>Nothing reaches At Port until an <b>arrival sheet is confirmed</b>. Until then this page is empty, and that is correct.'
+        +'<br><br>To see everything that has left the quarry regardless, use <b>All transported</b> above.</div>'
+      : '<div class="sub">This is the register of blocks that have left the quarry. Blocks appear here as their '
+        +'challan is submitted, and they read <b>At port</b> once they are settled and pushed from <b>Reconcile</b>.</div>';
+    $('stmain').innerHTML='<div class="empty" style="padding:26px 12px;line-height:1.6">'
+      +'<div style="font-weight:700;color:#0F2540;margin-bottom:6px">'
+      +(FILT==='settled'?'No block is at the port yet':'Nothing to show here yet')+'</div>'+why+'</div>';return;}
   var h='<table><thead><tr><th style="width:22px"><input type="checkbox" class="selall" title="Select all"></th><th>Block</th><th>Delivery Challan</th><th>Source BI '+DOT+' Consignee</th><th>DC size</th><th>Port size</th><th>Ton</th><th>Age</th><th>State</th><th>Action</th><th style="width:22px"></th></tr></thead><tbody>';
   list.forEach(function(r,i){
     var k=key(r),age=ageDays(r.arrival),ageC=age==null?'<span class="sub">'+DASH+'</span>':'<span style="'+(age>30?'color:#a32d2d;font-weight:700':(age>20?'color:#8a5a12':'color:#5f6b7a'))+'">'+age+'d</span>';
@@ -1018,10 +1042,12 @@ document.querySelectorAll('#pr .tab').forEach(function(x){x.addEventListener('cl
    is the only screen with work on it, so that is where the page opens. The pane is built
    on demand by renderRecon, so it has to be rendered before the switch. */
 try{ renderRecon(); tab('recon'); }catch(e){}
-(function(){var f0=document.querySelector('#flrow .fl[data-f="all"]');if(f0){document.querySelectorAll('#flrow .fl').forEach(function(x){x.classList.remove('on');});f0.classList.add('on');}})();
+(function(){var f0=document.querySelector('#flrow .fl[data-f="port"]')||document.querySelector('#flrow .fl[data-f="all"]');if(f0){document.querySelectorAll('#flrow .fl').forEach(function(x){x.classList.remove('on');});f0.classList.add('on');}})();
 document.querySelectorAll('#flrow .fl').forEach(function(f){f.addEventListener('click',function(){FILT=f.dataset.f;VMODE='blk';$('v-blk').classList.add('on');$('v-dc').classList.remove('on');$('flrow').style.display='none';document.querySelectorAll('#flrow .fl').forEach(function(x){x.classList.remove('on');});f.classList.add('on');closePanel();renderStock();});});
-$('v-blk').addEventListener('click',function(){VMODE='blk';this.classList.add('on');$('v-dc').classList.remove('on');$('flrow').style.display='none';closePanel();renderStock();});
-$('v-dc').addEventListener('click',function(){VMODE='dc';this.classList.add('on');$('v-blk').classList.remove('on');$('flrow').style.display='none';closePanel();renderDC();});
+function __vtog(on){['v-blk','v-all','v-dc'].forEach(function(id){var e=$(id);if(e)e.classList.toggle('on',id===on);});}
+$('v-blk').addEventListener('click',function(){VMODE='blk';FILT='settled';__vtog('v-blk');$('flrow').style.display='none';closePanel();renderStock();});
+$('v-all').addEventListener('click',function(){VMODE='blk';FILT='all';__vtog('v-all');$('flrow').style.display='none';closePanel();renderStock();});
+$('v-dc').addEventListener('click',function(){VMODE='dc';__vtog('v-dc');$('flrow').style.display='none';closePanel();renderDC();});
 $('q').addEventListener('input',function(){Q=this.value.trim().toLowerCase();renderStock();});
 var __ib=$('impbtn');if(__ib)__ib.addEventListener('click',toggleImp);$('impbtn2').addEventListener('click',function(){tab('recon');RSUB='src';renderRecon();toggleImp();});var __sy=$('syncbtn');if(__sy)__sy.addEventListener('click',function(){msg('Checking for new mail…');post('dolphin_theme.api_arrivals.sync_arrivals_email',{}).then(function(j){var pr=((j&&j.message&&j.message.parsed)||[]);if(pr.length){var mm=pr.reduce(function(t,x){return t+(x.blocks||0);},0);msg(CHK+' Imported '+pr.length+' arrival'+(pr.length>1?'s':'')+' '+DOT+' '+mm+' block rows');}else{msg('Checked '+DOT+' no new arrivals to import');}loadAll();}).catch(function(){msg('Sync failed',1);});});$('impx').addEventListener('click',toggleImp);$('impgo').addEventListener('click',doImport);
 /* 22 Aug 2026: the last native prompt() on this page. It froze the tab and told the
