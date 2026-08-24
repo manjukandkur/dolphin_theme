@@ -778,12 +778,58 @@ function renderReady(m){
   var __ra=m.querySelector('.rselall');if(__ra)__ra.addEventListener('change',function(){m.querySelectorAll('.rck').forEach(function(c){c.checked=__ra.checked;});$('rc-lsel').textContent=rcSelected('.rck').length+' selected';});
   var b=$('rc-lot');if(b)b.addEventListener('click',function(){var sel=rcSelected('.rck');if(!sel.length){msg('Select blocks first',1);return;}showLotPicker(sel.map(rcPayload));});
 }
+
+/* ---- EMPTY ARRIVAL SHEETS -------------------------------------------------
+   [stated] 24 Aug 2026: "remove empty sheets and provide a button to remove for
+   empty sheets alone?"
+
+   The button only ever appears when there is something it can remove, and it can
+   only ever remove a sheet with NO rows and NO attached spreadsheet. A sheet that
+   HAS a spreadsheet but produced no rows is a parsing failure, not an empty
+   sheet - deleting that would lose a real arrival and hide the bug that lost it,
+   so it is listed for a person instead and the button will not touch it.       */
+function drawEmptyBar(){
+  var bar=document.getElementById('emptybar'); if(!bar){return;}
+  fetch('/api/method/dolphin_theme.api_arrivals.empty_arrivals',{credentials:'include'})
+    .then(function(r){return r.json();}).then(function(j){
+      var d=(j&&j.message)||{}; var rm=d.removable||[], look=d.look_at_these||[];
+      var h='';
+      if(rm.length){
+        h+='<span class="imp" id="rmempty" title="'+esc(rm.map(function(x){return x.sheet;}).join(', '))
+          +'">&#10005; Remove '+rm.length+' empty sheet'+(rm.length===1?'':'s')+'</span>';
+      }
+      if(look.length){
+        h+=' <span class="pill p-mis" title="'+esc(look.map(function(x){return x.sheet+': '+x.why_not;}).join(' · '))
+          +'">'+look.length+' sheet'+(look.length===1?'':'s')+' with no rows need a look</span>';
+      }
+      bar.innerHTML=h;
+      var b=document.getElementById('rmempty');
+      if(b){b.addEventListener('click',function(){
+        var names=rm.map(function(x){return x.sheet;});
+        askReason('Remove '+names.length+' empty sheet'+(names.length===1?'':'s'),
+          '<b>'+esc(names.join(', '))+'</b><br><br>These hold no blocks and carry no spreadsheet &mdash; the email arrived with nothing to read. '
+          +'Nothing is lost, and nothing that holds a block can be removed this way. Say why, for the record.',
+          function(reason){
+            post('dolphin_theme.api_arrivals.delete_empty_arrivals',{sheets:names, reason:reason})
+              .then(function(j){
+                var r=(j&&j.message)||{};
+                if(r.removed){msg(CHK+' Removed '+r.removed+' empty sheet'+(r.removed===1?'':'s'));}
+                if((r.refused||[]).length){msg('Refused '+DOT+' '+r.refused.map(function(x){return x.sheet;}).join(', '),1);}
+                loadAll();renderRecon();
+              })
+              .catch(function(){msg('Could not remove those sheets',1);});
+          });
+      });}
+    })
+    .catch(function(){});
+}
+
 function renderSrc(m){
   m.innerHTML='<div class="sub" style="padding:14px 2px">Loading sources...</div>';
   post('dolphin_theme.api_arrivals.xls_source',{}).then(function(j){
     var list=(j.message||[]);
     if(!list.length){m.innerHTML='<div style="padding:10px 2px 14px"><span class="imp" id="srcimp">&#8593; Import arrivals .xls</span></div><div class="sub" style="padding:6px 2px">No imported arrival files yet.</div>';var __se=m.querySelector('#srcimp');if(__se)__se.addEventListener('click',toggleImp);return;}
-    var h='<div style="padding:10px 2px 14px"><span class="imp" id="srcimp">&#8593; Import arrivals .xls</span></div>';
+    var h='<div style="padding:10px 2px 14px"><span class="imp" id="srcimp">&#8593; Import arrivals .xls</span> <span id="emptybar"></span></div>';
     list.forEach(function(s){
       var email=(s.provenance==='email');
       var badge='<span class="pill '+(email?'p-port':'p-await')+'">'+(email?'Arrivals email':'Direct import')+'</span>';
@@ -805,6 +851,7 @@ function renderSrc(m){
     });
     m.innerHTML=h;
     var __si=m.querySelector('#srcimp');if(__si)__si.addEventListener('click',toggleImp);
+    drawEmptyBar();
     m.querySelectorAll('[data-arr]').forEach(function(x){x.addEventListener('click',function(){openArrivalXls(x.dataset.arr);});});
   }).catch(function(){m.innerHTML='<div class="sub" style="padding:16px 2px">XLS source view needs the latest backend. Deploy pending.</div>';});
 }
