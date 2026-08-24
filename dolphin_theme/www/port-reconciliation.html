@@ -1572,7 +1572,13 @@ function askReason(title,hint,cb,opts){
   ov.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(15,37,64,.45);z-index:100003;display:flex;align-items:center;justify-content:center';
   var chips='';
   (opts.chips||[]).forEach(function(c,i){
-    chips+='<span class="rb __chip" data-c="'+esc(c)+'" style="margin:0 6px 6px 0;display:inline-block;font-size:12px">'+esc(c)+'</span>';
+    /* 24 Aug 2026. These rendered as plain text inside the dialog, so they did not
+       read as things you could press - and the OK button then refused silently
+       until four characters were typed. Now they are unmistakably buttons, and
+       pressing one is a complete answer. */
+    chips+='<span class="__chip" data-c="'+esc(c)+'" style="margin:0 6px 6px 0;display:inline-block;font-size:12.5px;'
+      +'cursor:pointer;background:#fff;border:1px solid #cfd4dc;border-radius:16px;padding:6px 13px;color:#0F2540;'
+      +'box-shadow:0 1px 2px rgba(15,37,64,.06)">'+esc(c)+'</span>';
   });
   ov.innerHTML='<div style="background:#fff;border-radius:12px;width:520px;max-width:94vw;box-shadow:0 18px 50px rgba(0,0,0,.3)">'
     +'<div style="padding:14px 18px;border-bottom:1px solid #eef2f6;font-weight:700;color:#0F2540;font-size:14px">'+esc(title)+'</div>'
@@ -1587,14 +1593,30 @@ function askReason(title,hint,cb,opts){
     +'<span class="rb pri" id="__asko">'+esc(opts.ok||'Save the reason')+'</span></div></div></div>';
   document.body.appendChild(ov);
   var ta=ov.querySelector('#__askt'); setTimeout(function(){try{ta.focus();}catch(e){}},60);
+  var okb=ov.querySelector('#__asko');
+  /* the button shows whether it will do anything. It used to look identical
+     whether or not it would work, and then ignore the click. */
+  function refreshOk(){
+    var ready=!!(ta.value||'').trim();
+    okb.style.opacity=ready?'1':'.45';
+    okb.style.cursor=ready?'pointer':'not-allowed';
+    okb.title=ready?'':'Pick a reason above, or type one.';
+  }
+  ta.addEventListener('input',function(){ov.querySelector('#__askw').textContent='';refreshOk();});
   ov.querySelectorAll('.__chip').forEach(function(el){el.addEventListener('click',function(){
-    ta.value=el.dataset.c; ov.querySelector('#__askw').textContent=''; ta.focus();
+    ta.value=el.dataset.c; ov.querySelector('#__askw').textContent='';
+    ov.querySelectorAll('.__chip').forEach(function(x){x.style.background='#fff';x.style.borderColor='#cfd4dc';x.style.fontWeight='400';});
+    el.style.background='#eaf1fb'; el.style.borderColor='#0c447c'; el.style.fontWeight='600';
+    refreshOk(); try{ta.focus();}catch(e){}
   });});
+  refreshOk();
   ov.addEventListener('mousedown',function(e){if(e.target===ov)ov.remove();});
   ov.querySelector('#__askc').addEventListener('click',function(){ov.remove();});
   ov.querySelector('#__asko').addEventListener('click',function(){
     var v=(ta.value||'').trim();
-    if(v.length<4){ov.querySelector('#__askw').textContent='Pick one above, or type a few words.';return;}
+    /* Any real answer counts, including one picked with a single click. The old
+       four-character rule made a chosen chip look like no answer at all. */
+    if(!v){ov.querySelector('#__askw').textContent='Pick one of the reasons above, or type your own.';try{ta.focus();}catch(e){}return;}
     ov.remove(); cb(v);
   });
 }
