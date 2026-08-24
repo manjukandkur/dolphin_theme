@@ -659,6 +659,48 @@ def _parse_arrival_xls(content):
     return rows, used_sheet
 
 
+
+# --------------------------------------------------------------------------
+# THE MARK MUST NEVER ABORT AN IMPORT.  24 Aug 2026
+#
+# [stated] "the manual upload and parsing of xls is broken fix it"
+#
+# It was not the file picker and not the CSRF token. Posting a real agency
+# spreadsheet returned 417:
+#
+#     LinkValidationError: Could not find Mark: YL/XMN
+#
+# `Port Arrival.mark` is a custom Link field pointing at Shipping Mark. The
+# agency writes the marking as "YL/XMN" with a SLASH; the Shipping Mark record
+# is "YL-XMN" with a HYPHEN. One character, and the whole 200-row import is
+# rejected - every block lost because a descriptive label did not match.
+#
+# Two rules now:
+#   1. resolve leniently - slash, hyphen and space are the same separator, and
+#      case does not matter. "YL/XMN" finds "YL-XMN".
+#   2. if it still does not resolve, LEAVE THE LINK EMPTY and carry on. The
+#      marking is descriptive; the blocks are the payload. Losing 200 blocks to
+#      protect a label is the wrong trade in every direction.
+# --------------------------------------------------------------------------
+def _mark_key(v):
+    """A marking, reduced to what actually identifies it."""
+    return "".join(ch for ch in _s(v).upper() if ch.isalnum())
+
+
+def _resolve_mark(raw):
+    """The Shipping Mark record this marking means, or None. Never raises."""
+    want = _mark_key(raw)
+    if not want:
+        return None
+    try:
+        for name in frappe.get_all("Shipping Mark", pluck="name",
+                                   limit_page_length=0):
+            if _mark_key(name) == want:
+                return name
+    except Exception:
+        return None
+    return None
+
 @frappe.whitelist()
 def import_xls(arrival=None, mark=None, agency=None):
     """Import a Dolphin arrivals .xls (uploaded as multipart 'file').
@@ -693,8 +735,15 @@ def import_xls(arrival=None, mark=None, agency=None):
             pa = frappe.new_doc("Port Arrival")
             pa.arrival_date = frappe.utils.today()
 
+    # The mark is a Link. An unknown value used to abort the whole import, so it
+    # is resolved leniently and simply left blank when it cannot be matched.
+    mark_note = None
     if doc_mark and pa.meta.has_field("mark"):
-        pa.mark = doc_mark
+        resolved = _resolve_mark(doc_mark)
+        if resolved:
+            pa.mark = resolved
+        else:
+            mark_note = _s(doc_mark)
     if agency and pa.meta.has_field("shipper"):
         pa.shipper = agency
     if pa.meta.has_field("source_sheet"):
@@ -746,7 +795,7 @@ def import_xls(arrival=None, mark=None, agency=None):
         frappe.log_error(frappe.get_traceback(), "import_xls reconcile")
 
     frappe.db.commit()
-    return {
+    out = {
         "arrival": pa.name,
         "sheet": sheet,
         "file": fname,
@@ -755,6 +804,15 @@ def import_xls(arrival=None, mark=None, agency=None):
         "duplicates": 0,
         "total_blocks": pa.total_blocks,
     }
+    # Said plainly rather than swallowed: the blocks are in, and this one label
+    # could not be matched to a Shipping Mark record.
+    if mark_note:
+        out["mark_not_matched"] = mark_note
+        out["note"] = ("The blocks imported. The marking \"{0}\" does not match "
+                       "any Shipping Mark record, so it was left blank on the "
+                       "arrival - add it as a Shipping Mark if you want it "
+                       "carried.").format(mark_note)
+    return out
 
 
 # ===========================================================================
@@ -2007,8 +2065,13 @@ def parse_email_arrivals(limit=60):
         valid_marks = set()
         for m in set(marks):
             try:
-                if m and frappe.db.exists("Mark", m):
-                    valid_marks.add(m)
+                # 24 Aug 2026: this checked "Mark", which has no records at all.
+                # The real master is "Shipping Mark", and the agency writes the
+                # separator differently ("YL/XMN" vs the record "YL-XMN"), so it
+                # is matched on the identifying characters only.
+                hit = _resolve_mark(m)
+                if hit:
+                    valid_marks.add(hit)
             except Exception:
                 pass
         def _ok_mark(doc, field, value):
@@ -2053,7 +2116,24 @@ def parse_email_arrivals(limit=60):
             frappe.log_error(frappe.get_traceback(), "parse_email_arrivals classify")
         out.append({"arrival": pa.name, "blocks": len(rows), "sheet": sheet})
     frappe.db.commit()
-    return {"parsed": out}
+    # 24 Aug 2026. [stated] "can you avoid arrivals with empty sheet?"
+    # An incoming mail with nothing parsable attached still created a Port
+    # Arrival - ARR-19Aug2026-NA was one. It holds no blocks, so it can confirm
+    # nothing and move nothing, but it sits in the list looking like a sheet.
+    # After every sync, anything that ended up with no rows AND no spreadsheet is
+    # cleared. A sheet that HAS a file but produced no rows is a parse failure and
+    # is deliberately left alone - that one needs looking at, not deleting.
+    swept = []
+    try:
+        state = empty_arrivals() or {}
+        names = [_s(x.get("sheet")) for x in (state.get("removable") or [])]
+        if names:
+            res = delete_empty_arrivals(sheets=names) or {}
+            swept = [_s(x.get("sheet")) for x in (res.get("detail") or [])]
+    except Exception:
+        swept = []
+
+    return {"parsed": out, "empty_arrivals_removed": swept}
 
 
 @frappe.whitelist()
