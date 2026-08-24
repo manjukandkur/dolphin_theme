@@ -41,6 +41,15 @@
 #pr .p-mis{background:#faeeda;color:#854f0b}#pr .p-short{background:#fcebeb;color:#a32d2d}#pr .p-dmg{background:#fbe3d4;color:#a3491a}
 #pr .p-unc{background:#fdf2dc;color:#8a6a1f;box-shadow:inset 0 0 0 1px #ecd7a6}
 #pr .p-nodim{background:#eef0f3;color:#5f6b7a}
+/* ONE COLOUR FOR A SIZE DIFFERENCE, EVERYWHERE. 24 Aug 2026, his instruction:
+   "size difference show in different colour better (maintain one colour
+   throughout for size difference let it be in QI vs Bi silently showing the
+   difference)". Deliberately NOT amber and NOT red - those two already mean
+   "something is wrong" on this page, and a size difference is not wrong. It is
+   violet, it says nothing, and it means the same thing on every screen:
+   two readings of this block differ. Same values live in trace-block.html. */
+#pr .p-size{background:#efe9fb;color:#5b3fa8}
+#pr .szdiff{color:#5b3fa8;font-weight:600}
 #pr .qcard{border:1px solid #cfd4dc;border-radius:11px;overflow:hidden;margin-bottom:11px}
 #pr .qcard .qh{background:#0F2540;color:#fff;padding:8px 12px;font-size:13px;display:flex;align-items:center;gap:9px;flex-wrap:wrap}
 #pr .qcard .qh .n{background:#D4A24A;color:#16304F;border-radius:9px;padding:1px 8px;font-weight:700;font-size:11px}
@@ -131,11 +140,18 @@
       <span class="fl" data-f="await">Awaiting arrival</span><span class="fl on" data-f="all">All</span><span class="fl" data-f="port">At port</span>
       <span class="fl" data-f="lot">In lot</span><span class="fl" data-f="flag">Needs attention</span><span class="fl" data-f="excess">Excess</span><span class="fl" data-f="load">Loaded</span>
     </div>
+    <!-- 24 Aug 2026, the At Port / Reconciliation split. At Port decides ONE thing:
+         that a block should not be here. Everything else is decided on Reconcile.
+         So this bar carries a single action, and the three old ones stay in the DOM
+         but hidden - deleting them is how this file has broken itself before. The
+         "skip arrivals" door in particular is closed on purpose: a block reaches
+         At Port through the gate or it does not reach it. -->
     <div class="bulk" id="bulk">
       <span><b id="bn">0</b> selected</span>
-      <span class="bbtn gold" id="bmove">&#8594; Move to At Port (skip arrivals)</span>
-      <span class="bbtn pri" id="bpush">&#128230; Push to Shipment Lot</span>
-      <span class="bbtn ok" id="baccept">&#10003; Accept as-is</span>
+      <span class="bbtn gold" id="bsendback">&#8630; Send back to Reconcile&hellip;</span>
+      <span class="bbtn gold" id="bmove" style="display:none">&#8594; Move to At Port (skip arrivals)</span>
+      <span class="bbtn pri" id="bpush" style="display:none">&#128230; Push to Shipment Lot</span>
+      <span class="bbtn ok" id="baccept" style="display:none">&#10003; Accept as-is</span>
     </div>
     <div class="body">
       <div class="main" id="stmain"><div class="empty">Loading&#8230;</div></div>
@@ -167,7 +183,24 @@ fetch('/api/method/dolphin_theme.api_arrivals.get_token',{credentials:'include'}
 var SP={port:['p-port',U(9679)+' At port'],await:['p-await',U(9684)+' Awaiting arrival'],unconfirmed:['p-unc',U(9888)+' Arrival evidence, unconfirmed'],recon:['p-load',U(10003)+' Reconciled'],ready:['p-inlot',U(9873)+' Ready for lot'],lot:['p-inlot',U(9635)+' In lot'],load:['p-load',U(9875)+' Loaded'],mis:['p-mis',U(9888)+' Size mismatch'],dmg:['p-dmg',U(9888)+' Damaged'],held:['p-held',U(9940)+' Held'],orphan:['p-orph',U(9888)+' Excess'+DOT+'no DC']};
 function pill(st){var s=SP[st]||['p-port',st];return '<span class="pill '+s[0]+'">'+s[1]+'</span>';}
 function dcSize(r){if(!r.dc_l&&!r.dc_w&&!r.dc_h)return DASH;return (r.dc_l||'?')+X+(r.dc_w||'?')+X+(r.dc_h||'?');}
-function ptSize(r){if(r.state==='await')return '<span class="sub">not yet arrived</span>';if(!r.pt_l&&!r.pt_w&&!r.pt_h)return DASH;var mis=(r.dc_h&&r.pt_h&&(''+r.dc_h)!==(''+r.pt_h));return (r.pt_l||'?')+X+(r.pt_w||'?')+X+(mis?'<span class="d">'+r.pt_h+'</span>':(r.pt_h||'?'));}
+/* 24 Aug 2026. His instruction: "if there is variation in the port measurement it
+   is actually just a typo error since they dont measure at all you can highlight
+   but is should go to at port". So a size difference is a NOTE that travels with
+   the block, never a gate and never an accusation. The set is built by the server
+   from the same rule the classifier uses, so this screen and Reconciliation can
+   never disagree about which blocks carry one. */
+var SIZENOTES={};
+function ptSize(r){if(r.state==='await')return '<span class="sub">not yet arrived</span>';if(!r.pt_l&&!r.pt_w&&!r.pt_h)return DASH;/* one colour, never red: a differing figure is a difference, not a fault */
+  function _sd(a,b,v){var d=(a&&b&&Math.abs((+a)-(+b))>0.5);return d?('<span class="szdiff" title="ours '+a+' &middot; port '+b+'">'+v+'</span>'):v;}
+  var s=_sd(r.dc_l,r.pt_l,(r.pt_l||'?'))+X+_sd(r.dc_w,r.pt_w,(r.pt_w||'?'))+X+_sd(r.dc_h,r.pt_h,(r.pt_h||'?'));var k=(r.export_block_no||r.block_no||'');if(k&&SIZENOTES[k]){s+=' <span class="pill p-size" style="font-size:10px" title="Our size and the port&rsquo;s differ. This did not hold the block &mdash; it travelled here as a note.">size differs</span>';}return s;}
+function loadSizeNotes(){
+  return fetch('/api/method/dolphin_theme.api_arrivals.reconcile_worklist',{credentials:'include'})
+    .then(function(r){return r.json();}).then(function(j){
+      var w=(j&&j.message)||{};SIZENOTES={};
+      (w.size_note_blocks||[]).forEach(function(b){SIZENOTES[b]=1;});
+      return w;
+    }).catch(function(){SIZENOTES={};return {};});
+}
 
 var RSUB='b2b';   /* 21 Aug 2026: the sheet is the work, so the screen opens on it */
 function _fx(n){var x=(+n);if(n==null||isNaN(x))return '0.00';return x.toFixed(2);}
@@ -688,7 +721,9 @@ function loadAll(){
   Promise.all([
     fetch('/api/method/dolphin_theme.api_arrivals.ledger_view',{credentials:'include'}).then(function(r){return r.json();}).then(function(j){return j.message||[];}).catch(function(){return [];}),
     fetch('/api/method/dolphin_theme.api_arrivals.lots_view',{credentials:'include'}).then(function(r){return r.json();}).then(function(j){return j.message||[];}).catch(function(){return [];}),
-    api('Port Arrival',[],['name','mark','arrival_date','shipper','total_blocks','creation','source_file','email_sender','docstatus'],0).catch(function(){return [];}),api('Delivery Challan',[],['name','delivery_challan_no'],0).catch(function(){return [];})
+    api('Port Arrival',[],['name','mark','arrival_date','shipper','total_blocks','creation','source_file','email_sender','docstatus'],0).catch(function(){return [];}),api('Delivery Challan',[],['name','delivery_challan_no'],0).catch(function(){return [];}),
+    /* the size notes travel with the block, so the register can show them too */
+    loadSizeNotes()
   ]).then(function(res){
     LED=res[0]||[];LOTS=res[1]||[];ARRS=res[2]||[];window.DCMAP={};(res[3]||[]).forEach(function(d){if(d&&d.name&&d.delivery_challan_no)DCMAP[d.name]=d.delivery_challan_no;});
     ADATE={};ARRS.forEach(function(a){ADATE[a.name]=a.arrival_date||a.creation;});
@@ -721,10 +756,14 @@ function renderStock(){if(VMODE==='dc'){renderDC();return;}
   var h='<table><thead><tr><th style="width:22px"><input type="checkbox" class="selall" title="Select all"></th><th>Block</th><th>Delivery Challan</th><th>Source BI '+DOT+' Consignee</th><th>DC size</th><th>Port size</th><th>Ton</th><th>Age</th><th>State</th><th>Action</th><th style="width:22px"></th></tr></thead><tbody>';
   list.forEach(function(r,i){
     var k=key(r),age=ageDays(r.arrival),ageC=age==null?'<span class="sub">'+DASH+'</span>':'<span style="'+(age>30?'color:#a32d2d;font-weight:700':(age>20?'color:#8a5a12':'color:#5f6b7a'))+'">'+age+'d</span>';
-    /* 22 Aug 2026: Stock at Port is a register. Nothing is selected here and nothing is decided
-       here - every decision lives on Reconcile, and a block only reaches this screen once it is
-       settled. Selection stays off. */
-    var canSel=false;
+    /* 22 Aug 2026: Stock at Port is a register. Every decision lives on Reconcile,
+       and a block only reaches this screen once it is settled.
+       24 Aug 2026, the split: the register still decides nothing - but it must be
+       able to say "this one should not be here" for MANY blocks at once, not one
+       at a time. So a block that is AT PORT can be ticked, and the only thing a
+       tick can do is send it back to Reconcile with a reason. Blocks that are not
+       at port cannot be ticked at all: there is nothing to send back. */
+    var canSel=(r.state==='port');
     h+='<tr'+(SEL[k]?' class="sel"':(r.state==='await'?' class="await-row"':''))+'><td>'+(canSel?'<input type="checkbox" class="ck" data-i="'+i+'"'+(SEL[k]?' checked':'')+'>':'')+'</td>'
       +'<td><span class="blk">'+esc(r.export_block_no||r.block_no||'')+'</span></td>'
       +'<td>'+(r.dc?'<span class="dc" data-doc="dc" data-i="'+i+'">'+esc((window.DCMAP&&DCMAP[r.dc])||r.dc)+'</span> <span class="eye" data-doc="dc" data-i="'+i+'">'+U(128196)+'</span>'+_dcSub(r.dc):'<span class="sub">no challan</span>')+'</td>'
@@ -800,6 +839,38 @@ function openNote(r){
 function closeNote(){var ov=document.getElementById('__nt');if(ov){ov.className='ntov';ov.innerHTML='';}}
 function selRows(){return LED.filter(function(r){return SEL[key(r)];});}
 function updBulk(){var n=Object.keys(SEL).filter(function(k){return SEL[k];}).length;$('bn').textContent=n;$('bulk').classList.toggle('on',n>0);}
+/* 24 Aug 2026. His ask in the split: bulk send-back. One reason covers every ticked
+   block, each one goes back to the exact status it held before At Port, and the
+   reason is written onto every block's own history - so fifty blocks are as
+   accountable as one. Nothing is deleted and nothing is guessed. */
+$('bsendback').addEventListener('click',function(){
+  var rs=selRows().filter(function(r){return r.state==='port';});
+  if(!rs.length){msg('Tick blocks that are at the port',1);return;}
+  var bl=rs.map(function(r){return {block_no:(r.export_block_no||r.block_no)};});
+  var names=bl.map(function(b){return b.block_no;});
+  askReason('Send '+bl.length+' block'+(bl.length===1?'':'s')+' back to Reconcile',
+    'They go back to exactly the status they held before they reached the port, and stay there until they are sorted. '
+    +'The reason is written onto every one of them.<div class="sub" style="margin-top:7px;font-family:monospace;font-size:11.5px;line-height:1.6">'
+    +esc(names.slice(0,60).join(', '))+(names.length>60?(' …and '+(names.length-60)+' more'):'')+'</div>',
+    function(why){
+      post('dolphin_theme.api_arrivals.send_back_to_reconcile',{blocks:bl,reason:why})
+        .then(function(j){
+          var m=(j&&j.message)||{};
+          var n=(m.sent_back||(m.done&&m.done.length)||0);
+          var ref=(m.refused||[]);
+          var line=CHK+' '+n+' back on Reconcile';
+          if(ref.length)line+=' '+DOT+' '+ref.length+' refused'+(ref[0]&&ref[0].why?(' ('+ref[0].why+')'):'');
+          msg(line,ref.length?1:0);
+          SEL={};loadAll();
+        }).catch(function(){msg('Could not send them back',1);});
+    },{ok:'Send them back',chips:[
+      'Wrong block at the port',
+      'Agency is re-checking the weight',
+      'Measurement to be confirmed with the buyer',
+      'Moved to At Port by mistake',
+      'Held until the sheet is corrected'
+    ]});
+});
 $('bmove').addEventListener('click',function(){var it=selRows().filter(function(r){return r.state==='await'||r.state==='unconfirmed';}).map(atPortRow);if(!it.length){msg('Select blocks that have not reached the port yet',1);return;}post('dolphin_theme.api_arrivals.move_to_at_port',{blocks:it}).then(function(j){SEL={};atPortDone(j&&j.message,it.length);}).catch(function(){msg('Move to At Port failed',1);});});
 $('bpush').addEventListener('click',function(){var rs=selRows().filter(function(r){return r.state==='port';});if(!rs.length){msg('Push only works on At-Port blocks',1);return;}pushRows(rs);});
 $('baccept').addEventListener('click',function(){var rs=selRows();rs.forEach(function(r){post('dolphin_theme.api_arrivals.resolve_block',{arrival:r.arrival,block_no:r.block_no,action:'accept',dc:r.dc});});setTimeout(function(){SEL={};loadAll();},500);});
@@ -1384,66 +1455,210 @@ function _expHtml(exp,q){
   return '<span class="exph" style="color:#a32d2d">'+esc(q||'—')+'</span>';
 }
 
-/* ---------- the review queue: what actually needs a person ---------- */
-var QDATA=null;
+/* ============================================================================
+   RECONCILIATION - the worklist. 24 Aug 2026.
+
+   His rules, and the whole of what this screen is allowed to do:
+
+     "Port will not just go on making mistakes like wrong block numbers same
+      block number different measurements etc there will be some small mistakes
+      or typo mistakes and weight will vary since there method of weighing is
+      different which I have explained several times now"
+     "without Dc and arrivals dont jump to conclusions this is my strict
+      instruction"
+     "now that measurement is not port concern if there is variation in the port
+      measurement it is actually just a typo error ... you can highlight but is
+      should go to at port"
+
+   So: RECONCILIATION is where a PERSON decides, and a block is here for exactly
+   one named reason. AT PORT holds only stone that has been decided.
+
+   Three reasons hold a block, and no others - a duplicate, no arrival row, and
+   a challan more than a tonne out (having no challan at all is the far end of
+   that). A SIZE DIFFERENCE IS NOT ONE OF THEM: it is carried to At Port as a
+   note. Weight inside the tonne is not a difference - two weighing methods, and
+   theirs is the final one.
+
+   Every group is built by the server's own classifier, so this screen and the
+   automatic settle can never disagree about why a block is where it is.
+   ============================================================================ */
+var QDATA=null,WL=null;
+/* block number -> its row in LED, so a tick here drives the same Resolve and
+   Push actions the detail table already uses. One selection model, not two. */
+function ledIndex(){
+  var ix={};
+  LED.forEach(function(r,i){
+    var a=String(r.export_block_no||'').trim(),b=String(r.block_no||'').trim();
+    if(a&&!(a in ix))ix[a]=i;
+    if(b&&!(b in ix))ix[b]=i;
+  });
+  return ix;
+}
+function wlSize(l,w,h){return (l&&w&&h)?(l+X+w+X+h):DASH;}
+function wlNum(v,d){return (v||v===0)?(+v).toFixed(d===undefined?2:d):DASH;}
+/* The size note. Never a gate - his instruction - so it is quiet, and it says
+   what it is rather than shouting a fault the port has not committed. */
+function sizeNote(r){
+  if(!r.size_flag)return '';
+  return '<span class="pill p-size" title="Our size and the port&rsquo;s differ. This does not hold the block - it travels with it as a note.">size differs</span>';
+}
+/* His ask: "under reconcilation you have to highlight this major difference and
+   ask user to choose which is correct". The question is asked, never answered
+   here - the arithmetic is shown both ways and a person picks. */
+function cbmNote(r){
+  if(!r.cbm_flag)return '';
+  var bits=[];
+  if(r.cbm_ours)bits.push('ours prints '+wlNum(r.cbm_ours.stated,3)+' but '+wlSize(r.dc_l,r.dc_w,r.dc_h)+' makes '+wlNum(r.cbm_ours.from_size,3));
+  if(r.cbm_port)bits.push('the port prints '+wlNum(r.cbm_port.stated,3)+' but '+wlSize(r.pt_l,r.pt_w,r.pt_h)+' makes '+wlNum(r.cbm_port.from_size,3));
+  return '<span class="pill p-mis" title="'+esc(bits.join(' · '))+'">size &ne; CBM</span>';
+}
+function wlRow(r,ix){
+  var i=ix[r.block_no];
+  var tick=(i===undefined)?'':'<input type="checkbox" class="wck" data-i="'+i+'">';
+  return '<div class="qrow">'+tick
+    +'<span class="blkno">'+esc(r.block_no)+'</span>'
+    +'<span class="sub">'+(r.dc?('challan '+esc((window.DCMAP&&DCMAP[r.dc])||r.dc)):'no challan')+'</span>'
+    +'<span title="Our measurement - the buyer reading, never the port&rsquo;s">ours '+wlSize(r.dc_l,r.dc_w,r.dc_h)+'</span>'
+    +'<span title="What the agency sent">port '+wlSize(r.pt_l,r.pt_w,r.pt_h)+'</span>'
+    +'<span style="flex:1"></span>'+sizeNote(r)+' '+cbmNote(r)
+    +'</div>';
+}
+function wlCard(id,n,title,why,body,actions){
+  return '<div class="qcard" data-g="'+id+'"><div class="qh"><span class="n">'+n+'</span> '+title+'</div>'
+    +'<div class="qrow sub" data-norq="1" style="display:block;line-height:1.6">'+why+'</div>'
+    +body
+    +(actions?('<div class="qrow" data-norq="1" style="justify-content:flex-end;gap:8px">'+actions+'</div>'):'')
+    +'</div>';
+}
 function renderQueue(m){
-  m.innerHTML='<div class="empty">Building the queue…</div>';
+  m.innerHTML='<div class="empty">Working out what actually needs you…</div>';
   Promise.all([
-    fetch('/api/method/dolphin_theme.api_arrivals.reconciliation_view',{credentials:'include'}).then(function(r){return r.json();}).then(function(j){return j.message||{};}).catch(function(){return {};}),
+    fetch('/api/method/dolphin_theme.api_arrivals.reconcile_worklist',{credentials:'include'}).then(function(r){return r.json();}).then(function(j){return j.message||{};}).catch(function(){return {};}),
     fetch('/api/method/dolphin_theme.api_arrivals.duplicate_rows',{credentials:'include'}).then(function(r){return r.json();}).then(function(j){return j.message||[];}).catch(function(){return [];})
   ]).then(function(res){
-    var rv=res[0]||{},dup=res[1]||[];
-    var c=rv.counts||{},lab=rv.labels||{};
-    QDATA={rv:rv,dup:dup};
-    var unconf=LED.filter(function(r){return r.state==='unconfirmed';}).length;
-    var mismatch=(rv.rows||[]).filter(function(r){return r.bucket==='mismatch';});
-    var unknown=(rv.rows||[]).filter(function(r){return r.bucket==='unknown';});
+    var w=res[0]||{},dup=res[1]||[];
+    WL=w;QDATA={rv:{},dup:dup};
+    var g=w.groups||{},ix=ledIndex();
+    var na=(g.no_arrival||{}),ot=(g.over_tonne||{}),nc=(g.no_challan||{});
+    var held=+w.held||0;
 
     var h='<div class="frow" style="padding:8px 2px;gap:6px;flex-wrap:wrap">'
-      /* 20 Aug 2026 - five jargon counters became three plain states. One row per
-         BLOCK now, so re-sent manifests no longer inflate the numbers. */
-      +'<span class="pill p-load">'+((c.match||0)+(c.tol||0)+(c.nodim||0))+' settled</span>'
-      +'<span class="pill p-await">'+unknown.length+' waiting on paperwork</span>'
-      +'<span class="pill p-mis">'+(mismatch.length+(rv.weight_disagreements||0))+' needs you</span>'
-      +'<span class="pill p-nodim" title="copies from re-sent manifests, folded in">'+(rv.blocks||0)+' blocks &middot; '+(rv.superseded_rows_hidden||0)+' repeat rows hidden</span>'
+      +'<span class="pill p-inlot">'+(+w.ready||0)+' ready to settle</span>'
+      +'<span class="pill p-load">'+(+w.settled||0)+' already at port or beyond</span>'
+      +'<span class="pill p-mis">'+held+' need you</span>'
+      +((+w.size_notes)?('<span class="pill p-nodim" title="Carried to At Port as a note. Not held.">'+w.size_notes+' size notes carried</span>'):'')
       +'</div>'
-      +'<div class="sub" style="padding:0 2px 10px">Work these one at a time — that is the standing rule, and it is what stopped the last mistake becoming fifty-six. Every action here asks for a reason.</div>';
+      +'<div class="sub" style="padding:0 2px 12px;line-height:1.65">A block is here for <b>one</b> reason, and the card it sits under is that reason. '
+      +'Only three things hold a block: a <b>duplicate</b>, <b>no arrival row</b>, and a <b>challan more than '+(w.tolerance_mt||1)+' tonne out</b>. '
+      +'A <b>size difference does not hold anything</b> — it goes to At Port with the block as a note. '
+      +'Weight inside the tonne is not a difference at all: the port weighs differently, and their figure is the final one.</div>';
 
-    if(!dup.length && !mismatch.length && !unknown.length){
-      h+='<div class="empty">Nothing waiting. The queue is clear.</div>';
-      m.innerHTML=h; return;
+    if(!held){
+      h+='<div class="empty">Nothing is waiting on you. Every block is either settled or ready to settle.</div>';
+      m.innerHTML=h;applyRQ();return;
     }
 
-    if(mismatch.length){
-      h+='<div class="qcard"><div class="qh"><span class="n">'+mismatch.length+'</span> Does not match the Buyer Inspection</div>';
-      mismatch.slice(0,40).forEach(function(r){
-        h+='<div class="qrow"><span class="blkno">'+esc(r.block_no)+'</span>'
-          +'<span class="sub">challan '+esc(r.dc||'—')+'</span>'
-          +'<span title="Buyer Inspection - our measurement, never the challan">ours '+(r.ref_l||r.dc_l||'?')+'×'+(r.ref_w||r.dc_w||'?')+'×'+(r.ref_h||r.dc_h||'?')+'</span>'
-          +'<span style="color:#a32d2d">port '+(r.pt_l||'?')+'×'+(r.pt_w||'?')+'×'+(r.pt_h||'?')+'</span>'
-          +'<span style="flex:1"></span>'
-          +'<span class="rb ok" data-note="'+esc(r.row)+'" data-b="'+esc(r.block_no)+'">Accept with note</span>'
-          +'<span class="rb" data-rej="'+esc(r.row)+'" data-b="'+esc(r.block_no)+'">Reject</span>'
-          +'</div>';
+    /* ---- no arrival row. His rule: patience, not analysis. ---- */
+    if(na.count){
+      var rowsA=(na.blocks||[]).map(function(r){return wlRow(r,ix);}).join('');
+      if(na.count>(na.blocks||[]).length){rowsA+='<div class="qrow sub" data-norq="1">…and '+(na.count-(na.blocks||[]).length)+' more not listed.</div>';}
+      h+=wlCard('na',na.count,'The agency has sent no arrival row',
+        'These are on a submitted challan of ours and nothing contradicts them. The agency simply has not sent a row yet, so <b>nothing confirms they have arrived</b>. '
+        +'The app will not move them by itself. Wait for the sheet — or, if your team knows the ground truth, tick them and record the reason.',
+        rowsA,
+        '<span class="rb" data-wl="resolve" data-g="na">'+CHK+' Resolve ticked with a reason…</span>');
+    }
+
+    /* ---- challan more than a tonne out, grouped by challan ---- */
+    if(ot.count){
+      var body='';
+      (ot.challans||[]).forEach(function(d){
+        var dcm=(window.DCMAP&&DCMAP[d.dc])||d.dc;
+        var read=(d.kind==='heavier')
+          ? '<b style="color:#a32d2d">the port is heavier than we dispatched</b> — a block cannot grow on the way, so this is worth a proper look'
+          : (d.kind==='much_lighter'
+             ? '<b>the port is very much lighter</b> — more than dressing would normally take off'
+             : 'the port is lighter — ordinary dressing loss, shown because the challan total crosses the tonne');
+        body+='<div class="qrow" data-norq="1" style="background:#fbfcfe;font-weight:600">'
+          +'<span class="blkno">'+esc(dcm)+'</span>'
+          +'<span class="sub">'+d.blocks.length+' block(s)</span>'
+          +'<span>ours '+wlNum(d.ours_mt)+' MT</span>'
+          +'<span>port '+wlNum(d.theirs_mt)+' MT</span>'
+          +'<span style="color:'+(d.kind==='heavier'?'#a32d2d':'#7a5b12')+'">'+(d.gap_mt>=0?'+':'')+wlNum(d.gap_mt)+' MT</span>'
+          +'<span style="flex:1"></span></div>'
+          +'<div class="qrow sub" data-norq="1" style="display:block;line-height:1.6">'+read+'</div>'
+          +d.blocks.map(function(r){return wlRow(r,ix);}).join('');
       });
-      if(mismatch.length>40)h+='<div class="qrow sub">…and '+(mismatch.length-40)+' more. Clear these first.</div>';
-      h+='</div>';
+      h+=wlCard('ot',ot.count,'Challan more than '+(w.tolerance_mt||1)+' tonne out',
+        'The tonne is measured on the <b>whole challan</b>, not block by block, so the challan is shown with its blocks underneath. '
+        +'Their weighing method is not ours and their figure is the final one — this card is here because the gap is big enough that a person should look, not because the port made a mistake.',
+        body,
+        '<span class="rb" data-wl="resolve" data-g="ot">'+CHK+' Resolve ticked with a reason…</span>');
     }
 
-    if(unknown.length){
-      h+='<div class="qcard"><div class="qh"><span class="n">'+unknown.length+'</span> At the port but on no submitted challan</div>';
-      unknown.slice(0,25).forEach(function(r){
-        h+='<div class="qrow"><span class="blkno">'+esc(r.block_no)+'</span><span class="sub">'+esc(r.arrival||'')+(r.confirmed?'':' · draft')+'</span>'
-          +'<span style="flex:1"></span>'
-          +'<span class="rb ok" data-note="'+esc(r.row)+'" data-b="'+esc(r.block_no)+'">Accept with note</span>'
-          +'<span class="rb" data-del="'+esc(r.row)+'" data-b="'+esc(r.block_no)+'">Remove row</span>'
-          +'</div>';
-      });
-      h+='</div>';
+    /* ---- at the port on no submitted challan ---- */
+    if(nc.count){
+      var rowsC=(nc.blocks||[]).map(function(r){return wlRow(r,ix);}).join('');
+      h+=wlCard('nc',nc.count,'At the port on no submitted challan',
+        'The agency has a row for these but we have no submitted challan carrying them. A draft challan does not count — a block only enters the chain when its challan is <b>submitted</b>.',
+        rowsC,
+        '<span class="rb" data-wl="resolve" data-g="nc">'+CHK+' Resolve ticked with a reason…</span>');
     }
+
+    /* ---- duplicates. Identity follows movement, so this states the fact and
+            offers the two honest actions - keep it, or bin the extra row. ---- */
+    if(dup.length){
+      var rowsD='';
+      dup.slice(0,60).forEach(function(d){
+        rowsD+='<div class="qrow" data-norq="1" style="font-weight:600"><span class="blkno">'+esc(d.block_no)+'</span>'
+          +'<span class="sub">on '+d.count+' arrival rows'+(d.identical?' · same measurements':' · different measurements')+'</span></div>';
+        d.rows.forEach(function(r){
+          rowsD+='<div class="qrow"><span style="width:14px"></span><span class="sub">'+esc(r.parent||'')+(r.confirmed?'':' · draft')+'</span>'
+            +'<span>'+wlSize(r.length,r.width,r.height)+'</span>'
+            +'<span>'+wlNum(r.cbm,3)+' CBM</span><span>'+wlNum(r.net_wt)+' MT</span>'
+            +'<span style="flex:1"></span>'
+            +'<span class="rb ok" data-note="'+esc(r.name)+'" data-b="'+esc(d.block_no)+'">Accept with note</span>'
+            +'<span class="rb" data-del="'+esc(r.name)+'" data-b="'+esc(d.block_no)+'">Remove row</span></div>';
+        });
+      });
+      if(dup.length>60)rowsD+='<div class="qrow sub" data-norq="1">…and '+(dup.length-60)+' more.</div>';
+      h+=wlCard('dup',dup.length,'The same block number on more than one arrival row',
+        'Two rows carrying one number is a fact about the <b>sheets</b>, not proof that two records are the same stone. '
+        +'Keep the row that is right and send the other to the Trash — nothing is deleted, and it can be brought back.',
+        rowsD,'');
+    }
+
+    /* ---- the size-vs-CBM question, asked once, across every group ---- */
+    var cq=w.cbm_questions||[];
+    if(cq.length){
+      var rowsQ='';
+      cq.slice(0,60).forEach(function(r){
+        var lines='';
+        if(r.cbm_ours)lines+='<div class="sub">ours: '+wlSize(r.dc_l,r.dc_w,r.dc_h)+' makes <b>'+wlNum(r.cbm_ours.from_size,3)+'</b> but <b>'+wlNum(r.cbm_ours.stated,3)+'</b> is printed</div>';
+        if(r.cbm_port)lines+='<div class="sub">port: '+wlSize(r.pt_l,r.pt_w,r.pt_h)+' makes <b>'+wlNum(r.cbm_port.from_size,3)+'</b> but <b>'+wlNum(r.cbm_port.stated,3)+'</b> is printed</div>';
+        rowsQ+='<div class="qrow" style="display:block"><span class="blkno">'+esc(r.block_no)+'</span> '
+          +'<span class="sub">challan '+esc((window.DCMAP&&DCMAP[r.dc])||r.dc||'—')+'</span>'+lines+'</div>';
+      });
+      if(cq.length>60)rowsQ+='<div class="qrow sub" data-norq="1">…and '+(cq.length-60)+' more.</div>';
+      h+=wlCard('cbm',cq.length,'A size that does not multiply out to the CBM beside it',
+        'On these rows the three dimensions and the CBM printed next to them do not agree. One of the two is wrong and <b>only you know which</b>. '
+        +'This is shown here so it is caught before a packing list or an invoice carries it out of the building.',
+        rowsQ,'');
+    }
+
     m.innerHTML=h;
     wireQueueActions(m);
-  });
+    m.querySelectorAll('[data-wl="resolve"]').forEach(function(b){
+      b.addEventListener('click',function(){
+        var card=m.querySelector('.qcard[data-g="'+b.dataset.g+'"]');
+        var sel=[];
+        if(card)card.querySelectorAll('.wck:checked').forEach(function(c){sel.push(LED[+c.dataset.i]);});
+        if(!sel.length){msg('Tick the blocks you want to resolve',1);return;}
+        openBulkResolve(sel);
+      });
+    });
+    applyRQ();
+  }).catch(function(){m.innerHTML='<div class="empty">Could not build the worklist.</div>';});
 }
 
 function wireQueueActions(m){

@@ -9,6 +9,14 @@
 #tbapp .sbx{display:flex;gap:8px;margin:14px 0}
 #tbapp input{flex:1;padding:11px 14px;border:1px solid #cfd4dc;border-radius:8px;font-size:15px}
 #tbapp .msrc{color:#0b6b3a;font-weight:600}.mplain{color:#8a929c}
+/* ONE COLOUR FOR A SIZE DIFFERENCE, EVERYWHERE. 24 Aug 2026, his instruction:
+   "maintain one colour throughout for size difference let it be in QI vs Bi
+   silently showing the difference". Same violet as Port & Stock. It is not
+   amber and not red on purpose - neither reading is wrong. The quarry reading
+   is what came out of the pit and is never rewritten; the buyer reading is
+   final. Where they differ, the figure is simply a different colour and the
+   quarry figure sits in the tooltip. SILENTLY: no badge, no words, no warning. */
+#tbapp .szdiff{color:#5b3fa8;font-weight:700}
 .hint{font-size:11px;color:#8a929c;margin:-6px 2px 10px}
 #tbapp .card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:18px;margin-top:8px}
 #tbapp .bhead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px}
@@ -91,7 +99,20 @@ else {L=b.length_gross;W=b.width_gross;H=b.height_gross;V=b.gross_volume;
 // and the challan, where the money is, not on a lookup screen.
 tail=known?' &middot; <span class="mplain">quarry reading</span>':'';}
 if(!L&&!W&&!H){return g?g.replace(/ &middot; $/,''):'';}
-var dim=(L||'')+'&times;'+(W||'')+'&times;'+(H||'');
+/* 24 Aug 2026. QI vs BI, silently. When a buyer reading is what is being shown,
+   any figure that differs from the quarry reading is drawn in the one size-
+   difference colour, with the quarry figure in the tooltip. Nothing is said and
+   nothing is judged: the quarry reading is the record of what came out of the
+   pit and is never rewritten, the buyer reading is final, and a block cut to the
+   buyer's instruction is SUPPOSED to differ. */
+function _qd(shown,quarry,label){
+  var v=(shown||'');
+  if(!src||shown==null||quarry==null||shown===''||quarry==='')return v;
+  var a=+shown,q=+quarry;
+  if(isNaN(a)||isNaN(q)||Math.abs(a-q)<=0.5)return v;
+  return '<span class="szdiff" title="'+label+' &mdash; buyer '+a+', quarry '+q+'">'+v+'</span>';
+}
+var dim=_qd(L,b.length_gross,'Length')+'&times;'+_qd(W,b.width_gross,'Width')+'&times;'+_qd(H,b.height_gross,'Height');
 var cbm=V?(' &middot; '+(+V).toFixed(2)+' cbm'):'';
 return g+dim+cbm+tail;
 }
