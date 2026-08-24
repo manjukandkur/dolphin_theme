@@ -253,6 +253,14 @@ def _draft_checks():
                "number or a missing measurement. A size that disagrees with "
                "its CBM is a warning: it has an owner and it does not stop "
                "loading."),
+        _check("split.at_port_is_only_settled_stone",
+               "Stock at Port holds only blocks a person settled there",
+               not _unsettled_on_register(), _cap(_unsettled_on_register()),
+               "His question, 24 Aug 2026: \"not without any problem or "
+               "reconcilation blocks should be here?\" - and he is right. At "
+               "Port is a register of stone that has been DECIDED. A block "
+               "still awaiting arrival, or carrying unconfirmed arrival "
+               "evidence, belongs on Reconciliation until a person settles it."),
         _check("draft.counted",
                "Draft challans on the site right now",
                True, {"draft_challans": len(draft_dcs),
@@ -283,6 +291,44 @@ def _lot_gate_detail():
             "blockers": len(r.get("blockers") or []),
             "warnings": len(r.get("warnings") or []),
             "wrong_reasons": wrong}
+
+
+def _unsettled_on_register():
+    """Blocks the At Port register would show that nobody has settled.
+
+    The register's default view is the settled states only. This proves the
+    ledger agrees: anything not settled has a home on Reconciliation, so the
+    two screens between them account for every block exactly once.
+    """
+    from dolphin_theme import api_arrivals as A
+
+    rows = A.ledger_view() or []
+    if isinstance(rows, dict):
+        rows = rows.get("rows") or []
+    settled = ("port", "lot", "load")
+    try:
+        wl = A.reconcile_worklist() or {}
+        groups = wl.get("groups") or {}
+        held = set()
+        for gname in ("no_arrival", "over_tonne", "no_challan"):
+            grp = groups.get(gname) or {}
+            blocks = list(grp.get("blocks") or [])
+            for ch in (grp.get("challans") or []):
+                blocks.extend(ch.get("blocks") or [])
+            for b in blocks:
+                held.add(_s(b.get("block_no")))
+    except Exception:
+        return []
+
+    homeless = []
+    for r in rows:
+        st = _s(r.get("state"))
+        if st in settled:
+            continue
+        num = _s(r.get("export_block_no")) or _s(r.get("block_no"))
+        if num and num not in held:
+            homeless.append({"block": num, "state": st, "dc": _s(r.get("dc"))})
+    return homeless
 
 
 # --------------------------------------------------------------------------
