@@ -5259,3 +5259,131 @@ def lot_readiness(blocks=None):
                     "{0} block(s) are not fit to go on a lot yet."
                     .format(len(blockers))),
     }
+
+
+# ==========================================================================
+# EMPTY ARRIVAL SHEETS.  24 Aug 2026
+#
+# [stated] "remove empty sheets and provide a button to remove for empty
+#           sheets alone?"
+#
+# ARR-19Aug2026-NA was created by the email sync from a mail that carried
+# nothing parsable: no rows, no stored spreadsheet. It cannot confirm anything
+# and cannot move anything, but it sits in the list looking like a sheet, and a
+# confirmed empty sheet would be a record asserting "the agency reported
+# nothing" - worse than no record at all.
+#
+# THE DISTINCTION THAT MATTERS, and the reason this is not a one-line delete:
+#
+#   no rows AND no file   -> genuinely EMPTY. The email had no spreadsheet.
+#                            Nothing was ever lost, so removing it loses
+#                            nothing. This is the only thing the button deletes.
+#
+#   no rows BUT a file    -> a PARSE FAILURE, not an empty sheet. The agency
+#                            DID send a spreadsheet and we failed to read it.
+#                            Deleting that destroys the evidence of a bug and
+#                            silently loses an arrival. REFUSED, by name, every
+#                            time - it needs looking at, not removing.
+#
+# Every guard is re-checked on the server at the moment of deletion. The client
+# says which sheets it means; it is never believed about whether they are empty.
+# ==========================================================================
+@frappe.whitelist()
+def empty_arrivals():
+    """Arrival sheets holding no blocks. Changes nothing.
+
+    Split into what can safely be removed and what must not be.
+    """
+    sheets = frappe.get_all("Port Arrival",
+                            fields=["name", "arrival_date", "docstatus",
+                                    "email_sender", "source_sheet", "creation"],
+                            limit_page_length=0)
+    if not sheets:
+        return {"removable": [], "look_at_these": [], "count": 0}
+
+    counts = {}
+    for r in frappe.get_all("Port Arrival Block",
+                            filters={"parenttype": "Port Arrival"},
+                            fields=["parent"], limit_page_length=0):
+        counts[_s(r.parent)] = counts.get(_s(r.parent), 0) + 1
+
+    files = {}
+    for f in frappe.get_all("File",
+                            filters={"attached_to_doctype": "Port Arrival"},
+                            fields=["attached_to_name", "file_name"],
+                            limit_page_length=0):
+        files.setdefault(_s(f.attached_to_name), []).append(_s(f.file_name))
+
+    removable, look = [], []
+    for s in sheets:
+        n = _s(s.name)
+        if counts.get(n):
+            continue                      # has blocks - not empty, not our business
+        item = {"sheet": n, "arrival_date": _s(s.arrival_date),
+                "sender": _s(s.email_sender), "source_sheet": _s(s.source_sheet),
+                "created": _s(s.creation)[:16], "files": files.get(n, [])}
+        if s.docstatus != 0:
+            item["why_not"] = ("confirmed - a confirmed sheet is a record and is "
+                               "never deleted")
+            look.append(item)
+        elif files.get(n):
+            item["why_not"] = ("a spreadsheet IS attached but no rows were read - "
+                               "this is a parsing failure, not an empty sheet. "
+                               "Deleting it would lose a real arrival and hide "
+                               "the bug that lost it.")
+            look.append(item)
+        else:
+            removable.append(item)
+
+    return {"removable": removable, "look_at_these": look,
+            "count": len(removable),
+            "note": ("Only a sheet with no rows AND no attached spreadsheet is "
+                     "removable. Everything else is listed for a person.")}
+
+
+@frappe.whitelist()
+def delete_empty_arrivals(sheets=None, person=None, dry_run=0):
+    """Remove arrival sheets that hold nothing and never held anything.
+
+    Every guard is re-checked here. The caller says WHICH sheets; it is never
+    believed about WHETHER they are empty.
+    """
+    if isinstance(sheets, str):
+        try:
+            sheets = frappe.parse_json(sheets)
+        except Exception:
+            sheets = [x.strip() for x in sheets.split(",") if x.strip()]
+    dry = _s(dry_run) in ("1", "true", "yes")
+    person = _s(person) or _s(frappe.session.user)
+
+    state = empty_arrivals() or {}
+    allowed = {_s(x.get("sheet")) for x in (state.get("removable") or [])}
+    blocked = {_s(x.get("sheet")): _s(x.get("why_not"))
+               for x in (state.get("look_at_these") or [])}
+
+    wanted = [_s(s) for s in (sheets or []) if _s(s)] or sorted(allowed)
+
+    removed, refused = [], []
+    for n in wanted:
+        if n in blocked:
+            refused.append({"sheet": n, "why": blocked[n]})
+            continue
+        if n not in allowed:
+            refused.append({"sheet": n,
+                            "why": "not empty, or no such sheet - refused"})
+            continue
+        if dry:
+            removed.append({"sheet": n, "dry_run": 1})
+            continue
+        try:
+            frappe.delete_doc("Port Arrival", n, ignore_permissions=False,
+                              delete_permanently=False)
+            removed.append({"sheet": n, "removed_by": person})
+        except Exception as e:
+            refused.append({"sheet": n, "why": "delete failed: " + str(e)})
+
+    if removed and not dry:
+        frappe.db.commit()
+
+    return {"removed": len(removed), "detail": removed,
+            "refused": refused, "dry_run": 1 if dry else 0}

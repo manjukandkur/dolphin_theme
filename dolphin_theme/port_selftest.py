@@ -261,6 +261,12 @@ def _draft_checks():
                "Port is a register of stone that has been DECIDED. A block "
                "still awaiting arrival, or carrying unconfirmed arrival "
                "evidence, belongs on Reconciliation until a person settles it."),
+        _check("arrivals.no_silent_parse_failure",
+               "No arrival sheet has a spreadsheet attached but zero rows read",
+               not _parse_failures(), _cap(_parse_failures()),
+               "The agency sent a spreadsheet and we read nothing out of it. "
+               "That is a lost arrival and a parsing bug, not an empty sheet. "
+               "It must never be deleted as one - it needs looking at."),
         _check("draft.counted",
                "Draft challans on the site right now",
                True, {"draft_challans": len(draft_dcs),
@@ -337,6 +343,22 @@ def _unsettled_on_register():
         if num and num not in held:
             homeless.append({"block": num, "state": st, "dc": _s(r.get("dc"))})
     return homeless
+
+
+def _parse_failures():
+    """Sheets carrying a spreadsheet that produced no rows.
+
+    An empty sheet (no rows, no file) is harmless and removable. A sheet with a
+    FILE but no rows means the agency sent something and we failed to read it -
+    a lost arrival. The two look identical in a list and must never be confused.
+    """
+    from dolphin_theme import api_arrivals as A
+
+    try:
+        d = A.empty_arrivals() or {}
+    except Exception:
+        return []
+    return [x for x in (d.get("look_at_these") or []) if x.get("files")]
 
 
 # --------------------------------------------------------------------------
