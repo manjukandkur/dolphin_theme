@@ -50,6 +50,9 @@
    two readings of this block differ. Same values live in trace-block.html. */
 #pr .p-size{background:#efe9fb;color:#5b3fa8}
 #pr .szdiff{color:#5b3fa8;font-weight:600}
+/* the two panels the Size vs CBM card uses */
+#pr .note{background:#f6f3fd;border:1px solid #ddd2f4;border-left:3px solid #5b3fa8;border-radius:8px;padding:11px 14px;font-size:13px;color:#3b2f5c;line-height:1.55}
+#pr .ok{background:#eefaf4;border:1px solid #cdece0;border-left:3px solid #0f6e56;border-radius:8px;padding:11px 14px;font-size:13px;color:#0c5843}
 #pr .qcard{border:1px solid #cfd4dc;border-radius:11px;overflow:hidden;margin-bottom:11px}
 #pr .qcard .qh{background:#0F2540;color:#fff;padding:8px 12px;font-size:13px;display:flex;align-items:center;gap:9px;flex-wrap:wrap}
 #pr .qcard .qh .n{background:#D4A24A;color:#16304F;border-radius:9px;padding:1px 8px;font-weight:700;font-size:11px}
@@ -216,7 +219,10 @@ function renderRecon(){
      was dropped, so there was no way to reach any of it. His words today: 'where is
      the trash is it created yet? yesterday I had asked for it? is it forgotten?'
      Built, then made unreachable, which is worse than not built. The tab is back. */
-  var subs=[['b2b','Block to block'],['cmp','DC to DC comparison'],['lot','Ready for export lot'],['queue','Needs you'],['dup','Duplicates'],['src','Sheets as received'],['trash','Trash']];
+  /* 24 Aug 2026: "size vs cbm" is its own card because it is the one question
+     on this screen that has a RIGHT ANSWER a person must give - everything else
+     here is a judgement. It sits next to Needs you, not inside it. */
+  var subs=[['b2b','Block to block'],['cmp','DC to DC comparison'],['lot','Ready for export lot'],['queue','Needs you'],['cbmq','Size vs CBM'],['dup','Duplicates'],['src','Sheets as received'],['trash','Trash']];
   var bar='<div class="tb" style="flex-wrap:wrap;gap:3px">';
   subs.forEach(function(s){bar+='<span class="vtog'+(RSUB===s[0]?' on':'')+'" data-rs="'+s[0]+'">'+s[1]+'</span>';});
   bar+='</div>';
@@ -234,11 +240,85 @@ function renderRecon(){
   else if(RSUB==='b2b')renderB2B(m);
   else if(RSUB==='lot')renderReady(m);
   else if(RSUB==='queue')renderQueue(m);
+  else if(RSUB==='cbmq')renderCbmQ(m);
   else if(RSUB==='dup')renderDupes(m);
   else if(RSUB==='trash')renderTrash(m);
   else renderSrc(m);
   applyRQ();
 }
+
+/* ---- SIZE vs CBM ----------------------------------------------------------
+   His words, 23 Aug 2026: "under reconcilation you have to highlight this major
+   difference and ask user to choose which is correct" and "these mistakes
+   should not happen even at the packing list and invoice level run this
+   verification and give second chance to correct".
+
+   The screen already showed the difference. This is the part that takes the
+   answer. Two buttons, two answers, and neither of them guesses:
+     the size is right -> the CBM is recomputed everywhere the block appears
+     the CBM is right  -> nothing is written; the size is left to be retyped
+   A submitted document is refused rather than edited quietly, and the reply
+   says which document and why.                                              */
+function renderCbmQ(m){
+  m.innerHTML='<div class="sub" style="padding:14px 2px">Checking every document&hellip;</div>';
+  fetch('/api/method/dolphin_theme.api_arrivals.size_vs_cbm_questions',{credentials:'include'})
+    .then(function(r){return r.json();}).then(function(j){
+      var d=(j&&j.message)||{}; var bl=d.blocks||[];
+      if(!bl.length){
+        m.innerHTML='<div class="ok" style="padding:14px 2px">'+CHK+' Every document multiplies out '+DASH+' size &times; size &times; size equals the CBM printed beside it. Nothing to answer.</div>';
+        return;
+      }
+      var h='<div class="note" style="margin:8px 0 12px">'
+        +'<b>'+bl.length+' block'+(bl.length===1?'':'s')+' where the size and the CBM disagree.</b><br>'
+        +'The size is ours and the CBM is ours, so one of the two is wrong. Say which '+DASH+' nothing is guessed. '
+        +'Anything over '+(d.tolerance_cbm||0.01)+' cbm is a disagreement; below that is rounding.</div>';
+      h+='<table><thead><tr><th>Block</th><th>Size</th><th class="r">CBM printed</th><th class="r">CBM from the size</th><th>On</th><th></th></tr></thead><tbody>';
+      bl.forEach(function(b,i){
+        var docs=(b.documents||[]);
+        var sz=(b.sizes_seen&&b.sizes_seen[0])||[];
+        var first=docs[0]||{};
+        h+='<tr data-cbmrow="'+i+'"><td class="bnum">'+esc(b.block_no)+'</td>'
+          +'<td><span class="szdiff">'+esc(sz.join(X))+'</span></td>'
+          +'<td class="r">'+(first.cbm_printed!=null?(+first.cbm_printed).toFixed(3):DASH)+'</td>'
+          +'<td class="r">'+(first.cbm_from_size!=null?(+first.cbm_from_size).toFixed(3):DASH)+'</td>'
+          +'<td class="sub">'+docs.map(function(x){return esc(x.document)+(x.docstatus===1?' <b>(submitted)</b>':'');}).join('<br>')+'</td>'
+          +'<td style="white-space:nowrap">'
+          +(b.any_submitted
+             ? '<span class="sub" title="A submitted document is not edited behind anyone&rsquo;s back. Amend it deliberately, then answer here.">amend the document first</span>'
+             : '<button class="rb" data-cbm="size" data-b="'+esc(b.block_no)+'" title="The size is right, so recompute the CBM everywhere this block appears">size is right</button> '
+               +'<button class="rb" data-cbm="cbm" data-b="'+esc(b.block_no)+'" title="The CBM is right, so the size is a typo. Nothing is written and the size waits to be retyped from the inspection sheet.">CBM is right</button>')
+          +'</td></tr>';
+      });
+      m.innerHTML=h+'</tbody></table>';
+      m.querySelectorAll('[data-cbm]').forEach(function(btn){
+        btn.addEventListener('click',function(){
+          var which=btn.dataset.cbm, blk=btn.dataset.b;
+          askReason(
+            (which==='size'?'The size is right for block ':'The CBM is right for block ')+blk,
+            (which==='size'
+              ? 'The CBM will be recomputed from the size on every document this block appears on. The agency’s weight is not touched, and the quarry reading is not touched.'
+              : 'Nothing is written. The CBM stands, and the size is left for someone to retype from the inspection sheet.'),
+            function(reason){
+              /* the person is whoever is logged in - the server takes it from
+                 the session, so it cannot be left blank or typed as someone
+                 else. Only the reason is asked for here. */
+              post('dolphin_theme.api_arrivals.resolve_size_vs_cbm',
+                   {block:blk, choice:which, reason:reason})
+                .then(function(j){
+                  var r=(j&&j.message)||{};
+                  if(r.refused){msg('Refused '+DOT+' '+(r.submitted_documents||[]).join(', ')+' '+DASH+' amend the document, then answer again',1);return;}
+                  msg(CHK+' Answered for block '+blk+' '+DOT+' '+(r.changed||0)+' document row(s) updated');
+                  renderCbmQ($('rcmain'));
+                })
+                .catch(function(){msg('Could not record that answer',1);});
+            });
+        });
+      });
+      applyRQ();
+    })
+    .catch(function(){m.innerHTML='<div class="sub" style="padding:14px 2px">Could not read the documents.</div>';});
+}
+
 var RQ='';
 function applyRQ(){
   var m=document.getElementById('rcmain'); if(!m){return;}
