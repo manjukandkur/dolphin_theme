@@ -4260,6 +4260,12 @@ def reconcile_worklist():
     return {
         "tolerance_mt": AUTO_TOL_MT,
         "ready": len(g["verified"]),
+        # 24 Aug 2026. The numbers of the ready blocks, not just how many. A
+        # ready block is nobody's question - the app will settle it - but it
+        # still has a HOME, and anything checking that every block has one has
+        # to be able to see it. Without this a ready block looks homeless.
+        "ready_blocks": [_s(r.get("export_block_no") or r.get("block_no"))
+                         for r in g["verified"]][:400],
         "settled": len(g["settled"]),
         "total": len(rows),
         "held": len(no_arrival) + len(over_tonne) + len(no_challan) + len(dups),

@@ -317,6 +317,14 @@ def _unsettled_on_register():
                 blocks.extend(ch.get("blocks") or [])
             for b in blocks:
                 held.add(_s(b.get("block_no")))
+        # 24 Aug 2026, caught by this check on its first run against live data.
+        # A READY block is a third legitimate home: the agency confirmed it, it
+        # is inside the tonne, and the app will settle it without asking anyone.
+        # It is deliberately not on the worklist - nobody is being asked about
+        # it - so counting it as homeless made this check cry wolf on blocks
+        # 424 and 429, which are fine. A false red is worse than no check: a
+        # team that learns to ignore red stops reading any of it.
+        held |= {_s(b) for b in (wl.get("ready_blocks") or [])}
     except Exception:
         return []
 
