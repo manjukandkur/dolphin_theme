@@ -182,7 +182,49 @@ def _draft_checks():
     listed = {_s(c.get("dc")) for c in (dcd.get("detail") or [])}
     dcd_leak = sorted(listed & draft_dcs)
 
+    # 24 Aug 2026, the At Port / Reconciliation split. His rule, restated when the
+    # split was specified: "draft challans ignore till submitted and consider only
+    # after submitted". The worklist is the screen a person now works from, so the
+    # rule is checked ON THE WORKLIST ITSELF and not only on the ledger under it -
+    # a screen that reads the right data through the wrong door is still wrong.
+    wl_leak, wl_dup = [], []
+    try:
+        wl = A.reconcile_worklist() or {}
+        groups = wl.get("groups") or {}
+        seen_once = {}
+        for gname in ("no_arrival", "over_tonne", "no_challan"):
+            grp = groups.get(gname) or {}
+            blocks = list(grp.get("blocks") or [])
+            for ch in (grp.get("challans") or []):
+                blocks.extend(ch.get("blocks") or [])
+            for b in blocks:
+                dc = _s(b.get("dc"))
+                if dc and dc in draft_dcs:
+                    wl_leak.append({"block": _s(b.get("block_no")),
+                                    "draft_challan": dc, "group": gname})
+                key = _s(b.get("block_no"))
+                if key:
+                    if key in seen_once and seen_once[key] != gname:
+                        wl_dup.append({"block": key,
+                                       "in": [seen_once[key], gname]})
+                    seen_once[key] = gname
+    except Exception as e:
+        wl_leak.append({"block": "-", "draft_challan": "-",
+                        "group": "reconcile_worklist raised " + str(e)})
+
     return [
+        _check("draft.not_on_the_worklist",
+               "No block on Reconciliation is there because of a draft challan",
+               not wl_leak, _cap(wl_leak),
+               "His rule: a draft challan does not exist yet. A block only enters "
+               "the chain when its challan is submitted, so it cannot be held on "
+               "Reconciliation for anything a draft says."),
+        _check("split.one_reason_per_block",
+               "A held block appears under exactly one reason",
+               not wl_dup, _cap(wl_dup),
+               "The card a block sits under IS the reason it is held. A block in "
+               "two cards means a person is being asked the same question twice, "
+               "and the two answers can disagree."),
         _check("draft.not_on_port_and_stock",
                "A block that is only on a draft challan is not listed at the port",
                not leaked, _cap(leaked),

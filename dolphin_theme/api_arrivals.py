@@ -4105,6 +4105,179 @@ def auto_settle_preview():
     }
 
 
+# ============================================================================
+# THE AT PORT / RECONCILIATION SPLIT - 24 Aug 2026
+#
+# His rules, in his words, and the whole of the policy this endpoint carries:
+#
+#   "Port will not just go on making mistakes ... there will be some small
+#    mistakes or typo mistakes and weight will vary since there method of
+#    weighing is different"
+#   "without Dc and arrivals dont jump to conclusions this is my strict
+#    instruction"
+#
+# So the line is drawn once, here, and the screen only draws what it is told:
+#
+#   RECONCILIATION is where a PERSON decides. Exactly three things put a block
+#   there - a duplicate, no arrival row, and a challan more than a tonne out
+#   (which includes having no challan at all).
+#
+#   AT PORT holds only stone that has been decided. Nothing drifts into it.
+#
+# A SIZE DIFFERENCE IS NOT ONE OF THE THREE. It travels with the block as a
+# note and the block passes. Weight variation inside the tonne is not a
+# difference at all - two weighing methods, and theirs is the final one.
+#
+# One block appears in exactly ONE group, and the group IS the reason it is
+# held. No block is in two places, and no block is held for a reason the screen
+# does not name.
+# ============================================================================
+
+
+def _cbm_disagrees(l, w, h, cbm):
+    """Does a stated size multiply out to the CBM printed beside it?
+
+    His ask: "under reconcilation you have to highlight this major difference
+    and ask user to choose which is correct". This answers only the arithmetic
+    question. It never decides which side is right - a person does that.
+    """
+    try:
+        l, w, h, cbm = float(l or 0), float(w or 0), float(h or 0), float(cbm or 0)
+    except Exception:
+        return None
+    if not (l and w and h and cbm):
+        return None
+    calc = (l * w * h) / 1000000.0
+    if calc <= 0:
+        return None
+    # 5% or 0.15 CBM, whichever is larger - below that it is rounding, not a
+    # difference worth stopping a person for.
+    if abs(calc - cbm) <= max(0.15, calc * 0.05):
+        return None
+    return {"stated": round(cbm, 3), "from_size": round(calc, 3),
+            "gap": round(cbm - calc, 3)}
+
+
+def _worklist_row(r):
+    """The one shape the Reconciliation screen reads. Nothing is computed twice
+    in Javascript that the classifier has already decided here."""
+    ours = float(r.get("ton") or 0)
+    theirs = float(r.get("net_wt") or 0)
+    out = {
+        "block_no": _s(r.get("export_block_no") or r.get("block_no")),
+        "quarry_block_no": _s(r.get("quarry_block_no")),
+        "dc": _s(r.get("dc")),
+        "arrival": _s(r.get("arrival")),
+        "arrival_confirmed": 1 if r.get("arrival_confirmed") else 0,
+        "state": _s(r.get("state")),
+        "lot": _s(r.get("lot")),
+        "dc_l": r.get("dc_l"), "dc_w": r.get("dc_w"), "dc_h": r.get("dc_h"),
+        "dc_cbm": r.get("dc_cbm"), "ours_mt": ours or None,
+        "pt_l": r.get("pt_l"), "pt_w": r.get("pt_w"), "pt_h": r.get("pt_h"),
+        "pt_cbm": r.get("pt_cbm"), "theirs_mt": theirs or None,
+        "size_flag": 1 if r.get("size_flag") else 0,
+    }
+    # Which reading does not multiply out - ours, theirs, or neither. Both are
+    # reported: the screen asks which is correct, it does not guess.
+    ours_cbm = _cbm_disagrees(r.get("dc_l"), r.get("dc_w"), r.get("dc_h"), r.get("dc_cbm"))
+    port_cbm = _cbm_disagrees(r.get("pt_l"), r.get("pt_w"), r.get("pt_h"), r.get("pt_cbm"))
+    if ours_cbm:
+        out["cbm_ours"] = ours_cbm
+    if port_cbm:
+        out["cbm_port"] = port_cbm
+    out["cbm_flag"] = 1 if (ours_cbm or port_cbm) else 0
+    return out
+
+
+@frappe.whitelist()
+def reconcile_worklist():
+    """Reconciliation as a worklist: every held block under the reason it is held.
+
+    Groups, and nothing else is a group:
+      no_arrival   on a submitted challan of ours, nothing contradicts it, but
+                   the agency has sent no arrival row. It waits.
+      over_tonne   its challan total is out by more than one tonne. Grouped by
+                   CHALLAN, because that is the level the tolerance is measured
+                   at, with the direction shown - a port figure HEAVIER than we
+                   dispatched cannot happen, a lighter one is dressing loss.
+      no_challan   at the port on no submitted challan at all.
+      duplicate    the same block number on more than one arrival row.
+
+    `ready` is what the app would settle by itself. It is reported so the screen
+    can say so, and it is NOT part of the worklist - nobody is asked about it.
+    """
+    rows = ledger_view() or []
+    if isinstance(rows, dict):
+        rows = rows.get("rows") or []
+    g = _classify_for_auto(rows)
+    bad_dc = _challans_out_of_tolerance(rows)
+
+    no_arrival, over_tonne, no_challan = [], [], []
+    for r in g["conflict"]:
+        (over_tonne if _s(r.get("dc")) in bad_dc else no_challan).append(_worklist_row(r))
+    for r in g["noconflict"]:
+        no_arrival.append(_worklist_row(r))
+
+    # The tonne is a CHALLAN measurement, so the screen shows the challan.
+    by_dc = {}
+    for r in over_tonne:
+        by_dc.setdefault(r["dc"], {"dc": r["dc"], "blocks": [],
+                                   "ours_mt": 0.0, "theirs_mt": 0.0})
+        d = by_dc[r["dc"]]
+        d["blocks"].append(r)
+        d["ours_mt"] += float(r.get("ours_mt") or 0)
+        d["theirs_mt"] += float(r.get("theirs_mt") or 0)
+    challans = []
+    for d in by_dc.values():
+        gap = d["theirs_mt"] - d["ours_mt"]
+        d["ours_mt"] = round(d["ours_mt"], 3)
+        d["theirs_mt"] = round(d["theirs_mt"], 3)
+        d["gap_mt"] = round(gap, 3)
+        # Their figure heavier than what we dispatched cannot be dressing loss.
+        # Their figure lighter is ordinary until it is very much lighter.
+        if gap > 0:
+            d["kind"] = "heavier"
+        elif d["ours_mt"] and (d["theirs_mt"] / d["ours_mt"]) < DRESSING_LOOK_AT_IT:
+            d["kind"] = "much_lighter"
+        else:
+            d["kind"] = "lighter"
+        challans.append(d)
+    challans.sort(key=lambda x: -abs(x["gap_mt"]))
+
+    try:
+        dups = duplicate_rows() or []
+    except Exception:
+        dups = []
+
+    # The size note follows the BLOCK, wherever it has got to - a block that
+    # reached At Port yesterday still carries it. The classifier only stamps
+    # size_flag on rows it is deciding, so the note is read straight off the
+    # ledger here instead.
+    size_notes = [_s(r.get("export_block_no") or r.get("block_no"))
+                  for r in rows if _size_conflict(r)]
+    size_notes = [b for b in size_notes if b]
+
+    return {
+        "tolerance_mt": AUTO_TOL_MT,
+        "ready": len(g["verified"]),
+        "settled": len(g["settled"]),
+        "total": len(rows),
+        "held": len(no_arrival) + len(over_tonne) + len(no_challan) + len(dups),
+        "groups": {
+            "no_arrival": {"count": len(no_arrival), "blocks": no_arrival[:400]},
+            "over_tonne": {"count": len(over_tonne), "challans": challans},
+            "no_challan": {"count": len(no_challan), "blocks": no_challan[:200]},
+            "duplicate": {"count": len(dups), "blocks": dups[:200]},
+        },
+        # Carried, never held: the note that travels to At Port with the block.
+        # The screen marks these rows quietly; it never stops one.
+        "size_notes": len(size_notes),
+        "size_note_blocks": size_notes[:1000],
+        "cbm_questions": [r for r in (no_arrival + over_tonne + no_challan)
+                          if r.get("cbm_flag")][:200],
+    }
+
+
 @frappe.whitelist()
 def auto_settle_at_port(include_noconflict=0, person=None, dry_run=0, note=None):
     """Move everything the app can settle to At Port, by itself.
