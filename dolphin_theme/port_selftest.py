@@ -246,11 +246,43 @@ def _draft_checks():
                "submitted. block_availability must report it as draft=1 so the "
                "dialog shows a note and leaves the block selectable — never as a "
                "claim that removes it."),
+        _check("split.lot_gate_answers",
+               "The pre-lot gate answers, and blocks a lot for real reasons only",
+               _lot_gate_sane(), _lot_gate_detail(),
+               "lot_readiness must name a blocker only for a missing export "
+               "number or a missing measurement. A size that disagrees with "
+               "its CBM is a warning: it has an owner and it does not stop "
+               "loading."),
         _check("draft.counted",
                "Draft challans on the site right now",
                True, {"draft_challans": len(draft_dcs),
                       "blocks_only_on_a_draft": len(only_draft)}),
     ]
+
+
+def _lot_gate_sane():
+    """Does the pre-lot gate block for the right reasons, on real data?"""
+    try:
+        d = _lot_gate_detail()
+    except Exception:
+        return False
+    return not d.get("wrong_reasons")
+
+
+def _lot_gate_detail():
+    from dolphin_theme import api_arrivals as A
+
+    names = frappe.get_all("Quarry Block", pluck="name", limit_page_length=60)
+    if not names:
+        return {"checked": 0, "wrong_reasons": []}
+    r = A.lot_readiness(blocks=names) or {}
+    allowed = {"no export number", "no measurement in use", "no such block"}
+    wrong = [b for b in (r.get("blockers") or [])
+             if _s(b.get("why")) not in allowed]
+    return {"checked": r.get("checked", 0),
+            "blockers": len(r.get("blockers") or []),
+            "warnings": len(r.get("warnings") or []),
+            "wrong_reasons": wrong}
 
 
 # --------------------------------------------------------------------------

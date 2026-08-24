@@ -4932,3 +4932,324 @@ def dc_weight_check_v2():
         "agency_never_sent": never, "tolerance_mt": AUTO_TOL_MT,
         "detail": detail,
     }
+
+
+# ==========================================================================
+# SIZE vs CBM - ASK, THEN TAKE THE ANSWER.  24 Aug 2026
+#
+# His words, 23 Aug 2026:
+#   "under reconcilation you have to highlight this major difference and ask
+#    user to choose which is correct"
+#   "these mistakes should not happen even at the packing list and invoice
+#    level run this verification and give second chance to correct"
+#
+# Reconciliation could already SHOW the question - 322 x 189 x 185 does not
+# make the 12.40 printed beside it. What it could not do was take the answer.
+# This does. Two answers, and only two:
+#
+#   choice="size"  the size is right, so the CBM beside it is wrong. Recompute
+#                  L x W x H / 1e6 and write that everywhere the block appears.
+#   choice="cbm"   the CBM is right, so the size is a typo. Nothing is computed
+#                  and nothing is guessed - the CBM stands and the size is left
+#                  for a person to retype from the inspection sheet.
+#
+# The measurement is Dolphin's and the CBM is Dolphin's, so this only ever
+# rewrites our own figures. It never touches the agency's weight and it never
+# touches a Quarry Block reading - that is the record of what came out of the
+# pit and it is never rewritten.
+#
+# SUBMITTED DOCUMENTS ARE REFUSED, not silently skipped. A submitted challan or
+# invoice has left the building; changing its figures behind someone's back is
+# exactly the financial damage this whole exercise exists to prevent. The reply
+# names the document so a person can decide to amend it deliberately.
+#
+# The reason is compulsory, as it is on a measurement change.
+# ==========================================================================
+
+# parent doctype -> (child doctype, table field, L, W, H, CBM)
+CBM_DOCS = [
+    ("Delivery Challan",    "DC Block Row",       "dc_block_rows",
+     "length_gross", "width_gross", "height_gross", "gross_volume"),
+    ("Local Tax Invoice",   "Tax Invoice Block",  "blocks",
+     "length_gross", "width_gross", "height_gross", "gross_volume"),
+    ("Export Shipment Lot", "Shipment Lot Block", "blocks",
+     "length", "width", "height", "cbm"),
+    ("Shipping Document",   "Shipping Block",     "blocks",
+     "length", "width", "height", "net_volume"),
+]
+
+# A CBM is printed to three decimals, so anything under a litre is rounding,
+# not a disagreement. Above that, somebody has to say which figure is right.
+CBM_TOL = 0.010
+
+
+def _cbm_of(l, w, h):
+    try:
+        v = (float(l or 0) * float(w or 0) * float(h or 0)) / 1000000.0
+    except Exception:
+        return None
+    return round(v, 3) if v > 0 else None
+
+
+def _cbm_rows():
+    """Every document row whose size does not multiply out to the CBM beside it."""
+    out = []
+    for parent_dt, child_dt, _tf, fl, fw, fh, fc in CBM_DOCS:
+        try:
+            rows = frappe.get_all(
+                child_dt, filters={"parenttype": parent_dt},
+                fields=["name", "parent", "block", "block_no",
+                        fl, fw, fh, fc], limit_page_length=0)
+        except Exception:
+            continue
+        if not rows:
+            continue
+        states = {d.name: d.docstatus for d in frappe.get_all(
+            parent_dt, fields=["name", "docstatus"], limit_page_length=0)}
+        for r in rows:
+            computed = _cbm_of(r.get(fl), r.get(fw), r.get(fh))
+            printed = r.get(fc)
+            if computed is None or printed in (None, ""):
+                continue
+            try:
+                printed = float(printed)
+            except Exception:
+                continue
+            if abs(computed - printed) <= CBM_TOL:
+                continue
+            out.append({
+                "parent_doctype": parent_dt, "child_doctype": child_dt,
+                "document": _s(r.get("parent")), "row": _s(r.get("name")),
+                "docstatus": states.get(_s(r.get("parent")), 0),
+                "block": _s(r.get("block")),
+                "block_no": _s(r.get("block_no")) or _s(r.get("block")),
+                "size": [r.get(fl), r.get(fw), r.get(fh)],
+                "cbm_printed": round(printed, 3),
+                "cbm_from_size": computed,
+                "gap": round(computed - printed, 3),
+                "cbm_field": fc,
+            })
+    return out
+
+
+@frappe.whitelist()
+def size_vs_cbm_questions():
+    """The question Reconciliation asks, per block. Changes nothing.
+
+    One entry per block, with every document the disagreement reaches, so a
+    person answers ONCE for a block rather than once per document and cannot
+    give two different answers to the same question.
+    """
+    by_block = {}
+    for r in _cbm_rows():
+        key = r["block_no"] or r["block"]
+        if not key:
+            continue
+        b = by_block.setdefault(key, {
+            "block_no": key, "block": r["block"], "documents": [],
+            "sizes_seen": [], "biggest_gap": 0.0, "any_submitted": 0})
+        b["documents"].append(r)
+        if r["size"] not in b["sizes_seen"]:
+            b["sizes_seen"].append(r["size"])
+        if abs(r["gap"]) > abs(b["biggest_gap"]):
+            b["biggest_gap"] = r["gap"]
+        if r["docstatus"] == 1:
+            b["any_submitted"] = 1
+    out = sorted(by_block.values(), key=lambda x: -abs(x["biggest_gap"]))
+    return {
+        "count": len(out),
+        "tolerance_cbm": CBM_TOL,
+        "blocks": out,
+        "note": ("The size is ours and the CBM is ours. One of the two is "
+                 "wrong. A person says which - nothing is guessed."),
+    }
+
+
+@frappe.whitelist()
+def resolve_size_vs_cbm(block=None, choice=None, person=None, reason=None,
+                        dry_run=0):
+    """Take the answer to the size-vs-CBM question and write it through.
+
+    choice="size"  the size is right -> recompute the CBM everywhere
+    choice="cbm"   the CBM is right  -> write nothing, record that the size
+                   needs retyping from the inspection sheet
+    """
+    block = _s(block)
+    choice = _s(choice).lower()
+    person = _s(person)
+    reason = _s(reason)
+    dry = _s(dry_run) in ("1", "true", "yes")
+
+    if not block:
+        frappe.throw("Which block?")
+    if choice not in ("size", "cbm"):
+        frappe.throw('choice must be "size" (the size is right) or "cbm" '
+                     '(the CBM is right).')
+    # The person is who is logged in - authenticated beats typed, and it cannot
+    # be left blank or filled in with someone else's name. The REASON is what a
+    # person has to supply, and it is compulsory exactly as it is on a
+    # measurement change. His rule, 23 Aug 2026: "typing the reason is better to
+    # understand in the long run so yes compulsory."
+    if not person:
+        person = _s(frappe.session.user)
+    if not reason:
+        frappe.throw("A written reason is required - this changes a figure "
+                     "that money is raised on.")
+
+    mine = [r for r in _cbm_rows()
+            if (r["block_no"] == block or r["block"] == block)]
+    if not mine:
+        return {"block": block, "changed": 0,
+                "message": "Nothing to answer - every document already "
+                           "multiplies out for this block."}
+
+    submitted = [r for r in mine if r["docstatus"] == 1]
+    if submitted:
+        return {
+            "block": block, "changed": 0, "refused": 1,
+            "submitted_documents": sorted({r["document"] for r in submitted}),
+            "message": ("Refused. These documents are submitted, and a "
+                        "submitted document is not edited behind someone's "
+                        "back. Amend the document deliberately, then answer "
+                        "this again."),
+        }
+
+    stamp = "{0} - {1} ({2})".format(frappe.utils.now(), reason, person)
+    changed, skipped = [], []
+    for r in mine:
+        if choice == "cbm":
+            skipped.append({"document": r["document"], "row": r["row"],
+                            "why": "the CBM stands; the size needs retyping "
+                                   "from the inspection sheet"})
+            continue
+        if not dry:
+            frappe.db.set_value(r["child_doctype"], r["row"],
+                                r["cbm_field"], r["cbm_from_size"],
+                                update_modified=False)
+        changed.append({"document": r["document"], "row": r["row"],
+                        "from": r["cbm_printed"], "to": r["cbm_from_size"]})
+
+    if not dry:
+        for doc in sorted({r["document"] for r in mine}):
+            parent_dt = next(x["parent_doctype"] for x in mine
+                             if x["document"] == doc)
+            try:
+                frappe.get_doc(parent_dt, doc).add_comment(
+                    "Comment",
+                    "Size vs CBM answered for block {0}: {1} is correct. {2}"
+                    .format(block,
+                            "the size" if choice == "size" else "the CBM",
+                            stamp))
+            except Exception:
+                pass
+        frappe.db.commit()
+
+    return {"block": block, "choice": choice, "dry_run": 1 if dry else 0,
+            "changed": len(changed), "detail": changed, "left_alone": skipped,
+            "recorded": stamp}
+
+
+# ==========================================================================
+# BEFORE A LOT IS BUILT.  24 Aug 2026
+#
+# His rule: validate export numbers and measurements BEFORE a lot, not after.
+# The packing list is where a missing export number or a missing measurement
+# currently surfaces, and the packing list is exactly where he said a mistake
+# must never surface.
+#
+# Two questions, and only two. Neither is a matter of judgement:
+#   * has this block got an export number
+#   * has this block got a measurement in use
+# A size that disagrees with its CBM is reported alongside as a WARNING, not a
+# blocker - it has an owner (the question above) and it does not stop loading.
+# ==========================================================================
+@frappe.whitelist()
+def lot_readiness(blocks=None):
+    """Is every one of these blocks fit to go on a lot? Changes nothing."""
+    if isinstance(blocks, str):
+        try:
+            blocks = frappe.parse_json(blocks)
+        except Exception:
+            blocks = [b.strip() for b in blocks.split(",") if b.strip()]
+    blocks = [_s(b) for b in (blocks or []) if _s(b)]
+    if not blocks:
+        return {"ok": 1, "checked": 0, "blockers": [], "warnings": [],
+                "message": "No blocks given."}
+
+    qbs = frappe.get_all(
+        "Quarry Block",
+        filters=[["name", "in", blocks]],
+        fields=["name", "block_number", "export_block_no",
+                "length_gross", "width_gross", "height_gross"],
+        limit_page_length=0)
+    if len(qbs) < len(blocks):
+        qbs += frappe.get_all(
+            "Quarry Block",
+            filters=[["block_number", "in", blocks]],
+            fields=["name", "block_number", "export_block_no",
+                    "length_gross", "width_gross", "height_gross"],
+            limit_page_length=0)
+    seen, uniq = set(), []
+    for q in qbs:
+        if q.name not in seen:
+            seen.add(q.name)
+            uniq.append(q)
+
+    # the measurement in use: the NEWEST buyer inspection, quarry as fallback
+    bi = {}
+    if uniq:
+        for r in frappe.get_all(
+                "Buyer Inspection Block",
+                filters=[["block", "in", [q.name for q in uniq]]],
+                fields=["block", "parent", "creation", "length_gross",
+                        "width_gross", "height_gross"],
+                order_by="creation asc", limit_page_length=0):
+            bi[_s(r.block)] = r          # ascending, so the last write is newest
+
+    found = {q.name for q in uniq} | {_s(q.block_number) for q in uniq}
+    blockers, warnings = [], []
+    for b in blocks:
+        if b not in found:
+            blockers.append({"block": b, "why": "no such block"})
+
+    for q in uniq:
+        label = _s(q.export_block_no) or _s(q.block_number) or q.name
+        if not _s(q.export_block_no):
+            blockers.append({
+                "block": _s(q.block_number) or q.name,
+                "why": "no export number",
+                "fix": "The packing list and the invoice are printed on the "
+                       "export number. Give it one before it goes on a lot."})
+        src = bi.get(q.name)
+        dims = ([src.length_gross, src.width_gross, src.height_gross] if src
+                else [q.length_gross, q.width_gross, q.height_gross])
+        if not all(dims):
+            blockers.append({
+                "block": label, "why": "no measurement in use",
+                "fix": "Neither a buyer inspection nor the quarry reading "
+                       "gives this block a full size."})
+        elif not src:
+            warnings.append({
+                "block": label, "why": "priced on the quarry reading",
+                "detail": "No buyer inspection exists for this block."})
+
+    qs = size_vs_cbm_questions() or {}
+    open_q = {_s(x.get("block_no")) for x in (qs.get("blocks") or [])}
+    for q in uniq:
+        label = _s(q.export_block_no) or _s(q.block_number) or q.name
+        if label in open_q or _s(q.block_number) in open_q:
+            warnings.append({
+                "block": label, "why": "size vs CBM unanswered",
+                "detail": "Its size does not multiply out to the CBM beside "
+                          "it on at least one document."})
+
+    return {
+        "ok": 1 if not blockers else 0,
+        "checked": len(blocks),
+        "blockers": blockers,
+        "warnings": warnings,
+        "message": ("Every block has an export number and a measurement."
+                    if not blockers else
+                    "{0} block(s) are not fit to go on a lot yet."
+                    .format(len(blockers))),
+    }
