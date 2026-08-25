@@ -5657,11 +5657,48 @@ def lot_readiness(blocks=None):
                 "detail": "Its size does not multiply out to the CBM beside "
                           "it on at least one document."})
 
+    # ------------------------------------------------------------------
+    # THE ARRIVAL LOCK'S QUESTION IS ASKED HERE, AND NOWHERE ELSE.
+    # [stated] "you must highglight with a message next to the block and ask
+    #  user to resolve when he clicks to move to export shimpment lot"
+    #
+    # A flag never stops a block reaching At Port - it rides along with it. This
+    # is the click he named, so this is where it gets answered: once, for every
+    # ticked block together. Not inside arrivals, block by block, which is the
+    # burden he refused outright.
+    # ------------------------------------------------------------------
+    lock_qs = {}
+    try:
+        labels = []
+        for q in uniq:
+            labels.append(_s(q.export_block_no) or _s(q.block_number) or q.name)
+            if _s(q.block_number):
+                labels.append(_s(q.block_number))
+        lq = lock_questions_for(blocks=labels) or {}
+        lock_qs = lq.get("by_block") or {}
+    except Exception:
+        lock_qs = {}
+    for b, qs_ in lock_qs.items():
+        warnings.append({
+            "block": b,
+            "why": "the agency changed a figure after it was locked",
+            "detail": "; ".join(
+                "{0}: first sheet said {1}, {2} says {3}".format(
+                    f.get("field_label"), f.get("locked"),
+                    f.get("later_on"), f.get("later"))
+                for f in qs_[:4]),
+            "answer_rows": [f.get("later_row") for f in qs_],
+        })
+
     return {
         "ok": 1 if not blockers else 0,
         "checked": len(blocks),
         "blockers": blockers,
         "warnings": warnings,
+        # Named separately so one dialog can put ALL of them in front of a
+        # person at once, which is the whole point of asking at this click.
+        "lock_questions": lock_qs,
+        "lock_question_count": sum(len(v) for v in lock_qs.values()),
         "message": ("Every block has an export number and a measurement."
                     if not blockers else
                     "{0} block(s) are not fit to go on a lot yet."
@@ -6281,3 +6318,228 @@ def pending_agency_rows():
                  "automatically ours. Nothing here is wrong - it is pending until "
                  "the right block actually arrives."),
     }
+
+
+# ============================================================================
+# THE ARRIVAL LOCK.  25 Aug 2026.
+#
+# His rule, 24 Aug:
+#   "arrivals xls is going to be like this repetetive where they keep sending
+#    all the blocks arrived earlier with the fresh trucks unloaded so you have
+#    to lock whatever first arrives and notify us if there is any discrepency
+#    in the later arrivals"
+#   "any given time you find any different value raise a flag"
+#   "if user has to choose each and every block within the arrivals it will
+#    defeat the purpose of building this app"
+#   "keep it reversible if some decision is changed later or selected by
+#    mistake can be reversed"
+#
+# WHAT IS LOCKED IS THE FIRST **VALUE**, NOT THE FIRST **ROW**.  Block 809
+# settled that: its earliest sheets carried no size at all and the sheet with
+# the size came later. A blind first-row lock would have frozen a blank and then
+# flagged the truth as the error.
+#
+# So, per block and per field, walking the sheets oldest first:
+#   * the first sheet that carries a value LOCKS it
+#   * a later sheet repeating it            -> silent
+#   * a later sheet saying nothing          -> silent. Absence is not disagreement
+#   * a later sheet filling a gap           -> fills it silently, and locks
+#   * a later sheet CONTRADICTING the lock  -> FLAG, always, no tolerance
+#
+# Flagging is automatic and total. ANSWERING is rare, in bulk, and happens only
+# at the click to move to an Export Shipment Lot - never inside arrivals, which
+# is the burden he explicitly refused.
+#
+# NOTHING IS STORED FOR THE LOCK ITSELF. It is computed from the sheets every
+# time, so it cannot drift from them and there is no second copy to go stale.
+# Only the ANSWERS are written, onto the arrival row's own resolution fields,
+# and clearing those fields is the reversal.
+# ============================================================================
+
+LOCK_FIELDS = ("length", "width", "height", "cbm", "net_wt")
+LOCK_LABELS = {"length": "length", "width": "width", "height": "height",
+               "cbm": "CBM", "net_wt": "net weight"}
+
+
+def _sheet_order():
+    """Every arrival sheet, oldest first, with whether it is confirmed."""
+    out = []
+    for a in frappe.get_all("Port Arrival",
+                            fields=["name", "arrival_date", "creation", "docstatus"],
+                            limit_page_length=0) or []:
+        out.append({
+            "sheet": _s(a.get("name")),
+            "when": _s(a.get("arrival_date") or a.get("creation")),
+            "confirmed": 1 if cint(a.get("docstatus")) == 1 else 0,
+        })
+    out.sort(key=lambda x: (x["when"], x["sheet"]))
+    return out
+
+
+def _same(a, b):
+    """Do two agency figures say the same thing? Numbers compared as numbers."""
+    if a is None or b is None:
+        return False
+    try:
+        fa, fb = float(a), float(b)
+    except Exception:
+        return _s(a) == _s(b)
+    if fa == 0 and fb == 0:
+        return True
+    # The agency rounds. 2.32 and 2.323 are the same figure written twice, and
+    # calling that a contradiction would bury the real ones.
+    return abs(fa - fb) <= max(0.005, abs(fa) * 0.002)
+
+
+@frappe.whitelist()
+def arrival_lock(block=None):
+    """The locked value of every field, and every later sheet that contradicts it.
+
+    Read-only and computed from the sheets themselves. Pass `block` for one block,
+    or nothing for the whole site.
+    """
+    order = _sheet_order()
+    rank = {s["sheet"]: i for i, s in enumerate(order)}
+    meta = {s["sheet"]: s for s in order}
+
+    filters = {}
+    if _s(block):
+        filters["block_no"] = _s(block)
+    rows = frappe.get_all(
+        "Port Arrival Block", filters=filters,
+        fields=["name", "parent", "block_no", "length", "width", "height",
+                "cbm", "net_wt", "resolution_type", "resolution_note",
+                "resolved_by", "resolved_on"],
+        limit_page_length=0) or []
+    rows.sort(key=lambda r: (rank.get(_s(r.get("parent")), 9999), _s(r.get("name"))))
+
+    locks, flags = {}, []
+    for r in rows:
+        b = _s(r.get("block_no"))
+        if not b:
+            continue
+        held = locks.setdefault(b, {})
+        for f in LOCK_FIELDS:
+            v = r.get(f)
+            if v in (None, ""):
+                continue                      # absence is never disagreement
+            if f not in held:
+                held[f] = {"value": v, "sheet": _s(r.get("parent")),
+                           "row": _s(r.get("name")),
+                           "when": meta.get(_s(r.get("parent")), {}).get("when", "")}
+                continue                      # first value wins, and locks
+            if _same(held[f]["value"], v):
+                continue                      # the list arriving again
+            # A LATER SHEET CONTRADICTS THE LOCK. Always flagged, no tolerance.
+            answered = _s(r.get("resolution_type"))
+            flags.append({
+                "block": b,
+                "field": f,
+                "field_label": LOCK_LABELS.get(f, f),
+                "locked": held[f]["value"],
+                "locked_on": held[f]["sheet"],
+                "locked_when": held[f]["when"],
+                "later": v,
+                "later_on": _s(r.get("parent")),
+                "later_when": meta.get(_s(r.get("parent")), {}).get("when", ""),
+                "later_row": _s(r.get("name")),
+                "answered": 1 if answered else 0,
+                "answer": answered,
+                "answer_note": _s(r.get("resolution_note")),
+                "answered_by": _s(r.get("resolved_by")),
+                "answered_on": _s(r.get("resolved_on")),
+            })
+
+    open_flags = [f for f in flags if not f["answered"]]
+    return {
+        "blocks": len(locks),
+        "flags": len(flags),
+        "open": len(open_flags),
+        "answered": len(flags) - len(open_flags),
+        "locked": ({b: locks[b] for b in list(locks)[:200]} if _s(block) else {}),
+        "rows": (open_flags + [f for f in flags if f["answered"]])[:400],
+        "note": ("The first sheet carrying a value locks it. A later sheet that "
+                 "repeats it, or says nothing, is silent. Only a CONTRADICTION is "
+                 "flagged - and the question is asked in bulk at the lot, never here."),
+    }
+
+
+@frappe.whitelist()
+def lock_questions_for(blocks=None):
+    """The open flags for a set of blocks - the bulk question asked AT THE LOT.
+
+    His rule: "you must highglight with a message next to the block and ask user
+    to resolve when he clicks to move to export shimpment lot". A flag never
+    stops a block reaching At Port; it rides with the block and is answered here.
+    """
+    blocks = frappe.parse_json(blocks) if isinstance(blocks, str) else (blocks or [])
+    want = {_s(b) for b in blocks if _s(b)}
+    state = arrival_lock() or {}
+    rows = [f for f in (state.get("rows") or [])
+            if not f.get("answered") and (not want or f.get("block") in want)]
+    by_block = {}
+    for f in rows:
+        by_block.setdefault(f["block"], []).append(f)
+    return {
+        "asked_about": len(want) or state.get("blocks"),
+        "blocks_with_questions": len(by_block),
+        "questions": len(rows),
+        "by_block": by_block,
+        "note": ("Answer these once, together, before the blocks go on the lot. "
+                 "Every answer can be undone."),
+    }
+
+
+@frappe.whitelist()
+def answer_lock_flag(row=None, take=None, reason=None, person=None):
+    """Answer one flag: which value stands. Reversible by undo_lock_answer.
+
+    take = "locked"  keep what the first sheet said
+           "later"   accept the newer figure
+    The answer is written onto the arrival row's own resolution fields, so it
+    travels with the row and shows in Trace and in find-by-note.
+    """
+    row = _s(row)
+    take = _s(take).lower()
+    reason = _s(reason)
+    person = _s(person) or _s(frappe.session.user)
+    if not row:
+        frappe.throw("No arrival row given.")
+    if take not in ("locked", "later"):
+        frappe.throw("Say which value stands: the locked one, or the later one.")
+    if len(reason) < 4:
+        frappe.throw("Say why in a few words - it stays on the row for good.")
+    if not frappe.db.exists("Port Arrival Block", row):
+        frappe.throw("That arrival row no longer exists.")
+
+    stamp = "{0} value accepted by {1}: {2}".format(
+        "first (locked)" if take == "locked" else "later", person, reason)
+    frappe.db.set_value("Port Arrival Block", row, {
+        "resolution_type": ("keep-locked" if take == "locked" else "take-later"),
+        "resolution_note": stamp,
+        "resolved_by": person,
+        "resolved_on": frappe.utils.now(),
+    }, update_modified=False)
+    frappe.db.commit()
+    return {"ok": 1, "row": row, "take": take, "by": person, "note": stamp}
+
+
+@frappe.whitelist()
+def undo_lock_answer(row=None, reason=None, person=None):
+    """Put a flag back to unanswered. His rule: every decision reverses."""
+    row = _s(row)
+    person = _s(person) or _s(frappe.session.user)
+    if not row:
+        frappe.throw("No arrival row given.")
+    if len(_s(reason)) < 4:
+        frappe.throw("Undoing an answer needs a reason too.")
+    if not frappe.db.exists("Port Arrival Block", row):
+        frappe.throw("That arrival row no longer exists.")
+    frappe.db.set_value("Port Arrival Block", row, {
+        "resolution_type": "",
+        "resolution_note": "answer withdrawn by {0}: {1}".format(person, _s(reason)),
+        "resolved_by": "",
+        "resolved_on": None,
+    }, update_modified=False)
+    frappe.db.commit()
+    return {"ok": 1, "row": row, "reopened_by": person}
