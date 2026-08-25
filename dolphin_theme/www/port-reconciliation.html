@@ -67,6 +67,9 @@
 #pr .rb.gold{background:var(--gold);color:#4a3208;border-color:var(--gold);font-weight:600}#pr .rb.dim{opacity:.4;cursor:not-allowed}
 #pr .d{color:#c0392b;font-weight:700}#pr .miss{color:#a32d2d;font-weight:600}
 #pr .exp{cursor:pointer;color:#8a94a3;font-size:15px}#pr .await-row{background:#fbfaf5}
+/* 25 Aug 2026: a block already on a lot is spoken for. Dimmed, not hidden - so the
+   row still reads, and the reason it cannot be ticked is visible rather than absent. */
+#pr .spoken-for{background:#fafbfc}#pr .spoken-for td{opacity:.62}
 #pr .det{background:#f5f8fc}#pr .det td{padding:0}
 #pr .trace{padding:12px 26px}
 #pr .chain{display:flex;align-items:center;flex-wrap:wrap;row-gap:8px}
@@ -176,7 +179,12 @@
       <span><b id="bn">0</b> selected</span>
       <span class="bbtn gold" id="bsendback">&#8630; Send back to Reconcile&hellip;</span>
       <span class="bbtn gold" id="bmove" style="display:none">&#8594; Move to At Port (skip arrivals)</span>
-      <span class="bbtn pri" id="bpush" style="display:none">&#128230; Push to Shipment Lot</span>
+      <!-- 25 Aug 2026, his words: "add to export lot missing". It was: the button
+           existed and its handler worked, but the bar was hidden on 24 Aug when this
+           screen was cut back to one action, so the only thing you could do with a
+           ticked block was send it back. Pushing stone ONTO a lot is the whole point
+           of the register. It is back, and it is the primary action. -->
+      <span class="bbtn pri" id="bpush">&#128230; Push to Export Shipment Lot</span>
       <span class="bbtn ok" id="baccept" style="display:none">&#10003; Accept as-is</span>
     </div>
     <div class="body">
@@ -1096,7 +1104,17 @@ function renderBal(){
    one the challan carries - and the row shows whichever fits the stage. Searching
    only block_no meant typing the number printed on the screen found nothing.
    23 Aug 2026: search all of them, plus the DC, BI, consignee and mark. */
-function matchQ(r){if(!Q)return true;var t=((r.block_no||'')+' '+(r.export_block_no||'')+' '+(r.quarry_block_no||'')+' '+(r.dc||'')+' '+(r.source_bi||'')+' '+(r.consignee||'')+' '+(r.mark||'')+' '+(r.lot||'')+' '+(r.truck||'')).toLowerCase();return t.indexOf(Q)>=0;}
+/* 25 Aug 2026, his words: "search bar within not working". Two faults, one cause -
+   the number-type trap again. He typed 0133, which is the HAND-TYPED challan number
+   printed on the row, and the search was only looking at r.dc, the record id
+   DC-GCHG-061. Searching for the number you can see on screen found nothing. The
+   challan number is in the haystack now, zero-padded and stripped, because these
+   are typed by hand and "133", "0133" and "00133" all mean the same challan. */
+function matchQ(r){if(!Q)return true;
+  var cno=(window.DCMAP&&r.dc&&DCMAP[r.dc])||'';
+  var cnoAlt=cno?(String(cno).replace(/^0+/,'')+' '+String(cno).padStart(4,'0')):'';
+  var t=((r.block_no||'')+' '+(r.export_block_no||'')+' '+(r.quarry_block_no||'')+' '+(r.dc||'')+' '+cno+' '+cnoAlt+' '+(r.source_bi||'')+' '+(r.consignee||'')+' '+(r.mark||'')+' '+(r.lot||'')+' '+(r.lot_title||'')+' '+(r.truck||'')+' '+(r.arrival||'')).toLowerCase();
+  return t.indexOf(Q)>=0;}
 function passFilt(st){if(FILT==='all')return true;
   /* settled = a person decided it is here. Nothing else belongs on this register. */
   if(FILT==='settled')return ['port','lot','load'].indexOf(st)>=0;
@@ -1128,8 +1146,22 @@ function renderStock(){if(VMODE==='dc'){renderDC();return;}
        at a time. So a block that is AT PORT can be ticked, and the only thing a
        tick can do is send it back to Reconcile with a reason. Blocks that are not
        at port cannot be ticked at all: there is nothing to send back. */
+    /* 25 Aug 2026, his words: "at port and inlot blocks should be dimmed to select
+       checkmark they will be available only if they are returned from export lot".
+       A block already on a lot is spoken for - ticking it again could only put the
+       same stone on two lots. But an EMPTY cell said nothing: it read as a rendering
+       fault, not as a rule. So the box is still drawn, disabled and dimmed, and it
+       says in its tooltip exactly what would make it selectable again. */
     var canSel=(r.state==='port');
-    h+='<tr'+(SEL[k]?' class="sel"':(r.state==='await'?' class="await-row"':''))+'><td>'+(canSel?'<input type="checkbox" class="ck" data-i="'+i+'"'+(SEL[k]?' checked':'')+'>':'')+'</td>'
+    var spokenFor=(['lot','load'].indexOf(r.state)>=0);
+    var box=canSel
+      ? '<input type="checkbox" class="ck" data-i="'+i+'"'+(SEL[k]?' checked':'')+'>'
+      : (spokenFor
+         ? '<input type="checkbox" disabled style="opacity:.35;cursor:not-allowed" title="'
+           +esc(r.state==='load'?'Loaded':('On lot '+(r.lot_title||r.lot||'')))
+           +' — return it from the lot to select it again">'
+         : '');
+    h+='<tr'+(SEL[k]?' class="sel"':(r.state==='await'?' class="await-row"':(spokenFor?' class="spoken-for"':'')))+'><td>'+box+'</td>'
       +'<td><span class="blk">'+esc(r.export_block_no||r.block_no||'')+'</span></td>'
       +'<td>'+(r.dc?'<span class="dc" data-doc="dc" data-i="'+i+'">'+esc((window.DCMAP&&DCMAP[r.dc])||r.dc)+'</span> <span class="eye" data-doc="dc" data-i="'+i+'">'+U(128196)+'</span>'+_dcSub(r.dc):'<span class="sub">no challan</span>')+'</td>'
       +'<td>'+(r.source_bi?esc(r.source_bi)+' <span class="eye" data-doc="bi" data-i="'+i+'">'+U(128196)+'</span>':'<span class="sub">'+DASH+'</span>')+'<div class="sub">'+esc(r.consignee||'')+'</div></td>'
@@ -1242,7 +1274,21 @@ $('baccept').addEventListener('click',function(){var rs=selRows();rs.forEach(fun
 function pushRows(rs){var rows=rs.map(function(r){return {block_no:r.block_no,length:r.pt_l||r.dc_l,width:r.pt_w||r.dc_w,height:r.pt_h||r.dc_h,cbm:r.pt_cbm||r.dc_cbm,mt:r.net_wt||r.ton,matched_dc:r.dc,arrival:r.arrival};});var mk=(rs[0]&&rs[0].mark)||'';post('dolphin_theme.api_arrivals.create_shipment_lot',{consignee:(rs[0]&&rs[0].consignee)||mk,rows:rows,mark:mk,vessel:''}).then(function(j){var lot=(j.message&&(j.message.name||j.message))||'';SEL={};msg(CHK+' Created '+lot);loadAll();}).catch(function(){msg('Error creating lot',1);});}
 /* group by DC */
 function renderDC(){
-  var map={};LED.forEach(function(r){var d=r.dc||'(no challan)';(map[d]=map[d]||{dc:r.dc,consignee:r.consignee,rows:[]}).rows.push(r);});
+  /* 25 Aug 2026: "search bar within not working". Group by DC ignored the search box
+     entirely - renderStock filtered, this did not - so typing a challan number changed
+     nothing at all. A challan is kept when the challan itself matches OR any block on
+     it does, because both are things a person types into that box. */
+  var map={};
+  LED.forEach(function(r){var d=r.dc||'(no challan)';(map[d]=map[d]||{dc:r.dc,consignee:r.consignee,rows:[]}).rows.push(r);});
+  if(Q){
+    Object.keys(map).forEach(function(k){
+      if(!map[k].rows.some(matchQ))delete map[k];
+    });
+    if(!Object.keys(map).length){
+      $('stmain').innerHTML='<div class="empty">Nothing matches <b>'+esc(Q)+'</b>.<div class="sub" style="margin-top:6px">Try the challan number as printed on the row, a block number, a truck, or a consignee.</div></div>';
+      return;
+    }
+  }
   var h='';Object.keys(map).forEach(function(dcn,i){var g=map[dcn];var arr=0,aw=0,lot=0,load=0;g.rows.forEach(function(r){if(r.state==='await')aw++;else arr++;if(r.state==='lot')lot++;if(r.state==='load')load++;});var left=arr-lot-load;if(left<0)left=0;var _tk=(g.rows[0]&&g.rows[0].truck)||'';var _pc=(g.rows[0]&&(g.rows[0].port_code||g.rows[0].port))||'';var _tn=0,_bn=[];g.rows.forEach(function(r){_tn+=(+r.ton||0);if(r.block_no)_bn.push(r.block_no);});
     h+='<div style="border-bottom:.5px solid #eef2f6"><div style="display:flex;align-items:center;gap:12px;padding:11px 14px;background:#fbfcfe">'
       +'<b style="font-size:14px">'+esc((window.DCMAP&&DCMAP[dcn])||dcn)+'</b>'+(g.consignee?'<span class="sub">'+esc(g.consignee)+'</span>':'')+'<span class="sub" style="margin-left:6px;font-size:12px" title="'+esc(_bn.join(', '))+'">'+(_tk?'&#128667; '+esc(_tk)+' ':'')+'&#183; '+_blkList(_bn)+' &#183; '+_tn.toFixed(2)+' MT'+(portAbbr(_pc)?' &#183; '+esc(portAbbr(_pc)):'')+'</span>'
@@ -1264,9 +1310,16 @@ function renderDC(){
     g.rows.forEach(function(r,ri){
       var i=LED.indexOf(r);
       var canLot=(r.state==='port');
+      var spoken=(['lot','load'].indexOf(r.state)>=0);
       var sz=(r.pt_l&&r.pt_w&&r.pt_h)?(r.pt_l+'×'+r.pt_w+'×'+r.pt_h):((r.dc_l&&r.dc_w&&r.dc_h)?(r.dc_l+'×'+r.dc_w+'×'+r.dc_h):DASH);
-      h+='<tr>'
-        +'<td>'+(canLot?'<input type="checkbox" class="dck" data-dc="'+esc(dcn)+'" data-i="'+i+'">':'')+'</td>'
+      h+='<tr'+(spoken?' class="spoken-for"':'')+'>'
+        +'<td>'+(canLot
+          ? '<input type="checkbox" class="dck" data-dc="'+esc(dcn)+'" data-i="'+i+'">'
+          : (spoken
+             ? '<input type="checkbox" disabled style="opacity:.35;cursor:not-allowed" title="'
+               +esc(r.state==='load'?'Loaded':('On lot '+(r.lot_title||r.lot||'')))
+               +' — return it from the lot to select it again">'
+             : ''))+'</td>'
         +'<td><span class="blk">'+esc(r.export_block_no||r.block_no||'')+'</span></td>'
         +'<td class="sub">'+esc(r.quarry_block_no||'')+'</td>'
         +'<td class="sub">'+esc(r.grade||'')+'</td>'
@@ -1981,12 +2034,32 @@ function wlRow(r,ix){
     +'<span style="flex:1"></span>'+sizeNote(r)+' '+cbmNote(r)
     +'</div>';
 }
+/* 25 Aug 2026, his words looking at the no-arrival card: "even here move to export
+   lot is missing". The buttons were not missing - they were BELOW twenty-two rows,
+   off the bottom of the screen, so from where he was sitting they did not exist.
+   A card's actions now sit in its HEADER as well, where you can see them the moment
+   you tick something, and the header says how many are ticked. Same buttons, same
+   handlers - the second copy just carries the same data attributes. */
 function wlCard(id,n,title,why,body,actions){
-  return '<div class="qcard" data-g="'+id+'"><div class="qh"><span class="n">'+n+'</span> '+title+'</div>'
+  return '<div class="qcard" data-g="'+id+'"><div class="qh">'
+    +'<span class="n">'+n+'</span> '+title
+    +(actions?('<span style="flex:1"></span>'
+      +'<span class="sub qsel" data-qsel="'+id+'" style="color:#cdd8e8;font-size:11.5px;margin-right:8px">0 ticked</span>'
+      +actions):'')
+    +'</div>'
     +'<div class="qrow sub" data-norq="1" style="display:block;line-height:1.6">'+why+'</div>'
     +body
     +(actions?('<div class="qrow" data-norq="1" style="justify-content:flex-end;gap:8px">'+actions+'</div>'):'')
     +'</div>';
+}
+/* Keep every copy of the ticked-count in step, wherever it is drawn. */
+function wlCount(m,id){
+  var card=m.querySelector('.qcard[data-g="'+id+'"]'); if(!card)return;
+  var n=card.querySelectorAll('.wck:checked').length;
+  card.querySelectorAll('[data-qsel="'+id+'"]').forEach(function(e){
+    e.textContent=n+' ticked';
+    e.style.color=n?'#ffd98a':'#cdd8e8';
+  });
 }
 function renderQueue(m){
   m.innerHTML='<div class="empty">Working out what actually needs you…</div>';
@@ -2112,6 +2185,12 @@ function renderQueue(m){
 
     m.innerHTML=h;
     wireQueueActions(m);
+    /* the ticked-count, kept live in both copies of every card's action bar */
+    m.querySelectorAll('.wck').forEach(function(c){
+      c.addEventListener('change',function(){
+        var card=c.closest('.qcard'); if(card)wlCount(m,card.dataset.g);
+      });
+    });
     m.querySelectorAll('[data-wl="resolve"]').forEach(function(b){
       b.addEventListener('click',function(){
         var card=m.querySelector('.qcard[data-g="'+b.dataset.g+'"]');
