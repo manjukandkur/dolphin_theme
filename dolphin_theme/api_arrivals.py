@@ -597,6 +597,14 @@ def _xls_header(sheet):
                     cm.setdefault("weight", c)
                 elif t == "measurement":
                     cm["meas"] = c
+                # 25 Aug 2026: the exporter column. His sheet shows
+                # "DOLPHIN INTERNATIONAL" against the rows that are ours, and
+                # other companies' blocks sit in the SAME file. This is the
+                # honest way to tell them apart.
+                elif t in ("exporter", "exporter name", "shipper", "shipper name",
+                           "party", "party name", "company", "consignor",
+                           "exporter/shipper", "name of exporter"):
+                    cm.setdefault("exporter", c)
             return r, cm
     return None, {}
 
@@ -611,6 +619,22 @@ def _xls_dims(sheet, r, start):
     return (vals + [None, None, None])[:3]
 
 
+# Who counts as us on an agency sheet. Matched on identifying characters only,
+# so "DOLPHIN INTERNATIONAL", "Dolphin Intl." and "DOLPHIN  INTERNATIONAL," all
+# read as ours.
+DOLPHIN_PARTY_WORDS = ("DOLPHIN",)
+
+
+def _is_dolphin_party(v):
+    """Is this exporter us? Generous on purpose - a row wrongly skipped is a lost
+    arrival, which is worse than a row wrongly kept (the block number still has
+    to match one of our submitted challans downstream)."""
+    t = "".join(ch for ch in _s(v).upper() if ch.isalnum())
+    if not t:
+        return True                      # nobody named - treat as ours
+    return any(w in t for w in DOLPHIN_PARTY_WORDS)
+
+
 def _parse_arrival_xls(content):
     """content: bytes of a .xls. Returns (rows, sheet_name) for the Dolphin sheet."""
     try:
@@ -622,7 +646,7 @@ def _parse_arrival_xls(content):
         )
     wb = xlrd.open_workbook(file_contents=content)
     single = wb.nsheets == 1
-    rows, used_sheet = [], None
+    rows, used_sheet, skipped_other = [], None, []
     for sh in wb.sheets():
         if not _xls_is_dolphin_sheet(sh, single):
             continue
@@ -630,6 +654,7 @@ def _parse_arrival_xls(content):
         if hr is None or "block_no" not in cm:
             continue
         used_sheet = sh.name
+        _last_exporter = ""
         for r in range(hr + 1, sh.nrows):
             bno = _xls_s(sh.cell_value(r, cm["block_no"]))
             if not bno or not _re.search(r"\d", bno):
@@ -644,6 +669,28 @@ def _parse_arrival_xls(content):
             def cell(k):
                 return _xls_s(sh.cell_value(r, cm[k])) if k in cm else None
 
+            # ==========================================================
+            # DOLPHIN BLOCKS ONLY.  25 Aug 2026, his words:
+            #   "agency report attached other comapany details sometime in same
+            #    xls so you have to double check dolphin blocks"
+            #   "oh no this was agreed initially to check dolphin blocks only
+            #    and parse ... you please fix it"
+            #
+            # The exporter is written once against the first row of a group and
+            # left blank down the rest of it - so it is FORWARD-FILLED, the way a
+            # person reads it. A row belonging to a named company that is not us
+            # is skipped and counted; a row with no exporter anywhere is kept,
+            # because a sheet that never names anyone is a Dolphin sheet.
+            # ==========================================================
+            if "exporter" in cm:
+                _who = cell("exporter")
+                if _who:
+                    _last_exporter = _who
+                _who = _who or _last_exporter
+                if _who and not _is_dolphin_party(_who):
+                    skipped_other.append({"block_no": bno, "exporter": _who})
+                    continue
+
             rows.append({
                 "block_no": bno,
                 "mark": (cell("mark") or None),
@@ -656,6 +703,11 @@ def _parse_arrival_xls(content):
                 "ado_no": cell("ado"),
                 "permit_no": cell("permit"),
             })
+    if skipped_other:
+        try:
+            frappe.local.dolphin_skipped_other_party = skipped_other
+        except Exception:
+            pass
     return rows, used_sheet
 
 
@@ -806,6 +858,18 @@ def import_xls(arrival=None, mark=None, agency=None):
     }
     # Said plainly rather than swallowed: the blocks are in, and this one label
     # could not be matched to a Shipping Mark record.
+    # 25 Aug 2026: say what was left out and why. A row silently dropped is how
+    # an arrival goes missing without anyone noticing.
+    try:
+        _other = list(getattr(frappe.local, "dolphin_skipped_other_party", []) or [])
+    except Exception:
+        _other = []
+    if _other:
+        out["skipped_other_company"] = len(_other)
+        out["skipped_examples"] = _other[:12]
+        out["skipped_note"] = (
+            "{0} row(s) on this sheet belong to another exporter and were not "
+            "imported.".format(len(_other)))
     if mark_note:
         out["mark_not_matched"] = mark_note
         out["note"] = ("The blocks imported. The marking \"{0}\" does not match "
@@ -878,8 +942,27 @@ def lots_view():
             "status": "ship" if shipped else "build",
             "shipped": shipped,
             "block_nos": block_nos,
+            # 25 Aug 2026: the Shipping Document this lot's packing list and
+            # invoice are printed from, so the screen can offer to edit its
+            # figures without a hunt. Read from the lot if it carries the link,
+            # otherwise found by the document that names this lot as its source.
+            "shipping_document": (gv("shipping_document", "shipping_doc")
+                                  or _shipping_doc_for_lot(d.name)),
         })
     return out
+
+
+def _shipping_doc_for_lot(lot):
+    """The Shipping Document built from this lot, if there is one."""
+    try:
+        rows = frappe.get_all("Shipping Document",
+                              filters={"source_lot": _s(lot)},
+                              fields=["name", "docstatus"],
+                              order_by="docstatus asc, modified desc",
+                              limit_page_length=1) or []
+        return _s(rows[0]["name"]) if rows else None
+    except Exception:
+        return None
 
 
 @frappe.whitelist()
@@ -6364,9 +6447,40 @@ def pending_agency_rows():
 # and clearing those fields is the reversal.
 # ============================================================================
 
-LOCK_FIELDS = ("length", "width", "height", "cbm", "net_wt")
-LOCK_LABELS = {"length": "length", "width": "width", "height": "height",
-               "cbm": "CBM", "net_wt": "net weight"}
+# ============================================================================
+# RE-AIMED 25 Aug 2026 EVENING, to his final rule.
+#
+#   "dont dispute measurement and weights at all"
+#   "you just accept block to block weight as whatever recieved from shipping
+#    agency"
+#   "our measurement is the only measurement final so ignore measurement"
+#   "the arrival re aim and lock it to the new norm"
+#
+# AND WHY, in his words - he went and asked the people who load the trucks:
+#   "I have taken u turn becuase I spoket to people concerned and realised I
+#    have been trying to do something that did not exist i.e block wise matching
+#    so given that they dont weigh or measure each blocks my eyes opened"
+#
+# Block-wise matching never existed. They weigh the truck and divide. So there
+# is nothing to lock a value AGAINST and nothing to contradict: the newest thing
+# the agency says IS what the agency says.
+#
+# THE NEW NORM:
+#   * the CURRENT value is the newest sheet that carries one   (not the first)
+#   * every earlier value is kept as HISTORY, so a change is always traceable
+#   * NOTHING IS FLAGGED. Nobody is asked. No question reaches the lot
+#   * measurement and CBM are not tracked at all - ours is final, theirs ignored
+#
+# The reversible answer machinery is kept (answer_lock_flag / undo_lock_answer)
+# because his rule "keep it reversible" outlives any particular question, and a
+# person may still want to pin a figure deliberately. It simply is not ASKED for
+# any more.
+# ============================================================================
+
+# Only the weight is tracked. Measurement and volume are OURS and final, so
+# theirs is not followed, not compared, not shown.
+LOCK_FIELDS = ("net_wt",)
+LOCK_LABELS = {"net_wt": "net weight"}
 
 
 def _sheet_order():
@@ -6394,17 +6508,17 @@ def _same(a, b):
         return _s(a) == _s(b)
     if fa == 0 and fb == 0:
         return True
-    # The agency rounds. 2.32 and 2.323 are the same figure written twice, and
-    # calling that a contradiction would bury the real ones.
+    # The agency rounds. 2.32 and 2.323 are one figure written twice.
     return abs(fa - fb) <= max(0.005, abs(fa) * 0.002)
 
 
 @frappe.whitelist()
 def arrival_lock(block=None):
-    """The locked value of every field, and every later sheet that contradicts it.
+    """The agency's CURRENT weight per block, and how it got there.
 
-    Read-only and computed from the sheets themselves. Pass `block` for one block,
-    or nothing for the whole site.
+    Read-only. Flags nothing and asks nothing - see the note above. What it
+    returns is the figure in force and the trail behind it, so anybody can see
+    that a weight changed and when, without being asked to adjudicate it.
     """
     order = _sheet_order()
     rank = {s["sheet"]: i for i, s in enumerate(order)}
@@ -6415,87 +6529,62 @@ def arrival_lock(block=None):
         filters["block_no"] = _s(block)
     rows = frappe.get_all(
         "Port Arrival Block", filters=filters,
-        fields=["name", "parent", "block_no", "length", "width", "height",
-                "cbm", "net_wt", "resolution_type", "resolution_note",
-                "resolved_by", "resolved_on"],
+        fields=["name", "parent", "block_no", "net_wt",
+                "resolution_type", "resolution_note", "resolved_by"],
         limit_page_length=0) or []
     rows.sort(key=lambda r: (rank.get(_s(r.get("parent")), 9999), _s(r.get("name"))))
 
-    locks, flags = {}, []
+    current, history, changed = {}, {}, []
     for r in rows:
         b = _s(r.get("block_no"))
-        if not b:
-            continue
-        held = locks.setdefault(b, {})
-        for f in LOCK_FIELDS:
-            v = r.get(f)
-            if v in (None, ""):
-                continue                      # absence is never disagreement
-            if f not in held:
-                held[f] = {"value": v, "sheet": _s(r.get("parent")),
-                           "row": _s(r.get("name")),
-                           "when": meta.get(_s(r.get("parent")), {}).get("when", "")}
-                continue                      # first value wins, and locks
-            if _same(held[f]["value"], v):
-                continue                      # the list arriving again
-            # A LATER SHEET CONTRADICTS THE LOCK. Always flagged, no tolerance.
-            answered = _s(r.get("resolution_type"))
-            flags.append({
-                "block": b,
-                "field": f,
-                "field_label": LOCK_LABELS.get(f, f),
-                "locked": held[f]["value"],
-                "locked_on": held[f]["sheet"],
-                "locked_when": held[f]["when"],
-                "later": v,
-                "later_on": _s(r.get("parent")),
-                "later_when": meta.get(_s(r.get("parent")), {}).get("when", ""),
-                "later_row": _s(r.get("name")),
-                "answered": 1 if answered else 0,
-                "answer": answered,
-                "answer_note": _s(r.get("resolution_note")),
-                "answered_by": _s(r.get("resolved_by")),
-                "answered_on": _s(r.get("resolved_on")),
-            })
+        v = r.get("net_wt")
+        if not b or v in (None, ""):
+            continue                       # absence is never a statement
+        sheet = _s(r.get("parent"))
+        when = meta.get(sheet, {}).get("when", "")
+        prev = current.get(b)
+        if prev and not _same(prev["value"], v):
+            changed.append({"block": b, "was": prev["value"], "was_on": prev["sheet"],
+                            "now": v, "now_on": sheet, "when": when})
+        # THE NEWEST SHEET WINS, silently. It is what the agency says today.
+        current[b] = {"value": v, "sheet": sheet, "when": when, "row": _s(r.get("name"))}
+        history.setdefault(b, []).append({"value": v, "sheet": sheet, "when": when})
 
-    open_flags = [f for f in flags if not f["answered"]]
     return {
-        "blocks": len(locks),
-        "flags": len(flags),
-        "open": len(open_flags),
-        "answered": len(flags) - len(open_flags),
-        "locked": ({b: locks[b] for b in list(locks)[:200]} if _s(block) else {}),
-        "rows": (open_flags + [f for f in flags if f["answered"]])[:400],
-        "note": ("The first sheet carrying a value locks it. A later sheet that "
-                 "repeats it, or says nothing, is silent. Only a CONTRADICTION is "
-                 "flagged - and the question is asked in bulk at the lot, never here."),
+        "blocks": len(current),
+        "flags": 0,
+        "open": 0,
+        "weights_that_changed": len(changed),
+        "changed": changed[:300],
+        "current": ({b: current[b] for b in list(current)[:300]}
+                    if _s(block) else {}),
+        "history": (history if _s(block) else {}),
+        "note": ("The newest sheet carrying a weight is the weight in force, and it "
+                 "is accepted as received. Earlier figures are kept as history so a "
+                 "change can always be seen. Nothing is flagged and nobody is asked - "
+                 "they weigh the truck and divide, so there is no block-wise figure "
+                 "to dispute. Measurement and volume are ours and are not tracked "
+                 "here at all."),
     }
 
 
 @frappe.whitelist()
 def lock_questions_for(blocks=None):
-    """The open flags for a set of blocks - the bulk question asked AT THE LOT.
+    """Nothing is asked at the lot any more. 25 Aug 2026, his final rule.
 
-    His rule: "you must highglight with a message next to the block and ask user
-    to resolve when he clicks to move to export shimpment lot". A flag never
-    stops a block reaching At Port; it rides with the block and is answered here.
+    This used to carry the arrival lock's open questions into lot_readiness, so a
+    person was asked which figure stood before blocks went on a lot. Under "dont
+    dispute measurement and weights at all" there is no question: the newest
+    agency weight is the weight, and it is accepted.
+
+    Kept as a function rather than deleted so lot_readiness and any screen still
+    calling it keep working, and so the reason is written where the question used
+    to be instead of vanishing without explanation.
     """
-    blocks = frappe.parse_json(blocks) if isinstance(blocks, str) else (blocks or [])
-    want = {_s(b) for b in blocks if _s(b)}
-    state = arrival_lock() or {}
-    rows = [f for f in (state.get("rows") or [])
-            if not f.get("answered") and (not want or f.get("block") in want)]
-    by_block = {}
-    for f in rows:
-        by_block.setdefault(f["block"], []).append(f)
-    return {
-        "asked_about": len(want) or state.get("blocks"),
-        "blocks_with_questions": len(by_block),
-        "questions": len(rows),
-        "by_block": by_block,
-        "note": ("Answer these once, together, before the blocks go on the lot. "
-                 "Every answer can be undone."),
-    }
+    return {"blocks_with_questions": 0, "questions": 0, "by_block": {},
+            "note": ("Nothing to answer. The agency's newest weight is accepted as "
+                     "received and their measurement is not tracked - so a lot is "
+                     "never held up for a figure.")}
 
 
 @frappe.whitelist()
@@ -6578,7 +6667,13 @@ def undo_lock_answer(row=None, reason=None, person=None):
 # the edited one, so the change is always visible and always reversible.
 # ============================================================================
 
+# 25 Aug 2026, his words: "The packing list and invoice does list block numbers
+# msmt and tonnage right? so those fields make it editable after you populate
+# whatever is given by shipping agency tonnage."
+# So all three: the numbers, the measurement, and the tonnage.
 SHIPPING_EDITABLE = {
+    "block_no": "block number",
+    "export_block_no": "export number",
     "length": "length",
     "width": "width",
     "height": "height",
@@ -6921,36 +7016,78 @@ def record_arrival_by_hand(rows=None, sheet=None, mark=None, arrival_date=None,
 
 @frappe.whitelist()
 def blocks_not_found_in_arrivals():
-    """The blocks our challans say went, that no arrival sheet mentions.
+    """The blocks our challans say went, that no arrival sheet mentions - and
+    WHERE EACH ONE ACTUALLY IS.
 
-    [stated] "any block number not found in arrivals you just say not found in
-     arrivals and we will see how to sort that out later"
+    [stated] 25 Aug 2026: "when no arrival try to find out the journey and
+     stautus block you might find either in QI or bi then it is sorted out"
 
-    So it says exactly that and nothing more. It does not guess, does not blame
-    the agency, and does not hold anything up. A plain list, for later.
+    So it no longer just says "not found". It walks the block's own paperwork and
+    says where it stands - quarry inspection, buyer inspection, on a draft
+    challan, dispatched - because most of the time that IS the answer and the row
+    sorts itself out without anybody chasing the agency.
     """
     rows = ledger_view() or []
     if isinstance(rows, dict):
         rows = rows.get("rows") or []
+
+    missing = [r for r in rows
+               if r.get("dc") and not r.get("arrival")
+               and _s(r.get("state")) not in ("lot", "load")]
+    if not missing:
+        return {"count": 0, "blocks": [], "note": "Every dispatched block is on a sheet."}
+
+    # One pass for the whole set rather than a query per block.
+    names = [_s(r.get("qb")) for r in missing if _s(r.get("qb"))]
+    qi, bi = set(), {}
+    try:
+        qnos = [_s(r.get("quarry_block_no")) for r in missing
+                if _s(r.get("quarry_block_no"))]
+        if qnos:
+            for x in frappe.get_all("Quarry Inspection Block",
+                                    filters={"quarry_block_no": ["in", qnos]},
+                                    fields=["quarry_block_no", "parent"],
+                                    limit_page_length=0) or []:
+                qi.add(_s(x.get("quarry_block_no")))
+    except Exception:
+        qi = set()
+    try:
+        if names:
+            for x in frappe.get_all("Buyer Inspection Block",
+                                    filters={"block": ["in", names]},
+                                    fields=["block", "parent"],
+                                    limit_page_length=0) or []:
+                bi[_s(x.get("block"))] = _s(x.get("parent"))
+    except Exception:
+        bi = {}
+
     out = []
-    for r in rows:
-        if r.get("arrival"):
-            continue
-        if _s(r.get("state")) in ("lot", "load"):
-            continue
+    for r in missing:
         num = _s(r.get("export_block_no")) or _s(r.get("block_no"))
         if not num:
             continue
+        qb = _s(r.get("qb"))
+        qno = _s(r.get("quarry_block_no"))
+        # WHERE IT ACTUALLY IS, in the order the stone moves.
+        if bi.get(qb):
+            where = "buyer inspected on {0} - dispatched, waiting on the agency".format(bi[qb])
+        elif qno in qi:
+            where = "quarry inspected - dispatched, waiting on the agency"
+        else:
+            where = "dispatched on our challan; no inspection on file either"
         out.append({
             "block": num,
-            "quarry_no": _s(r.get("quarry_block_no")),
+            "quarry_no": qno,
             "dc": _s(r.get("dc")),
             "truck": _s(r.get("truck")),
             "our_tons": r.get("ton"),
             "status": "not found in arrivals",
+            "journey": where,
+            "buyer_inspection": bi.get(qb, ""),
+            "has_quarry_inspection": 1 if qno in qi else 0,
         })
     return {"count": len(out), "blocks": out[:400],
-            "note": ("Not found in arrivals. That is all this says - it is not a "
-                     "fault, not a loss, and it holds nothing up. If the agency "
-                     "sent the figures another way, record_arrival_by_hand() "
-                     "takes them.")}
+            "note": ("Not found in arrivals - but each row says where the block "
+                     "actually stands. Most sort themselves out from that. If the "
+                     "agency sent the figures another way, type the tonnage on the "
+                     "Block to block row.")}
