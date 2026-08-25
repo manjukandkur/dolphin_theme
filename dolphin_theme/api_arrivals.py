@@ -5042,8 +5042,13 @@ def dc_weight_check_v2():
     by_export, _seen_at = {}, {}
     for r in frappe.get_all(
             "Port Arrival Block",
+            # 25 Aug 2026: vehicle_no comes too. His spec for this screen:
+            #   "Match Dc to Dc: all the blocks in the DC and truck number etc
+            #    matched"
+            # The truck is how a challan and an agency sheet are tied together;
+            # the weight never was.
             fields=["name", "parent", "block_no", "length", "width", "height",
-                    "cbm", "net_wt"],
+                    "cbm", "net_wt", "vehicle_no"],
             limit_page_length=0):
         k = _s(r.get("block_no"))
         sheet = _s(r.get("parent"))
@@ -5155,6 +5160,7 @@ def dc_weight_check_v2():
                 per_block.append({"block": key,
                                   "sheet": _s(a0.get("parent")),
                                   "found_by": how,
+                                  "their_truck": _s(a0.get("vehicle_no")),
                                   "submitted": 1 if a0.get("submitted") else 0,
                                   "port_l": a0.get("length"), "port_w": a0.get("width"),
                                   "port_h": a0.get("height"), "port_mt": a0.get("net_wt"),
@@ -5262,6 +5268,38 @@ def dc_weight_check_v2():
         # and how many of our blocks their sheet carries. No FLAG, no "Dressed",
         # no "the port is lighter", no tonne-out hold, no size comparison.
         # ------------------------------------------------------------------
+        # ------------------------------------------------------------------
+        # HIS SPEC FOR THIS SCREEN, 25 Aug 2026, and it is the whole of it:
+        #   "arrivals: 1) block number matched, weight from shipping agency eg
+        #    10 tons etc  2) Match Dc to Dc: all the blocks in the DC and truck
+        #    number etc matched"
+        #
+        # So two questions, and neither is about a figure disagreeing:
+        #   1. is every block on this challan on their sheet?
+        #   2. is it the same truck?
+        # The truck is how a challan and an agency sheet are tied together. The
+        # weight never was - it is recorded, not tested.
+        # ------------------------------------------------------------------
+        def _plate(v):
+            """A number plate, reduced to what identifies it. KA35D 9044,
+            KA35D-9044 and ka35d9044 are one lorry."""
+            return "".join(ch for ch in _s(v).upper() if ch.isalnum())
+
+        our_truck = _s(c.get(veh_field) if veh_field else "")
+        their_trucks = sorted({_s(p.get("their_truck")) for p in per_block
+                               if _s(p.get("their_truck"))})
+        truck_match = ""
+        if our_truck and their_trucks:
+            ours_p = _plate(our_truck)
+            hits = [t for t in their_trucks if _plate(t) == ours_p]
+            truck_match = "same truck" if hits else "different truck"
+        elif our_truck and not their_trucks:
+            truck_match = "their sheet does not say which truck"
+        elif their_trucks and not our_truck:
+            truck_match = "our challan does not name a vehicle"
+        else:
+            truck_match = "neither side names a truck"
+
         diff = round(theirs - ours, 3) if matched else None
         if matched == 0:
             verdict, state = "Not sent yet", "never"
@@ -5287,6 +5325,11 @@ def dc_weight_check_v2():
             "dc": c["name"],
             "challan_no": (c.get(num_field) if num_field else None) or c["name"],
             "our_vehicle": (c.get(veh_field) if veh_field else "") or "",
+            # The two things he asked this screen to answer.
+            "their_vehicles": their_trucks[:4],
+            "truck_match": truck_match,
+            "blocks_matched": matched,
+            "blocks_on_challan": n,
             "blocks": n,
             "agency_rows": matched,
             "our_total": round(ours, 3),
