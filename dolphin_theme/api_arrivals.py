@@ -1179,6 +1179,14 @@ def ledger_view():
       * draft arrivals counted as arrivals — now filtered, with their own bucket
       * the block's real status was never read — now it is the spine of the row
       * a number was resolved against the record id — now never."""
+    # Agency rows detached as not ours (25 Aug). Kept on frappe.local so the
+    # screen can LIST what is pending instead of it vanishing silently - a
+    # detached row that nobody can see is just a different way of being wrong.
+    _pending_match = []
+    try:
+        frappe.local.dolphin_pending_match = _pending_match
+    except Exception:
+        pass
     lots = _lot_membership()
     arrived = _arrived_index()          # submitted arrivals only (17 Aug fix)
     evidence = _evidence_index()        # draft arrivals — shown, never counted
@@ -1275,6 +1283,64 @@ def ledger_view():
                 state = "unconfirmed"
             else:
                 state = "await"
+
+            # ==============================================================
+            # DO NOT FORCE THE MATCH.  25 Aug 2026, his instruction:
+            #   "agency report attached other comapany details sometime in same
+            #    xls so you have to double check dolphin blocks"
+            #   "agency report is not matching with our block numbers just keep
+            #    it pending"
+            #   "dont mismatch"
+            #   "you can say agency blocks are not matching rather than force
+            #    match"
+            #
+            # The agency's spreadsheet can carry OTHER COMPANIES' blocks in the
+            # same file, so a number on their sheet is not automatically one of
+            # ours. That is why 27 of 138 matches were nonsense - somebody
+            # else's stone, matched on a number that merely looked like ours.
+            #
+            # Size is what gives it away, because size is OURS and it does not
+            # change: block 810 read 484x165x195 = 15.573 CBM on our challan and
+            # 175x125x70 = 1.531 CBM on their row. So when the volumes are
+            # nowhere near each other the agency row is DETACHED here, at the
+            # source, and every screen downstream simply sees a block with no
+            # port figures yet. It stays PENDING - his word - and it is never
+            # reported as a difference, a loss, or a fault of the port.
+            # ==============================================================
+            # [stated] "force match assumed match considering in stock, in draft
+            # Dc blocks are causing 90% and above problems". A block whose own
+            # status says it never left cannot be standing at a port, whatever
+            # number the sheet carries. Refused before the size is even looked at.
+            if pa is not None and _s(qstat) in NEVER_AT_PORT_STATUS:
+                _pending_match.append({
+                    "block": _s(r.export_block_no) or _s(r.block_no),
+                    "dc": dc.name, "arrival": pa.parent,
+                    "why": ("this block reads {0} - it has not been dispatched, "
+                            "so nothing at the port can be it".format(qstat)),
+                })
+                pa = None
+                if state == "port":
+                    state = "await"
+
+            if pa is not None:
+                _oc = _cbm_of(r.length_gross, r.width_gross, r.height_gross)
+                _tc = _cbm_of(pa.length, pa.width, pa.height)
+                if _oc and _tc:
+                    _ratio = _tc / _oc
+                    if _ratio < SIZE_MATCH_LOW or _ratio > SIZE_MATCH_HIGH:
+                        _pending_match.append({
+                            "block": _s(r.export_block_no) or _s(r.block_no),
+                            "dc": dc.name,
+                            "arrival": pa.parent,
+                            "ours": [r.length_gross, r.width_gross, r.height_gross],
+                            "our_cbm": _oc,
+                            "theirs": [pa.length, pa.width, pa.height],
+                            "their_cbm": _tc,
+                            "ratio": round(_ratio, 3),
+                        })
+                        pa = None
+                        if state == "port":
+                            state = "await"
 
             _export = _s(r.export_block_no) or _s(emap.get(_s(r.block_no))) or ""
             _quarry = _s(r.block_no) or _s((qb or {}).get("block_number"))
@@ -4080,6 +4146,27 @@ SIZE_MATCH_LOW = 0.55
 SIZE_MATCH_HIGH = 1.45
 
 
+def _cbm_of(l, w, h):
+    """Cubic metres from three centimetre dimensions, or 0 when any is missing."""
+    try:
+        l, w, h = float(l or 0), float(w or 0), float(h or 0)
+    except Exception:
+        return 0.0
+    return round(l * w * h / 1e6, 3) if (l and w and h) else 0.0
+
+
+# 25 Aug 2026, his diagnosis and it is the sharpest thing said today:
+#
+#   "force match assumed match considering in stock, in draft Dc blocks are
+#    causing 90% and above problems"
+#
+# A block that is IN STOCK, or that sits only on a DRAFT challan, has not left
+# the quarry. Nothing standing at a port can be it. Matching an agency row to one
+# of those is not a near miss - it is impossible, and it is where almost all of
+# the wrong matches come from. These statuses can never carry port figures.
+NEVER_AT_PORT_STATUS = ("In Stock", "Buyer Marked", "In Delivery Challan")
+
+
 def _prev_field_ready():
     """Make sure Quarry Block has somewhere to remember what it was before At Port.
     Created once, never fails the caller."""
@@ -5134,6 +5221,24 @@ def dc_weight_check_v2():
                 wrong_size.append({"block": _s(p.get("block")),
                                    "our_cbm": oc, "their_cbm": tc,
                                    "ratio": ratio})
+        # [stated] "dont mismatch" - so the row is DETACHED, not merely doubted.
+        # Its weight leaves the total and its size leaves the comparison, because
+        # a figure that belongs to another company's stone must not sit inside a
+        # number we print. What is left is honestly incomplete, and says so.
+        if wrong_size:
+            dropped = {w["block"] for w in wrong_size}
+            for p in per_block:
+                if _s(p.get("block")) in dropped:
+                    try:
+                        theirs -= float(p.get("port_mt") or 0)
+                    except Exception:
+                        pass
+                    p["detached"] = 1
+                    p["detached_why"] = ("the agency's row is nowhere near our "
+                                         "size - it is not this block")
+                    p["sheet"] = None
+                    matched -= 1
+            theirs = round(theirs, 3)
         if matched == 0:
             verdict, state = "Not sent yet", "never"
             never += 1
@@ -5147,7 +5252,22 @@ def dc_weight_check_v2():
             incomplete += 1
             diff = None
         elif wrong_size:
-            verdict, state = "Wrong block matched - no verdict", "incomplete"
+            # 25 Aug 2026, his instruction once he saw what these were:
+            #   "agency report attached other comapany details sometime in same
+            #    xls so you have to double check dolphin blocks"
+            #   "agency report is not matching with our block numbers just keep
+            #    it pending"
+            #
+            # So the agency's spreadsheet can carry OTHER COMPANIES' blocks in
+            # the same file. A number on their sheet is not automatically one of
+            # ours, and that is the real reason 27 of 138 matches were nonsense:
+            # they were somebody else's stone, matched on a number that happened
+            # to look like ours. There is nothing to reconcile there and nothing
+            # to report as a difference.
+            #
+            # PENDING is the honest word, and it is his. Not wrong, not a loss,
+            # not a fault of the port - simply not matched to us yet.
+            verdict, state = "Agency numbers do not match ours - pending", "incomplete"
             incomplete += 1
             diff = None
         elif loose:
@@ -6089,3 +6209,57 @@ def undo_return_from_dc(dc=None, blocks=None, reason=None, person=None,
     frappe.db.commit()
     return {"ok": 1, "restored": len(restored), "restored_blocks": restored,
             "refused": refused, "removed_draft": removed_draft}
+
+
+@frappe.whitelist()
+def pending_agency_rows():
+    """Agency rows we refused to attach to one of our blocks - and why.
+
+    [stated] 25 Aug 2026:
+      "agency report attached other comapany details sometime in same xls so you
+       have to double check dolphin blocks"
+      "agency report is not matching with our block numbers just keep it pending"
+      "dont mismatch" / "you can say agency blocks are not matching rather than
+       force match"
+      "force match assumed match considering in stock, in draft Dc blocks are
+       causing 90% and above problems"
+      "follow the sequence and procedure it is very easy and safe"
+
+    Two refusals, in the order the sequence demands:
+
+      1. THE BLOCK NEVER LEFT. Its own status reads In Stock, Buyer Marked or In
+         Delivery Challan, so nothing standing at a port can be it. He is right
+         that this is where almost all the damage came from.
+      2. THE SIZE SAYS IT IS NOT THE SAME STONE. Size is ours and it does not
+         change on a lorry, so a volume nowhere near ours means the row belongs
+         to somebody else's block - very often literally, because the agency
+         puts other companies' blocks in the same spreadsheet.
+
+    Nothing here is a fault, a loss, or a mistake by the port. It is PENDING.
+    Read-only.
+    """
+    rows = ledger_view() or []
+    if isinstance(rows, dict):
+        rows = rows.get("rows") or []
+    try:
+        pend = list(getattr(frappe.local, "dolphin_pending_match", []) or [])
+    except Exception:
+        pend = []
+
+    never_left = [p for p in pend if p.get("why")]
+    wrong_size = [p for p in pend if not p.get("why")]
+    for p in wrong_size:
+        p["why"] = ("the agency's row is {0}x our volume - stone does not change "
+                    "size, so this is not our block".format(p.get("ratio")))
+
+    return {
+        "pending": len(pend),
+        "never_left_the_quarry": len(never_left),
+        "size_says_different_block": len(wrong_size),
+        "rows": (never_left + wrong_size)[:300],
+        "tolerance": [SIZE_MATCH_LOW, SIZE_MATCH_HIGH],
+        "note": ("These agency rows were NOT attached to our blocks. The sheet can "
+                 "carry other companies' stone, so a number on it is not "
+                 "automatically ours. Nothing here is wrong - it is pending until "
+                 "the right block actually arrives."),
+    }
