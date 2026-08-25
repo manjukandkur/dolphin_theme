@@ -4806,6 +4806,20 @@ def send_back_to_reconcile(blocks=None, reason=None, person=None, dry_run=0):
 
     from dolphin_theme.block_resolve import try_resolve, set_status
 
+    # What the REGISTER says about each block, keyed by record - the ledger is
+    # the screen the person is looking at, so it is the authority here.
+    _state_by_block = {}
+    try:
+        _lrows = ledger_view() or []
+        if isinstance(_lrows, dict):
+            _lrows = _lrows.get("rows") or []
+        for _r in _lrows:
+            _qb = _s(_r.get("qb"))
+            if _qb:
+                _state_by_block[_qb] = _s(_r.get("state"))
+    except Exception:
+        _state_by_block = {}
+
     plan, done, refused = [], [], []
     for it in blocks:
         bn = _s(it.get("block_no") if isinstance(it, dict) else it)
@@ -4817,8 +4831,34 @@ def send_back_to_reconcile(blocks=None, reason=None, person=None, dry_run=0):
             continue
         name = hit["name"]
         cur = _s(frappe.db.get_value("Quarry Block", name, "status"))
-        if cur != AT_PORT_STATUS:
-            refused.append({"block": bn, "why": "not at port (reads " + (cur or "blank") + ")"})
+        # ==============================================================
+        # 25 Aug 2026, found by testing this on live data rather than
+        # assuming it worked - which is exactly what he asked for.
+        #
+        # This refused blocks 208, 204 and 213 as "not at port (reads In
+        # Delivery Challan)". All three ARE at port; their status field simply
+        # never advanced when the challan was submitted. Same stale-status trap
+        # already fixed in ledger_view, still live here.
+        #
+        # The LEDGER is the register - it is what the screen shows and what the
+        # person is looking at when they tick a row. If the ledger says the
+        # block is at port, it is at port, and a lagging status field does not
+        # get to veto that.
+        #
+        # And a block that genuinely cannot go back says WHY, in words, instead
+        # of the button appearing to do nothing - which is how "block 802 send
+        # back doing nothing" felt from his side. 802 is not at port at all: it
+        # is Dispatched/Transported and sitting in a lot.
+        # ==============================================================
+        _ledger_says = _s(_state_by_block.get(_s(name)) or "")
+        if cur != AT_PORT_STATUS and _ledger_says != "port":
+            _plain = {
+                "await": "it has not arrived yet - there is no port record to send it back from",
+                "lot": "it is in an export shipment lot - take it off the lot first",
+                "load": "it is loaded - take it off the shipment first",
+            }.get(_ledger_says, "it is not at port (its status reads {0})".format(cur or "blank"))
+            refused.append({"block": bn, "why": _plain, "status": cur,
+                            "where_it_is": _ledger_says or "unknown"})
             continue
         prev = ""
         try:
@@ -6147,7 +6187,21 @@ def return_from_dc(dc=None, blocks=None, reason=None, person=None, dry_run=0):
         for k in (_s(r.get("export_block_no")), _s(r.get("block_no"))):
             if k:
                 on_challan[k] = r
-    wanted = [_s(b) for b in blocks if _s(b)] or sorted(on_challan.keys())
+    # 25 Aug 2026, caught by testing on live data: a block answers to BOTH its
+    # export and its quarry number, so "send the whole challan back" counted
+    # each block twice - "would_return 6" for three blocks (1357 and 4122 are
+    # one stone; 1358 and 04122 another; 1369 and 1207 the third).
+    # One ROW is one block. Prefer the export number, since after the DC only
+    # export numbers travel.
+    if [_s(b) for b in blocks if _s(b)]:
+        wanted = [_s(b) for b in blocks if _s(b)]
+    else:
+        wanted, _seen_rows = [], set()
+        for r in (doc.get("dc_block_rows") or []):
+            key = _s(r.get("export_block_no")) or _s(r.get("block_no"))
+            if key and _s(r.get("name")) not in _seen_rows:
+                _seen_rows.add(_s(r.get("name")))
+                wanted.append(key)
 
     from dolphin_theme.block_resolve import try_resolve, set_status
 
@@ -7091,3 +7145,167 @@ def blocks_not_found_in_arrivals():
                      "actually stands. Most sort themselves out from that. If the "
                      "agency sent the figures another way, type the tonnage on the "
                      "Block to block row.")}
+
+
+# ============================================================================
+# VERIFY AGAIN.  25 Aug 2026
+#
+# [stated] "verify again start and do it: it should be a simple way of telling
+#  the app to make sure recheck parse again see if any new thing is added check
+#  for app mistakes etc fair enough?"
+#
+# Fair enough, and that is exactly the right scope. Four questions, in order:
+#
+#   1. is there new mail with an arrival sheet we have not read?
+#   2. re-read every stored spreadsheet - does it still give the same rows?
+#   3. what changed since last time - new blocks, new arrivals, new matches?
+#   4. has the app made a mistake? (its own self-test, run honestly)
+#
+# CHECKING IS READ-ONLY. SORTING WRITES. His distinction, and it is kept: this
+# only ever LOOKS. It returns what it found and what it WOULD do, and a separate
+# click does it. Nothing is sorted silently.
+#
+# The output separates:
+#   RED    the data is wrong and someone must fix it
+#   AMBER  correct, but waiting on a person
+#   GREEN  nothing to do
+#
+# A false red teaches the team to ignore red, so nothing goes in RED unless it
+# is genuinely broken. My size gate was a false red; it is gone.
+# ============================================================================
+
+@frappe.whitelist()
+def verify_again(check_email=1):
+    """Recheck everything, change nothing. Say what is wrong, what waits, what is fine."""
+    look_for_mail = _s(check_email) in ("1", "true", "True", "yes")
+    red, amber, green = [], [], []
+
+    # --- 1. new mail we have not read -------------------------------------
+    new_mail = {"checked": 0, "found": 0}
+    if look_for_mail:
+        try:
+            seen = set(frappe.get_all("Port Arrival", pluck="name"))
+            got = parse_email_arrivals(limit=40) or {}
+            found = [p for p in (got.get("parsed") or [])
+                     if _s(p.get("arrival")) not in seen]
+            new_mail = {"checked": len(got.get("parsed") or []), "found": len(found),
+                        "sheets": [_s(p.get("arrival")) for p in found][:10]}
+            if found:
+                amber.append({"what": "{0} new arrival sheet(s) came in".format(len(found)),
+                              "detail": ", ".join(new_mail["sheets"]),
+                              "do": "confirm them when you are ready"})
+        except Exception as e:
+            amber.append({"what": "could not check the mailbox",
+                          "detail": str(e)[:160],
+                          "do": "not urgent - import by hand if a sheet is waiting"})
+
+    # --- 2. re-read every stored spreadsheet -------------------------------
+    reparsed = {"sheets": 0, "same": 0, "changed": [], "unreadable": []}
+    try:
+        for src in (xls_source() or []):
+            name, furl = _s(src.get("arrival")), _s(src.get("file"))
+            if not (name and furl):
+                continue
+            reparsed["sheets"] += 1
+            try:
+                content = frappe.get_file(furl.lstrip("/"))[1] if False else None
+            except Exception:
+                content = None
+            if content is None:
+                try:
+                    from frappe.utils.file_manager import get_file
+                    content = get_file(furl)[1]
+                except Exception:
+                    content = None
+            if content is None:
+                reparsed["unreadable"].append(name)
+                red.append({"what": "the spreadsheet behind {0} cannot be read".format(name),
+                            "detail": furl,
+                            "do": "the file is missing or unreadable - re-attach it"})
+                continue
+            try:
+                rows, _sheet = _parse_arrival_xls(content)
+            except Exception as e:
+                reparsed["unreadable"].append(name)
+                red.append({"what": "{0} no longer parses".format(name),
+                            "detail": str(e)[:160],
+                            "do": "the file changed or the format did - look at it"})
+                continue
+            stored = cint(frappe.db.count("Port Arrival Block", {"parent": name}))
+            if len(rows) == stored:
+                reparsed["same"] += 1
+            else:
+                reparsed["changed"].append({"sheet": name, "stored": stored,
+                                            "reads_now": len(rows)})
+                amber.append({"what": "{0} reads {1} rows now, {2} are stored"
+                                      .format(name, len(rows), stored),
+                              "detail": "the sheet or the parser has moved on",
+                              "do": "re-import it if the new reading is the right one"})
+    except Exception as e:
+        amber.append({"what": "could not re-read the stored sheets",
+                      "detail": str(e)[:160], "do": ""})
+
+    # --- 3. what is waiting, right now -------------------------------------
+    try:
+        rows = ledger_view() or []
+        if isinstance(rows, dict):
+            rows = rows.get("rows") or []
+        not_found = [r for r in rows if r.get("dc") and not r.get("arrival")
+                     and _s(r.get("state")) not in ("lot", "load")]
+        unconfirmed = frappe.get_all("Port Arrival", filters={"docstatus": 0},
+                                     pluck="name")
+        if not_found:
+            amber.append({"what": "{0} dispatched block(s) are not on any arrival sheet"
+                                  .format(len(not_found)),
+                          "detail": "each one says where it actually stands",
+                          "do": "wait for the sheet, or type the tonnage on Block to block"})
+        if unconfirmed:
+            amber.append({"what": "{0} arrival sheet(s) are not confirmed"
+                                  .format(len(unconfirmed)),
+                          "detail": ", ".join(unconfirmed[:6]),
+                          "do": "confirm a sheet and its blocks settle by themselves"})
+    except Exception:
+        pass
+
+    # --- 4. has the app made a mistake? ------------------------------------
+    selftest = {"ran": 0, "failing": 0}
+    try:
+        from dolphin_theme import port_selftest
+        rep = port_selftest.report() or {}
+        selftest = {"ran": rep.get("ran"), "failing": rep.get("failing")}
+        for scr in (rep.get("screens") or []):
+            for c in (scr.get("checks") or []):
+                if c.get("ok"):
+                    continue
+                d = c.get("detail") or {}
+                # A check about the app's OWN behaviour is RED. A check about
+                # data waiting on a person is AMBER. The difference is the whole
+                # point of the colours.
+                bucket = red if _s(c.get("check")).split(".")[0] in (
+                    "identity", "code", "split", "dctodc", "tolerance") else amber
+                bucket.append({"what": _s(c.get("title")),
+                               "detail": "{0} case(s)".format(d.get("count"))
+                                         if isinstance(d, dict) else "",
+                               "do": _s(c.get("what_it_means"))[:200]})
+    except Exception as e:
+        red.append({"what": "the self-test itself did not run",
+                    "detail": str(e)[:160], "do": "that is an app fault - tell Claude"})
+
+    if not red and not amber:
+        green.append({"what": "Nothing to do", "detail": "", "do": ""})
+
+    return {
+        "checked_at": frappe.utils.now(),
+        "new_mail": new_mail,
+        "reparsed": reparsed,
+        "selftest": selftest,
+        "red": red, "amber": amber, "green": green,
+        "counts": {"red": len(red), "amber": len(amber), "green": len(green)},
+        "verdict": ("Something is wrong" if red else
+                    ("Nothing wrong - {0} thing(s) waiting on a person".format(len(amber))
+                     if amber else "All clear")),
+        "note": ("This only looked. Nothing was changed, nothing was sorted. "
+                 "RED means the data is wrong and someone must fix it. AMBER means "
+                 "it is correct and waiting on a person. Confirming a sheet is the "
+                 "usual next step."),
+    }
