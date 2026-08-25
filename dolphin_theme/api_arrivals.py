@@ -5467,3 +5467,400 @@ def delete_empty_arrivals(sheets=None, person=None, dry_run=0):
 
     return {"removed": len(removed), "detail": removed,
             "refused": refused, "dry_run": 1 if dry else 0}
+
+
+# ============================================================================
+# ALL TRANSPORTED - the step straight after a challan is submitted.  25 Aug 2026
+#
+# [stated] "Create a separate tab before arrivals for all transported i.e the
+#  next step after submit Dc and dont mix up with reconcilation it should show
+#  only Dc and options to choose full dc or individual blocks to send it to dc
+#  draft if in case due to some issue there is short loading may be all blocks
+#  didnt fit and so 2 blocks letf out etc and make note once a DC is returned
+#  after submit it shouldnt appear here in all transported too. So this Tab will
+#  just show all transported and blocks dc Eye icon like earlier."
+#
+# So this is a CHALLAN screen, not a block soup. One row per submitted challan,
+# its blocks underneath, and one thing you can do from here: send a whole
+# challan or the blocks that did not fit back to a draft challan.
+#
+# WHY IT IS ITS OWN TAB. Short loading is not a reconciliation question. Nobody
+# is comparing anything - the truck simply did not hold everything, somebody at
+# the quarry knows which two were left behind, and the paperwork has to say so
+# before the agency's sheet ever arrives. Mixing it into Reconciliation was
+# asking a loading question on a weighing screen.
+# ============================================================================
+
+RETURNED_TO_STATUS = "In Stock"
+
+
+def _returned_field_ready():
+    """Somewhere on Quarry Block to remember what a block was before it was
+    returned from a challan. Created once; never fails the caller."""
+    try:
+        meta = frappe.get_meta("Quarry Block")
+        if meta.has_field("status_before_dc_return"):
+            return True
+        from frappe.custom.doctype.custom_field.custom_field import create_custom_field
+        create_custom_field("Quarry Block", {
+            "fieldname": "status_before_dc_return",
+            "label": "Status Before DC Return",
+            "fieldtype": "Data",
+            "hidden": 1,
+            "read_only": 1,
+            "no_copy": 1,
+        }, ignore_validate=True)
+        frappe.clear_cache(doctype="Quarry Block")
+        return frappe.get_meta("Quarry Block").has_field("status_before_dc_return")
+    except Exception:
+        return False
+
+
+def _returned_blocks_index():
+    """Every block number that has been returned from a challan and not undone.
+
+    Kept as a Frappe cache-backed read of the block's own field rather than a
+    separate ledger: one place to be wrong is better than two.
+    """
+    out = {}
+    try:
+        if not frappe.get_meta("Quarry Block").has_field("status_before_dc_return"):
+            return out
+        rows = frappe.get_all(
+            "Quarry Block",
+            filters={"status_before_dc_return": ["!=", ""]},
+            fields=["name", "block_number", "export_block_no",
+                    "status", "status_before_dc_return"],
+            limit_page_length=0) or []
+        for r in rows:
+            for k in (_s(r.get("export_block_no")), _s(r.get("block_number"))):
+                if k:
+                    out[k] = r
+    except Exception:
+        return {}
+    return out
+
+
+@frappe.whitelist()
+def transported_view():
+    """Submitted challans and the stone on them, challan by challan.
+
+    A challan appears here from the moment it is submitted. It leaves when every
+    block on it has been returned - his rule: "once a DC is returned after submit
+    it shouldnt appear here in all transported too".
+
+    Nothing here is a judgement. The state of each block is reported as it is:
+    on the road, at the port, in a lot, loaded, or returned.
+    """
+    rows = ledger_view() or []
+    if isinstance(rows, dict):
+        rows = rows.get("rows") or []
+    returned = _returned_blocks_index()
+
+    STATE_WORDS = {
+        "await": "On the road",
+        "port": "At port",
+        "lot": "In a lot",
+        "load": "Loaded",
+    }
+
+    by_dc = {}
+    for r in rows:
+        dc = _s(r.get("dc"))
+        if not dc or _s(r.get("source")) != "dc":
+            continue
+        num = _s(r.get("export_block_no")) or _s(r.get("block_no"))
+        d = by_dc.setdefault(dc, {
+            "dc": dc, "blocks": [], "returned": 0, "on_road": 0,
+            "truck": "", "port": "", "consignee": "", "mark": "",
+            "ours_mt": 0.0, "cbm": 0.0,
+        })
+        if not d["truck"]:
+            d["truck"] = _s(r.get("truck"))
+        if not d["port"]:
+            d["port"] = _s(r.get("port_code")) or _s(r.get("port"))
+        if not d["consignee"]:
+            d["consignee"] = _s(r.get("consignee"))
+        if not d["mark"]:
+            d["mark"] = _s(r.get("mark"))
+        st = _s(r.get("state"))
+        was_returned = num in returned
+        if was_returned:
+            d["returned"] += 1
+        elif st == "await":
+            d["on_road"] += 1
+        d["ours_mt"] += flt(r.get("ton") or 0)
+        d["cbm"] += flt(r.get("dc_cbm") or 0)
+        d["blocks"].append({
+            "block_no": num,
+            "quarry_block_no": _s(r.get("quarry_block_no")),
+            "qb": r.get("qb"),
+            "state": st,
+            "where": ("Returned - not loaded" if was_returned
+                      else STATE_WORDS.get(st, st or "")),
+            "returned": 1 if was_returned else 0,
+            "l": r.get("dc_l"), "w": r.get("dc_w"), "h": r.get("dc_h"),
+            "cbm": r.get("dc_cbm"), "mt": r.get("ton"),
+            "grade": _s(r.get("grade")),
+            "arrival": _s(r.get("arrival")),
+        })
+
+    dcs = []
+    for d in by_dc.values():
+        # Every block returned means the challan carried nothing. It goes.
+        if d["blocks"] and d["returned"] >= len(d["blocks"]):
+            continue
+        d["count"] = len(d["blocks"])
+        d["ours_mt"] = round(d["ours_mt"], 3)
+        d["cbm"] = round(d["cbm"], 3)
+        dcs.append(d)
+
+    meta = {}
+    try:
+        names = [d["dc"] for d in dcs]
+        if names:
+            for x in frappe.get_all(
+                    "Delivery Challan",
+                    filters={"name": ["in", names]},
+                    fields=["name", "delivery_challan_no", "dc_date", "docstatus"],
+                    limit_page_length=0) or []:
+                meta[_s(x.get("name"))] = x
+    except Exception:
+        meta = {}
+    for d in dcs:
+        m = meta.get(d["dc"]) or {}
+        # THE NUMBER-TYPE TRAP, named on the row itself. DC-DCDG-070 is challan
+        # 0033. The record id suffix looks exactly like a challan number and is
+        # not one, and every screen that has ever confused the two has cost a day.
+        d["challan_no"] = _s(m.get("delivery_challan_no"))
+        d["dc_date"] = _s(m.get("dc_date"))
+    dcs.sort(key=lambda x: (x.get("dc_date") or "", x.get("dc")), reverse=True)
+
+    return {
+        "challans": dcs,
+        "count": len(dcs),
+        "blocks": sum(d["count"] for d in dcs),
+        "on_road": sum(d["on_road"] for d in dcs),
+        "returned": sum(d["returned"] for d in dcs),
+    }
+
+
+@frappe.whitelist()
+def return_from_dc(dc=None, blocks=None, reason=None, person=None, dry_run=0):
+    """Short loading: send a whole challan, or the blocks that did not fit, back.
+
+    His case, in his words: "due to some issue there is short loading may be all
+    blocks didnt fit and so 2 blocks letf out".
+
+    What this does and does not do, deliberately:
+      * it does NOT cancel or amend the submitted challan. The challan is the
+        record of what was written when the truck left, and cancelling a
+        submitted document to correct a loading fact is a bigger, louder change
+        than the fact deserves.
+      * it returns each named block to stock, records on the block's own history
+        who returned it, from which challan and why, and remembers exactly what
+        the block was so the return can be undone.
+      * it optionally puts the returned blocks straight onto a NEW DRAFT challan
+        copied from the original, which is the thing he actually asked for -
+        "send it to dc draft" - so they can go on the next truck.
+
+    A reason is compulsory. Reversible by undo_return_from_dc.
+    """
+    blocks = frappe.parse_json(blocks) if isinstance(blocks, str) else (blocks or [])
+    dry = _s(dry_run) in ("1", "true", "True", "yes")
+    reason = _s(reason)
+    person = _s(person) or _s(frappe.session.user)
+    dc = _s(dc)
+
+    if not dc:
+        frappe.throw("No challan given.")
+    if not dry and len(reason) < 4:
+        frappe.throw("Sending stone back off a submitted challan needs a written "
+                     "reason. It is the only record of why the truck went short.")
+
+    doc = frappe.get_doc("Delivery Challan", dc)
+    if cint(doc.docstatus) != 1:
+        frappe.throw(
+            "{0} is not submitted. Only a submitted challan has stone on the road "
+            "to send back.".format(dc))
+
+    on_challan = {}
+    for r in (doc.get("dc_block_rows") or []):
+        for k in (_s(r.get("export_block_no")), _s(r.get("block_no"))):
+            if k:
+                on_challan[k] = r
+    wanted = [_s(b) for b in blocks if _s(b)] or sorted(on_challan.keys())
+
+    from dolphin_theme.block_resolve import try_resolve, set_status
+
+    plan, refused = [], []
+    for bn in wanted:
+        if bn not in on_challan:
+            refused.append({"block": bn, "why": "not on this challan"})
+            continue
+        try:
+            from dolphin_theme.identity_guard import check_number
+            chk = check_number(bn)
+            if not chk.get("ok"):
+                refused.append({"block": bn, "why": chk.get("reason") or "refused",
+                                "detail": chk.get("message")})
+                continue
+        except Exception:
+            pass
+        hit, why = try_resolve(bn, allow_record_name=False)
+        if not hit:
+            refused.append({"block": bn, "why": why})
+            continue
+        answers = {_s(hit.get("export_block_no")), _s(hit.get("block_number"))}
+        if _s(bn) not in answers:
+            refused.append({"block": bn,
+                            "why": "resolved to a block that does not answer to this number"})
+            continue
+        cur = _s(frappe.db.get_value("Quarry Block", hit["name"], "status"))
+        if cur in ("At Port", "In Export Shipment Lot", "Shipped", "Sold"):
+            refused.append({"block": bn,
+                            "why": "this block is already " + cur +
+                                   " - it did reach the port, so it was not left behind"})
+            continue
+        plan.append({"block": bn, "name": hit["name"], "was": cur})
+
+    if dry:
+        return {"dry_run": 1, "dc": dc, "would_return": len(plan),
+                "blocks": [p["block"] for p in plan], "refused": refused}
+
+    _returned_field_ready()
+    returned = []
+    for p in plan:
+        try:
+            frappe.db.set_value("Quarry Block", p["name"],
+                                "status_before_dc_return", p["was"] or "")
+        except Exception:
+            pass
+        res = set_status(
+            p["name"], RETURNED_TO_STATUS,
+            "returned from {0} - not loaded (short loading) - {1}".format(dc, reason),
+            machine="server (all transported)", actor=person, allow_backwards=True)
+        if res.get("ok"):
+            returned.append(p["block"])
+        else:
+            refused.append({"block": p["block"], "why": res.get("error") or "refused"})
+
+    draft = None
+    if returned:
+        draft = _draft_challan_for(doc, returned, person, reason)
+    frappe.db.commit()
+
+    return {"ok": 1, "dc": dc, "returned": len(returned),
+            "returned_blocks": returned, "draft_challan": draft,
+            "refused": refused,
+            "note": ("The submitted challan is untouched - it still says what was "
+                     "written when the truck left. These blocks are back in stock"
+                     + (" and on draft challan " + draft if draft else "") + ".")}
+
+
+def _draft_challan_for(source, block_numbers, person, reason):
+    """A new DRAFT challan carrying the blocks that did not fit.
+
+    His rule stands: a draft challan does not exist yet. Nothing here is
+    dispatched, counted or at port until somebody submits it.
+    """
+    try:
+        d = frappe.new_doc("Delivery Challan")
+        carry = ("sale_type", "export_country", "country_of_origin", "buyer",
+                 "consignee", "export_consignee", "shipping_agency",
+                 "description_of_goods", "port_of_loading", "place_of_receipt",
+                 "pre_carriage_by", "despatched_through", "terms_of_delivery",
+                 "place_of_loading_quarry", "shipping_mark", "destination",
+                 "ql_no", "mdp_number", "prepared_by")
+        for f in carry:
+            try:
+                if source.get(f):
+                    d.set(f, source.get(f))
+            except Exception:
+                pass
+        d.dc_date = frappe.utils.nowdate()
+        d.remarks = ("Short loading. These blocks were on {0} and did not go. "
+                     "Returned by {1}: {2}".format(source.name, person, reason))
+        want = {_s(x) for x in block_numbers}
+        for r in (source.get("dc_block_rows") or []):
+            keys = {_s(r.get("export_block_no")), _s(r.get("block_no"))}
+            if not (keys & want):
+                continue
+            row = d.append("dc_block_rows", {})
+            for f in ("block", "grade", "source_inspection", "granite_size_category",
+                      "block_no", "export_block_no", "block_number_input",
+                      "length_gross", "width_gross", "height_gross",
+                      "gross_volume", "gross_tonnage", "tonnage_factor"):
+                try:
+                    row.set(f, r.get(f))
+                except Exception:
+                    pass
+        if not d.get("dc_block_rows"):
+            return None
+        d.flags.ignore_permissions = True
+        d.insert(ignore_permissions=True)
+        return d.name
+    except Exception:
+        # A draft that could not be made must never swallow the return itself.
+        # The blocks are back in stock either way; say so rather than pretend.
+        return None
+
+
+@frappe.whitelist()
+def undo_return_from_dc(dc=None, blocks=None, reason=None, person=None,
+                        remove_draft=None):
+    """Put back what return_from_dc took off. His rule: everything reverses.
+
+    Restores the exact status each block held before it was returned. The draft
+    challan made at the time is removed only if it is still a draft and only if
+    the caller names it - nobody's later work is thrown away silently.
+    """
+    blocks = frappe.parse_json(blocks) if isinstance(blocks, str) else (blocks or [])
+    reason = _s(reason)
+    person = _s(person) or _s(frappe.session.user)
+    if not blocks:
+        frappe.throw("No blocks given to put back.")
+    if len(reason) < 4:
+        frappe.throw("Undoing a return needs a written reason too.")
+
+    from dolphin_theme.block_resolve import try_resolve, set_status
+    restored, refused = [], []
+    for bn in [_s(b) for b in blocks if _s(b)]:
+        hit, why = try_resolve(bn, allow_record_name=False)
+        if not hit:
+            refused.append({"block": bn, "why": why})
+            continue
+        prev = _s(frappe.db.get_value("Quarry Block", hit["name"],
+                                      "status_before_dc_return"))
+        if not prev:
+            refused.append({"block": bn, "why": "this block was not returned from a challan"})
+            continue
+        res = set_status(
+            hit["name"], prev,
+            "return undone{0} - put back to {1} by {2}: {3}".format(
+                (" (" + _s(dc) + ")") if _s(dc) else "", prev, person, reason),
+            machine="server (all transported)", actor=person, allow_backwards=True)
+        if res.get("ok"):
+            try:
+                frappe.db.set_value("Quarry Block", hit["name"],
+                                    "status_before_dc_return", "")
+            except Exception:
+                pass
+            restored.append(bn)
+        else:
+            refused.append({"block": bn, "why": res.get("error") or "refused"})
+
+    removed_draft = None
+    rd = _s(remove_draft)
+    if rd:
+        try:
+            if cint(frappe.db.get_value("Delivery Challan", rd, "docstatus")) == 0:
+                frappe.delete_doc("Delivery Challan", rd, ignore_permissions=True,
+                                  delete_permanently=False)
+                removed_draft = rd
+        except Exception:
+            removed_draft = None
+
+    frappe.db.commit()
+    return {"ok": 1, "restored": len(restored), "restored_blocks": restored,
+            "refused": refused, "removed_draft": removed_draft}
