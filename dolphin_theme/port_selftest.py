@@ -462,9 +462,21 @@ def _dc_to_dc_checks():
         # a verdict may never rest on an unsubmitted sheet
         if verdict in JUDGED and c.get("any_draft_sheet"):
             draft_judged.append(dc)
-        # nor on rows gathered from several sheets
-        if verdict in JUDGED and len(c.get("sheets") or []) > 1:
-            mixed_judged.append({"dc": dc, "sheets": c.get("sheets")})
+        # 25 Aug 2026. This used to fail a challan whose rows came from more than
+        # one sheet, and it was WRONG - a false red, which he has said is the worst
+        # kind, because a team that learns to ignore red stops reading any of it.
+        # The sheets are a cumulative running stock list: a block joins when it
+        # arrives and drops off when it is loaded, so blocks on the same truck
+        # naturally have their newest row on different sheets. dc_weight_check_v2
+        # already takes exactly ONE row per block, the newest, so nothing can be
+        # counted twice - which is the only thing the old check was protecting.
+        #
+        # What actually has to hold is his rule about block 802: a verdict must
+        # never rest on a block we only guessed at. So this now fails when a judged
+        # challan contains a block reached through the OTHER number or through the
+        # block record rather than by a number that identifies it.
+        if verdict in JUDGED and (c.get("loose_matches") or []):
+            mixed_judged.append({"dc": dc, "guessed": c.get("loose_matches")})
         # the header count and the rows under it must be the same number
         if c.get("agency_rows") != len(on_sheet):
             wrong_count.append({"dc": dc, "header_says": c.get("agency_rows"),
@@ -485,10 +497,14 @@ def _dc_to_dc_checks():
                "No verdict is given from an unconfirmed arrival sheet",
                not draft_judged, _cap(draft_judged),
                "A draft sheet is not a weighing."),
-        _check("dctodc.verdict_never_mixes_sheets",
-               "No verdict is given from rows spread across several sheets",
+        _check("dctodc.verdict_never_rests_on_a_guess",
+               "No verdict is given while any block under it was only guessed at",
                not mixed_judged, _cap(mixed_judged),
-               "Two sheets can double-count or half-count the same truck."),
+               "The agency weighs the TRUCK and divides by the number of blocks, "
+               "so a per-block weight is an average and a big gap is almost always "
+               "our matching, not their stone. A block found through the other "
+               "number or through the block record is a guess, and a guess must "
+               "not carry a weight into a total with a red verdict under it."),
         _check("dctodc.header_matches_rows",
                "The count in the header is the count of rows under it",
                not wrong_count, _cap(wrong_count),

@@ -2185,8 +2185,41 @@ def confirm_arrival_sheet(arrival=None, note=None, machine=None):
         frappe.db.commit()
     except Exception:
         pass
-    return {"ok": 1, "arrival": pa.name, "blocks": len(pa.blocks or []),
-            "confirmed_by": who, "note": _s(note)}
+
+    # ------------------------------------------------------------------
+    # 25 Aug 2026.  [stated] "whatever tolerance of 1 ton more or less is set
+    # if the blocks are within that range should be moved to at port straight
+    # a way."
+    #
+    # Until today confirming a sheet moved nothing, and every block the agency
+    # had already agreed with sat in a "ready" state waiting for somebody to
+    # press a button that told them nothing they did not already know. That is
+    # exactly the work he asked the app to stop making him do.
+    #
+    # Only the NARROW path runs here - blocks the agency's own row confirms and
+    # whose challan total is inside the tonne. Anything out of tolerance, or
+    # with no agency row at all, is still a person's decision with a reason.
+    # Every block moved carries who moved it and why, and send_back_to_reconcile
+    # puts any of them back exactly as they were.
+    # ------------------------------------------------------------------
+    settled = None
+    try:
+        settled = auto_settle_at_port(include_noconflict=0,
+                                      person=who or "server (sheet confirmed)")
+    except Exception as e:
+        settled = {"error": str(e)}
+
+    out = {"ok": 1, "arrival": pa.name, "blocks": len(pa.blocks or []),
+           "confirmed_by": who, "note": _s(note)}
+    if isinstance(settled, dict) and settled.get("ok"):
+        out["settled_at_port"] = settled.get("moved") or 0
+        out["settled_blocks"] = (settled.get("moved_blocks") or [])[:400]
+        out["left_for_a_person"] = settled.get("left_for_a_person") or 0
+        out["settle_refused"] = settled.get("refused") or []
+    elif isinstance(settled, dict) and settled.get("error"):
+        # The settle step must never swallow the confirmation itself.
+        out["settle_error"] = settled.get("error")
+    return out
 
 
 @frappe.whitelist()
@@ -4959,6 +4992,44 @@ def dc_weight_check_v2():
         # counted twice, and that is now guaranteed upstream: exactly one row per
         # block, taken from the newest sheet carrying it.
         one_sheet = True
+        # ------------------------------------------------------------------
+        # THE TRUCK RULE, and why a loose match now refuses a verdict.
+        # 25 Aug 2026, his words, and he asked me to hold on to them:
+        #
+        #   "99 of 100 times no truck will have less number of blocks from what
+        #    it originally had when loaded. The size neither varies, nor
+        #    compresses, weight neither increases nor decreases."
+        #
+        #   "why is there a variation in weight you might ask, the answer is due
+        #    to the packing stones they give for support adds as additional
+        #    weight since the whole truck is weighed at port then tare weight and
+        #    they divide the total weight divided by the number of the blocks
+        #    since end of it what matters for them, us and client is total
+        #    weight."
+        #
+        # So the agency does not weigh BLOCKS. They weigh the TRUCK, take off
+        # tare, and divide by the number of blocks. A per-block agency weight is
+        # an average of a truckload, and our own figure is specific gravity off a
+        # sample cube. Two approximations of the same total.
+        #
+        # Therefore a large gap is almost never stone going astray. It is my
+        # matching being wrong - and he had to tell me so about block 802:
+        #
+        #   "802 block etc is not the exact comparision you are getting the
+        #    blocks wrong, there cannot be such a difference in the weight so
+        #    increase the parameters to check ... you are getting them wrong just
+        #    based on assumption"
+        #
+        # "Increase the parameters" is exactly this. A verdict is now given only
+        # when EVERY block on the challan was found by a number that identifies
+        # it - its export number, or the number written on the challan. A block
+        # reached through the OTHER number, or through the block record, is a
+        # guess, and a guess must never carry a weight into a total that gets a
+        # red verdict printed under it.
+        # ------------------------------------------------------------------
+        STRONG = ("export number", "number")
+        loose = [p for p in per_block
+                 if p.get("sheet") and _s(p.get("found_by")) not in STRONG]
         if matched == 0:
             verdict, state = "Not sent yet", "never"
             never += 1
@@ -4969,6 +5040,10 @@ def dc_weight_check_v2():
             diff = None
         elif draft_sheet:
             verdict, state = "Unconfirmed sheet", "incomplete"
+            incomplete += 1
+            diff = None
+        elif loose:
+            verdict, state = "Matched loosely - no verdict", "incomplete"
             incomplete += 1
             diff = None
         elif not one_sheet:
@@ -5006,6 +5081,10 @@ def dc_weight_check_v2():
             "unmatched": unmatched[:20],
             "sheets": sorted([x for x in sheets if x])[:6],
             "any_draft_sheet": 1 if draft_sheet else 0,
+            # Named, so the screen can say WHICH blocks were only guessed at
+            # rather than leaving "no verdict" looking like an app fault.
+            "loose_matches": [{"block": p.get("block"), "found_by": p.get("found_by")}
+                              for p in loose][:20],
             "per_block": per_block,
         })
 
