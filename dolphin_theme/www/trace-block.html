@@ -1,7 +1,7 @@
 {% raw %}
 <style>
 :root{--navy:#16304F;--gold:#D4A24A}
-#tbapp{font-family:inherit;max-width:960px;margin:0 auto;padding:10px 14px;color:#1f2a3a}
+#tbapp{font-family:inherit;max-width:1040px;margin:0 auto;padding:10px 14px;color:#1f2a3a}
 #tbapp .hd{background:var(--navy);color:#fff;border-radius:12px;padding:16px 20px;display:flex;align-items:center;gap:14px;border-bottom:3px solid var(--gold)}
 #tbapp .hd .ic{width:44px;height:44px;border-radius:50%;border:2px solid var(--gold);display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--gold);font-size:20px}
 #tbapp h1{font-size:19px;margin:0}
@@ -30,8 +30,13 @@
 #tbapp .badge{font-size:12px;padding:3px 12px;border-radius:12px;font-weight:700}
 #tbapp .idrule{font-size:11px;color:#94a0af;margin:2px 0 14px}
 /* horizontal journey */
+/* 25 Aug 2026: the rail wanted 1054px inside a 932px card, so SHIPPED - the
+   last stage, and the one people look for - sat off the right edge of every
+   card. It scrolled, so nothing was lost; it just read as broken. Seven stages
+   at 120px fit the card with room to spare, and the overflow stays for narrow
+   screens where scrolling is the right answer. */
 #tbapp .journey{display:flex;gap:0;overflow-x:auto;padding:6px 2px 2px}
-#tbapp .stg{flex:1 0 138px;min-width:138px;position:relative;padding:0 6px}
+#tbapp .stg{flex:1 0 120px;min-width:120px;position:relative;padding:0 5px}
 #tbapp .stg .node{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;border:2px solid #cfd4dc;background:#fff;color:#aeb6c1;position:relative;z-index:2}
 #tbapp .stg.done .node{border-color:#0f6e56;background:#0f6e56;color:#fff}
 #tbapp .stg.cur .node{border-color:var(--gold);background:var(--gold);color:#3a2a05;box-shadow:0 0 0 4px #f6ecd6}

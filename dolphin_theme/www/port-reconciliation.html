@@ -1288,6 +1288,128 @@ $('bsendback').addEventListener('click',function(){
 $('bmove').addEventListener('click',function(){var it=selRows().filter(function(r){return r.state==='await'||r.state==='unconfirmed';}).map(atPortRow);if(!it.length){msg('Select blocks that have not reached the port yet',1);return;}post('dolphin_theme.api_arrivals.move_to_at_port',{blocks:it}).then(function(j){SEL={};atPortDone(j&&j.message,it.length);}).catch(function(){msg('Move to At Port failed',1);});});
 $('bpush').addEventListener('click',function(){var rs=selRows().filter(function(r){return r.state==='port';});if(!rs.length){msg('Push only works on At-Port blocks',1);return;}pushRows(rs);});
 $('baccept').addEventListener('click',function(){var rs=selRows();rs.forEach(function(r){post('dolphin_theme.api_arrivals.resolve_block',{arrival:r.arrival,block_no:r.block_no,action:'accept',dc:r.dc});});setTimeout(function(){SEL={};loadAll();},500);});
+/* ==========================================================================
+   THE PACKING LIST AND INVOICE, EDITABLE.  25 Aug 2026
+
+   [stated] "in shipping invoice and packing list give an option to manually
+    enter the weights, msmts, volume, edit weight etc if one edits weight given
+    by shipping agency we need to take a reason but allow."
+   [stated] "The packing list and invoice does list block numbers msmt and
+    tonnage right? so those fields make it editable after you populate whatever
+    is given by shipping agency tonnage."
+
+   ALLOW, THEN REMEMBER. A person filing at the port knows things the app does
+   not; if the app argues, the document does not go out. So every figure on the
+   row is typed over freely - block number, export number, L, W, H, volume,
+   tonnage. The ONE condition is his: changing the WEIGHT the agency gave asks
+   for a reason, because that figure is the invoice. Their original is kept and
+   can be put back.
+   ========================================================================== */
+function openShippingEditor(docname){
+  var ov=document.getElementById('__se'); if(ov)ov.remove();
+  ov=document.createElement('div'); ov.id='__se';
+  ov.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(15,37,64,.5);z-index:100005;display:flex;align-items:center;justify-content:center;padding:18px';
+  ov.innerHTML='<div style="background:#fff;border-radius:12px;width:1000px;max-width:97vw;max-height:92vh;display:flex;flex-direction:column;box-shadow:0 18px 50px rgba(0,0,0,.3)">'
+    +'<div style="padding:14px 18px;border-bottom:1px solid #eef2f6;display:flex;align-items:center;gap:10px">'
+    +'<b style="flex:1;color:#0F2540;font-size:14px">'+esc(docname)+' &middot; block numbers, measurement and tonnage</b>'
+    +'<span class="sub" id="__setot" style="font-size:12px"></span>'
+    +'<button class="rb" id="__sex" style="margin-left:8px">Close</button></div>'
+    +'<div id="__sebody" style="padding:14px 18px;overflow:auto;flex:1"><div class="sub">Loading&hellip;</div></div>'
+    +'<div style="padding:12px 18px;border-top:1px solid #eef2f6;display:flex;align-items:center;gap:10px">'
+    +'<span class="sub" id="__semsg" style="flex:1;font-size:12px">Measurement and volume are ours &mdash; edit them freely. Changing the agency&rsquo;s weight asks for a reason, and their figure is kept.</span>'
+    +'<button class="rb pri" id="__sesave">'+CHK+' Save changes&hellip;</button></div></div>';
+  document.body.appendChild(ov);
+  ov.querySelector('#__sex').addEventListener('click',function(){ov.remove();});
+  ov.addEventListener('mousedown',function(e){if(e.target===ov)ov.remove();});
+
+  var ORIG={};
+  fetch('/api/method/frappe.client.get?doctype=Shipping+Document&name='+encodeURIComponent(docname),{credentials:'include'})
+    .then(function(r){return r.json();}).then(function(j){
+      var d=(j&&j.message)||{}; var rows=d.blocks||[];
+      if(d.docstatus===1){
+        document.getElementById('__sebody').innerHTML='<div class="sub" style="padding:10px 0">'
+          +'<b>'+esc(docname)+' is submitted.</b><br>Cancel or amend it first &mdash; a filed document is not edited behind its own back.</div>';
+        var sv=document.getElementById('__sesave'); if(sv)sv.style.display='none';
+        return;
+      }
+      var h='<table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr>'
+        +['#','Block no','Export no','L','W','H','Volume','Tonnage','Agency gave'].map(function(t){
+          return '<th style="text-align:left;padding:6px 7px;border-bottom:1px solid #e5e9ef;font-size:11px;color:#69788a;text-transform:uppercase;letter-spacing:.04em">'+t+'</th>';}).join('')
+        +'</tr></thead><tbody>';
+      rows.forEach(function(r,i){
+        ORIG[r.name]={block_no:r.block_no,export_block_no:r.export_block_no,length:r.length,width:r.width,height:r.height,net_volume:r.net_volume,net_tonnage:r.net_tonnage};
+        function inp(f,v,w){return '<input class="sef" data-row="'+esc(r.name)+'" data-f="'+f+'" value="'+(v==null?'':esc(String(v)))+'" style="width:'+(w||64)+'px;padding:4px 6px;border:1px solid #cfd4dc;border-radius:5px;font-size:12.5px;text-align:right;font-variant-numeric:tabular-nums">';}
+        h+='<tr><td class="sub" style="padding:5px 7px">'+(i+1)+'</td>'
+          +'<td style="padding:5px 7px">'+inp('block_no',r.block_no,80)+'</td>'
+          +'<td style="padding:5px 7px">'+inp('export_block_no',r.export_block_no,80)+'</td>'
+          +'<td style="padding:5px 7px">'+inp('length',r.length)+'</td>'
+          +'<td style="padding:5px 7px">'+inp('width',r.width)+'</td>'
+          +'<td style="padding:5px 7px">'+inp('height',r.height)+'</td>'
+          +'<td style="padding:5px 7px">'+inp('net_volume',r.net_volume,76)+'</td>'
+          +'<td style="padding:5px 7px">'+inp('net_tonnage',r.net_tonnage,76)+'</td>'
+          +'<td class="sub" style="padding:5px 7px;white-space:nowrap">'+(r.agency_net_tonnage?('<b>'+esc(String(r.agency_net_tonnage))+'</b> MT'+(r.edited_by_hand?' <span style="color:#8a5a12">edited</span>':'')):'&mdash;')+'</td></tr>';
+      });
+      h+='</tbody></table>';
+      document.getElementById('__sebody').innerHTML=h;
+      recalcShipTotals();
+      document.querySelectorAll('.sef').forEach(function(x){x.addEventListener('input',recalcShipTotals);});
+    }).catch(function(){document.getElementById('__sebody').innerHTML='<div class="sub">Could not load that document.</div>';});
+
+  function recalcShipTotals(){
+    var t=0,v=0;
+    document.querySelectorAll('.sef[data-f="net_tonnage"]').forEach(function(x){t+=(parseFloat(x.value)||0);});
+    document.querySelectorAll('.sef[data-f="net_volume"]').forEach(function(x){v+=(parseFloat(x.value)||0);});
+    var e=document.getElementById('__setot');
+    if(e)e.innerHTML='<b style="color:#0F2540">'+t.toFixed(3)+' MT</b> total &middot; '+v.toFixed(3)+' CBM'
+      +'<span style="color:#9aa8b8"> &middot; '+(v?(t/v).toFixed(4):'—')+' t/CBM (ours, internal)</span>';
+  }
+
+  document.getElementById('__sesave').addEventListener('click',function(){
+    var changes={};
+    document.querySelectorAll('.sef').forEach(function(x){
+      var row=x.dataset.row,f=x.dataset.f,was=ORIG[row]?ORIG[row][f]:null;
+      var now=x.value.trim();
+      var same=(was==null?'':String(was))===now;
+      if(same)return;
+      (changes[row]=changes[row]||{})[f]=(f==='block_no'||f==='export_block_no')?now:(parseFloat(now)||0);
+    });
+    var rowIds=Object.keys(changes);
+    if(!rowIds.length){msg('Nothing changed',1);return;}
+    var touchesWeight=rowIds.some(function(r){return 'net_tonnage' in changes[r];});
+    function send(reason){
+      var done=0,failed=0;
+      var chain=Promise.resolve();
+      rowIds.forEach(function(r){
+        chain=chain.then(function(){
+          return post('dolphin_theme.api_arrivals.edit_shipping_block',
+            {shipping_document:docname,row:r,values:JSON.stringify(changes[r]),reason:reason||''})
+            .then(function(){done++;}).catch(function(){failed++;});
+        });
+      });
+      chain.then(function(){
+        msg(failed?(CHK+' '+done+' row(s) saved · '+failed+' refused'):(CHK+' '+done+' row(s) saved on '+docname),failed?1:0);
+        var ov2=document.getElementById('__se'); if(ov2)ov2.remove();
+        loadAll();
+      });
+    }
+    if(touchesWeight){
+      askReason('Change the weight the shipping agency gave',
+        'That figure is the invoice, so the reason stays on the row for good. '
+        +'Their original weight is kept and can be put back at any time.<br><br>'
+        +'<b>'+rowIds.length+' row(s)</b> will be saved.',
+        send,{ok:'Save the changes',chips:[
+          'Reweighed at the port',
+          'Agency sent a corrected figure',
+          'Typing error on their sheet',
+          'Agreed with the agency by phone',
+          'Short shipped — quantity revised'
+        ],foot:'Allowed, and remembered. restore_agency_weight puts theirs back.'});
+    } else {
+      send('');
+    }
+  });
+}
+
 function pushRows(rs){var rows=rs.map(function(r){return {block_no:r.block_no,length:r.pt_l||r.dc_l,width:r.pt_w||r.dc_w,height:r.pt_h||r.dc_h,cbm:r.pt_cbm||r.dc_cbm,mt:r.net_wt||r.ton,matched_dc:r.dc,arrival:r.arrival};});var mk=(rs[0]&&rs[0].mark)||'';post('dolphin_theme.api_arrivals.create_shipment_lot',{consignee:(rs[0]&&rs[0].consignee)||mk,rows:rows,mark:mk,vessel:''}).then(function(j){var lot=(j.message&&(j.message.name||j.message))||'';SEL={};msg(CHK+' Created '+lot);loadAll();}).catch(function(){msg('Error creating lot',1);});}
 /* group by DC */
 function renderDC(){
@@ -1626,9 +1748,20 @@ function renderLotTableInto(el,list,exported){
          opened a print preview, but it was drawn as a flat page glyph nobody reads as a
          button. An eye, a label and a tooltip - so it looks like what it is. */
       +(exported?'<span class="sub">&hellip;</span>':'<span class="eye" data-lot="'+esc(l.name)+'" title="Preview the packing list" style="cursor:pointer;white-space:nowrap">'+U(128065)+' <span style="font-size:11px">Preview</span></span>')+'</td><td>'+act+'</td><td><span class="exp" data-lx="'+i+'">'+TRI+'</span></td></tr>'
-      +'<tr class="det" id="'+(exported?'ex':'lx')+i+'" style="display:none"><td colspan="11"><div class="trace"><div style="font-size:12px;color:#374151;margin-bottom:6px"><b>Blocks:</b> '+esc((l.block_nos||[]).join(', ')||DASH)+'</div><a class="rb" href="/app/export-shipment-lot/'+encodeURIComponent(l.name)+'" target="_blank">'+U(128196)+' Open lot</a></div></td></tr>';
+      +'<tr class="det" id="'+(exported?'ex':'lx')+i+'" style="display:none"><td colspan="11"><div class="trace"><div style="font-size:12px;color:#374151;margin-bottom:6px"><b>Blocks:</b> '+esc((l.block_nos||[]).join(', ')||DASH)+'</div>'
+      +'<a class="rb" href="/app/export-shipment-lot/'+encodeURIComponent(l.name)+'" target="_blank">'+U(128196)+' Open lot</a>'
+      /* 25 Aug 2026, his words: "The packing list and invoice does list block
+         numbers msmt and tonnage right? so those fields make it editable after
+         you populate whatever is given by shipping agency tonnage. you do have
+         UI or create one." - so here it is, on the lot the document is built
+         from, one click from the packing list preview. */
+      +(l.shipping_document?(' <button class="rb pri" data-shipedit="'+esc(l.shipping_document)+'">'+U(9998)+' Edit figures on '+esc(l.shipping_document)+'</button>'):'')
+      +'</div></td></tr>';
   });
   h+='</tbody></table>'; el.innerHTML=h;
+  el.querySelectorAll('[data-shipedit]').forEach(function(b){
+    b.addEventListener('click',function(){openShippingEditor(b.dataset.shipedit);});
+  });
   var pfx=exported?'ex':'lx';
   el.querySelectorAll('.exp').forEach(function(x){x.addEventListener('click',function(){var d=$(pfx+x.dataset.lx);if(d)d.style.display=d.style.display==='none'?'':'none';});});
   el.querySelectorAll('[data-lot]').forEach(function(x){x.addEventListener('click',function(){
@@ -1678,6 +1811,128 @@ function renderLots(){
   var el=$('lotmain'); if(el) renderLotTableInto(el,active,false);
   var eel=$('exportedmain'); if(eel) renderLotTableInto(eel,exported,true);
 }
+/* ==========================================================================
+   THE PACKING LIST AND INVOICE, EDITABLE.  25 Aug 2026
+
+   [stated] "in shipping invoice and packing list give an option to manually
+    enter the weights, msmts, volume, edit weight etc if one edits weight given
+    by shipping agency we need to take a reason but allow."
+   [stated] "The packing list and invoice does list block numbers msmt and
+    tonnage right? so those fields make it editable after you populate whatever
+    is given by shipping agency tonnage."
+
+   ALLOW, THEN REMEMBER. A person filing at the port knows things the app does
+   not; if the app argues, the document does not go out. So every figure on the
+   row is typed over freely - block number, export number, L, W, H, volume,
+   tonnage. The ONE condition is his: changing the WEIGHT the agency gave asks
+   for a reason, because that figure is the invoice. Their original is kept and
+   can be put back.
+   ========================================================================== */
+function openShippingEditor(docname){
+  var ov=document.getElementById('__se'); if(ov)ov.remove();
+  ov=document.createElement('div'); ov.id='__se';
+  ov.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(15,37,64,.5);z-index:100005;display:flex;align-items:center;justify-content:center;padding:18px';
+  ov.innerHTML='<div style="background:#fff;border-radius:12px;width:1000px;max-width:97vw;max-height:92vh;display:flex;flex-direction:column;box-shadow:0 18px 50px rgba(0,0,0,.3)">'
+    +'<div style="padding:14px 18px;border-bottom:1px solid #eef2f6;display:flex;align-items:center;gap:10px">'
+    +'<b style="flex:1;color:#0F2540;font-size:14px">'+esc(docname)+' &middot; block numbers, measurement and tonnage</b>'
+    +'<span class="sub" id="__setot" style="font-size:12px"></span>'
+    +'<button class="rb" id="__sex" style="margin-left:8px">Close</button></div>'
+    +'<div id="__sebody" style="padding:14px 18px;overflow:auto;flex:1"><div class="sub">Loading&hellip;</div></div>'
+    +'<div style="padding:12px 18px;border-top:1px solid #eef2f6;display:flex;align-items:center;gap:10px">'
+    +'<span class="sub" id="__semsg" style="flex:1;font-size:12px">Measurement and volume are ours &mdash; edit them freely. Changing the agency&rsquo;s weight asks for a reason, and their figure is kept.</span>'
+    +'<button class="rb pri" id="__sesave">'+CHK+' Save changes&hellip;</button></div></div>';
+  document.body.appendChild(ov);
+  ov.querySelector('#__sex').addEventListener('click',function(){ov.remove();});
+  ov.addEventListener('mousedown',function(e){if(e.target===ov)ov.remove();});
+
+  var ORIG={};
+  fetch('/api/method/frappe.client.get?doctype=Shipping+Document&name='+encodeURIComponent(docname),{credentials:'include'})
+    .then(function(r){return r.json();}).then(function(j){
+      var d=(j&&j.message)||{}; var rows=d.blocks||[];
+      if(d.docstatus===1){
+        document.getElementById('__sebody').innerHTML='<div class="sub" style="padding:10px 0">'
+          +'<b>'+esc(docname)+' is submitted.</b><br>Cancel or amend it first &mdash; a filed document is not edited behind its own back.</div>';
+        var sv=document.getElementById('__sesave'); if(sv)sv.style.display='none';
+        return;
+      }
+      var h='<table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr>'
+        +['#','Block no','Export no','L','W','H','Volume','Tonnage','Agency gave'].map(function(t){
+          return '<th style="text-align:left;padding:6px 7px;border-bottom:1px solid #e5e9ef;font-size:11px;color:#69788a;text-transform:uppercase;letter-spacing:.04em">'+t+'</th>';}).join('')
+        +'</tr></thead><tbody>';
+      rows.forEach(function(r,i){
+        ORIG[r.name]={block_no:r.block_no,export_block_no:r.export_block_no,length:r.length,width:r.width,height:r.height,net_volume:r.net_volume,net_tonnage:r.net_tonnage};
+        function inp(f,v,w){return '<input class="sef" data-row="'+esc(r.name)+'" data-f="'+f+'" value="'+(v==null?'':esc(String(v)))+'" style="width:'+(w||64)+'px;padding:4px 6px;border:1px solid #cfd4dc;border-radius:5px;font-size:12.5px;text-align:right;font-variant-numeric:tabular-nums">';}
+        h+='<tr><td class="sub" style="padding:5px 7px">'+(i+1)+'</td>'
+          +'<td style="padding:5px 7px">'+inp('block_no',r.block_no,80)+'</td>'
+          +'<td style="padding:5px 7px">'+inp('export_block_no',r.export_block_no,80)+'</td>'
+          +'<td style="padding:5px 7px">'+inp('length',r.length)+'</td>'
+          +'<td style="padding:5px 7px">'+inp('width',r.width)+'</td>'
+          +'<td style="padding:5px 7px">'+inp('height',r.height)+'</td>'
+          +'<td style="padding:5px 7px">'+inp('net_volume',r.net_volume,76)+'</td>'
+          +'<td style="padding:5px 7px">'+inp('net_tonnage',r.net_tonnage,76)+'</td>'
+          +'<td class="sub" style="padding:5px 7px;white-space:nowrap">'+(r.agency_net_tonnage?('<b>'+esc(String(r.agency_net_tonnage))+'</b> MT'+(r.edited_by_hand?' <span style="color:#8a5a12">edited</span>':'')):'&mdash;')+'</td></tr>';
+      });
+      h+='</tbody></table>';
+      document.getElementById('__sebody').innerHTML=h;
+      recalcShipTotals();
+      document.querySelectorAll('.sef').forEach(function(x){x.addEventListener('input',recalcShipTotals);});
+    }).catch(function(){document.getElementById('__sebody').innerHTML='<div class="sub">Could not load that document.</div>';});
+
+  function recalcShipTotals(){
+    var t=0,v=0;
+    document.querySelectorAll('.sef[data-f="net_tonnage"]').forEach(function(x){t+=(parseFloat(x.value)||0);});
+    document.querySelectorAll('.sef[data-f="net_volume"]').forEach(function(x){v+=(parseFloat(x.value)||0);});
+    var e=document.getElementById('__setot');
+    if(e)e.innerHTML='<b style="color:#0F2540">'+t.toFixed(3)+' MT</b> total &middot; '+v.toFixed(3)+' CBM'
+      +'<span style="color:#9aa8b8"> &middot; '+(v?(t/v).toFixed(4):'—')+' t/CBM (ours, internal)</span>';
+  }
+
+  document.getElementById('__sesave').addEventListener('click',function(){
+    var changes={};
+    document.querySelectorAll('.sef').forEach(function(x){
+      var row=x.dataset.row,f=x.dataset.f,was=ORIG[row]?ORIG[row][f]:null;
+      var now=x.value.trim();
+      var same=(was==null?'':String(was))===now;
+      if(same)return;
+      (changes[row]=changes[row]||{})[f]=(f==='block_no'||f==='export_block_no')?now:(parseFloat(now)||0);
+    });
+    var rowIds=Object.keys(changes);
+    if(!rowIds.length){msg('Nothing changed',1);return;}
+    var touchesWeight=rowIds.some(function(r){return 'net_tonnage' in changes[r];});
+    function send(reason){
+      var done=0,failed=0;
+      var chain=Promise.resolve();
+      rowIds.forEach(function(r){
+        chain=chain.then(function(){
+          return post('dolphin_theme.api_arrivals.edit_shipping_block',
+            {shipping_document:docname,row:r,values:JSON.stringify(changes[r]),reason:reason||''})
+            .then(function(){done++;}).catch(function(){failed++;});
+        });
+      });
+      chain.then(function(){
+        msg(failed?(CHK+' '+done+' row(s) saved · '+failed+' refused'):(CHK+' '+done+' row(s) saved on '+docname),failed?1:0);
+        var ov2=document.getElementById('__se'); if(ov2)ov2.remove();
+        loadAll();
+      });
+    }
+    if(touchesWeight){
+      askReason('Change the weight the shipping agency gave',
+        'That figure is the invoice, so the reason stays on the row for good. '
+        +'Their original weight is kept and can be put back at any time.<br><br>'
+        +'<b>'+rowIds.length+' row(s)</b> will be saved.',
+        send,{ok:'Save the changes',chips:[
+          'Reweighed at the port',
+          'Agency sent a corrected figure',
+          'Typing error on their sheet',
+          'Agreed with the agency by phone',
+          'Short shipped — quantity revised'
+        ],foot:'Allowed, and remembered. restore_agency_weight puts theirs back.'});
+    } else {
+      send('');
+    }
+  });
+}
+
 function pushRows(rs){
   var rows=rs.map(function(r){return {block_no:r.block_no,length:r.pt_l||r.dc_l,width:r.pt_w||r.dc_w,height:r.pt_h||r.dc_h,cbm:r.pt_cbm||r.dc_cbm,mt:r.net_wt||r.ton,matched_dc:r.dc,arrival:r.arrival,quarry_block:r.block_no,consignee:r.consignee,mark:r.mark};});
   var active=LOTS.filter(function(l){return !_isShipped(l);});
@@ -1761,6 +2016,128 @@ function showLotPicker(rows){
     [].forEach.call(ov.querySelectorAll('.__lprow'),function(el){el.onclick=function(){var lot=el.getAttribute('data-lot');ov.remove();post('dolphin_theme.api_arrivals.add_blocks_to_lot',{lot:lot,rows:rows}).then(function(){SEL={};msg(CHK+' Added to '+lot);loadAll();}).catch(function(){msg('Error adding to lot',1);});};});
   }).catch(function(){msg('Error loading lots',1);});
 }
+/* ==========================================================================
+   THE PACKING LIST AND INVOICE, EDITABLE.  25 Aug 2026
+
+   [stated] "in shipping invoice and packing list give an option to manually
+    enter the weights, msmts, volume, edit weight etc if one edits weight given
+    by shipping agency we need to take a reason but allow."
+   [stated] "The packing list and invoice does list block numbers msmt and
+    tonnage right? so those fields make it editable after you populate whatever
+    is given by shipping agency tonnage."
+
+   ALLOW, THEN REMEMBER. A person filing at the port knows things the app does
+   not; if the app argues, the document does not go out. So every figure on the
+   row is typed over freely - block number, export number, L, W, H, volume,
+   tonnage. The ONE condition is his: changing the WEIGHT the agency gave asks
+   for a reason, because that figure is the invoice. Their original is kept and
+   can be put back.
+   ========================================================================== */
+function openShippingEditor(docname){
+  var ov=document.getElementById('__se'); if(ov)ov.remove();
+  ov=document.createElement('div'); ov.id='__se';
+  ov.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(15,37,64,.5);z-index:100005;display:flex;align-items:center;justify-content:center;padding:18px';
+  ov.innerHTML='<div style="background:#fff;border-radius:12px;width:1000px;max-width:97vw;max-height:92vh;display:flex;flex-direction:column;box-shadow:0 18px 50px rgba(0,0,0,.3)">'
+    +'<div style="padding:14px 18px;border-bottom:1px solid #eef2f6;display:flex;align-items:center;gap:10px">'
+    +'<b style="flex:1;color:#0F2540;font-size:14px">'+esc(docname)+' &middot; block numbers, measurement and tonnage</b>'
+    +'<span class="sub" id="__setot" style="font-size:12px"></span>'
+    +'<button class="rb" id="__sex" style="margin-left:8px">Close</button></div>'
+    +'<div id="__sebody" style="padding:14px 18px;overflow:auto;flex:1"><div class="sub">Loading&hellip;</div></div>'
+    +'<div style="padding:12px 18px;border-top:1px solid #eef2f6;display:flex;align-items:center;gap:10px">'
+    +'<span class="sub" id="__semsg" style="flex:1;font-size:12px">Measurement and volume are ours &mdash; edit them freely. Changing the agency&rsquo;s weight asks for a reason, and their figure is kept.</span>'
+    +'<button class="rb pri" id="__sesave">'+CHK+' Save changes&hellip;</button></div></div>';
+  document.body.appendChild(ov);
+  ov.querySelector('#__sex').addEventListener('click',function(){ov.remove();});
+  ov.addEventListener('mousedown',function(e){if(e.target===ov)ov.remove();});
+
+  var ORIG={};
+  fetch('/api/method/frappe.client.get?doctype=Shipping+Document&name='+encodeURIComponent(docname),{credentials:'include'})
+    .then(function(r){return r.json();}).then(function(j){
+      var d=(j&&j.message)||{}; var rows=d.blocks||[];
+      if(d.docstatus===1){
+        document.getElementById('__sebody').innerHTML='<div class="sub" style="padding:10px 0">'
+          +'<b>'+esc(docname)+' is submitted.</b><br>Cancel or amend it first &mdash; a filed document is not edited behind its own back.</div>';
+        var sv=document.getElementById('__sesave'); if(sv)sv.style.display='none';
+        return;
+      }
+      var h='<table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr>'
+        +['#','Block no','Export no','L','W','H','Volume','Tonnage','Agency gave'].map(function(t){
+          return '<th style="text-align:left;padding:6px 7px;border-bottom:1px solid #e5e9ef;font-size:11px;color:#69788a;text-transform:uppercase;letter-spacing:.04em">'+t+'</th>';}).join('')
+        +'</tr></thead><tbody>';
+      rows.forEach(function(r,i){
+        ORIG[r.name]={block_no:r.block_no,export_block_no:r.export_block_no,length:r.length,width:r.width,height:r.height,net_volume:r.net_volume,net_tonnage:r.net_tonnage};
+        function inp(f,v,w){return '<input class="sef" data-row="'+esc(r.name)+'" data-f="'+f+'" value="'+(v==null?'':esc(String(v)))+'" style="width:'+(w||64)+'px;padding:4px 6px;border:1px solid #cfd4dc;border-radius:5px;font-size:12.5px;text-align:right;font-variant-numeric:tabular-nums">';}
+        h+='<tr><td class="sub" style="padding:5px 7px">'+(i+1)+'</td>'
+          +'<td style="padding:5px 7px">'+inp('block_no',r.block_no,80)+'</td>'
+          +'<td style="padding:5px 7px">'+inp('export_block_no',r.export_block_no,80)+'</td>'
+          +'<td style="padding:5px 7px">'+inp('length',r.length)+'</td>'
+          +'<td style="padding:5px 7px">'+inp('width',r.width)+'</td>'
+          +'<td style="padding:5px 7px">'+inp('height',r.height)+'</td>'
+          +'<td style="padding:5px 7px">'+inp('net_volume',r.net_volume,76)+'</td>'
+          +'<td style="padding:5px 7px">'+inp('net_tonnage',r.net_tonnage,76)+'</td>'
+          +'<td class="sub" style="padding:5px 7px;white-space:nowrap">'+(r.agency_net_tonnage?('<b>'+esc(String(r.agency_net_tonnage))+'</b> MT'+(r.edited_by_hand?' <span style="color:#8a5a12">edited</span>':'')):'&mdash;')+'</td></tr>';
+      });
+      h+='</tbody></table>';
+      document.getElementById('__sebody').innerHTML=h;
+      recalcShipTotals();
+      document.querySelectorAll('.sef').forEach(function(x){x.addEventListener('input',recalcShipTotals);});
+    }).catch(function(){document.getElementById('__sebody').innerHTML='<div class="sub">Could not load that document.</div>';});
+
+  function recalcShipTotals(){
+    var t=0,v=0;
+    document.querySelectorAll('.sef[data-f="net_tonnage"]').forEach(function(x){t+=(parseFloat(x.value)||0);});
+    document.querySelectorAll('.sef[data-f="net_volume"]').forEach(function(x){v+=(parseFloat(x.value)||0);});
+    var e=document.getElementById('__setot');
+    if(e)e.innerHTML='<b style="color:#0F2540">'+t.toFixed(3)+' MT</b> total &middot; '+v.toFixed(3)+' CBM'
+      +'<span style="color:#9aa8b8"> &middot; '+(v?(t/v).toFixed(4):'—')+' t/CBM (ours, internal)</span>';
+  }
+
+  document.getElementById('__sesave').addEventListener('click',function(){
+    var changes={};
+    document.querySelectorAll('.sef').forEach(function(x){
+      var row=x.dataset.row,f=x.dataset.f,was=ORIG[row]?ORIG[row][f]:null;
+      var now=x.value.trim();
+      var same=(was==null?'':String(was))===now;
+      if(same)return;
+      (changes[row]=changes[row]||{})[f]=(f==='block_no'||f==='export_block_no')?now:(parseFloat(now)||0);
+    });
+    var rowIds=Object.keys(changes);
+    if(!rowIds.length){msg('Nothing changed',1);return;}
+    var touchesWeight=rowIds.some(function(r){return 'net_tonnage' in changes[r];});
+    function send(reason){
+      var done=0,failed=0;
+      var chain=Promise.resolve();
+      rowIds.forEach(function(r){
+        chain=chain.then(function(){
+          return post('dolphin_theme.api_arrivals.edit_shipping_block',
+            {shipping_document:docname,row:r,values:JSON.stringify(changes[r]),reason:reason||''})
+            .then(function(){done++;}).catch(function(){failed++;});
+        });
+      });
+      chain.then(function(){
+        msg(failed?(CHK+' '+done+' row(s) saved · '+failed+' refused'):(CHK+' '+done+' row(s) saved on '+docname),failed?1:0);
+        var ov2=document.getElementById('__se'); if(ov2)ov2.remove();
+        loadAll();
+      });
+    }
+    if(touchesWeight){
+      askReason('Change the weight the shipping agency gave',
+        'That figure is the invoice, so the reason stays on the row for good. '
+        +'Their original weight is kept and can be put back at any time.<br><br>'
+        +'<b>'+rowIds.length+' row(s)</b> will be saved.',
+        send,{ok:'Save the changes',chips:[
+          'Reweighed at the port',
+          'Agency sent a corrected figure',
+          'Typing error on their sheet',
+          'Agreed with the agency by phone',
+          'Short shipped — quantity revised'
+        ],foot:'Allowed, and remembered. restore_agency_weight puts theirs back.'});
+    } else {
+      send('');
+    }
+  });
+}
+
 function pushRows(rs){
   var rows=rs.map(function(r){return {block_no:r.block_no,length:r.pt_l||r.dc_l,width:r.pt_w||r.dc_w,height:r.pt_h||r.dc_h,cbm:r.pt_cbm||r.dc_cbm,mt:r.net_wt||r.ton,matched_dc:r.dc,arrival:r.arrival,consignee:r.consignee,mark:r.mark};});
   showLotPicker(rows);
