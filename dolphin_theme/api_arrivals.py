@@ -4072,6 +4072,13 @@ AUTO_TOL_MT = 1.0          # his standing rule: one tonne, and inside it is matc
 # call ordinary dressing. One number, one place, easy to change.
 DRESSING_LOOK_AT_IT = 0.50
 
+# 25 Aug 2026. How far the port's volume may sit from ours before the MATCH
+# itself is doubted rather than the weight. His rule is that size neither varies
+# nor compresses, so a block at half or double our volume is a different block.
+# Deliberately wide, because this must only ever fire on matches that are wrong.
+SIZE_MATCH_LOW = 0.55
+SIZE_MATCH_HIGH = 1.45
+
 
 def _prev_field_ready():
     """Make sure Quarry Block has somewhere to remember what it was before At Port.
@@ -4984,7 +4991,10 @@ def dc_weight_check_v2():
         rows = frappe.get_all(
             "DC Block Row",
             filters={"parent": c["name"]},
-            fields=["block", "block_no", "export_block_no", "gross_tonnage"],
+            # 25 Aug 2026: the dimensions come too, because the SIZE is now a
+            # gate on the match itself, not just a figure on a screen.
+            fields=["block", "block_no", "export_block_no", "gross_tonnage",
+                    "length_gross", "width_gross", "height_gross"],
             limit_page_length=0,
         )
         if not rows:
@@ -5077,6 +5087,53 @@ def dc_weight_check_v2():
         STRONG = ("export number", "number")
         loose = [p for p in per_block
                  if p.get("sheet") and _s(p.get("found_by")) not in STRONG]
+
+        # ------------------------------------------------------------------
+        # THE SIZE GATE.  25 Aug 2026, his words:
+        #   "I doubt these blocks are exact match many a times it is happening
+        #    wrong blocks are being tried to match by you"
+        #
+        # He was right, and the screen he was looking at proved it: block 823 on
+        # challan 0011 read ours 238x212x140 (7.06 CBM) against port 220x105x85
+        # (1.96 CBM). Under his own truck rule - "the size neither varies, nor
+        # compresses" - a block does not lose two thirds of its volume on a
+        # lorry. That is not dressing loss and not a mistyped figure; it is the
+        # wrong agency row attached to the right-looking number, and the -13.77
+        # MT printed under it was fiction.
+        #
+        # So a size nowhere near ours REFUSES the match outright. The challan
+        # gets no verdict and the offending blocks are named, which is the
+        # honest thing to put on a screen: not "the port lost stone" but "we
+        # matched the wrong row".
+        # ------------------------------------------------------------------
+        def _vol(a, b, c):
+            try:
+                a, b, c = float(a or 0), float(b or 0), float(c or 0)
+            except Exception:
+                return 0.0
+            return round(a * b * c / 1e6, 3) if (a and b and c) else 0.0
+
+        ours_by_block = {}
+        for r in rows:
+            k = (_s(r.get("export_block_no")) or _s(r.get("block_no"))
+                 or _s(r.get("block")))
+            if k:
+                ours_by_block[k] = r
+        wrong_size = []
+        for p in per_block:
+            if not p.get("sheet"):
+                continue
+            src = ours_by_block.get(_s(p.get("block"))) or {}
+            oc = _vol(src.get("length_gross"), src.get("width_gross"),
+                      src.get("height_gross"))
+            tc = _vol(p.get("port_l"), p.get("port_w"), p.get("port_h"))
+            if not (oc and tc):
+                continue
+            ratio = round(tc / oc, 3)
+            if ratio < SIZE_MATCH_LOW or ratio > SIZE_MATCH_HIGH:
+                wrong_size.append({"block": _s(p.get("block")),
+                                   "our_cbm": oc, "their_cbm": tc,
+                                   "ratio": ratio})
         if matched == 0:
             verdict, state = "Not sent yet", "never"
             never += 1
@@ -5087,6 +5144,10 @@ def dc_weight_check_v2():
             diff = None
         elif draft_sheet:
             verdict, state = "Unconfirmed sheet", "incomplete"
+            incomplete += 1
+            diff = None
+        elif wrong_size:
+            verdict, state = "Wrong block matched - no verdict", "incomplete"
             incomplete += 1
             diff = None
         elif loose:
@@ -5132,6 +5193,9 @@ def dc_weight_check_v2():
             # rather than leaving "no verdict" looking like an app fault.
             "loose_matches": [{"block": p.get("block"), "found_by": p.get("found_by")}
                               for p in loose][:20],
+            # Named, so the screen says "we matched the wrong row" rather than
+            # implying the port lost stone.
+            "wrong_size_matches": wrong_size[:20],
             "per_block": per_block,
         })
 

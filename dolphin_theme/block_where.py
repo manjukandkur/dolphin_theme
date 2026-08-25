@@ -296,6 +296,45 @@ def _places_on_shipping(rec):
     return out
 
 
+def _places_on_quarry_inspection(rec):
+    """The quarry inspection - the reading taken once, when the stone came out.
+
+    A block that has one of these and nothing else is FRESH QUARRY STOCK, which
+    is his own word for it, and it is not a fault or a gap: it is stone that has
+    not been sold yet.
+    """
+    out = []
+    q = _s(rec.get("block_number"))
+    if not q:
+        return out
+    rows = _rows("Quarry Inspection Block", {"quarry_block_no": q},
+                 ["name", "parent", "quarry_block_no", "length_gross",
+                  "width_gross", "height_gross", "gross_volume"])
+    parents = list({r.get("parent") for r in rows if r.get("parent")})
+    heads = {}
+    if parents:
+        for h in _rows("Quarry Inspection", {"name": ["in", parents]},
+                       ["name", "docstatus", "report_no", "report_date"]):
+            heads[_s(h.get("name"))] = h
+    for r in rows:
+        h = heads.get(_s(r.get("parent"))) or {}
+        out.append({
+            "kind": "quarry_inspection",
+            "doctype": "Quarry Inspection",
+            "doc": _s(r.get("parent")),
+            "report_no": _s(h.get("report_no")),
+            "date": _s(h.get("report_date")),
+            "draft": 1 if int(h.get("docstatus") or 0) == 0 else 0,
+            "found_by": "its quarry number on the inspection",
+            "number_used": q,
+            "number_type": "quarry number",
+            "size": [r.get("length_gross"), r.get("width_gross"),
+                     r.get("height_gross")],
+            "cbm": r.get("gross_volume"),
+        })
+    return out
+
+
 def _places_on_inspections(rec):
     """Buyer Inspection - the reading that makes a block "sold to somebody"."""
     out = []
@@ -376,6 +415,247 @@ def _verdict(rec, places):
     return stage, answers
 
 
+# ==========================================================================
+# THE JOURNEY GATE.  25 Aug 2026.
+#
+# His words, after looking at the DC-to-DC screen:
+#
+#   "I doubt these blocks are exact match many a times it is happening wrong
+#    blocks are being tried to match by you.. so first check the journey of the
+#    block and if no DC submitted, no arrivals, not in Dc draft, then if BI is
+#    there it is buyer marked and not transported or if no BI also then it is
+#    quarry fresh stock if it is in QI so create a mechanism to check and run
+#    all these validations along with the matching export block number and
+#    quarry number in Dc matching etc"
+#
+# He was right, and the screen he was looking at proves it:
+#
+#     block 823, challan 0011:  ours 238x212x140 = 7.06 CBM
+#                               port 220x105x85  = 1.96 CBM
+#     block 825, challan 0016:  ours 247x205x99  = 5.01 CBM
+#                               port 267x98x83   = 2.17 CBM
+#     block 827, challan 0019:  ours 276x199x97  = 5.33 CBM
+#                               port 252x86x80   = 1.73 CBM
+#
+# Against his own truck rule - "the size neither varies, nor compresses" - a
+# block cannot lose two thirds of its volume between the quarry and the port.
+# These are not blocks that shrank. They are the WRONG ROWS, matched to the
+# right-looking numbers, and every tonnage verdict resting on them is fiction.
+#
+# So nothing may claim an agency row belongs to a block until the block's own
+# JOURNEY says it could. Three gates, in his order:
+#
+#   1. Could it even be there?  No submitted challan means it never left the
+#      quarry, and then the honest answer is what it IS - on a draft challan,
+#      buyer marked, or fresh quarry stock - not a weight comparison.
+#   2. Do the numbers agree, export AND quarry, as written on the challan?
+#   3. Does the size agree? Size is ours and it does not change. A volume that
+#      is nowhere near ours is the loudest possible evidence of a bad match.
+# ==========================================================================
+
+# How far a port volume may sit from ours before the match itself is doubted.
+# Dressing takes a slice off a block; it does not halve it. Deliberately wide,
+# because this must only fire on matches that are actually wrong.
+SIZE_RATIO_LOW = 0.55
+SIZE_RATIO_HIGH = 1.45
+
+
+def _cbm(dims):
+    try:
+        l, w, h = [float(x or 0) for x in (dims or [0, 0, 0])[:3]]
+    except Exception:
+        return 0.0
+    if not (l and w and h):
+        return 0.0
+    return round(l * w * h / 1e6, 3)
+
+
+def journey_state(rec, places):
+    """What this block IS, said in his words, from its journey alone.
+
+    Never a guess and never a fault - a block nobody has bought is simply fresh
+    quarry stock, and saying so is the answer, not a warning.
+    """
+    kinds = {p["kind"] for p in places}
+    submitted_dc = [p for p in places
+                    if p["kind"] == "delivery_challan" and p.get("submitted")]
+    draft_dc = [p for p in places
+                if p["kind"] == "delivery_challan" and p.get("draft")]
+    arrivals = [p for p in places if p["kind"] == "arrival_sheet"]
+
+    state, words = "", ""
+    if submitted_dc:
+        state = "transported"
+        words = "Dispatched on submitted challan {0}".format(
+            ", ".join(sorted({p["doc"] for p in submitted_dc}))[:120])
+    elif arrivals:
+        # An arrival row with no submitted challan behind it is not proof the
+        # block arrived - it is proof something is matched wrongly, or that a
+        # challan is missing. Either way it is a question, never a conclusion.
+        state = "arrival_without_a_challan"
+        words = ("An agency row carries this number, but no submitted challan of "
+                 "ours ever dispatched it")
+    elif draft_dc:
+        state = "on_draft_dc"
+        words = "On a draft challan only - a draft challan has dispatched nothing"
+    elif "buyer_inspection" in kinds:
+        state = "buyer_marked"
+        words = "Buyer marked, not transported"
+    elif "quarry_inspection" in kinds:
+        state = "fresh_quarry_stock"
+        words = "Fresh quarry stock"
+    else:
+        state = "no_paperwork"
+        words = "No quarry inspection, no buyer inspection, no challan"
+
+    return {
+        "state": state,
+        "words": words,
+        "could_have_reached_the_port": 1 if submitted_dc else 0,
+        "submitted_challans": sorted({p["doc"] for p in submitted_dc}),
+        "draft_challans": sorted({p["doc"] for p in draft_dc}),
+        "arrival_sheets": sorted({p["doc"] for p in arrivals}),
+        "has_buyer_inspection": 1 if "buyer_inspection" in kinds else 0,
+        "has_quarry_inspection": 1 if "quarry_inspection" in kinds else 0,
+    }
+
+
+@frappe.whitelist()
+def check_match(key=None, port_l=None, port_w=None, port_h=None, dc=None):
+    """Should this agency row be believed to be this block? Yes, no, or wait.
+
+    Runs his three gates in order and returns a verdict a screen can print and
+    a check can fail on. Writes nothing.
+    """
+    ans = where_is(key)
+    if not ans.get("ok"):
+        return {"ok": 0, "verdict": "cannot_identify", "detail": ans}
+
+    rec = {"name": ans["numbers"]["record_id"],
+           "block_number": ans["numbers"]["quarry_no"],
+           "export_block_no": ans["numbers"]["export_no"]}
+    j = ans.get("journey") or {}
+    places = ans.get("places") or []
+    problems = []
+
+    # GATE 1 - could it even be at the port?
+    if not j.get("could_have_reached_the_port"):
+        problems.append({
+            "gate": "journey",
+            "why": j.get("words") or "no submitted challan",
+            "so": ("nothing the agency sent can belong to this block yet - "
+                   "it has not been dispatched"),
+        })
+
+    # GATE 2 - the challan it is on must answer to BOTH of its numbers.
+    if dc:
+        on = [p for p in places
+              if p["kind"] == "delivery_challan" and _s(p.get("doc")) == _s(dc)]
+        if not on:
+            problems.append({
+                "gate": "numbers",
+                "why": "this block is not on challan {0} at all".format(_s(dc)),
+                "so": "the row was matched to the wrong challan",
+            })
+
+    # GATE 3 - the size. His rule: it does not change.
+    ours = None
+    for p in places:
+        if p["kind"] == "delivery_challan":
+            continue
+        if p["kind"] == "buyer_inspection" and p.get("size"):
+            ours = p["size"]
+            break
+    if ours is None:
+        for p in places:
+            if p["kind"] == "quarry_inspection" and p.get("size"):
+                ours = p["size"]
+                break
+    theirs = [port_l, port_w, port_h]
+    our_cbm, their_cbm = _cbm(ours), _cbm(theirs)
+    ratio = None
+    if our_cbm and their_cbm:
+        ratio = round(their_cbm / our_cbm, 3)
+        if ratio < SIZE_RATIO_LOW or ratio > SIZE_RATIO_HIGH:
+            problems.append({
+                "gate": "size",
+                "why": ("ours {0} = {1} CBM against theirs {2} = {3} CBM "
+                        "({4}x)".format(
+                            "x".join(str(int(float(x or 0))) for x in ours),
+                            our_cbm,
+                            "x".join(str(int(float(x or 0))) for x in theirs),
+                            their_cbm, ratio)),
+                "so": ("stone does not change size, so this is almost certainly "
+                       "a different block - not a measuring error and not a loss"),
+            })
+
+    verdict = "believable" if not problems else "refused"
+    return {
+        "ok": 1,
+        "block": ans["numbers"],
+        "asked_was": ans.get("asked_was"),
+        "journey": j,
+        "our_cbm": our_cbm,
+        "their_cbm": their_cbm,
+        "size_ratio": ratio,
+        "verdict": verdict,
+        "problems": problems,
+        "message": ("Nothing contradicts this match." if verdict == "believable"
+                    else "; ".join(p["why"] for p in problems)),
+    }
+
+
+@frappe.whitelist()
+def audit_matches(limit=400):
+    """Every agency row currently attached to a block that should not be.
+
+    This is the mechanism he asked for, run across the whole site rather than
+    one block at a time: for every ledger row that carries BOTH our size and the
+    port's, put it through the same three gates and list what fails. Read-only.
+    """
+    from dolphin_theme import api_arrivals as A
+
+    try:
+        rows = A.ledger_view() or []
+        if isinstance(rows, dict):
+            rows = rows.get("rows") or []
+    except Exception:
+        return {"checked": 0, "refused": [], "error": "could not read the ledger"}
+
+    refused, checked = [], 0
+    for r in rows[:int(limit or 400)]:
+        ours = [r.get("dc_l"), r.get("dc_w"), r.get("dc_h")]
+        theirs = [r.get("pt_l"), r.get("pt_w"), r.get("pt_h")]
+        oc, tc = _cbm(ours), _cbm(theirs)
+        if not (oc and tc):
+            continue                      # nothing to compare - not a finding
+        checked += 1
+        ratio = round(tc / oc, 3)
+        if ratio < SIZE_RATIO_LOW or ratio > SIZE_RATIO_HIGH:
+            refused.append({
+                "block": _s(r.get("export_block_no") or r.get("block_no")),
+                "quarry_no": _s(r.get("quarry_block_no")),
+                "dc": _s(r.get("dc")),
+                "arrival": _s(r.get("arrival")),
+                "ours": ours, "our_cbm": oc,
+                "theirs": theirs, "their_cbm": tc,
+                "ratio": ratio,
+                "why": ("the port volume is {0}x ours - stone does not change "
+                        "size, so this is almost certainly a different block"
+                        .format(ratio)),
+            })
+    refused.sort(key=lambda x: x["ratio"])
+    return {
+        "checked": checked,
+        "refused": len(refused),
+        "tolerance": [SIZE_RATIO_LOW, SIZE_RATIO_HIGH],
+        "rows": refused[:200],
+        "note": ("These are matches, not stone. A volume nowhere near ours means "
+                 "the agency's row was attached to the wrong block - his rule is "
+                 "that size neither varies nor compresses."),
+    }
+
+
 @frappe.whitelist()
 def where_is(key=None):
     """Where is this block now - and how do we know?
@@ -448,12 +728,14 @@ def where_is(key=None):
 
     rec = cands[0]
     places = []
+    places += _places_on_quarry_inspection(rec)
     places += _places_on_inspections(rec)
     places += _places_on_challans(rec)
     places += _places_on_arrivals(rec)
     places += _places_on_lots(rec)
     places += _places_on_shipping(rec)
     stage, answers = _verdict(rec, places)
+    journey = journey_state(rec, places)
 
     return {
         "asked": key,
@@ -467,6 +749,7 @@ def where_is(key=None):
         "where": stage,
         "where_words": STAGE_WORDS.get(stage, stage),
         "answers": answers,
+        "journey": journey,
         "places": places,
         "place_count": len(places),
     }
