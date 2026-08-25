@@ -4457,24 +4457,71 @@ def auto_settle_at_port(include_noconflict=0, person=None, dry_run=0, note=None)
         bn = _s(r.get("export_block_no") or r.get("block_no"))
         if not bn:
             continue
-        # FOOLPROOF IDENTITY. Four separate refusals, any one of which stops the
-        # block. A wrong match here costs lakhs, so nothing is assumed:
-        #   1. the number must resolve, and never through a record id
-        #   2. the resolution must be unambiguous (try_resolve enforces that)
-        #   3. the block it landed on must itself answer to the number we sent
-        #   4. the number must not be some OTHER block's record id - on this site
-        #      62 numbers are, and those are precisely the ones that produce a
-        #      confident, silent, wrong match (see identity_guard.py)
-        try:
-            from dolphin_theme.identity_guard import check_number
-            _chk = check_number(bn)
-            if not _chk.get("ok"):
-                refused.append({"block": bn, "why": _chk.get("reason") or "refused",
-                                "detail": _chk.get("message")})
+        # ==================================================================
+        # 25 Aug 2026. THE NUMBER WAS NEVER THE IDENTITY. THE RECORD IS.
+        #
+        # His rule that the tolerance should settle a block by itself could
+        # not work, and this is why. Measured live today, all 16 blocks the
+        # app wanted to settle were refused as "ambiguous - No block answers
+        # to 1150." They were right to be refused on the NUMBER: 1150 is
+        # block 1001564's EXPORT number and, at the same time, block
+        # 1001474's QUARRY number. Every one of the 16 collides that way.
+        # 1364 is one block's export number and another's quarry number, and
+        # THAT block's export number is 1160, which is a third block's
+        # quarry number. A chain of them.
+        #
+        # But the ledger row already knows exactly which record it is - `qb`
+        # comes off the challan's own link to the Quarry Block. Throwing that
+        # away and re-resolving a bare number is how a screen that knows the
+        # answer manages to ask an ambiguous question.
+        #
+        # So: use the record when we have it, and demand only that the record
+        # ANSWERS TO the number we are about to report. Fall back to
+        # resolving the number when there is no record, where the old guards
+        # all still apply. The refusals below are unchanged in strength - a
+        # wrong match here costs lakhs - they are simply no longer applied to
+        # a question we did not need to ask.
+        # ==================================================================
+        hit, why = None, ""
+        qbid = _s(r.get("qb"))
+        if qbid:
+            try:
+                _rec = frappe.db.get_value(
+                    "Quarry Block", qbid,
+                    ["name", "block_number", "export_block_no"], as_dict=True)
+            except Exception:
+                _rec = None
+            if _rec and _s(bn) in {_s(_rec.get("export_block_no")),
+                                   _s(_rec.get("block_number"))}:
+                hit = {"name": _s(_rec.get("name")),
+                       "block_number": _rec.get("block_number"),
+                       "export_block_no": _rec.get("export_block_no")}
+            elif _rec:
+                refused.append({"block": bn,
+                                "why": "the challan points at a block that does not "
+                                       "answer to this number",
+                                "detail": "record " + qbid})
                 continue
-        except Exception:
-            pass
-        hit, why = try_resolve(bn, allow_record_name=False)
+
+        if not hit:
+            # FOOLPROOF IDENTITY, the number-only path. Four separate refusals,
+            # any one of which stops the block:
+            #   1. the number must resolve, and never through a record id
+            #   2. the resolution must be unambiguous (try_resolve enforces that)
+            #   3. the block it landed on must itself answer to the number sent
+            #   4. the number must not be some OTHER block's record id - on this
+            #      site 62 numbers are, and those are precisely the ones that
+            #      produce a confident, silent, wrong match (identity_guard.py)
+            try:
+                from dolphin_theme.identity_guard import check_number
+                _chk = check_number(bn)
+                if not _chk.get("ok"):
+                    refused.append({"block": bn, "why": _chk.get("reason") or "refused",
+                                    "detail": _chk.get("message")})
+                    continue
+            except Exception:
+                pass
+            hit, why = try_resolve(bn, allow_record_name=False)
         if not hit:
             refused.append({"block": bn, "why": why})
             continue
@@ -5777,16 +5824,43 @@ def return_from_dc(dc=None, blocks=None, reason=None, person=None, dry_run=0):
         if bn not in on_challan:
             refused.append({"block": bn, "why": "not on this challan"})
             continue
-        try:
-            from dolphin_theme.identity_guard import check_number
-            chk = check_number(bn)
-            if not chk.get("ok"):
-                refused.append({"block": bn, "why": chk.get("reason") or "refused",
-                                "detail": chk.get("message")})
+        # THE RECORD IS THE IDENTITY, NOT THE NUMBER. 25 Aug 2026.
+        # The challan row carries a LINK to the Quarry Block, so the identity is
+        # already settled and does not have to be guessed from digits that two
+        # different blocks may both answer to - which on this site they very
+        # often do. The number is still required to match the record, so a wrong
+        # link cannot slip through either.
+        hit, why = None, ""
+        linked = _s((on_challan.get(bn) or {}).get("block"))
+        if linked:
+            try:
+                rec = frappe.db.get_value(
+                    "Quarry Block", linked,
+                    ["name", "block_number", "export_block_no"], as_dict=True)
+            except Exception:
+                rec = None
+            if rec and _s(bn) in {_s(rec.get("export_block_no")),
+                                  _s(rec.get("block_number"))}:
+                hit = {"name": _s(rec.get("name")),
+                       "block_number": rec.get("block_number"),
+                       "export_block_no": rec.get("export_block_no")}
+            elif rec:
+                refused.append({"block": bn,
+                                "why": "the challan row points at a block that does "
+                                       "not answer to this number",
+                                "detail": "record " + linked})
                 continue
-        except Exception:
-            pass
-        hit, why = try_resolve(bn, allow_record_name=False)
+        if not hit:
+            try:
+                from dolphin_theme.identity_guard import check_number
+                chk = check_number(bn)
+                if not chk.get("ok"):
+                    refused.append({"block": bn, "why": chk.get("reason") or "refused",
+                                    "detail": chk.get("message")})
+                    continue
+            except Exception:
+                pass
+            hit, why = try_resolve(bn, allow_record_name=False)
         if not hit:
             refused.append({"block": bn, "why": why})
             continue
@@ -5903,9 +5977,17 @@ def undo_return_from_dc(dc=None, blocks=None, reason=None, person=None,
         frappe.throw("Undoing a return needs a written reason too.")
 
     from dolphin_theme.block_resolve import try_resolve, set_status
+    # The blocks we are undoing are exactly the ones carrying a
+    # status_before_dc_return, and that index is keyed by BOTH of a block's
+    # numbers - so the record is found without resolving an ambiguous number.
+    idx = _returned_blocks_index()
     restored, refused = [], []
     for bn in [_s(b) for b in blocks if _s(b)]:
-        hit, why = try_resolve(bn, allow_record_name=False)
+        rec = idx.get(bn)
+        if rec:
+            hit = {"name": _s(rec.get("name"))}
+        else:
+            hit, why = try_resolve(bn, allow_record_name=False)
         if not hit:
             refused.append({"block": bn, "why": why})
             continue

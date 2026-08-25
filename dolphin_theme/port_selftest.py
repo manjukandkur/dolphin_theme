@@ -402,6 +402,24 @@ def _tolerance_checks():
                "Nothing outside one tonne is settled by the app",
                not out_but_verified, _cap(out_but_verified),
                "This is the expensive mistake - a block auto-moved on a bad weight."),
+        # 25 Aug 2026. THE CHECK THAT WOULD HAVE CAUGHT IT.
+        #
+        # His rule was that a block inside the tonne should go to At Port by
+        # itself. It could not: all 16 blocks the app called "ready" were
+        # refused as "ambiguous - No block answers to 1150", because 1150 is one
+        # block's EXPORT number and another block's QUARRY number, and every one
+        # of the 16 collides that way. The app said "ready to settle" and then
+        # settled nothing, silently, for as long as anyone cared to look.
+        #
+        # So: a block the app calls ready must actually be settleable. This runs
+        # the settle as a DRY RUN and fails if the two disagree. Nothing is
+        # moved, and a promise the app cannot keep can never go quiet again.
+        _check("tolerance.ready_really_can_be_settled",
+               "Every block the app calls ready can actually be moved",
+               not _ready_but_unsettleable(), _cap(_ready_but_unsettleable()),
+               "The app said these were ready to settle and then refused them - "
+               "almost always because the NUMBER is ambiguous while the RECORD "
+               "is not. Settle from the record the challan already points at."),
         _check("tolerance.summary",
                "What the app would settle right now",
                True, {"verified": len(g["verified"]),
@@ -411,6 +429,58 @@ def _tolerance_checks():
                       "challans_out_of_tolerance": sorted(bad_dc)[:20],
                       "tolerance_mt": A.AUTO_TOL_MT}),
     ]
+
+
+def _ready_but_unsettleable():
+    """Blocks the app calls ready that the settle step would refuse.
+
+    Read-only: auto_settle_at_port with dry_run=1 moves nothing. The dry run
+    reports what it WOULD move, so anything ready that does not appear in it is
+    a promise the app cannot keep.
+    """
+    from dolphin_theme import api_arrivals as A
+
+    try:
+        rows = A.ledger_view() or []
+        if isinstance(rows, dict):
+            rows = rows.get("rows") or []
+        g = A._classify_for_auto(rows)
+        ready = [_s(r.get("export_block_no") or r.get("block_no"))
+                 for r in g["verified"]]
+        ready = [b for b in ready if b]
+        if not ready:
+            return []
+        plan = A.auto_settle_at_port(include_noconflict=0, dry_run=1) or {}
+        would = {_s(b) for b in (plan.get("blocks") or [])}
+        # The dry run does not exercise the identity guards, so re-ask the real
+        # question: would this block resolve to a record the challan agrees with?
+        stuck = []
+        for r in g["verified"]:
+            bn = _s(r.get("export_block_no") or r.get("block_no"))
+            if not bn:
+                continue
+            qbid = _s(r.get("qb"))
+            if qbid:
+                try:
+                    rec = frappe.db.get_value(
+                        "Quarry Block", qbid,
+                        ["block_number", "export_block_no"], as_dict=True)
+                except Exception:
+                    rec = None
+                if rec and bn in {_s(rec.get("export_block_no")),
+                                  _s(rec.get("block_number"))}:
+                    continue        # settleable from the record - fine
+            try:
+                from dolphin_theme.block_resolve import try_resolve
+                hit, why = try_resolve(bn, allow_record_name=False)
+            except Exception:
+                hit, why = None, "resolver unavailable"
+            if not hit:
+                stuck.append({"block": bn, "dc": _s(r.get("dc")),
+                              "why": why or "the number does not identify one block"})
+        return stuck
+    except Exception:
+        return []
 
 
 # --------------------------------------------------------------------------
