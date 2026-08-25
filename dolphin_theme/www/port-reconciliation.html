@@ -242,7 +242,7 @@ function loadSizeNotes(){
     }).catch(function(){SIZENOTES={};return {};});
 }
 
-var RSUB='b2b';   /* 21 Aug 2026: the sheet is the work, so the screen opens on it */
+var RSUB='issues'; /* 25 Aug 2026: the screen opens on what is actually waiting for a person */
 function _fx(n){var x=(+n);if(n==null||isNaN(x))return '0.00';return x.toFixed(2);}
 var PORTABBR={'krishnapatnam':'INKRI1','inkri':'INKRI1','inkri1':'INKRI1','nhava sheva':'INNSA1','jawaharlal nehru':'INNSA1','jnpt':'INNSA1','innsa':'INNSA1','innsa1':'INNSA1','chennai':'INMAA1','inmaa':'INMAA1','inmaa1':'INMAA1','kakinada':'INKAK1','inkak':'INKAK1','inkak1':'INKAK1','mundra':'INMUN1','inmun':'INMUN1','kolkata':'INCCU1','inccu':'INCCU1','cochin':'INCOK1','kochi':'INCOK1','incok':'INCOK1','mangalore':'INNML1','innml':'INNML1','mormugao':'INMRM1','mormugao (goa)':'INMRM1','goa':'INMRM1','inmrm':'INMRM1','inmrm1':'INMRM1'};function portAbbr(p){if(!p)return '';var k=(''+p).trim().toLowerCase();return PORTABBR[k]||p;}function _blkList(arr,cap){cap=cap||6;var ns=arr.map(function(b){return (''+b).replace(/^[A-Za-z]+-?/,'');});var s='Blocks: '+ns.slice(0,cap).join(', ');var ex=ns.length-cap;return s+(ex>0?(' +'+ex+' more'):'');}function _dcAgg(dc){var t='',p='',mt=0,bl=[];LED.forEach(function(r){if((r.dc||'')!==dc)return;if(!t&&r.truck)t=r.truck;if(!p&&(r.port_code||r.port))p=(r.port_code||r.port);mt+=(+r.ton||0);if(r.export_block_no||r.block_no)bl.push(r.export_block_no||r.block_no);});return {truck:t,port:p,mt:mt,blocks:bl};}function _dcSub(dc){if(!dc)return '';var a=_dcAgg(dc);var parts=[];if(a.truck)parts.push('&#128667; '+esc(a.truck));parts.push(_blkList(a.blocks));parts.push(a.mt.toFixed(2)+' MT');var pa=portAbbr(a.port);if(pa)parts.push(esc(pa));return '<div class="sub" style="font-size:11.5px;margin-top:1px;color:#1f2a3a;font-weight:500">'+parts.join(' &#183; ')+'</div>';}function fmtDate(d){if(!d)return '';var m=(''+d).match(/^(\d{4})-(\d{2})-(\d{2})/);return m?(m[3]+'-'+m[2]+'-'+m[1]):(''+d);}
 function _dcGroups(){var g={};LED.forEach(function(r){if(r.source!=='dc')return;var k=r.dc;if(!k)return;(g[k]=g[k]||{dc:k,rows:[]}).rows.push(r);});return g;}
@@ -259,7 +259,17 @@ function renderRecon(){
   /* 24 Aug 2026: "size vs cbm" is its own card because it is the one question
      on this screen that has a RIGHT ANSWER a person must give - everything else
      here is a judgement. It sits next to Needs you, not inside it. */
-  var subs=[['b2b','Block to block'],['cmp','DC to DC comparison'],['lot','Ready for export lot'],['queue','Needs you'],['cbmq','Size vs CBM'],['dup','Duplicates'],['src','Sheets as received'],['trash','Trash']];
+  /* 25 Aug 2026, his words: "whatever reconcilation issues let it come in one
+     page", "merge this Ready for export with at port: so whatever is good should
+     be shown in one place at port", "I am trying to simplify".
+
+     So EIGHT sub-tabs become four. Everything that is a QUESTION now lives on one
+     scrolling page - agency has not sent a row, then the decisions, then the
+     duplicates, then size vs CBM - in that order, because that is the order they
+     block the stone. Ready for export lot is gone from here entirely: a block the
+     app has settled is good, and good stone belongs at At Port, in one place.
+     Block to block is gone too - it was the same rows a third time. */
+  var subs=[['issues','Needs you'],['cmp','DC to DC comparison'],['src','Sheets as received'],['trash','Trash']];
   var bar='<div class="tb" style="flex-wrap:wrap;gap:3px">';
   subs.forEach(function(s){bar+='<span class="vtog'+(RSUB===s[0]?' on':'')+'" data-rs="'+s[0]+'">'+s[1]+'</span>';});
   bar+='</div>';
@@ -274,11 +284,11 @@ function renderRecon(){
   if(rqi){rqi.addEventListener('input',function(){RQ=this.value.trim().toLowerCase();applyRQ();});}
   var m=$('rcmain');
   if(RSUB==='cmp')renderCmp(m);
-  else if(RSUB==='b2b')renderB2B(m);
-  else if(RSUB==='lot')renderReady(m);
-  else if(RSUB==='queue')renderQueue(m);
-  else if(RSUB==='cbmq')renderCbmQ(m);
-  else if(RSUB==='dup')renderDupes(m);
+  /* "Needs you" already WAS the one page he asked for - no arrival row, then the
+     challans out by more than a tonne, then duplicates, then size vs CBM, all on
+     one scroll. It was simply not the default and was buried under eight tabs.
+     It is the default now, and it has grown the move-to-At-Port action. */
+  else if(RSUB==='issues')renderQueue(m);
   else if(RSUB==='trash')renderTrash(m);
   else renderSrc(m);
   applyRQ();
@@ -2014,7 +2024,13 @@ function renderQueue(m){
         'These are on a submitted challan of ours and nothing contradicts them. The agency simply has not sent a row yet, so <b>nothing confirms they have arrived</b>. '
         +'The app will not move them by itself. Wait for the sheet — or, if your team knows the ground truth, tick them and record the reason.',
         rowsA,
-        '<span class="rb" data-wl="resolve" data-g="na">'+CHK+' Resolve ticked with a reason…</span>');
+        /* 25 Aug 2026, his words: "agency not sent arrival with option to move to
+           at port for each block and multiple blocks". Tick one or tick twenty -
+           the same button. It still demands a written reason, because moving a
+           block the agency has not confirmed is the expensive kind of move, and
+           every one of them can be sent straight back from At Port. */
+        '<button class="rb pri" data-wl="atport" data-g="na">'+AR+' Move ticked to At Port…</button>'
+        +'<button class="rb" data-wl="resolve" data-g="na">'+CHK+' Resolve ticked with a reason…</button>');
     }
 
     /* ---- challan more than a tonne out, grouped by challan ---- */
@@ -2103,6 +2119,36 @@ function renderQueue(m){
         if(card)card.querySelectorAll('.wck:checked').forEach(function(c){sel.push(LED[+c.dataset.i]);});
         if(!sel.length){msg('Tick the blocks you want to resolve',1);return;}
         openBulkResolve(sel);
+      });
+    });
+    /* Move ticked blocks straight to At Port, one or many, with a reason and a
+       second confirmation - and every one of them reversible from At Port. */
+    m.querySelectorAll('[data-wl="atport"]').forEach(function(b){
+      b.addEventListener('click',function(){
+        var card=m.querySelector('.qcard[data-g="'+b.dataset.g+'"]');
+        var sel=[];
+        if(card)card.querySelectorAll('.wck:checked').forEach(function(c){sel.push(LED[+c.dataset.i]);});
+        if(!sel.length){msg('Tick the blocks you want to move',1);return;}
+        var nums=sel.map(function(r){return r.export_block_no||r.block_no;});
+        askReason('Move '+sel.length+' block'+(sel.length===1?'':'s')+' to At Port',
+          '<b>'+esc(nums.slice(0,14).join(', '))+(nums.length>14?(' +'+(nums.length-14)+' more'):'')+'</b><br><br>'
+          +'The agency has not sent a row for these, so the app will not move them by itself. '
+          +'You are saying your team knows they arrived. The reason stays on every block, and any of them can be sent back from At Port.',
+          function(reason){
+            confirmTwice('Move '+sel.length+' block'+(sel.length===1?'':'s')+' with no agency row?',
+              'Nothing on the agency\'s sheet confirms these. This is your team\'s knowledge, recorded as such. It can be undone from Stock at Port.',
+              function(){
+                post('dolphin_theme.api_arrivals.move_to_at_port',
+                     {blocks:sel.map(atPortRow),note:reason})
+                  .then(function(j){atPortDone(j&&j.message,sel.length);})
+                  .catch(function(){msg('Move failed',1);});
+              });
+          },{ok:'Move to At Port',chips:[
+            'Spoke to the agency — they have arrived',
+            'Our driver confirmed the unload',
+            'Seen at the port by our team',
+            'Agency sheet is late, arrival is certain'
+          ],foot:'Reversible. Stock at Port can send any of them back to Reconciliation.'});
       });
     });
     applyRQ();
