@@ -456,8 +456,10 @@ def _verdict(rec, places):
 # How far a port volume may sit from ours before the match itself is doubted.
 # Dressing takes a slice off a block; it does not halve it. Deliberately wide,
 # because this must only fire on matches that are actually wrong.
-SIZE_RATIO_LOW = 0.55
-SIZE_RATIO_HIGH = 1.45
+# RETIRED 25 Aug 2026 - "dont dispute measurement and weights at all". Kept
+# defined so nothing importing them breaks; nothing reads them any more.
+SIZE_RATIO_LOW = 0.0
+SIZE_RATIO_HIGH = 9e9
 
 
 def _cbm(dims):
@@ -558,36 +560,26 @@ def check_match(key=None, port_l=None, port_w=None, port_h=None, dc=None):
                 "so": "the row was matched to the wrong challan",
             })
 
-    # GATE 3 - the size. His rule: it does not change.
+    # GATE 3 IS GONE. 25 Aug 2026, his final rule: "few shipping agencies like
+    # in Krishnapatnam are not entering proper measurements so our measurement is
+    # the only measurement final so ignore measurement" and "dont dispute
+    # measurement and weights at all". A size difference proves nothing about
+    # identity when the column is not filled in properly, and I had been treating
+    # it as the loudest evidence there is. The figures are still reported, for
+    # information only - never as a reason to refuse anything.
     ours = None
-    for p in places:
-        if p["kind"] == "delivery_challan":
-            continue
-        if p["kind"] == "buyer_inspection" and p.get("size"):
-            ours = p["size"]
+    for p_ in places:
+        if p_["kind"] == "buyer_inspection" and p_.get("size"):
+            ours = p_["size"]
             break
     if ours is None:
-        for p in places:
-            if p["kind"] == "quarry_inspection" and p.get("size"):
-                ours = p["size"]
+        for p_ in places:
+            if p_["kind"] == "quarry_inspection" and p_.get("size"):
+                ours = p_["size"]
                 break
-    theirs = [port_l, port_w, port_h]
-    our_cbm, their_cbm = _cbm(ours), _cbm(theirs)
-    ratio = None
-    if our_cbm and their_cbm:
-        ratio = round(their_cbm / our_cbm, 3)
-        if ratio < SIZE_RATIO_LOW or ratio > SIZE_RATIO_HIGH:
-            problems.append({
-                "gate": "size",
-                "why": ("ours {0} = {1} CBM against theirs {2} = {3} CBM "
-                        "({4}x)".format(
-                            "x".join(str(int(float(x or 0))) for x in ours),
-                            our_cbm,
-                            "x".join(str(int(float(x or 0))) for x in theirs),
-                            their_cbm, ratio)),
-                "so": ("stone does not change size, so this is almost certainly "
-                       "a different block - not a measuring error and not a loss"),
-            })
+    our_cbm = _cbm(ours)
+    their_cbm = _cbm([port_l, port_w, port_h])
+    ratio = round(their_cbm / our_cbm, 3) if (our_cbm and their_cbm) else None
 
     verdict = "believable" if not problems else "refused"
     return {
@@ -607,52 +599,24 @@ def check_match(key=None, port_l=None, port_w=None, port_h=None, dc=None):
 
 @frappe.whitelist()
 def audit_matches(limit=400):
-    """Every agency row currently attached to a block that should not be.
+    """RETIRED as a judgement. 25 Aug 2026: "dont dispute measurement and weights
+    at all".
 
-    This is the mechanism he asked for, run across the whole site rather than
-    one block at a time: for every ledger row that carries BOTH our size and the
-    port's, put it through the same three gates and list what fails. Read-only.
+    It used to list every match whose size was nowhere near ours and call them
+    wrong blocks. Their measurement column is unreliable by design at some ports,
+    so that told us nothing, and the alarm it raised about a lot was my own gate's
+    doing. It now returns nothing to act on and says why, rather than being
+    deleted and leaving a caller with an AttributeError.
     """
-    from dolphin_theme import api_arrivals as A
-
-    try:
-        rows = A.ledger_view() or []
-        if isinstance(rows, dict):
-            rows = rows.get("rows") or []
-    except Exception:
-        return {"checked": 0, "refused": [], "error": "could not read the ledger"}
-
-    refused, checked = [], 0
-    for r in rows[:int(limit or 400)]:
-        ours = [r.get("dc_l"), r.get("dc_w"), r.get("dc_h")]
-        theirs = [r.get("pt_l"), r.get("pt_w"), r.get("pt_h")]
-        oc, tc = _cbm(ours), _cbm(theirs)
-        if not (oc and tc):
-            continue                      # nothing to compare - not a finding
-        checked += 1
-        ratio = round(tc / oc, 3)
-        if ratio < SIZE_RATIO_LOW or ratio > SIZE_RATIO_HIGH:
-            refused.append({
-                "block": _s(r.get("export_block_no") or r.get("block_no")),
-                "quarry_no": _s(r.get("quarry_block_no")),
-                "dc": _s(r.get("dc")),
-                "arrival": _s(r.get("arrival")),
-                "ours": ours, "our_cbm": oc,
-                "theirs": theirs, "their_cbm": tc,
-                "ratio": ratio,
-                "why": ("the port volume is {0}x ours - stone does not change "
-                        "size, so this is almost certainly a different block"
-                        .format(ratio)),
-            })
-    refused.sort(key=lambda x: x["ratio"])
     return {
-        "checked": checked,
-        "refused": len(refused),
-        "tolerance": [SIZE_RATIO_LOW, SIZE_RATIO_HIGH],
-        "rows": refused[:200],
-        "note": ("These are matches, not stone. A volume nowhere near ours means "
-                 "the agency's row was attached to the wrong block - his rule is "
-                 "that size neither varies nor compresses."),
+        "checked": 0,
+        "refused": 0,
+        "rows": [],
+        "retired": 1,
+        "note": ("Size is never compared to theirs any more. Our measurement is "
+                 "the measurement; their weight is accepted as received. The only "
+                 "surviving refusal is a block whose own status says it never "
+                 "left the quarry - see api_arrivals.pending_agency_rows()."),
     }
 
 

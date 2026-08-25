@@ -516,7 +516,6 @@ def _dc_to_dc_checks():
 
     JUDGED = ("FLAG", "Agrees")
     contradictions, draft_judged, mixed_judged, wrong_count = [], [], [], []
-    wrong_size_judged = []
     for c in detail:
         verdict = _s(c.get("verdict"))
         per = c.get("per_block") or []
@@ -548,10 +547,6 @@ def _dc_to_dc_checks():
         # block record rather than by a number that identifies it.
         if verdict in JUDGED and (c.get("loose_matches") or []):
             mixed_judged.append({"dc": dc, "guessed": c.get("loose_matches")})
-        # and never over a block the size says is a different block
-        if verdict in JUDGED and (c.get("wrong_size_matches") or []):
-            wrong_size_judged.append({"dc": dc,
-                                      "wrong_size": c.get("wrong_size_matches")})
         # the header count and the rows under it must be the same number
         if c.get("agency_rows") != len(on_sheet):
             wrong_count.append({"dc": dc, "header_says": c.get("agency_rows"),
@@ -572,20 +567,12 @@ def _dc_to_dc_checks():
                "No verdict is given from an unconfirmed arrival sheet",
                not draft_judged, _cap(draft_judged),
                "A draft sheet is not a weighing."),
-        # 25 Aug 2026. His words: "I doubt these blocks are exact match many a
-        # times it is happening wrong blocks are being tried to match by you".
-        # Block 823 read ours 238x212x140 against port 220x105x85 - a third of
-        # the volume - and a -13.77 MT verdict was printed under it. Under his
-        # truck rule stone does not change size, so that is not dressing loss:
-        # it is the wrong row. This fails whenever a weight verdict rests on a
-        # block whose size says it is a different block.
-        _check("dctodc.verdict_never_rests_on_a_wrong_size",
-               "No weight verdict is given over a block whose size says it is a different block",
-               not wrong_size_judged, _cap(wrong_size_judged),
-               "Size is ours and it does not change on a lorry. A port volume "
-               "nowhere near ours is the loudest evidence there is that the "
-               "agency's row was attached to the wrong block - and a tonnage "
-               "gap printed under it is fiction, not a loss."),
+        # THE SIZE CHECK THAT STOOD HERE IS RETIRED. 25 Aug 2026, his final
+        # rule: "our measurement is the only measurement final so ignore
+        # measurement" and "dont dispute measurement and weights at all".
+        # It failed challans for a size difference, which proves nothing - some
+        # ports barely fill that column in. It was a false red of my own making,
+        # and a false red teaches the team to ignore red.
         _check("dctodc.verdict_never_rests_on_a_guess",
                "No verdict is given while any block under it was only guessed at",
                not mixed_judged, _cap(mixed_judged),

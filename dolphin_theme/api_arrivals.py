@@ -1322,25 +1322,22 @@ def ledger_view():
                 if state == "port":
                     state = "await"
 
-            if pa is not None:
-                _oc = _cbm3(r.length_gross, r.width_gross, r.height_gross)
-                _tc = _cbm3(pa.length, pa.width, pa.height)
-                if _oc and _tc:
-                    _ratio = _tc / _oc
-                    if _ratio < SIZE_MATCH_LOW or _ratio > SIZE_MATCH_HIGH:
-                        _pending_match.append({
-                            "block": _s(r.export_block_no) or _s(r.block_no),
-                            "dc": dc.name,
-                            "arrival": pa.parent,
-                            "ours": [r.length_gross, r.width_gross, r.height_gross],
-                            "our_cbm": _oc,
-                            "theirs": [pa.length, pa.width, pa.height],
-                            "their_cbm": _tc,
-                            "ratio": round(_ratio, 3),
-                        })
-                        pa = None
-                        if state == "port":
-                            state = "await"
+            # THE SIZE GATE THAT STOOD HERE IS GONE. 25 Aug 2026, his final rule:
+            #
+            #   "few shipping agencies like in Krishnapatnam are not entering
+            #    proper measurements so our measurement is the only measurement
+            #    final so ignore measurement."
+            #   "dont dispute measurement and weights at all"
+            #
+            # I had been detaching an agency row when its volume was nowhere near
+            # ours, and calling that proof of a wrong block. It was not. Their
+            # measurement column is unreliable BY DESIGN at some ports, so a size
+            # difference says nothing about identity - I built a test on a field
+            # that is not filled in properly and then reported its output as a
+            # finding. It also manufactured a false alarm about 27 blocks in a lot
+            # "with no record of arriving", which was my gate's doing, not theirs.
+            #
+            # THEIR MEASUREMENT IS IGNORED, NOT COMPARED. Ours is the measurement.
 
             # ==============================================================
             # IN A LOT, BUT NEVER AT THE PORT.  25 Aug 2026, his instruction:
@@ -4168,8 +4165,13 @@ DRESSING_LOOK_AT_IT = 0.50
 # itself is doubted rather than the weight. His rule is that size neither varies
 # nor compresses, so a block at half or double our volume is a different block.
 # Deliberately wide, because this must only ever fire on matches that are wrong.
-SIZE_MATCH_LOW = 0.55
-SIZE_MATCH_HIGH = 1.45
+# RETIRED 25 Aug 2026. These bounded a size comparison that must never happen
+# again: "few shipping agencies like in Krishnapatnam are not entering proper
+# measurements so our measurement is the only measurement final so ignore
+# measurement" / "dont dispute measurement and weights at all". Kept defined so
+# nothing that still imports them breaks, but nothing reads them any more.
+SIZE_MATCH_LOW = 0.0
+SIZE_MATCH_HIGH = 9e9
 
 
 def _cbm3(l, w, h):
@@ -5237,107 +5239,49 @@ def dc_weight_check_v2():
         # honest thing to put on a screen: not "the port lost stone" but "we
         # matched the wrong row".
         # ------------------------------------------------------------------
-        def _vol(a, b, c):
-            try:
-                a, b, c = float(a or 0), float(b or 0), float(c or 0)
-            except Exception:
-                return 0.0
-            return round(a * b * c / 1e6, 3) if (a and b and c) else 0.0
-
-        ours_by_block = {}
-        for r in rows:
-            k = (_s(r.get("export_block_no")) or _s(r.get("block_no"))
-                 or _s(r.get("block")))
-            if k:
-                ours_by_block[k] = r
-        wrong_size = []
-        for p in per_block:
-            if not p.get("sheet"):
-                continue
-            src = ours_by_block.get(_s(p.get("block"))) or {}
-            oc = _vol(src.get("length_gross"), src.get("width_gross"),
-                      src.get("height_gross"))
-            tc = _vol(p.get("port_l"), p.get("port_w"), p.get("port_h"))
-            if not (oc and tc):
-                continue
-            ratio = round(tc / oc, 3)
-            if ratio < SIZE_MATCH_LOW or ratio > SIZE_MATCH_HIGH:
-                wrong_size.append({"block": _s(p.get("block")),
-                                   "our_cbm": oc, "their_cbm": tc,
-                                   "ratio": ratio})
-        # [stated] "dont mismatch" - so the row is DETACHED, not merely doubted.
-        # Its weight leaves the total and its size leaves the comparison, because
-        # a figure that belongs to another company's stone must not sit inside a
-        # number we print. What is left is honestly incomplete, and says so.
-        if wrong_size:
-            dropped = {w["block"] for w in wrong_size}
-            for p in per_block:
-                if _s(p.get("block")) in dropped:
-                    try:
-                        theirs -= float(p.get("port_mt") or 0)
-                    except Exception:
-                        pass
-                    p["detached"] = 1
-                    p["detached_why"] = ("the agency's row is nowhere near our "
-                                         "size - it is not this block")
-                    p["sheet"] = None
-                    matched -= 1
-            theirs = round(theirs, 3)
+        # ------------------------------------------------------------------
+        # THE SIZE GATE AND EVERY WEIGHT VERDICT ARE GONE.  25 Aug 2026, final:
+        #
+        #   "no block to block shipping arrivals will never match since they
+        #    weigh together and divide by number of blocks so block to block is
+        #    arrived by calculated only. so you just accept block to block weight
+        #    as whatever recieved from shipping agency."
+        #   "we need to check dc to dc and accept per block directly recording
+        #    their weight no argument. we do cross check easily for every truck
+        #    since it passes through weight bridge in the quarry before and after
+        #    loading so we know total and tare weight, if any difference we speak
+        #    and rectify it so no issues."
+        #   "dont dispute measurement and weights at all"
+        #
+        # Their per-block weight is the truck total, less tare, divided by the
+        # number of blocks. It is a CALCULATED figure, never a weighing, so a
+        # per-block gap is arithmetic and a challan-level gap is theirs to settle
+        # at the weighbridge - not the app's to litigate.
+        #
+        # So this screen no longer judges. It RECORDS: our total, their total,
+        # and how many of our blocks their sheet carries. No FLAG, no "Dressed",
+        # no "the port is lighter", no tonne-out hold, no size comparison.
+        # ------------------------------------------------------------------
+        diff = round(theirs - ours, 3) if matched else None
         if matched == 0:
             verdict, state = "Not sent yet", "never"
             never += 1
-            diff = None
         elif matched < n:
-            verdict, state = "Incomplete", "incomplete"
+            verdict, state = "Some blocks not on the sheet yet", "incomplete"
             incomplete += 1
-            diff = None
         elif draft_sheet:
             verdict, state = "Unconfirmed sheet", "incomplete"
             incomplete += 1
-            diff = None
-        elif wrong_size:
-            # 25 Aug 2026, his instruction once he saw what these were:
-            #   "agency report attached other comapany details sometime in same
-            #    xls so you have to double check dolphin blocks"
-            #   "agency report is not matching with our block numbers just keep
-            #    it pending"
-            #
-            # So the agency's spreadsheet can carry OTHER COMPANIES' blocks in
-            # the same file. A number on their sheet is not automatically one of
-            # ours, and that is the real reason 27 of 138 matches were nonsense:
-            # they were somebody else's stone, matched on a number that happened
-            # to look like ours. There is nothing to reconcile there and nothing
-            # to report as a difference.
-            #
-            # PENDING is the honest word, and it is his. Not wrong, not a loss,
-            # not a fault of the port - simply not matched to us yet.
-            verdict, state = "Agency numbers do not match ours - pending", "incomplete"
-            incomplete += 1
-            diff = None
         elif loose:
-            verdict, state = "Matched loosely - no verdict", "incomplete"
+            verdict, state = "Matched loosely - not counted", "incomplete"
             incomplete += 1
-            diff = None
-        elif not one_sheet:
-            verdict, state = "Rows from more than one sheet", "incomplete"
-            incomplete += 1
-            diff = None
         else:
-            diff = round(theirs - ours, 3)
-            kept = (theirs / ours) if ours else 1.0
-            if diff > AUTO_TOL_MT:
-                # heavier at the port than what left the quarry - cannot happen
-                verdict, state = "FLAG", "flagged"
-                flagged += 1
-            elif kept < DRESSING_LOOK_AT_IT:
-                verdict, state = "FLAG", "flagged"
-                flagged += 1
-            elif diff < -AUTO_TOL_MT:
-                verdict, state = "Dressed", "agree"
-                agree += 1
-            else:
-                verdict, state = "Agrees", "agree"
-                agree += 1
+            # Every block on this challan is on their sheet. Their weight is
+            # recorded as received. The difference is shown for information
+            # only, because he cross-checks the truck at the weighbridge; it is
+            # never a verdict and never a colour.
+            verdict, state = "Recorded", "agree"
+            agree += 1
 
         detail.append({
             "dc": c["name"],
@@ -5354,12 +5298,9 @@ def dc_weight_check_v2():
             "sheets": sorted([x for x in sheets if x])[:6],
             "any_draft_sheet": 1 if draft_sheet else 0,
             # Named, so the screen can say WHICH blocks were only guessed at
-            # rather than leaving "no verdict" looking like an app fault.
+            # rather than leaving "not counted" looking like an app fault.
             "loose_matches": [{"block": p.get("block"), "found_by": p.get("found_by")}
                               for p in loose][:20],
-            # Named, so the screen says "we matched the wrong row" rather than
-            # implying the port lost stone.
-            "wrong_size_matches": wrong_size[:20],
             "per_block": per_block,
         })
 
@@ -6327,22 +6268,20 @@ def pending_agency_rows():
     except Exception:
         pend = []
 
+    # Only ONE refusal survives, and it is the one he named himself:
+    # [stated] "force match assumed match considering in stock, in draft Dc
+    #  blocks are causing 90% and above problems"
+    # The size refusal is gone - their measurement is ignored, not compared.
     never_left = [p for p in pend if p.get("why")]
-    wrong_size = [p for p in pend if not p.get("why")]
-    for p in wrong_size:
-        p["why"] = ("the agency's row is {0}x our volume - stone does not change "
-                    "size, so this is not our block".format(p.get("ratio")))
 
     return {
-        "pending": len(pend),
+        "pending": len(never_left),
         "never_left_the_quarry": len(never_left),
-        "size_says_different_block": len(wrong_size),
-        "rows": (never_left + wrong_size)[:300],
-        "tolerance": [SIZE_MATCH_LOW, SIZE_MATCH_HIGH],
-        "note": ("These agency rows were NOT attached to our blocks. The sheet can "
-                 "carry other companies' stone, so a number on it is not "
-                 "automatically ours. Nothing here is wrong - it is pending until "
-                 "the right block actually arrives."),
+        "rows": never_left[:300],
+        "note": ("These agency rows were NOT attached to our blocks, because the "
+                 "block's own status says it never left the quarry. Nothing here "
+                 "is wrong - it is pending until the right block actually "
+                 "arrives. Measurement and weight are never disputed."),
     }
 
 
