@@ -114,11 +114,19 @@
 </style>
 <div id="pr">
   <div class="hd"><h1>Dolphin International &#8212; Port &amp; Stock</h1><span class="chip" id="c-a">&#8212;</span><span class="chip" id="c-f">&#8212;</span></div>
+  <!-- 25 Aug 2026, his words: "now it should be tabs like this: All transported-
+       Arrivals-Reconcilation-stock at port- export shipment lots -exported".
+       The tabs follow the STONE, not the code: it is loaded and leaves, the
+       agency sends a sheet, anything that does not agree is settled, it stands
+       at the port, it goes on a lot, it sails. All Transported is new and comes
+       FIRST because it is the step straight after a challan is submitted, and
+       short loading is a loading question, not a reconciliation one. -->
   <div class="tabs">
+    <div class="tab" data-t="trans">All Transported <span class="b" id="transb" style="display:none">0</span></div>
     <div class="tab" data-t="arr">Arrivals <span class="b" id="arrb" style="display:none">0</span></div>
     <div class="tab" data-t="recon">Reconciliation</div>
     <div class="tab on" data-t="stock">Stock at Port</div>
-    <div class="tab" data-t="lots">Shipment Lots</div>
+    <div class="tab" data-t="lots">Export Shipment Lots</div>
   </div>
   <div class="impbar" id="impbar">
       <b style="color:#8a5a12;font-size:13px">&#8593; Import arrivals .xls</b>
@@ -139,7 +147,13 @@
            honest view was empty. An empty register is the truth and it must be
            allowed to say so. So: At port is the default, All transported is one
            click away and clearly a different question. -->
-      <span class="vtog on" id="v-blk">&#9875; At port</span><span class="vtog" id="v-all">&#9636; All transported</span><span class="vtog" id="v-dc">&#8693; Group by DC</span>
+      <!-- 25 Aug 2026: "Under stock at port only 2 tabs a) at port b) Group by Dc".
+           All transported moved out to its own top-level tab, where it belongs -
+           it is a different question and it was making this register look like a
+           list of everything. The old toggle is kept in the DOM, hidden, because
+           deleting elements other code still reaches for is how this file has
+           broken itself before. -->
+      <span class="vtog on" id="v-blk">&#9875; At port</span><span class="vtog" id="v-all" style="display:none">&#9636; All transported</span><span class="vtog" id="v-dc">&#8693; Group by DC</span>
       <input id="q" placeholder="Search any number — quarry, export, DC, BI, consignee, mark, truck" style="flex:1;min-width:150px">
       <span class="gh" id="addbtn" style="display:none">+ Add at port</span><span class="gh" id="openbtn" style="display:none">&#9638; Opening stock</span>
     </div>
@@ -170,6 +184,18 @@
       <div class="panel" id="panel"></div>
     </div>
     <div class="foot" id="foot">One row per block, with its full history. <b>This screen decides nothing</b> &mdash; a block is settled on <b>Reconcile</b> before it gets here, and lots are built from <b>Shipment Lots</b>.</div>
+  </div>
+  <!-- ALL TRANSPORTED. One row per SUBMITTED challan, its blocks underneath.
+       The only decision on this screen is short loading: send a whole challan,
+       or the blocks that did not fit, back to a draft challan. Nothing here
+       compares anything against anybody. -->
+  <div class="pane" id="p-trans">
+    <div class="tb">
+      <input id="tq" placeholder="Search challan, challan no, block, truck&#8230;" style="flex:1;min-width:180px">
+      <span class="sub" id="tcnt"></span>
+    </div>
+    <div id="transmain"><div class="empty">Loading&#8230;</div></div>
+    <div class="foot">Every challan that has been submitted, with the stone on it. A challan leaves this screen when every block on it has been sent back. <b>A draft challan never appears here</b> &mdash; it has not gone anywhere yet.</div>
   </div>
   <div class="pane" id="p-arr">
     <div class="tb"><input id="aq" placeholder="Search arrivals&#8230;" style="flex:1;min-width:160px"><span class="imp" id="syncbtn" style="margin-right:6px">&#8635; Check new email</span><span class="imp" id="impbtn2">&#8593; Import .xls</span></div>
@@ -865,8 +891,186 @@ function loadAll(){
   ]).then(function(res){
     LED=res[0]||[];LOTS=res[1]||[];ARRS=res[2]||[];window.DCMAP={};(res[3]||[]).forEach(function(d){if(d&&d.name&&d.delivery_challan_no)DCMAP[d.name]=d.delivery_challan_no;});
     ADATE={};ARRS.forEach(function(a){ADATE[a.name]=a.arrival_date||a.creation;});
-    renderBal();renderStock();renderArr();renderLots();renderRecon();
+    renderBal();renderStock();renderArr();renderLots();renderRecon();renderTrans();
   });
+}
+
+/* ---- ALL TRANSPORTED ------------------------------------------------------
+   [stated] 25 Aug 2026: "Create a separate tab before arrivals for all
+   transported i.e the next step after submit Dc and dont mix up with
+   reconcilation it should show only Dc and options to choose full dc or
+   individual blocks to send it to dc draft ... once a DC is returned after
+   submit it shouldnt appear here in all transported too."
+
+   So: challans, not blocks. Blocks open underneath. Two actions and no others -
+   send the whole challan back, or send back the ones that did not fit.        */
+var TRANS={challans:[]}, TOPEN={};
+function renderTrans(){
+  var m=document.getElementById('transmain'); if(!m)return;
+  fetch('/api/method/dolphin_theme.api_arrivals.transported_view',{credentials:'include'})
+    .then(function(r){return r.json();}).then(function(j){
+      TRANS=(j&&j.message)||{challans:[]};
+      drawTrans();
+    }).catch(function(){m.innerHTML='<div class="empty">Could not load transported challans.</div>';});
+}
+function _tqMatch(d,q){
+  if(!q)return true;
+  var hay=[d.dc,d.challan_no,d.truck,d.consignee,d.mark,d.port].join(' ').toLowerCase();
+  if(hay.indexOf(q)>=0)return true;
+  return (d.blocks||[]).some(function(b){
+    return ((b.block_no||'')+' '+(b.quarry_block_no||'')).toLowerCase().indexOf(q)>=0;});
+}
+function drawTrans(){
+  var m=document.getElementById('transmain'); if(!m)return;
+  var q=((document.getElementById('tq')||{}).value||'').trim().toLowerCase();
+  var list=(TRANS.challans||[]).filter(function(d){return _tqMatch(d,q);});
+  var tb=document.getElementById('transb');
+  if(tb){ if(TRANS.on_road){tb.style.display='';tb.textContent=TRANS.on_road;} else tb.style.display='none'; }
+  var cnt=document.getElementById('tcnt');
+  if(cnt)cnt.textContent=list.length+' challan'+(list.length===1?'':'s')+' · '+
+    (TRANS.blocks||0)+' blocks · '+(TRANS.on_road||0)+' still on the road';
+  if(!list.length){m.innerHTML='<div class="empty">'+(q?'Nothing matches that.':'No submitted challans.')+'</div>';return;}
+  var h='';
+  list.forEach(function(d){
+    var open=!!TOPEN[d.dc];
+    var pills='';
+    var onroad=d.on_road||0, ret=d.returned||0, done=(d.count||0)-onroad-ret;
+    if(onroad)pills+='<span class="pill p-await">'+onroad+' on the road</span>';
+    if(done>0)pills+='<span class="pill p-port">'+done+' arrived</span>';
+    if(ret)pills+='<span class="pill p-load">'+ret+' returned</span>';
+    /* THE NUMBER-TYPE TRAP, said on the row itself. DC-DCDG-070 is challan 0033.
+       The record-id suffix looks exactly like a challan number and is not one. */
+    var idline='<b style="font-size:14px">'+esc(d.dc)+'</b>'+
+      (d.challan_no?'<span class="sub" style="font-weight:600;color:#0c447c"> challan '+esc(d.challan_no)+'</span>':
+       '<span class="sub" style="color:#9a7414"> no challan number typed</span>');
+    h+='<div style="border-bottom:.5px solid #eef2f6">'
+      +'<div style="display:flex;align-items:center;gap:10px;padding:11px 14px;background:#fbfcfe;cursor:pointer" data-topen="'+esc(d.dc)+'">'
+      +'<span style="color:#8a929c;width:12px">'+(open?'▾':'▸')+'</span>'
+      +idline
+      +(d.consignee?'<span class="sub">'+esc(d.consignee)+'</span>':'')
+      +'<span class="sub" style="font-size:12px">'+(d.truck?'&#128667; '+esc(d.truck)+' · ':'')
+      +(d.count||0)+' blocks · '+(d.ours_mt||0).toFixed(2)+' MT'
+      +(d.port?' · '+esc(d.port):'')+(d.dc_date?' · '+fmtDate(d.dc_date):'')+'</span>'
+      +pills+'<span style="flex:1"></span>'
+      +'<span class="eye" data-tdoc="'+esc(d.dc)+'">'+U(128196)+' DC</span>'
+      +'<button class="rb gold" data-tret="'+esc(d.dc)+'">&#8630; Send whole DC back to draft&hellip;</button>'
+      +'</div>';
+    if(open){
+      h+='<div style="padding:0 14px 12px"><table><thead><tr>'
+        +'<th style="width:22px"><input type="checkbox" class="tselall" data-dc="'+esc(d.dc)+'" title="Select all"></th>'
+        +'<th>Block</th><th>Quarry no</th><th>Size</th><th class="r">CBM</th><th class="r">MT</th><th>Where it is</th></tr></thead><tbody>';
+      (d.blocks||[]).forEach(function(b){
+        var sz=(b.l&&b.w&&b.h)?(b.l+'×'+b.w+'×'+b.h):DASH;
+        h+='<tr'+(b.returned?' style="opacity:.55"':'')+'>'
+          +'<td>'+(b.returned?'':'<input type="checkbox" class="tck" data-dc="'+esc(d.dc)+'" data-b="'+esc(b.block_no)+'">')+'</td>'
+          +'<td><span class="blk">'+esc(b.block_no||'')+'</span></td>'
+          +'<td class="sub">'+esc(b.quarry_block_no||'')+'</td>'
+          +'<td class="sub">'+esc(sz)+'</td>'
+          +'<td class="r">'+_fx(b.cbm)+'</td><td class="r">'+_fx(b.mt)+'</td>'
+          +'<td class="sub">'+esc(b.where||'')+'</td></tr>';
+      });
+      h+='</tbody></table>'
+        +'<div class="frow" style="margin-top:8px;padding-top:8px;border-top:1px solid #eef2f6">'
+        +'<span class="sub" id="tsel-'+esc(d.dc)+'" style="flex:1">0 selected</span>'
+        +'<button class="rb gold" data-tretsel="'+esc(d.dc)+'">&#8630; Send selected back to draft&hellip;</button>'
+        +'</div></div>';
+    }
+    h+='</div>';
+  });
+  m.innerHTML=h;
+  m.querySelectorAll('[data-topen]').forEach(function(x){x.addEventListener('click',function(e){
+    if(e.target.closest('[data-tdoc]')||e.target.closest('[data-tret]'))return;
+    var k=x.dataset.topen; TOPEN[k]=!TOPEN[k]; drawTrans();});});
+  m.querySelectorAll('[data-tdoc]').forEach(function(x){x.addEventListener('click',function(e){
+    e.stopPropagation();openPanel('Delivery Challan',x.dataset.tdoc,'Dolphin Delivery Challan');});});
+  m.querySelectorAll('[data-tret]').forEach(function(x){x.addEventListener('click',function(e){
+    e.stopPropagation();askReturn(x.dataset.tret,null);});});
+  m.querySelectorAll('[data-tretsel]').forEach(function(x){x.addEventListener('click',function(){
+    var dc=x.dataset.tretsel;var sel=[];
+    m.querySelectorAll('.tck[data-dc="'+CSS.escape(dc)+'"]:checked').forEach(function(c){sel.push(c.dataset.b);});
+    if(!sel.length){msg('Tick the blocks that did not fit first',1);return;}
+    askReturn(dc,sel);});});
+  m.querySelectorAll('.tck').forEach(function(c){c.addEventListener('change',function(){_tcount(m,c.dataset.dc);});});
+  m.querySelectorAll('.tselall').forEach(function(a){a.addEventListener('change',function(){
+    m.querySelectorAll('.tck[data-dc="'+CSS.escape(a.dataset.dc)+'"]').forEach(function(c){c.checked=a.checked;});
+    _tcount(m,a.dataset.dc);});});
+}
+function _tcount(m,dc){
+  var n=m.querySelectorAll('.tck[data-dc="'+CSS.escape(dc)+'"]:checked').length;
+  var s=document.getElementById('tsel-'+dc); if(s)s.textContent=n+' selected';
+}
+/* SHORT LOADING. The submitted challan is never cancelled or amended - it is the
+   record of what was written when the truck left. The blocks that did not go come
+   back to stock, carrying who sent them back and why, and land on a NEW DRAFT
+   challan so they can go on the next truck. All of it reverses. */
+function askReturn(dc,blocks){
+  var whole=!blocks;
+  var n=whole?null:blocks.length;
+  var title=whole?('Send the whole of '+dc+' back to a draft challan')
+                 :('Send '+n+' block'+(n===1?'':'s')+' of '+dc+' back to a draft challan');
+  fetch('/api/method/dolphin_theme.api_arrivals.return_from_dc?dry_run=1&dc='+encodeURIComponent(dc)
+        +(whole?'':('&blocks='+encodeURIComponent(JSON.stringify(blocks)))),{credentials:'include'})
+    .then(function(r){return r.json();}).then(function(j){
+      var p=(j&&j.message)||{};
+      if(p.ERROR||j.exc){msg('Could not check that challan',1);return;}
+      var will=(p.blocks||[]);
+      var ref=(p.refused||[]);
+      if(!will.length){
+        msg(ref.length?('Nothing can be sent back: '+(ref[0].why||'')):'Nothing to send back',1);
+        return;
+      }
+      var hint='<b>'+will.length+' block'+(will.length===1?'':'s')+'</b> will go back to stock and onto a new draft challan: '
+        +esc(will.slice(0,12).join(', '))+(will.length>12?(' +'+(will.length-12)+' more'):'')+'.'
+        +(ref.length?('<br><span style="color:#9a7414">'+ref.length+' refused: '+esc(ref[0].why||'')+'</span>'):'')
+        +'<br><br>The submitted challan <b>'+esc(dc)+' is not cancelled</b> — it still says what was written when the truck left.';
+      askReason(title,hint,function(reason){
+        confirmTwice('Send '+will.length+' block'+(will.length===1?'':'s')+' back?',
+          'This changes stone that is currently on the road. It can be undone.',
+          function(){
+            post('dolphin_theme.api_arrivals.return_from_dc',
+                 {dc:dc,blocks:JSON.stringify(will),reason:reason})
+              .then(function(res){
+                var r=(res&&res.message)||{};
+                var done=r.returned||0;
+                undoToast(done+' block'+(done===1?'':'s')+' sent back'
+                          +(r.draft_challan?(' · draft '+r.draft_challan+' created'):''),
+                  function(){
+                    post('dolphin_theme.api_arrivals.undo_return_from_dc',
+                         {dc:dc,blocks:JSON.stringify(r.returned_blocks||[]),
+                          reason:'sent back by mistake - undone from All Transported',
+                          remove_draft:(r.draft_challan||'')})
+                      .then(function(){msg('Put back');loadAll();});
+                  });
+                loadAll();
+              }).catch(function(){msg('Send back failed',1);});
+          });
+      },{chips:['Short loading — did not fit on the truck',
+                'Left at the quarry',
+                'Loading cancelled',
+                'Wrong block picked'],
+         ok:'Send back',
+         foot:'Reversible. The blocks return to stock and a draft challan is made for them.'});
+    }).catch(function(){msg('Could not check that challan',1);});
+}
+/* DOUBLE CONFIRMATION, as he asked for on anything that overrides. Two real
+   buttons, and the destructive one is not the one your thumb lands on. */
+function confirmTwice(title,body,cb){
+  var old=document.getElementById('__c2'); if(old)old.remove();
+  var ov=document.createElement('div'); ov.id='__c2';
+  ov.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(15,37,64,.45);z-index:100004;display:flex;align-items:center;justify-content:center';
+  ov.innerHTML='<div style="background:#fff;border-radius:12px;width:440px;max-width:94vw;box-shadow:0 18px 50px rgba(0,0,0,.3)">'
+    +'<div style="padding:14px 18px;border-bottom:1px solid #eef2f6;font-weight:700;color:#0F2540;font-size:14px">'+esc(title)+'</div>'
+    +'<div style="padding:16px 18px;font-size:13px;color:#3b4757">'+body+'</div>'
+    +'<div style="padding:12px 18px;border-top:1px solid #eef2f6;display:flex;gap:10px;justify-content:flex-end">'
+    +'<button type="button" id="__c2n" style="appearance:none;font:inherit;font-size:13px;font-weight:600;padding:9px 18px;'
+    +'border-radius:8px;border:1px solid #cfd4dc;background:#fff;color:#5f6b7a;cursor:pointer">No, go back</button>'
+    +'<button type="button" id="__c2y" style="appearance:none;font:inherit;font-size:13px;font-weight:700;padding:9px 20px;'
+    +'border-radius:8px;border:1px solid #9a5a12;background:#b06a14;color:#fff;cursor:pointer">Yes, do it</button>'
+    +'</div></div>';
+  document.body.appendChild(ov);
+  ov.querySelector('#__c2n').addEventListener('click',function(){ov.remove();});
+  ov.querySelector('#__c2y').addEventListener('click',function(){ov.remove();cb();});
+  ov.addEventListener('mousedown',function(e){if(e.target===ov)ov.remove();});
 }
 function renderBal(){
   var c={};LED.forEach(function(r){c[r.state]=(c[r.state]||0)+1;});
@@ -1035,12 +1239,71 @@ function renderDC(){
       +'<span class="pill p-port">'+arr+' at port</span>'+(aw?'<span class="pill p-await">'+aw+' awaiting</span>':'')+(lot?'<span class="pill p-inlot">'+lot+' in lot</span>':'')+(load?'<span class="pill p-load">'+load+' loaded</span>':'')
       +'<span style="flex:1"></span>'
       +(g.dc?'<span class="eye" data-dcdoc="'+esc(g.dc)+'">'+U(128196)+' DC</span>':'')
-      +(aw&&g.dc?'<span class="rb gold" data-movedc="'+esc(g.dc)+'">'+AR+' Move whole DC to At Port</span>':'')
+      /* 25 Aug 2026: "Group by Dc should have eye icon and block selection check
+         mark to move either whole dc or selected blocks to export shipment lot".
+         Only blocks actually AT PORT can go on a lot, so the whole-DC button
+         counts those and says how many - it never claims to push stone that has
+         not arrived. */
+      +(aw&&g.dc?'<button class="rb gold" data-movedc="'+esc(g.dc)+'">'+AR+' Move whole DC to At Port</button>':'')
+      +(g.dc&&_dcPortable(g.rows).length?'<button class="rb pri" data-lotdc="'+esc(g.dc)+'">'+U(128230)+' Push '+_dcPortable(g.rows).length+' to Export Shipment Lot</button>':'')
+      +'</div>';
+    /* blocks under the challan, with a tick box each */
+    h+='<div style="padding:0 14px 12px"><table><thead><tr>'
+      +'<th style="width:22px"><input type="checkbox" class="dselall" data-dc="'+esc(dcn)+'" title="Select all at-port blocks"></th>'
+      +'<th>Block</th><th>Quarry no</th><th>Grade</th><th>Size</th><th class="r">CBM</th><th class="r">MT</th><th>State</th><th style="width:22px"></th></tr></thead><tbody>';
+    g.rows.forEach(function(r,ri){
+      var i=LED.indexOf(r);
+      var canLot=(r.state==='port');
+      var sz=(r.pt_l&&r.pt_w&&r.pt_h)?(r.pt_l+'×'+r.pt_w+'×'+r.pt_h):((r.dc_l&&r.dc_w&&r.dc_h)?(r.dc_l+'×'+r.dc_w+'×'+r.dc_h):DASH);
+      h+='<tr>'
+        +'<td>'+(canLot?'<input type="checkbox" class="dck" data-dc="'+esc(dcn)+'" data-i="'+i+'">':'')+'</td>'
+        +'<td><span class="blk">'+esc(r.export_block_no||r.block_no||'')+'</span></td>'
+        +'<td class="sub">'+esc(r.quarry_block_no||'')+'</td>'
+        +'<td class="sub">'+esc(r.grade||'')+'</td>'
+        +'<td class="sub">'+esc(sz)+'</td>'
+        +'<td class="r">'+_fx(r.pt_cbm||r.dc_cbm)+'</td><td class="r">'+_fx(r.net_wt||r.ton)+'</td>'
+        +'<td>'+_statePill(r.state)+'</td>'
+        +'<td><span class="eye" data-blkdoc="'+i+'">'+U(128065)+'</span></td></tr>';
+    });
+    h+='</tbody></table>'
+      +'<div class="frow" style="margin-top:8px;padding-top:8px;border-top:1px solid #eef2f6">'
+      +'<span class="sub" id="dsel-'+esc(dcn)+'" style="flex:1">0 selected</span>'
+      +'<button class="rb pri" data-lotsel="'+esc(dcn)+'">'+U(128230)+' Push selected to Export Shipment Lot</button>'
       +'</div></div>';
+    h+='</div>';
   });
   $('stmain').innerHTML=h||'<div class="empty">No data</div>';
-  $('stmain').querySelectorAll('[data-movedc]').forEach(function(x){x.addEventListener('click',function(){post('dolphin_theme.api_arrivals.move_dc_to_at_port',{dc:x.dataset.movedc}).then(function(res){msg('Moved '+((res.message&&res.message.moved)||'')+' blocks of '+x.dataset.movedc+' to At Port');loadAll();}).catch(function(){msg('Move failed',1);});});});
-  $('stmain').querySelectorAll('[data-dcdoc]').forEach(function(x){x.addEventListener('click',function(){openPanel('Delivery Challan',x.dataset.dcdoc,'Dolphin Delivery Challan');});});
+  var SM=$('stmain');
+  SM.querySelectorAll('[data-movedc]').forEach(function(x){x.addEventListener('click',function(){post('dolphin_theme.api_arrivals.move_dc_to_at_port',{dc:x.dataset.movedc}).then(function(res){msg('Moved '+((res.message&&res.message.moved)||'')+' blocks of '+x.dataset.movedc+' to At Port');loadAll();}).catch(function(){msg('Move failed',1);});});});
+  SM.querySelectorAll('[data-dcdoc]').forEach(function(x){x.addEventListener('click',function(){openPanel('Delivery Challan',x.dataset.dcdoc,'Dolphin Delivery Challan');});});
+  SM.querySelectorAll('[data-blkdoc]').forEach(function(x){x.addEventListener('click',function(){var r=LED[+x.dataset.blkdoc];if(r)openDoc(r.lot?'lot':(r.arrival?'arr':'dc'),r);});});
+  SM.querySelectorAll('[data-lotdc]').forEach(function(x){x.addEventListener('click',function(){
+    var dcn=x.dataset.lotdc;
+    var rows=LED.filter(function(r){return (r.dc||'(no challan)')===dcn;});
+    var can=_dcPortable(rows);
+    if(!can.length){msg('Nothing on this challan is at the port yet',1);return;}
+    showLotPicker(can.map(rcPayload));});});
+  SM.querySelectorAll('[data-lotsel]').forEach(function(x){x.addEventListener('click',function(){
+    var dcn=x.dataset.lotsel,sel=[];
+    SM.querySelectorAll('.dck[data-dc="'+CSS.escape(dcn)+'"]:checked').forEach(function(c){sel.push(LED[+c.dataset.i]);});
+    if(!sel.length){msg('Tick the blocks you want on the lot',1);return;}
+    showLotPicker(sel.map(rcPayload));});});
+  SM.querySelectorAll('.dck').forEach(function(c){c.addEventListener('change',function(){_dcount(SM,c.dataset.dc);});});
+  SM.querySelectorAll('.dselall').forEach(function(a){a.addEventListener('change',function(){
+    SM.querySelectorAll('.dck[data-dc="'+CSS.escape(a.dataset.dc)+'"]').forEach(function(c){c.checked=a.checked;});
+    _dcount(SM,a.dataset.dc);});});
+}
+function _dcPortable(rows){return (rows||[]).filter(function(r){return r.state==='port';});}
+function _dcount(SM,dcn){
+  var n=SM.querySelectorAll('.dck[data-dc="'+CSS.escape(dcn)+'"]:checked').length;
+  var s=document.getElementById('dsel-'+dcn); if(s)s.textContent=n+' selected';
+}
+function _statePill(st){
+  if(st==='port')return '<span class="pill p-port">At port</span>';
+  if(st==='await')return '<span class="pill p-await">On the road</span>';
+  if(st==='lot')return '<span class="pill p-inlot">In lot</span>';
+  if(st==='load')return '<span class="pill p-load">Loaded</span>';
+  return '<span class="sub">'+esc(st||'')+'</span>';
 }
 /* doc panel (context-aware) */
 function openDoc(kind,r){if(!r)return;
@@ -1063,6 +1326,7 @@ function renderArr(){var el=$('arrlist');if(!ARRS.length){el.innerHTML='<div cla
     return '<div class="arow"><div style="flex:1"><div style="font-weight:600;font-size:15px">'+esc(a.name)+agc+'</div><div class="sub" style="font-size:12.5px;color:#1f2a3a">'+esc(a.mark||'')+' '+DOT+' '+esc(fmtDate(a.arrival_date))+' '+DOT+' '+(a.total_blocks||0)+' blocks'+(age!=null?' '+DOT+' '+age+'d ago':'')+'</div></div>'+eye+'<a class="rb" href="/app/port-arrival/'+encodeURIComponent(a.name)+'" target="_blank">Open</a></div>';}).join('');
   el.querySelectorAll('[data-xls]').forEach(function(x){x.addEventListener('click',function(){openArrivalXls(x.dataset.xls);});});}
 $('aq').addEventListener('input',renderArr);
+(function(){var t=document.getElementById('tq');if(t)t.addEventListener('input',drawTrans);})();
 /* lots */
 var LF='all',LQ='';
 function renderLots(){var el=$('lotmain');if(!LOTS.length){el.innerHTML='<div class="empty">No shipment lots yet</div>';return;}
@@ -1589,8 +1853,17 @@ function askReason(title,hint,cb,opts){
     +'<div class="sub" id="__askw" style="color:#a32d2d;font-size:12px;height:16px"></div></div>'
     +'<div style="padding:12px 18px;border-top:1px solid #eef2f6;display:flex;align-items:center;justify-content:space-between">'
     +'<div class="sub" style="font-size:11.5px">'+(opts.foot||'')+'</div>'
-    +'<div><span class="rb" id="__askc" style="margin-right:8px;color:#8a929c">Cancel</span>'
-    +'<span class="rb pri" id="__asko">'+esc(opts.ok||'Save the reason')+'</span></div></div></div>';
+    /* 25 Aug 2026, his words: "yes confirm cancel doesnt seem or work like button
+       create a button". They were <span class="rb"> - chips, not buttons - so on a
+       touch screen especially they did not read as the thing you press to finish.
+       Real <button> elements now, sized and coloured like buttons, keyboard
+       reachable, and the primary one clearly the primary one. */
+    +'<div style="display:flex;gap:10px">'
+    +'<button type="button" id="__askc" style="appearance:none;font:inherit;font-size:13px;font-weight:600;'
+    +'padding:9px 18px;border-radius:8px;border:1px solid #cfd4dc;background:#fff;color:#5f6b7a;cursor:pointer">Cancel</button>'
+    +'<button type="button" id="__asko" style="appearance:none;font:inherit;font-size:13px;font-weight:700;'
+    +'padding:9px 20px;border-radius:8px;border:1px solid #0c447c;background:#0c447c;color:#fff;cursor:pointer">'
+    +esc(opts.ok||'Save the reason')+'</button></div></div></div>';
   document.body.appendChild(ov);
   var ta=ov.querySelector('#__askt'); setTimeout(function(){try{ta.focus();}catch(e){}},60);
   var okb=ov.querySelector('#__asko');
@@ -1598,7 +1871,7 @@ function askReason(title,hint,cb,opts){
      whether or not it would work, and then ignore the click. */
   function refreshOk(){
     var ready=!!(ta.value||'').trim();
-    okb.style.opacity=ready?'1':'.45';
+    okb.style.opacity=ready?'1':'.5';
     okb.style.cursor=ready?'pointer':'not-allowed';
     okb.title=ready?'':'Pick a reason above, or type one.';
   }
