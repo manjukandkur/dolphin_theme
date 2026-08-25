@@ -1272,7 +1272,7 @@ def ledger_view():
                     state = "unconfirmed"
             elif lot and lot["st"] == "ship":
                 state = "load"
-            elif lot:
+            elif lot:  # noqa: E501  (see the note below on lots without arrivals)
                 state = "lot"
             elif pa is not None:
                 rs = _s(pa.recon_status).lower()
@@ -1342,6 +1342,29 @@ def ledger_view():
                         if state == "port":
                             state = "await"
 
+            # ==============================================================
+            # IN A LOT, BUT NEVER AT THE PORT.  25 Aug 2026, his instruction:
+            #
+            #   "802-856 is still in export lot: Caution and note if the block is
+            #    in export shipment lot without arrivals then quietly show it
+            #    under at port: Export shipment lot narration pushed directly
+            #    without arrivals or agency match"
+            #
+            # Measured on the lot he was looking at, XIAMENBLESS-BL-260727-02:
+            # 56 blocks, 29 with an arrival that survives the checks, **27
+            # without one**. Their journey reads QI, BI, DC, Transported, AT PORT
+            # not yet - and then, somehow, in a lot.
+            #
+            # QUIETLY is the word he used and it is the right one. This is not a
+            # red flag: the stone may be perfectly fine and somebody had a reason
+            # to push it. What is missing is the RECORD of the port ever seeing
+            # it. So the block shows where it actually is, and the row simply
+            # states how it got there. No alarm, no colour, no holding it up.
+            # ==============================================================
+            _lot_no_arrival = 1 if (lot and pa is None) else 0
+            _lot_note = ("Export shipment lot - pushed directly without arrivals "
+                         "or agency match" if _lot_no_arrival else "")
+
             _export = _s(r.export_block_no) or _s(emap.get(_s(r.block_no))) or ""
             _quarry = _s(r.block_no) or _s((qb or {}).get("block_number"))
             _public = _export or _quarry
@@ -1374,6 +1397,9 @@ def ledger_view():
                 "qb": (qb["name"] if qb else None),
                 "lot": (lot["lot"] if lot else None),
                 "lot_title": (lot["title"] if lot else None),
+                # In a lot with no arrival behind it. Stated, never shouted.
+                "lot_without_arrival": _lot_no_arrival,
+                "lot_note": _lot_note,
                 "truck": dc.vehicle, "port": dc.port_of_loading, "port_code": ports.get(dc.port_of_loading, dc.port_of_loading), "state": state, "source": "dc",
             })
             for k in keys:
