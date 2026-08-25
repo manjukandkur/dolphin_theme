@@ -6508,3 +6508,406 @@ def undo_lock_answer(row=None, reason=None, person=None):
     }, update_modified=False)
     frappe.db.commit()
     return {"ok": 1, "row": row, "reopened_by": person}
+
+
+# ============================================================================
+# EDITING A SHIPPING DOCUMENT BY HAND.  25 Aug 2026
+#
+# [stated] "One more most important thing in shipping invoice and packing list
+#  give an option to manually enter the weights, msmts, volume, edit weight etc
+#  if one edits weight given by shipping agency we need to take a reason but
+#  allow."
+#
+# [stated] the goal it serves: "now try and make it smooth sail to file shipping
+#  documents"
+#
+# THE PRINCIPLE: ALLOW, THEN REMEMBER. The app must never be the reason a
+# shipment cannot be filed. A person filing a packing list at the port knows
+# things the app does not, and if the app argues with them the document does not
+# go out. So every figure on a shipping document can be typed over.
+#
+# The one condition is his: overwriting a weight the SHIPPING AGENCY gave needs
+# a written reason - because that figure is the invoice, and in six months
+# somebody will ask why it changed. Measurement and volume are ours anyway, so
+# they are edited freely; the agency weight is the one that carries a reason.
+#
+# Nothing is destroyed. The agency's original figure is kept on the row beside
+# the edited one, so the change is always visible and always reversible.
+# ============================================================================
+
+SHIPPING_EDITABLE = {
+    "length": "length",
+    "width": "width",
+    "height": "height",
+    "net_volume": "volume",
+    "net_tonnage": "weight",
+    "net_kgs": "weight in kgs",
+}
+# Only these need a reason: they are the agency's, and they are the invoice.
+NEEDS_A_REASON = ("net_tonnage", "net_kgs")
+
+
+def _shipping_edit_fields_ready():
+    """Somewhere to keep what the agency originally said, and why it changed."""
+    made = True
+    try:
+        meta = frappe.get_meta("Shipping Block")
+        from frappe.custom.doctype.custom_field.custom_field import create_custom_field
+        for fn, label, ft in (
+                ("agency_net_tonnage", "Agency Net Tonnage (as received)", "Float"),
+                ("agency_net_kgs", "Agency Net Kgs (as received)", "Float"),
+                ("edited_by_hand", "Edited By Hand", "Check"),
+                ("edit_reason", "Why It Was Edited", "Small Text"),
+                ("edited_by", "Edited By", "Data"),
+                ("edited_on", "Edited On", "Datetime")):
+            if meta.has_field(fn):
+                continue
+            create_custom_field("Shipping Block", {
+                "fieldname": fn, "label": label, "fieldtype": ft,
+                "read_only": 1, "no_copy": 1, "hidden": 0,
+            }, ignore_validate=True)
+        frappe.clear_cache(doctype="Shipping Block")
+    except Exception:
+        made = False
+    return made
+
+
+@frappe.whitelist()
+def edit_shipping_block(shipping_document=None, row=None, values=None,
+                        reason=None, person=None):
+    """Type over any figure on a shipping-document row. Allowed, always.
+
+    values: {"length": 250, "net_tonnage": 7.4, ...} - any of SHIPPING_EDITABLE.
+    A reason is required only when an agency WEIGHT is being changed, and then it
+    is written onto the row for good, with the agency's original figure kept
+    beside it so the change can always be seen and always undone.
+    """
+    values = frappe.parse_json(values) if isinstance(values, str) else (values or {})
+    person = _s(person) or _s(frappe.session.user)
+    reason = _s(reason)
+    doc_name, row = _s(shipping_document), _s(row)
+
+    if not doc_name or not row:
+        frappe.throw("Which document and which row?")
+    if not values:
+        frappe.throw("Nothing to change.")
+
+    bad = [k for k in values if k not in SHIPPING_EDITABLE]
+    if bad:
+        frappe.throw("Not editable here: {0}".format(", ".join(sorted(bad))))
+
+    doc = frappe.get_doc("Shipping Document", doc_name)
+    if cint(doc.docstatus) == 1:
+        # A submitted document is not edited quietly. Say so by name rather than
+        # failing somewhere deeper with a framework error.
+        frappe.throw(
+            "{0} is submitted. Cancel or amend it first - a filed document is "
+            "not edited behind its own back.".format(doc_name))
+
+    target = None
+    for r in (doc.get("blocks") or []):
+        if _s(r.name) == row:
+            target = r
+            break
+    if target is None:
+        frappe.throw("That row is not on {0}.".format(doc_name))
+
+    touching_weight = [k for k in values if k in NEEDS_A_REASON]
+    if touching_weight and len(reason) < 4:
+        frappe.throw(
+            "Changing the weight the shipping agency gave needs a reason in a few "
+            "words. That figure is the invoice, and somebody will ask why it "
+            "changed. The measurement and volume do not need one - they are ours.")
+
+    _shipping_edit_fields_ready()
+
+    # Keep what the agency said, once, the first time a weight is touched.
+    try:
+        if touching_weight and not target.get("agency_net_tonnage"):
+            target.set("agency_net_tonnage", target.get("net_tonnage"))
+            target.set("agency_net_kgs", target.get("net_kgs"))
+    except Exception:
+        pass
+
+    before = {}
+    for k, v in values.items():
+        before[k] = target.get(k)
+        target.set(k, v)
+
+    # Volume and kgs follow the figures typed, unless they were typed too - a
+    # person who fills in three dimensions should not then have to do the sum.
+    try:
+        if ("net_volume" not in values
+                and {"length", "width", "height"} & set(values)):
+            v = _cbm3(target.get("length"), target.get("width"),
+                      target.get("height"))
+            if v:
+                target.set("net_volume", v)
+        if "net_kgs" not in values and "net_tonnage" in values:
+            target.set("net_kgs", cint(round(flt(target.get("net_tonnage")) * 1000)))
+    except Exception:
+        pass
+
+    try:
+        target.set("edited_by_hand", 1)
+        target.set("edited_by", person)
+        target.set("edited_on", frappe.utils.now())
+        if reason:
+            target.set("edit_reason", reason)
+    except Exception:
+        pass
+
+    doc.flags.ignore_permissions = True
+    doc.flags.ignore_validate_update_after_submit = True
+    doc.save()
+    try:
+        doc.add_comment("Comment", "Row {0} edited by hand by {1}: {2}{3}".format(
+            _s(target.get("block_no") or target.get("export_block_no") or row),
+            person,
+            ", ".join("{0} {1} -> {2}".format(SHIPPING_EDITABLE[k], before[k],
+                                              values[k]) for k in values),
+            (" - " + reason) if reason else ""))
+    except Exception:
+        pass
+    frappe.db.commit()
+
+    return {"ok": 1, "document": doc_name, "row": row,
+            "changed": {SHIPPING_EDITABLE[k]: {"was": before[k], "now": values[k]}
+                        for k in values},
+            "reason": reason, "by": person,
+            "agency_weight_kept": _s(target.get("agency_net_tonnage")),
+            "note": ("Saved. The agency's own figure is kept on the row, so this "
+                     "can be put back at any time.")}
+
+
+@frappe.whitelist()
+def restore_agency_weight(shipping_document=None, row=None, reason=None,
+                          person=None):
+    """Put back exactly what the shipping agency gave. The undo of the above."""
+    person = _s(person) or _s(frappe.session.user)
+    doc_name, row = _s(shipping_document), _s(row)
+    if not doc_name or not row:
+        frappe.throw("Which document and which row?")
+    if len(_s(reason)) < 4:
+        frappe.throw("Putting the agency figure back needs a reason too.")
+
+    doc = frappe.get_doc("Shipping Document", doc_name)
+    if cint(doc.docstatus) == 1:
+        frappe.throw("{0} is submitted.".format(doc_name))
+    for r in (doc.get("blocks") or []):
+        if _s(r.name) != row:
+            continue
+        orig = r.get("agency_net_tonnage")
+        if orig in (None, "", 0):
+            frappe.throw("This row was never edited - there is nothing to put back.")
+        r.set("net_tonnage", orig)
+        r.set("net_kgs", r.get("agency_net_kgs")
+              or cint(round(flt(orig) * 1000)))
+        r.set("edited_by_hand", 0)
+        r.set("edit_reason", "restored to the agency figure by {0}: {1}".format(
+            person, _s(reason)))
+        r.set("edited_by", person)
+        r.set("edited_on", frappe.utils.now())
+        doc.flags.ignore_permissions = True
+        doc.save()
+        frappe.db.commit()
+        return {"ok": 1, "row": row, "restored_to": orig, "by": person}
+    frappe.throw("That row is not on {0}.".format(doc_name))
+
+
+@frappe.whitelist()
+def shipping_document_totals(shipping_document=None):
+    """What the document adds up to, and how much of it was typed by hand.
+
+    [stated] "total tons is what matters and we invoice $100, 200, 210 etc per
+     ton only" / "tonnage per cbm is calculated for internal understanding only".
+    So the TOTAL TONS leads. The tonnage-per-CBM ratio is shown beneath it,
+    labelled as ours and internal, and no money is ever computed from it.
+    """
+    doc_name = _s(shipping_document)
+    if not doc_name:
+        frappe.throw("Which document?")
+    doc = frappe.get_doc("Shipping Document", doc_name)
+    rows = doc.get("blocks") or []
+
+    tons = sum(flt(r.get("net_tonnage") or 0) for r in rows)
+    cbm = sum(flt(r.get("net_volume") or 0) for r in rows)
+    edited = [{"block": _s(r.get("export_block_no") or r.get("block_no")),
+               "reason": _s(r.get("edit_reason")),
+               "by": _s(r.get("edited_by")),
+               "agency_said": r.get("agency_net_tonnage"),
+               "now": r.get("net_tonnage")}
+              for r in rows if cint(r.get("edited_by_hand"))]
+
+    rate = flt(doc.get("unit_rate") or 0)
+    basis = _s(doc.get("rate_basis")) or "Per Tonne"
+    value = round(tons * rate, 2) if "cbm" not in basis.lower() else round(cbm * rate, 2)
+
+    return {
+        "document": doc_name,
+        "blocks": len(rows),
+        "total_tons": round(tons, 3),
+        "total_cbm": round(cbm, 3),
+        "rate_basis": basis,
+        "unit_rate": rate,
+        "invoice_value": value,
+        # INTERNAL ONLY. Never an invoice basis, never a factor.
+        "tons_per_cbm_internal_only": (round(tons / cbm, 4) if cbm else None),
+        "edited_by_hand": len(edited),
+        "edits": edited,
+        "note": ("The invoice is raised on the TOTAL TONS at the rate per tonne "
+                 "(or on volume where the deal is per CBM). Tons per CBM is for "
+                 "our own understanding and is never used to price anything."),
+    }
+
+
+# ============================================================================
+# ARRIVALS ENTERED BY HAND.  25 Aug 2026
+#
+# [stated] "so if parsing is not possible or if they send by other means the
+#  arrivals rather than xls then we can enter required details manually like
+#  weight in tons per block etc and complete the shipment rather than holding it
+#  back due to minor app issues"
+#
+# THE APP MUST NEVER BE THE REASON A SHIPMENT IS HELD. An agency may phone the
+# weights through, send a photograph, or write them on a scrap of paper. A
+# spreadsheet the parser cannot read is a problem for the parser, not for the
+# shipment. So there is a door: type the block number and the tonnage, and the
+# arrival exists.
+#
+# A hand-entered sheet is a first-class arrival - it confirms, it settles, it
+# feeds the lot exactly like a parsed one. It is simply LABELLED as hand-entered,
+# with who typed it and why, so nobody has to wonder later where a figure came
+# from.
+# ============================================================================
+
+@frappe.whitelist()
+def record_arrival_by_hand(rows=None, sheet=None, mark=None, arrival_date=None,
+                           reason=None, person=None):
+    """Type an arrival in. Block number and tonnage are all that is required.
+
+    rows: [{"block_no": "1150", "net_wt": 7.4, "length": ..., "width": ...,
+            "height": ..., "cbm": ..., "vehicle_no": "KA35D 9044"}, ...]
+
+    Only block_no is compulsory. Everything else is taken as given - his rule:
+    "you just accept block to block weight as whatever recieved from shipping
+    agency" and "dont dispute measurement and weights at all".
+    """
+    rows = frappe.parse_json(rows) if isinstance(rows, str) else (rows or [])
+    person = _s(person) or _s(frappe.session.user)
+    reason = _s(reason)
+    if not rows:
+        frappe.throw("Nothing to record. Give at least one block and its tonnage.")
+    if len(reason) < 4:
+        frappe.throw(
+            "Say in a few words where these figures came from - a phone call, a "
+            "photo, a sheet that would not parse. It stays on the record.")
+
+    clean, refused = [], []
+    for r in rows:
+        bn = _s((r or {}).get("block_no") or (r or {}).get("block"))
+        if not bn:
+            refused.append({"row": r, "why": "no block number"})
+            continue
+        clean.append({
+            "block_no": bn,
+            "net_wt": flt((r or {}).get("net_wt") or 0) or None,
+            "length": (r or {}).get("length"),
+            "width": (r or {}).get("width"),
+            "height": (r or {}).get("height"),
+            "cbm": (r or {}).get("cbm"),
+            "vehicle_no": _s((r or {}).get("vehicle_no")),
+        })
+    if not clean:
+        frappe.throw("No usable rows - every one is missing a block number.")
+
+    pa = None
+    if _s(sheet) and frappe.db.exists("Port Arrival", _s(sheet)):
+        pa = frappe.get_doc("Port Arrival", _s(sheet))
+        if cint(pa.docstatus) == 1:
+            frappe.throw(
+                "{0} is already confirmed. Take the confirmation back first, or "
+                "start a new hand-entered sheet.".format(pa.name))
+    if pa is None:
+        pa = frappe.new_doc("Port Arrival")
+        pa.arrival_date = _s(arrival_date) or frappe.utils.today()
+        if pa.meta.has_field("mark") and _s(mark):
+            resolved = _resolve_mark(_s(mark))
+            if resolved:
+                pa.mark = resolved
+        if pa.meta.has_field("source_sheet"):
+            pa.source_sheet = "entered by hand"
+        if pa.meta.has_field("email_subject"):
+            pa.email_subject = "Entered by hand by {0}: {1}".format(person, reason)
+
+    existing = {_s(b.block_no): b for b in (pa.blocks or [])}
+    added = updated = 0
+    for c in clean:
+        row = existing.get(c["block_no"])
+        if row is None:
+            row = pa.append("blocks", {})
+            row.block_no = c["block_no"]
+            added += 1
+        else:
+            updated += 1
+        for f in ("net_wt", "length", "width", "height", "cbm", "vehicle_no"):
+            if c.get(f) not in (None, ""):
+                try:
+                    row.set(f, c[f])
+                except Exception:
+                    pass
+        try:
+            row.set("remarks", "entered by hand by {0}: {1}".format(person, reason))
+        except Exception:
+            pass
+
+    pa.flags.ignore_permissions = True
+    pa.save()
+    try:
+        pa.add_comment("Comment", "{0} block(s) entered by hand by {1}: {2}".format(
+            added + updated, person, reason))
+    except Exception:
+        pass
+    frappe.db.commit()
+
+    return {"ok": 1, "arrival": pa.name, "added": added, "updated": updated,
+            "refused": refused, "by": person, "reason": reason,
+            "note": ("This sheet counts exactly like one the agency sent. Confirm "
+                     "it when you are ready and the blocks settle as usual.")}
+
+
+@frappe.whitelist()
+def blocks_not_found_in_arrivals():
+    """The blocks our challans say went, that no arrival sheet mentions.
+
+    [stated] "any block number not found in arrivals you just say not found in
+     arrivals and we will see how to sort that out later"
+
+    So it says exactly that and nothing more. It does not guess, does not blame
+    the agency, and does not hold anything up. A plain list, for later.
+    """
+    rows = ledger_view() or []
+    if isinstance(rows, dict):
+        rows = rows.get("rows") or []
+    out = []
+    for r in rows:
+        if r.get("arrival"):
+            continue
+        if _s(r.get("state")) in ("lot", "load"):
+            continue
+        num = _s(r.get("export_block_no")) or _s(r.get("block_no"))
+        if not num:
+            continue
+        out.append({
+            "block": num,
+            "quarry_no": _s(r.get("quarry_block_no")),
+            "dc": _s(r.get("dc")),
+            "truck": _s(r.get("truck")),
+            "our_tons": r.get("ton"),
+            "status": "not found in arrivals",
+        })
+    return {"count": len(out), "blocks": out[:400],
+            "note": ("Not found in arrivals. That is all this says - it is not a "
+                     "fault, not a loss, and it holds nothing up. If the agency "
+                     "sent the figures another way, record_arrival_by_hand() "
+                     "takes them.")}
