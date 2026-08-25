@@ -631,7 +631,38 @@ def _at_port_checks():
         and (r.get("arrival_confirmed") or r.get("lot"))
     ]
 
+    # 25 Aug 2026. SEND BACK MUST ACTUALLY SEND BACK.
+    #
+    # The stale-status fix made a confirmed arrival outrank a lagging label.
+    # Pressed too far, that undoes Send back to Reconcile: the person pushes
+    # the block off the register, the evidence is still there, and the ledger
+    # puts it straight back — a button that looks like it worked and changed
+    # nothing, which is the exact complaint that started all of this.
+    #
+    # A block a person sent back carries a flag until it genuinely reaches the
+    # port again. If one of those is sitting on the register, the flag is
+    # being ignored somewhere.
+    sent_back_but_still_there = []
+    try:
+        flagged = A._sent_back_index()
+        if flagged:
+            sent_back_but_still_there = [
+                _s(r.get("export_block_no") or r.get("block_no"))
+                for r in rows
+                if _s(r.get("qb")) in flagged
+                and _s(r.get("state")) in ("port", "recon", "ready")
+            ]
+    except Exception:
+        sent_back_but_still_there = []
+
     return [
+        _check("atport.send_back_actually_sends_back",
+               "A block a person sent back is off the register",
+               not sent_back_but_still_there, _cap(sent_back_but_still_there),
+               "Somebody pressed Send back to Reconcile on these and they are "
+               "still standing at the port. The evidence rule is overriding a "
+               "person's deliberate decision - it must only override a label "
+               "nobody ever advanced."),
         _check("atport.every_block_got_here_with_evidence",
                "Every block in the register arrived on an arrival row or a push",
                not no_evidence, _cap(no_evidence),

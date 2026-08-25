@@ -1044,6 +1044,7 @@ def move_to_at_port(blocks=None, note=None):
                 frappe.db.set_value("Quarry Block", hit["name"], "status_before_at_port", _cur)
         except Exception:
             pass
+        _clear_sent_back(hit["name"])
         res = set_status(hit["name"], "At Port",
                          "arrival step skipped: {0}".format(_s(note) or "no reason given"),
                          machine="server (skip arrivals)")
@@ -1286,6 +1287,9 @@ def ledger_view():
     rows, seen = [], set()
 
     if dcs:
+        # Blocks a PERSON sent back off the register — one query, not one per row.
+        _sent_back = _sent_back_index()
+
         for r in frappe.get_all(
             "DC Block Row",
             filters={"parenttype": "Delivery Challan", "parent": ["in", list(dcs.keys())]},
@@ -1376,7 +1380,13 @@ def ledger_view():
                 # made deliberately (At Port, Reconciled, Shipped) and keeps
                 # winning exactly as before. Only "await" defers to evidence.
                 # ==========================================================
-                if state == "await":
+                # ...UNLESS A PERSON PUT IT BACK ON PURPOSE. Send back to
+                # Reconcile pushes the status backwards deliberately, so the
+                # label is not lagging - it is the decision. Preferring the
+                # evidence there would drag the block straight back to At Port
+                # and the button would appear to do nothing.
+                if state == "await" and not _sent_back.get(
+                        _s(qb["name"]) if qb else ""):
                     if lot and lot["st"] == "ship":
                         state = "load"
                     elif lot:
@@ -4356,6 +4366,73 @@ def _prev_field_ready():
         return False
 
 
+# ===========================================================================
+# A PERSON'S DELIBERATE MOVE BACK IS NOT A STALE LABEL.  25 Aug 2026.
+#
+# The stale-status fix in ledger_view says: a confirmed arrival or a place on
+# a lot outranks a status field that nobody ever advanced. That is right for
+# block 802, whose label simply never moved.
+#
+# It is WRONG the moment somebody presses Send back to Reconcile. There the
+# status did not lag - a person pushed it backwards ON PURPOSE, to take the
+# block off the register and look at it again. The arrival is still confirmed
+# and the evidence is still there, so the same rule would drag the block
+# straight back to At Port and the button would appear to do nothing. That is
+# exactly the class of fault he has been reporting all day: a control that
+# looks like it worked and changed nothing.
+#
+# So a send-back raises this flag, and the ledger stops preferring evidence
+# for that block until it is genuinely moved to the port again - at which
+# point every path that sets At Port lowers it. The flag is the difference
+# between "nobody updated this" and "somebody decided this".
+# ===========================================================================
+SENT_BACK_FIELD = "sent_back_from_port"
+
+
+def _sent_back_field_ready():
+    """Somewhere to record that a PERSON moved this block off the register."""
+    try:
+        if frappe.get_meta("Quarry Block").has_field(SENT_BACK_FIELD):
+            return True
+        from frappe.custom.doctype.custom_field.custom_field import create_custom_field
+        create_custom_field("Quarry Block", {
+            "fieldname": SENT_BACK_FIELD,
+            "label": "Sent Back From Port",
+            "fieldtype": "Check",
+            "hidden": 1,
+            "read_only": 1,
+            "no_copy": 1,
+        }, ignore_validate=True)
+        frappe.clear_cache(doctype="Quarry Block")
+        return frappe.get_meta("Quarry Block").has_field(SENT_BACK_FIELD)
+    except Exception:
+        return False
+
+
+def _clear_sent_back(name):
+    """Reaching the port again cancels an earlier send-back. Never raises."""
+    try:
+        if _sent_back_field_ready():
+            frappe.db.set_value("Quarry Block", name, SENT_BACK_FIELD, 0)
+    except Exception:
+        pass
+
+
+def _sent_back_index():
+    """{Quarry Block name: 1} for every block a person has sent back.
+
+    One query for the whole page - the ledger must not ask per row.
+    """
+    try:
+        if not frappe.get_meta("Quarry Block").has_field(SENT_BACK_FIELD):
+            return {}
+        return {_s(r.name): 1 for r in frappe.get_all(
+            "Quarry Block", filters={SENT_BACK_FIELD: 1},
+            fields=["name"], limit_page_length=0)}
+    except Exception:
+        return {}
+
+
 def _size_conflict(r):
     """True only when BOTH sides gave a dimension and they disagree. A missing
     figure is a missing figure, never a conflict."""
@@ -4810,6 +4887,7 @@ def auto_settle_at_port(include_noconflict=0, person=None, dry_run=0, note=None)
             frappe.db.set_value("Quarry Block", name, "status_before_at_port", cur or "")
         except Exception:
             pass
+        _clear_sent_back(name)
         res = set_status(name, AT_PORT_STATUS, reason, machine="server (auto-reconcile)",
                          actor=person)
         if res.get("ok"):
@@ -4918,6 +4996,13 @@ def send_back_to_reconcile(blocks=None, reason=None, person=None, dry_run=0):
         if res.get("ok"):
             try:
                 frappe.db.set_value("Quarry Block", name, "status_before_at_port", "")
+            except Exception:
+                pass
+            # A PERSON decided this, so the ledger must not undo it from
+            # evidence. Cleared again the moment the block reaches the port.
+            try:
+                if _sent_back_field_ready():
+                    frappe.db.set_value("Quarry Block", name, SENT_BACK_FIELD, 1)
             except Exception:
                 pass
             done.append(bn)
