@@ -612,12 +612,38 @@ def _at_port_checks():
         if not has_arrival and not has_port_figures:
             no_evidence.append(_s(r.get("export_block_no") or r.get("block_no")))
 
+    # 25 Aug 2026. THE OTHER HALF OF THE SAME CHECK.
+    #
+    # The check above asks "is anything at the port that should not be?".
+    # Block 802 was the reverse and nothing was watching for it: a CONFIRMED
+    # arrival sheet, a place on an export lot, and the page still calling it
+    # "Awaiting arrival" — because its status field said Dispatched/Transported
+    # and nothing ever advances that field once the challan is submitted.
+    #
+    # A confirmed arrival is a record of movement. A block cannot hold one and
+    # still be on the road. If this ever fails again, a stale label is
+    # outranking evidence somewhere and send-back will refuse blocks whose port
+    # record is sitting on the very same row.
+    still_on_the_road = [
+        _s(r.get("export_block_no") or r.get("block_no"))
+        for r in rows
+        if _s(r.get("state")) == "await"
+        and (r.get("arrival_confirmed") or r.get("lot"))
+    ]
+
     return [
         _check("atport.every_block_got_here_with_evidence",
                "Every block in the register arrived on an arrival row or a push",
                not no_evidence, _cap(no_evidence),
                "A block at the port with no arrival row and no port figures was "
                "moved with nothing behind it."),
+        _check("atport.arrived_blocks_are_never_still_awaiting",
+               "No block with a confirmed arrival is still called awaiting",
+               not still_on_the_road, _cap(still_on_the_road),
+               "These blocks have a confirmed arrival sheet or a place on an "
+               "export lot and the page still says they have not arrived. A "
+               "stale status field is outranking the record of movement - the "
+               "same fault that made block 802's send-back refuse itself."),
         _check("atport.summary", "The register", True,
                {"blocks_at_port_or_beyond": len(at_port)}),
     ]

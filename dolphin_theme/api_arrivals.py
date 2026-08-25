@@ -1346,13 +1346,52 @@ def ledger_view():
             #   4. arrival evidence on a draft — its own bucket, never "at port"
             if qstat in _LADDER_STATE:
                 state = _LADDER_STATE[qstat]
-                # A3, second pass: the block's own status winning is right, but it
-                # buried the thing worth seeing. When the block says it has NOT
-                # reached the port and a draft arrival sheet says it has, that
-                # disagreement is the whole point — surface it rather than letting
-                # the block's status quietly swallow it.
-                if state == "await" and pa is None and ev is not None:
-                    state = "unconfirmed"
+
+                # ==========================================================
+                # A STALE LABEL DOES NOT OUTRANK MOVEMENT.  25 Aug 2026.
+                #
+                # "Dispatched/Transported" is the ONLY ladder status that
+                # means "it left, and nothing has been recorded since". It is
+                # the status a block is given the day its challan is
+                # submitted, and NOTHING advances it afterwards — arriving at
+                # the port does not, being reconciled does not, being put on
+                # an export lot does not. So it goes stale by design.
+                #
+                # Block 802 is the proof: submitted challan DC-DAEG-002, a
+                # CONFIRMED arrival on ARR-27Jul2026-NA marked Matched, and a
+                # place on lot XIAMENBLESS-BL-260727-02 — and this page still
+                # called it "Awaiting arrival", because its status field had
+                # never been touched since the day it was loaded. Send-back
+                # then refused it saying "there is no port record", while the
+                # port record sat right there on the same row.
+                #
+                # This is the same trap as "In Delivery Challan" on blocks
+                # 208/204/213, one rung further up the ladder: THE RECORD OF
+                # MOVEMENT IS THE TRUTH, THE STATUS FIELD IS A LABEL THAT
+                # LAGS. A confirmed arrival is movement. Lot membership is
+                # movement. Either one outranks a status that only says the
+                # block left the quarry.
+                #
+                # Every OTHER ladder status is a forward statement someone
+                # made deliberately (At Port, Reconciled, Shipped) and keeps
+                # winning exactly as before. Only "await" defers to evidence.
+                # ==========================================================
+                if state == "await":
+                    if lot and lot["st"] == "ship":
+                        state = "load"
+                    elif lot:
+                        state = "lot"
+                    elif pa is not None:
+                        rs = _s(pa.recon_status).lower()
+                        state = ("dmg" if "damage" in rs else
+                                 "held" if ("hold" in rs or "held" in rs) else
+                                 "mis" if ("mismatch" in rs or "dimension" in rs)
+                                 else "port")
+                    elif ev is not None:
+                        # A draft arrival sheet says it reached the port and
+                        # the block says otherwise. That disagreement is the
+                        # whole point — surface it, never swallow it.
+                        state = "unconfirmed"
             elif lot and lot["st"] == "ship":
                 state = "load"
             elif lot:  # noqa: E501  (see the note below on lots without arrivals)
