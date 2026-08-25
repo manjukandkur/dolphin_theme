@@ -1166,7 +1166,15 @@ function renderStock(){if(VMODE==='dc'){renderDC();return;}
       +'<td>'+(r.dc?'<span class="dc" data-doc="dc" data-i="'+i+'">'+esc((window.DCMAP&&DCMAP[r.dc])||r.dc)+'</span> <span class="eye" data-doc="dc" data-i="'+i+'">'+U(128196)+'</span>'+_dcSub(r.dc):'<span class="sub">no challan</span>')+'</td>'
       +'<td>'+(r.source_bi?esc(r.source_bi)+' <span class="eye" data-doc="bi" data-i="'+i+'">'+U(128196)+'</span>':'<span class="sub">'+DASH+'</span>')+'<div class="sub">'+esc(r.consignee||'')+'</div></td>'
       +'<td>'+dcSize(r)+'</td><td>'+ptSize(r)+'</td><td>'+(r.ton||r.net_wt||DASH)+'</td><td>'+ageC+'</td>'
-      +'<td>'+pill(r.state)+'</td><td>'+action(r,i)+'</td>'
+      /* 25 Aug 2026, his words: "if the block is in export shipment lot without
+         arrivals then quietly show it under at port: Export shipment lot
+         narration pushed directly without arrivals or agency match".
+         QUIETLY. Grey, small, under the state - not a colour, not a badge, not
+         a warning. The stone may be perfectly fine; what is missing is the
+         record of the port ever seeing it, and the row just says so. */
+      +'<td>'+pill(r.state)
+        +(r.lot_without_arrival?('<div class="sub" style="font-size:10.5px;color:#8a929c;margin-top:2px;line-height:1.35">'+esc(r.lot_note||'Export shipment lot — pushed directly without arrivals or agency match')+'</div>'):'')
+        +'</td><td>'+action(r,i)+'</td>'
       +'<td><span class="exp" data-x="'+i+'">'+TRI+'</span></td></tr>'
       +'<tr class="det" id="dx'+i+'" style="display:none"><td colspan="11">'+trace(r,i)+'</td></tr>';
   });
