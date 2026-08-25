@@ -1323,8 +1323,8 @@ def ledger_view():
                     state = "await"
 
             if pa is not None:
-                _oc = _cbm_of(r.length_gross, r.width_gross, r.height_gross)
-                _tc = _cbm_of(pa.length, pa.width, pa.height)
+                _oc = _cbm3(r.length_gross, r.width_gross, r.height_gross)
+                _tc = _cbm3(pa.length, pa.width, pa.height)
                 if _oc and _tc:
                     _ratio = _tc / _oc
                     if _ratio < SIZE_MATCH_LOW or _ratio > SIZE_MATCH_HIGH:
@@ -4146,8 +4146,15 @@ SIZE_MATCH_LOW = 0.55
 SIZE_MATCH_HIGH = 1.45
 
 
-def _cbm_of(l, w, h):
-    """Cubic metres from three centimetre dimensions, or 0 when any is missing."""
+def _cbm3(l, w, h):
+    """Cubic metres from three centimetre dimensions, or 0 when any is missing.
+
+    Named _cbm3 rather than _cbm_of because THERE IS ALREADY A _cbm_of further
+    down this file, and the later definition silently wins at import. The
+    self-test code.no_name_defined_twice caught this within a minute of the
+    deploy - which is exactly what it is for. Two functions sharing a name is how
+    a change appears to work and then does something else entirely.
+    """
     try:
         l, w, h = float(l or 0), float(w or 0), float(h or 0)
     except Exception:
@@ -4164,7 +4171,18 @@ def _cbm_of(l, w, h):
 # the quarry. Nothing standing at a port can be it. Matching an agency row to one
 # of those is not a near miss - it is impossible, and it is where almost all of
 # the wrong matches come from. These statuses can never carry port figures.
-NEVER_AT_PORT_STATUS = ("In Stock", "Buyer Marked", "In Delivery Challan")
+#
+# CORRECTED the same day, by measuring it rather than assuming. Including
+# "In Delivery Challan" here refused blocks 208, 204 and 213 - which sit on
+# DC-HAEG-107, a SUBMITTED challan, and really are at the port. Their block
+# status simply never advanced when the challan was submitted. The status LAGS;
+# it does not contradict.
+#
+# His own rule settles which one wins: identity follows MOVEMENT, and a submitted
+# challan is movement. A stale status field is not evidence of anything and must
+# never overrule the paperwork. So only the two statuses that mean the stone was
+# never put on a challan at all can refuse a match on this path.
+NEVER_AT_PORT_STATUS = ("In Stock", "Buyer Marked")
 
 
 def _prev_field_ready():
