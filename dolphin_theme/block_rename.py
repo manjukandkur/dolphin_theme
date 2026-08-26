@@ -118,23 +118,94 @@ def _blocks():
 
 
 def _arrival_rows_named_by_record_id(by_name):
-    """Arrival rows whose block_no is a record id rather than a block number."""
+    """Arrival rows whose block_no is a record id rather than a block number.
+
+    ==================================================================
+    THIS FUNCTION DID REAL DAMAGE. READ BEFORE CHANGING IT.  26 Aug 2026.
+
+    It used to accept a BARE NUMBER MATCH as proof: if an arrival row's
+    block_no equalled some Quarry Block's record name, the row was assumed
+    to be written in record ids and was rewritten to that block's export
+    number. Nothing else was checked.
+
+    On this site that is a trap, not a shortcut. Record names and real
+    block numbers live in the same numeric range, so the SHIPPING
+    AGENCY'S OWN block numbers matched. Their 1378 looked like a record
+    id and was overwritten with that record's export number, 804.
+
+    The cost: 155 arrival rows across the whole 800 series were filed
+    against the wrong stone, on five sheets, for weeks. He found it from
+    the measurements - 804 read 374x140x125 when 804 is 256x140x147.
+    Reading the four original .xls files back settles it: the agency has
+    NEVER written an 800-series number, not once, on any sheet.
+
+    [stated] "cross check the exact matching of the block with more
+              parameters to match exact block, these mistakes are not
+              acceptable"
+
+    So a number match now only NOMINATES a row. It is rewritten only when
+    the row's own figures corroborate it - the block the number points at
+    must actually look like the stone on that row. A row that cannot be
+    corroborated is returned with has_replacement False and is left
+    exactly as the agency wrote it.
+    ==================================================================
+    """
     out = []
     rows = frappe.get_all("Port Arrival Block",
-                          fields=["name", "parent", "block_no"],
+                          fields=["name", "parent", "block_no",
+                                  "length", "width", "height", "cbm", "net_wt"],
                           limit_page_length=0)
+
+    def _near(a, b, tol=0.02):
+        try:
+            fa, fb = float(a or 0), float(b or 0)
+        except Exception:
+            return False
+        if not fa or not fb:
+            return False
+        return abs(fa - fb) <= max(tol, abs(fb) * 0.02)
+
     for r in rows:
         key = _s(r.block_no)
         if not key or key not in by_name:
             continue
         blk = by_name[key]
-        # It is a record id. Is it ALSO a real block number for some block?
         replacement = _s(blk.get("export_block_no")) or _s(blk.get("block_number"))
+
+        # CORROBORATION. Does the block this number points at actually look
+        # like the stone described on this row? Our own challan figures are
+        # the reference, because they are ours and they do not change.
+        agrees, why = 0, []
+        try:
+            dc = frappe.get_all(
+                "DC Block Row",
+                filters={"block": blk["name"], "parenttype": "Delivery Challan"},
+                fields=["length_gross", "width_gross", "height_gross", "gross_volume"],
+                limit_page_length=1)
+        except Exception:
+            dc = []
+        if dc:
+            d = dc[0]
+            for ours, theirs, label in ((d.get("length_gross"), r.get("length"), "length"),
+                                        (d.get("width_gross"), r.get("width"), "width"),
+                                        (d.get("height_gross"), r.get("height"), "height"),
+                                        (d.get("gross_volume"), r.get("cbm"), "cbm")):
+                if _near(theirs, ours):
+                    agrees += 1
+                    why.append(label)
+        else:
+            why.append("no challan figures to check against")
+
+        # Two independent figures, or it is not a record id - it is a number
+        # the agency wrote and it stays.
+        corroborated = agrees >= 2
+
         out.append({
             "row": r.name, "arrival": r.parent,
             "now": key, "block": blk["name"],
             "would_become": replacement,
-            "has_replacement": bool(replacement),
+            "corroborated_on": why,
+            "has_replacement": bool(replacement) and corroborated,
         })
     return out
 

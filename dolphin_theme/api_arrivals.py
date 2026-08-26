@@ -7349,3 +7349,146 @@ def verify_again(check_email=1):
                  "it is correct and waiting on a person. Confirming a sheet is the "
                  "usual next step."),
     }
+
+
+# ==========================================================================
+# PUTTING THE AGENCY'S BLOCK NUMBERS BACK.  26 Aug 2026.
+#
+# He found it from the measurements: block 804 reads 374x140x125 on five
+# arrival rows, and 804 is 256x140x147. The row belongs to 1378.
+#
+# What happened: block_rename has a step called "arrival rows whose block_no
+# is a record id rather than a block number". It rewrote ANY arrival row whose
+# number matched a Quarry Block RECORD NAME, on the bare number and nothing
+# else. The agency's genuine 1378 looked like a record id, so it was replaced
+# with that record's export number, 804. 155 rows across the 800 series.
+#
+# Proof it is not our number they sent: reading the four original .xls files
+# back, the agency has NEVER written an 800-series block number. Not once, on
+# any sheet. Every 800-series arrival row in the system was manufactured.
+#
+# [stated] "cross check the exact matching of the block with more parameters
+#           to match exact block, these mistakes are not acceptable"
+#
+# So this repair NEVER matches on a number. It reads the original file that is
+# still attached to each arrival, walks the rows in order, and restores the
+# agency's block number ONLY where FIVE independent figures agree: weight,
+# CBM, length, width and height. One disagreement and the row is left exactly
+# as it is and reported instead. That is the whole point - a number alone is
+# what caused this.
+# ==========================================================================
+
+_REPAIR_FIELDS = ("net_wt", "cbm", "length", "width", "height")
+
+
+def _near(a, b, tol=0.011):
+    """Two figures agree. Tolerance is for stored rounding only, not judgement."""
+    try:
+        fa, fb = float(a or 0), float(b or 0)
+    except Exception:
+        return False
+    return abs(fa - fb) <= tol
+
+
+@frappe.whitelist()
+def repair_arrival_block_numbers(arrival=None, dry_run=1, reason=None):
+    """Restore the block number the shipping agency actually wrote.
+
+    Read-only unless dry_run is explicitly 0. Never matches on a number.
+    """
+    dry = _s(dry_run) not in ("0", "false", "False", "")
+    if not dry and len(_s(reason)) < 4:
+        frappe.throw("Say why these rows are being repaired - the reason is "
+                     "written onto every row that changes.")
+
+    names = [arrival] if arrival else [
+        r.name for r in frappe.get_all("Port Arrival", fields=["name"],
+                                       limit_page_length=0)]
+    would, refused, untouched, sheets = [], [], 0, []
+
+    for nm in names:
+        try:
+            g = arrival_xls_grid(nm) or {}
+        except Exception:
+            g = {}
+        if not g or g.get("error"):
+            continue
+        grid, tags = g.get("grid") or [], g.get("tags") or []
+
+        # The block-number column is taken from the sheet's OWN header, never
+        # assumed - the same column map the importer uses.
+        src_rows = [grid[i] for i in range(len(grid)) if i < len(tags) and tags[i] == "parsed"]
+        if not src_rows:
+            continue
+        hdr_i = tags.index("head") if "head" in tags else None
+        hdr = [_s(x).strip().lower() for x in (grid[hdr_i] if hdr_i is not None else [])]
+        try:
+            bcol = next(i for i, h in enumerate(hdr) if "block" in h and "no" in h)
+        except StopIteration:
+            refused.append({"arrival": nm, "why": "no BLOCK NO column found in the sheet header"})
+            continue
+
+        stored = frappe.get_all(
+            "Port Arrival Block",
+            filters={"parent": nm, "parenttype": "Port Arrival"},
+            fields=["name", "idx", "block_no", "net_wt", "cbm", "length", "width", "height"],
+            order_by="idx asc", limit_page_length=0)
+        if len(stored) != len(src_rows):
+            refused.append({"arrival": nm, "why": "the sheet has {0} rows and the record "
+                            "has {1} - not aligned, so nothing is touched".format(
+                                len(src_rows), len(stored))})
+            continue
+
+        changed_here = 0
+        for st, sr in zip(stored, src_rows):
+            agency_no = _s(sr[bcol]) if bcol < len(sr) else ""
+            if not agency_no or agency_no == _s(st.block_no):
+                untouched += 1
+                continue
+
+            # FIVE figures, all of them, or nothing happens.
+            def _cell(names_):
+                for i, h in enumerate(hdr):
+                    if any(k in h for k in names_):
+                        return _xls_num(sr[i]) if i < len(sr) else None
+                return None
+
+            checks = {
+                "weight": _near(st.net_wt, _cell(("weight",))),
+                "cbm": _near(st.cbm, _cell(("cbm",))),
+                "length": _near(st.length, _cell(("length", "l(cm)", "l cm"))),
+                "width": _near(st.width, _cell(("width", "w(cm)", "w cm"))),
+                "height": _near(st.height, _cell(("height", "h(cm)", "h cm"))),
+            }
+            agreed = [k for k, v in checks.items() if v]
+            # Weight and CBM are the two the agency always fills. Dimensions are
+            # unreliable at some ports by his own account, so they corroborate
+            # but cannot veto on their own.
+            solid = checks["weight"] and checks["cbm"] and len(agreed) >= 3
+            if not solid:
+                refused.append({"arrival": nm, "row_idx": st.idx,
+                                "stored_as": _s(st.block_no), "agency_wrote": agency_no,
+                                "agreed_on": agreed,
+                                "why": "the figures do not corroborate it - left alone"})
+                continue
+
+            would.append({"arrival": nm, "row_idx": st.idx,
+                          "from": _s(st.block_no), "to": agency_no,
+                          "agreed_on": agreed, "mt": st.net_wt})
+            changed_here += 1
+            if not dry:
+                frappe.db.set_value("Port Arrival Block", st.name, {
+                    "block_no": agency_no,
+                    "resolution_note": ("block number restored to the one the agency "
+                                        "wrote ({0}); it had been overwritten as {1}. {2}"
+                                        .format(agency_no, _s(st.block_no), _s(reason))),
+                }, update_modified=False)
+        sheets.append({"arrival": nm, "rows": len(stored), "to_repair": changed_here})
+
+    if not dry:
+        frappe.db.commit()
+    return {"dry_run": bool(dry), "sheets": sheets,
+            "would_repair" if dry else "repaired": len(would),
+            "left_alone_uncorroborated": len(refused),
+            "already_correct": untouched,
+            "changes": would[:400], "refused": refused[:200]}
