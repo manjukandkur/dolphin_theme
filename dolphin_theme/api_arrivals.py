@@ -7428,6 +7428,33 @@ def repair_arrival_block_numbers(arrival=None, dry_run=1, reason=None):
             refused.append({"arrival": nm, "why": "no BLOCK NO column found in the sheet header"})
             continue
 
+        # ==============================================================
+        # THE AGENCY LISTS EVERY BLOCK TWICE.  His words, 26 Aug 2026:
+        #   "in arrivals sheet the block details are entered twice you can
+        #    take only once not twice"
+        #
+        # He is right, and for a repair it is a gift. The main table
+        # (SL.NO ... WAY O TRANSPORT) carries each block once; a second,
+        # unheaded list sits off to the right with the same block numbers
+        # and their weights. On the 13 Aug sheet both lists hold the SAME
+        # 200 numbers - all 200 match - and NEITHER holds a single
+        # 800-series number.
+        #
+        # The importer already takes the main table only, which is correct
+        # and is why nothing is double counted. But the second list is an
+        # INDEPENDENT WITNESS out of the agency's own file, so a repair
+        # makes it one more parameter that has to agree.
+        # ==============================================================
+        second = {}
+        for row in grid:
+            for c in range(10, len(row)):
+                v = _s(row[c]).strip()
+                if v and _re.fullmatch(r"\d{2,6}", v):
+                    w = _xls_num(row[c + 1]) if c + 1 < len(row) else None
+                    if w:
+                        second.setdefault(v, w)
+                    break
+
         stored = frappe.get_all(
             "Port Arrival Block",
             filters={"parent": nm, "parenttype": "Port Arrival"},
@@ -7464,7 +7491,19 @@ def repair_arrival_block_numbers(arrival=None, dry_run=1, reason=None):
             # Weight and CBM are the two the agency always fills. Dimensions are
             # unreliable at some ports by his own account, so they corroborate
             # but cannot veto on their own.
+            # The agency's OWN second listing of the same block, if the sheet
+            # carries one. Same number, same weight, written twice by them.
+            if second:
+                checks["second_list"] = agency_no in second and _near(st.net_wt,
+                                                                     second.get(agency_no))
+                if checks["second_list"]:
+                    agreed.append("second_list")
+
             solid = checks["weight"] and checks["cbm"] and len(agreed) >= 3
+            if second and not checks.get("second_list"):
+                # The sheet lists every block twice. If their own second list
+                # does not carry this number at this weight, do not write it.
+                solid = False
             if not solid:
                 refused.append({"arrival": nm, "row_idx": st.idx,
                                 "stored_as": _s(st.block_no), "agency_wrote": agency_no,
