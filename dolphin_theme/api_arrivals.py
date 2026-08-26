@@ -40,27 +40,8 @@ def _edit_distance(a, b):
     return dp[n]
 
 
-def _nearest(block_no, candidates):
-    target, best, best_d = str(block_no).strip(), None, 99
-    for c in candidates:
-        d = _edit_distance(target, str(c))
-        if d < best_d:
-            best, best_d = c, d
-    return best if best_d <= 2 else None
 
 
-def _dispatched_index():
-    rows = frappe.db.sql(
-        """
-        SELECT r.block, r.block_no, r.export_block_no, r.length_gross AS l,
-               r.width_gross AS w, r.height_gross AS h, r.gross_volume AS vol, p.name AS dc
-        FROM `tabDC Block Row` r
-        JOIN `tabDelivery Challan` p ON p.name = r.parent
-        WHERE p.docstatus = 1
-        """,
-        as_dict=True,
-    )
-    return {str(r.block).strip(): r for r in rows}
 
 
 def _arrived_on_other(block_no, exclude_arrival):
@@ -2005,24 +1986,6 @@ def remove_lot_block(lot=None, block_no=None):
     return {"name": d.name, "removed": target}
 
 
-@frappe.whitelist()
-def reopen_lot(lot=None):
-    """Reopen a lot: set status back to Ready AND return every block to At Port,
-    removing the rows from the lot's block table (block_count -> 0) and unlinking
-    the Shipping Document. Delegates the row removal + At Port flip to
-    return_blocks_from_lot so both the desk 'Reopen' button and the Export Hub
-    behave identically. The Quarry Block status is set idempotently and no Port
-    Arrival row is created, so a block is never duplicated at port."""
-    if not lot:
-        frappe.throw("No lot given.")
-    d = frappe.get_doc("Export Shipment Lot", lot)
-    if d.meta.has_field("status"):
-        d.status = "Ready"
-    if d.meta.has_field("shipped"):
-        d.shipped = 0
-    d.save(ignore_permissions=True)
-    res = return_blocks_from_lot(lot=lot, blocks=None) or {}
-    return {"name": lot, "status": "Ready", "returned": res.get("returned", 0)}
 
 
 @frappe.whitelist()
@@ -3111,80 +3074,6 @@ def find_by_note(q=None, limit=300):
     return out
 
 
-@frappe.whitelist()
-def reconciliation_view():
-    """Did the agency transcribe our numbers correctly?  (B30, reframed by B54)
-
-    B54, and this is the whole point of the screen: **the port agency never
-    measures a block.** Weight and tonnage are their only concern. The
-    measurements are ours and the Buyer Inspection measurement is FINAL.
-
-    So this is not measurement-versus-measurement. It is a transcription check:
-    where the agency has typed a size, does it match what we gave them? A row
-    where they typed nothing is NORMAL — they were never asked to — and it is
-    never counted as a fault.
-
-    Buckets: match · within-tolerance · mismatch (mistyped) · not-entered ·
-    not-on-a-challan."""
-    disp = _dispatched_index()
-    ds = _arrival_docstatus()
-    rows, counts = [], {"match": 0, "tol": 0, "mismatch": 0, "nodim": 0, "unknown": 0}
-
-    for p in frappe.get_all("Port Arrival Block", fields=_PAB_FIELDS + ["name"],
-                            limit_page_length=0):
-        k = _s(p.block_no)
-        if not k:
-            continue
-        d = disp.get(k)
-        if not d:
-            for alt in _pab_alt_keys(k):
-                if alt in disp:
-                    d = disp[alt]
-                    break
-        # Compare a side ONLY when both ends actually carry a number.
-        #
-        # The first cut of this still called 471 rows a mismatch, because a row
-        # with a cbm but no length was treated as "has measurements" and then
-        # every side compared against a zero. Zero is not a measurement of zero;
-        # it is an absence. Only genuinely comparable sides count, and a row with
-        # none of them is 'nothing to compare' rather than a failure.
-        pairs = [(d.l, p.length), (d.w, p.width), (d.h, p.height)] if d else []
-        comparable = [(a, b) for a, b in pairs if flt(a) and flt(b)]
-
-        if not d:
-            bucket = "unknown"
-        elif not comparable:
-            bucket = "nodim"
-        else:
-            exact = all(flt(a) == flt(b) for a, b in comparable)
-            ok = all(_within_tol(a, b) for a, b in comparable)
-            bucket = "match" if exact else ("tol" if ok else "mismatch")
-        counts[bucket] += 1
-        rows.append({
-            "row": p.name, "block_no": k, "arrival": p.parent,
-            "confirmed": 1 if ds.get(p.parent) == 1 else 0,
-            "dc": (d.dc if d else None),
-            "dc_l": (d.l if d else None), "dc_w": (d.w if d else None),
-            "dc_h": (d.h if d else None), "dc_cbm": (d.vol if d else None),
-            "pt_l": p.length, "pt_w": p.width, "pt_h": p.height, "pt_cbm": p.cbm,
-            "net_wt": p.net_wt, "recon_status": p.recon_status,
-            "note": p.resolution_note, "bucket": bucket,
-            "compared": len(comparable),
-        })
-
-    labels = {
-        "match": "Agency figures match ours",
-        "tol": "Within tolerance (3 cm or 3%)",
-        "mismatch": "Mistyped — does not match what we gave",
-        "nodim": "Not entered by the agency (normal)",
-        "unknown": "Not on any submitted challan",
-    }
-    labels["_note"] = ("The port agency does not measure — weight and tonnage are their "
-                       "only concern, and the Buyer Inspection measurement is final. "
-                       "This table only asks whether what they typed matches what we gave "
-                       "them. A blank is normal and is never a fault.")
-    return {"rows": rows, "counts": counts, "labels": labels,
-            "total": len(rows)}
 
 
 # ---------------------------------------------------------------------------
@@ -3765,45 +3654,6 @@ def absorb_arrivals(apply=0):
 # definition and no longer touches a single block.
 # ---------------------------------------------------------------------------
 
-@frappe.whitelist()
-def reopen_lot(lot=None):
-    """One rung back from a shipped/exported lot: the lot returns to draft and
-    the Shipping Document is unlinked. Blocks are NOT touched and stay in the
-    lot - emptying the lot is the NEXT rung down, return_blocks_from_lot."""
-    if not lot:
-        frappe.throw("No lot given.")
-    d = frappe.get_doc("Export Shipment Lot", lot)
-
-    was = {
-        "status": d.get("status"),
-        "shipped": d.get("shipped"),
-        "shipping_document": d.get("shipping_document"),
-    }
-
-    if d.meta.has_field("status"):
-        d.status = "Ready"
-    if d.meta.has_field("shipped"):
-        d.shipped = 0
-    for f in ("ship_date", "bl_no"):
-        if d.meta.has_field(f):
-            d.set(f, None)
-    if d.meta.has_field("shipping_document"):
-        d.shipping_document = None
-    d.flags.ignore_mandatory = True
-    d.save(ignore_permissions=True)
-    frappe.db.commit()
-
-    kept = len(d.get("blocks") or [])
-    return {
-        "name": lot,
-        "status": "Ready",
-        "blocks_kept_in_lot": kept,
-        "shipping_document_unlinked": was.get("shipping_document") or None,
-        "blocks_returned_to_port": 0,
-        "message": ("Lot %s is back to draft with its %d block(s) still in it. "
-                    "To send those blocks back to At Port, use the next undo - "
-                    "Return all blocks to At Port." % (lot, kept)),
-    }
 
 
 @frappe.whitelist()
