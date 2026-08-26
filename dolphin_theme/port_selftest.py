@@ -96,6 +96,14 @@ def _identity_checks():
                "No row reaches the page without a number",
                not blank, _cap(blank),
                "A row with no number cannot be acted on and must not be listed."),
+        _check("identity.in_challan_blocks_are_really_on_one",
+               "Every block reading In Delivery Challan is on a challan",
+               not _in_challan_but_nowhere(), _cap(_in_challan_but_nowhere(), 40),
+               "These blocks say they are on a delivery challan and no challan "
+               "row points at them. Their row never saved - almost always "
+               "because the duplicate guard refused it on a NUMBER collision "
+               "(the block's quarry number is some other block's export number) "
+               "and the person could not tell why. Re-add them to the draft."),
         _check("identity.numbers_are_unambiguous",
                "No number is also some other block's record id",
                not ambiguous, _cap(ambiguous, 40),
@@ -429,6 +437,35 @@ def _tolerance_checks():
                       "challans_out_of_tolerance": sorted(bad_dc)[:20],
                       "tolerance_mt": A.AUTO_TOL_MT}),
     ]
+
+
+def _in_challan_but_nowhere():
+    """Blocks whose status says In Delivery Challan while no challan row names them.
+
+    Matched by RECORD, never by number — matching by number is the very fault
+    that creates these. Read-only.
+
+    26 Aug 2026: ten blocks were in this state and every one of them had its
+    QUARRY number sitting on a submitted challan as some OTHER block's EXPORT
+    number. The duplicate guard read the bare number, called it a clash, and
+    refused the save; the row never persisted and the status was left pointing
+    at a challan that does not carry it. Ten for ten is not a coincidence.
+    """
+    try:
+        blocks = frappe.get_all("Quarry Block",
+                                filters={"status": "In Delivery Challan"},
+                                fields=["name", "block_number", "export_block_no"],
+                                limit_page_length=0)
+        if not blocks:
+            return []
+        linked = {_s(r.block) for r in frappe.get_all(
+            "DC Block Row", filters={"parenttype": "Delivery Challan"},
+            fields=["block"], limit_page_length=0) if _s(r.block)}
+        return ["{0} (quarry {1}, export {2})".format(
+                    _s(b.name), _s(b.block_number) or "-", _s(b.export_block_no) or "-")
+                for b in blocks if _s(b.name) not in linked]
+    except Exception:
+        return []
 
 
 def _ready_but_unsettleable():

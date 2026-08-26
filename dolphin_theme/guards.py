@@ -148,10 +148,63 @@ def _check_within(doc, rows=None, canon=None):
 # 2. The same block already on another document of this type
 # ---------------------------------------------------------------------------
 
+def _row_record(row):
+    """The Quarry Block record a row points at, when it says so outright.
+
+    The Link field is the only thing on a row that names a STONE. Everything
+    else is a number, and a number is not an identity here.
+    """
+    return _s(row.get("block")) or _s(row.get("quarry_block"))
+
+
 def _check_across(doc, rows=None):
+    """The same STONE already on another document of this type.
+
+    ======================================================================
+    THE SAME STONE — NOT THE SAME NUMBER.  26 Aug 2026.
+
+    This guard used to take every number on the document and ask the
+    database whether ANY block field ANYWHERE held that string. On this
+    site that is guaranteed to produce false refusals, because a block
+    answers to three different numbers and the ranges overlap:
+
+        1009 is block 1001522's EXPORT number  (at port, on DC-GCEG-035)
+        1009 is block 1001591's QUARRY number  (a different stone entirely)
+
+    So adding block 1001591 to a new challan was refused with "Block 1009
+    is already on another challan DC-GCEG-035" — naming a challan that
+    carries a completely different stone. The same false refusal hit 1016
+    (1001404 vs 1001595) and 1036 (1001529 vs 1001605): three blocks, three
+    wrong answers, and a challan that could not be saved.
+
+    That is the standing lesson written down twice already: THE RECORD IS
+    THE IDENTITY, NOT THE NUMBER. `_check_within` has always resolved to
+    the record before comparing. This half never did.
+
+    Now it compares RECORDS. A number is only allowed to raise a clash
+    when neither side names a record, and then only against the SAME FIELD
+    — an export number may collide with an export number, never with
+    somebody else's quarry number.
+    ======================================================================
+    """
+    ours = _doc_block_rows(doc) if rows is None else rows
+    if not ours:
+        return
+
+    our_recs = {}          # Quarry Block record -> the number a person would recognise
+    key_fields = {}        # number -> the fields it appears in on OUR document
     keys_all = set()
-    for _row, keys in (_doc_block_rows(doc) if rows is None else rows):
+    for row, keys in ours:
         keys_all |= keys
+        rec = _row_record(row)
+        if rec:
+            our_recs[rec] = (_s(row.get("export_block_no"))
+                             or _s(row.get("block_no")) or rec)
+        for f in BLOCK_FIELDS:
+            v = _s(row.get(f))
+            if v:
+                key_fields.setdefault(v, set()).add(f)
+
     if not keys_all:
         return
     if len(keys_all) > MAX_KEYS:
@@ -162,26 +215,49 @@ def _check_across(doc, rows=None):
         child_dt = tf.options
         if not child_dt:
             continue
+        try:
+            child_meta = frappe.get_meta(child_dt)
+        except Exception:
+            continue
+        has_link = child_meta.has_field("block")
         for field in BLOCK_FIELDS:
             try:
-                if not frappe.get_meta(child_dt).has_field(field):
+                if not child_meta.has_field(field):
                     continue
-                rows = frappe.db.sql(
+                hits = frappe.db.sql(
                     """
-                    SELECT c.`{f}` AS k, c.parent AS parent, p.docstatus AS ds
+                    SELECT c.`{f}` AS k, {linksel} c.parent AS parent, p.docstatus AS ds
                     FROM `tab{child}` c
                     JOIN `tab{parent_dt}` p ON p.name = c.parent
                     WHERE c.parenttype = %s AND c.parent != %s
                       AND p.docstatus < 2 AND TRIM(c.`{f}`) IN ({ph})
                     """.format(f=field, child=child_dt, parent_dt=doc.doctype,
+                               linksel=("c.`block` AS qb," if has_link else ""),
                                ph=", ".join(["%s"] * len(keys_all))),
                     tuple([doc.doctype, doc.name or "__new__"] + sorted(keys_all)),
                     as_dict=True,
                 )
             except Exception:
                 continue
-            for r in rows:
-                clashes.setdefault(_s(r.k), set()).add(
+            for r in hits:
+                k = _s(r.k)
+                their_rec = _s(r.get("qb"))
+
+                if their_rec:
+                    # The other row NAMES its stone. Only that stone can clash,
+                    # and only if this document is carrying the same one.
+                    if their_rec not in our_recs:
+                        continue
+                    label = our_recs[their_rec]
+                elif field in key_fields.get(k, set()):
+                    # Neither side names a record. A number may still clash, but
+                    # only with the SAME KIND of number — an export number never
+                    # collides with somebody else's quarry number.
+                    label = k
+                else:
+                    continue
+
+                clashes.setdefault(label, set()).add(
                     (r.parent, "submitted" if r.ds == 1 else "draft"))
 
     if clashes:
