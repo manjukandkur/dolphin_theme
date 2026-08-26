@@ -18,6 +18,8 @@
 #pr input{padding:8px 10px;border:1px solid #cfd4dc;border-radius:7px;font-size:13px}
 #pr .vtog{font-size:13px;padding:7px 12px;border-radius:8px;border:1px solid #cfd4dc;background:#fff;color:#5f6b7a;cursor:pointer}
 #pr .vtog.on{background:var(--navy);color:#fff;border-color:var(--navy);font-weight:600}
+/* group heading row - "group together same kind", 26 Aug 2026 */
+#pr tr.bwgrp td{background:#f4f6f9;border-top:2px solid #e3e8ee;padding:7px 10px;font-size:12px}
 #pr .imp{font-size:12px;font-weight:600;padding:7px 11px;border-radius:8px;background:#fff;border:1.5px solid var(--gold);color:#8a5a12;cursor:pointer}
 #pr .gh{font-size:12px;padding:7px 11px;border-radius:8px;background:#fff;border:1px solid var(--navy);color:var(--navy);cursor:pointer}
 #pr .frow{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:8px 14px;background:#fff;border-bottom:.5px solid #e7ebf1}
@@ -156,7 +158,20 @@
            list of everything. The old toggle is kept in the DOM, hidden, because
            deleting elements other code still reaches for is how this file has
            broken itself before. -->
-      <span class="vtog on" id="v-blk">&#9875; At port</span><span class="vtog" id="v-all" style="display:none">&#9636; All transported</span><span class="vtog" id="v-dc">&#8693; Group by DC</span>
+      <!-- 26 Aug 2026: "Yes Single tab at port yes simple minimalistic check if
+           there are any dependencies."  There is now ONE register. Grouping by
+           challan stopped being a second tab and became what it always was - a
+           way of arranging the same list - so it moved into a dropdown beside
+           the search.
+           The three old toggles stay in the DOM, hidden, because __vtog() and
+           the filter row still reach for them by id, and deleting elements
+           other code touches is how this file has broken itself before. -->
+      <span class="sub" style="font-weight:600;color:#0F2540">&#9875; At port</span>
+      <label class="sub">&nbsp;Show as&nbsp;<select id="stgrp"
+        style="font-size:12px;padding:5px 7px;border:1px solid #cfd4dc;border-radius:7px;background:#fff;color:#5f6b7a">
+        <option value="blk">one list</option><option value="dc">grouped by challan</option>
+      </select></label>
+      <span class="vtog on" id="v-blk" style="display:none">&#9875; At port</span><span class="vtog" id="v-all" style="display:none">&#9636; All transported</span><span class="vtog" id="v-dc" style="display:none">&#8693; Group by DC</span>
       <input id="q" placeholder="Search any number — quarry, export, DC, BI, consignee, mark, truck" style="flex:1;min-width:150px">
       <span class="gh" id="addbtn" style="display:none">+ Add at port</span><span class="gh" id="openbtn" style="display:none">&#9638; Opening stock</span>
     </div>
@@ -1145,7 +1160,19 @@ function renderStock(){if(VMODE==='dc'){renderDC();return;}
     $('stmain').innerHTML='<div class="empty" style="padding:26px 12px;line-height:1.6">'
       +'<div style="font-weight:700;color:#0F2540;margin-bottom:6px">'
       +(FILT==='settled'?'No block is at the port yet':'Nothing to show here yet')+'</div>'+why+'</div>';return;}
-  var h='<table><thead><tr><th style="width:22px"><input type="checkbox" class="selall" title="Select all"></th><th>Block</th><th>Delivery Challan</th><th>Source BI '+DOT+' Consignee</th><th>DC size</th><th>Port size</th><th>Ton</th><th>Age</th><th>State</th><th>Action</th><th style="width:22px"></th></tr></thead><tbody>';
+  /* 26 Aug 2026: "single row selectable fix it".
+     I could not reproduce a broken checkbox - single-row selection works on this
+     register and on Group by challan, with and without a search. What DOES look
+     broken is a dead click: 31 of these rows are on an export lot and their box
+     is deliberately disabled, and a dimmed box with a tooltip is not an answer
+     when you have already clicked it. So the count says so out loud, once,
+     above the table - and names the way to make them selectable again. */
+  var nLocked=list.filter(function(r){return ['lot','load'].indexOf(r.state)>=0;}).length;
+  var h=(nLocked?('<div class="sub" style="padding:0 2px 8px;line-height:1.6">'
+      +'<b>'+nLocked+'</b> of these are already on an export lot or loaded, so their tick box is '
+      +'switched off - ticking one could only put the same stone on two lots. '
+      +'Return a block from its lot and it becomes selectable again.</div>'):'')
+    +'<table><thead><tr><th style="width:22px"><input type="checkbox" class="selall" title="Select all"></th><th>Block</th><th>Delivery Challan</th><th>Source BI '+DOT+' Consignee</th><th>DC size</th><th>Port size</th><th>Ton</th><th>Age</th><th>State</th><th>Action</th><th style="width:22px"></th></tr></thead><tbody>';
   list.forEach(function(r,i){
     var k=key(r),age=ageDays(r.arrival),ageC=age==null?'<span class="sub">'+DASH+'</span>':'<span style="'+(age>30?'color:#a32d2d;font-weight:700':(age>20?'color:#8a5a12':'color:#5f6b7a'))+'">'+age+'d</span>';
     /* 22 Aug 2026: Stock at Port is a register. Every decision lives on Reconcile,
@@ -1561,6 +1588,14 @@ function __vtog(on){['v-blk','v-all','v-dc'].forEach(function(id){var e=$(id);if
 $('v-blk').addEventListener('click',function(){VMODE='blk';FILT='settled';__vtog('v-blk');$('flrow').style.display='none';closePanel();renderStock();});
 $('v-all').addEventListener('click',function(){VMODE='blk';FILT='all';__vtog('v-all');$('flrow').style.display='none';closePanel();renderStock();});
 $('v-dc').addEventListener('click',function(){VMODE='dc';__vtog('v-dc');$('flrow').style.display='none';closePanel();renderDC();});
+/* One register, one control. The dropdown drives the SAME two renderers the old
+   toggles did - it just stopped pretending they were different screens. */
+(function(){var g=$('stgrp');if(!g)return;
+  g.addEventListener('change',function(){
+    if(g.value==='dc'){VMODE='dc';__vtog('v-dc');$('flrow').style.display='none';closePanel();renderDC();}
+    else{VMODE='blk';FILT='settled';__vtog('v-blk');$('flrow').style.display='none';closePanel();renderStock();}
+  });
+})();
 $('q').addEventListener('input',function(){Q=this.value.trim().toLowerCase();renderStock();});
 var __ib=$('impbtn');if(__ib)__ib.addEventListener('click',toggleImp);$('impbtn2').addEventListener('click',function(){tab('recon');RSUB='src';renderRecon();toggleImp();});var __sy=$('syncbtn');if(__sy)__sy.addEventListener('click',function(){msg('Checking for new mail…');post('dolphin_theme.api_arrivals.sync_arrivals_email',{}).then(function(j){var pr=((j&&j.message&&j.message.parsed)||[]);if(pr.length){var mm=pr.reduce(function(t,x){return t+(x.blocks||0);},0);msg(CHK+' Imported '+pr.length+' arrival'+(pr.length>1?'s':'')+' '+DOT+' '+mm+' block rows');}else{msg('Checked '+DOT+' no new arrivals to import');}loadAll();}).catch(function(){msg('Sync failed',1);});});$('impx').addEventListener('click',toggleImp);$('impgo').addEventListener('click',doImport);
 /* 22 Aug 2026: the last native prompt() on this page. It froze the tab and told the
@@ -2467,19 +2502,74 @@ function wlCount(m,id){
    A block their sheet does not carry says "not found in arrivals". Nothing more:
    [stated] "any block number not found in arrivals you just say not found in
    arrivals and we will see how to sort that out later".                      */
+/* ==========================================================================
+   BLOCK TO BLOCK - THE WORK, NOT THE ARCHIVE.  26 Aug 2026.
+
+   His words: "why dont we move all mathced to port rather than keeping in
+   reconcialtion so the actual status and lesser blocks under block to block
+   and reconcilation ... this way you are emptying whatever is cleared".
+
+   He was reading the screen, and the screen was lying to him. The app ALREADY
+   moves a matched block onward the moment its sheet is confirmed: of the 237
+   this page called "matched", 206 were standing At Port and 31 were already on
+   an export lot. Not one was waiting for anybody. Only the 22 with no agency
+   row were.
+
+   But the table printed all 259 rows regardless, so it looked like a mountain
+   of outstanding work. Nothing needed to MOVE - the page needed to stop
+   showing finished stone.
+
+   So BWVIEW opens on what needs a person, and the recorded blocks are one
+   click away for when he wants to look. Nothing is hidden, nothing is deleted,
+   and no data moves to achieve it.
+   ========================================================================== */
+var BWVIEW='todo';   /* todo | done | all */
+var BWGROUP='none';  /* none | dc | truck | arrival */
+var BWSORT='block';  /* block | quarry | dc | truck | weight */
+
 function renderBlockWise(m){
-  var rows='', found=0, missing=0, tons=0;
-  LED.forEach(function(r,i){
-    if(!r.dc)return;
-    var num=r.export_block_no||r.block_no||'';
-    var has=!!r.arrival;
+  var all=[];
+  LED.forEach(function(r,i){ if(r.dc) all.push({r:r,i:i}); });
+
+  var found=0, missing=0, tons=0;
+  all.forEach(function(o){
+    var wt=(o.r.net_wt==null||o.r.net_wt==='')?null:(+o.r.net_wt);
+    if(o.r.arrival){found++; if(wt!=null)tons+=wt;} else {missing++;}
+  });
+
+  var show=all.filter(function(o){
+    if(BWVIEW==='todo')return !o.r.arrival;
+    if(BWVIEW==='done')return !!o.r.arrival;
+    return true;
+  });
+
+  var bnum=function(o){return o.r.export_block_no||o.r.block_no||'';};
+  var dcOf=function(o){return (window.DCMAP&&DCMAP[o.r.dc])||o.r.dc||'';};
+  var cmp=function(a,b){return String(a).localeCompare(String(b),undefined,{numeric:true});};
+
+  /* SORTING and GROUPING - his point 3, "group together same kind". */
+  show.sort(function(a,b){
+    if(BWSORT==='quarry')return cmp(a.r.quarry_block_no||'',b.r.quarry_block_no||'');
+    if(BWSORT==='dc')    return cmp(dcOf(a),dcOf(b))||cmp(bnum(a),bnum(b));
+    if(BWSORT==='truck') return cmp(a.r.truck||'',b.r.truck||'')||cmp(bnum(a),bnum(b));
+    if(BWSORT==='weight')return (+b.r.net_wt||0)-(+a.r.net_wt||0);
+    return cmp(bnum(a),bnum(b));
+  });
+
+  var keyOf=function(o){
+    if(BWGROUP==='dc')     return dcOf(o)||'(no challan)';
+    if(BWGROUP==='truck')  return o.r.truck||'(no truck recorded)';
+    if(BWGROUP==='arrival')return o.r.arrival||'(not found in arrivals)';
+    return '';
+  };
+
+  function rowHtml(o){
+    var r=o.r, i=o.i, n=bnum(o), has=!!r.arrival;
     var wt=(r.net_wt==null||r.net_wt==='')?null:(+r.net_wt);
-    if(has){found++; if(wt!=null)tons+=wt;} else {missing++;}
-    var dcm=(window.DCMAP&&DCMAP[r.dc])||r.dc||DASH;
-    rows+='<tr'+(has?'':' class="await-row"')+'>'
-      +'<td><span class="blk">'+esc(num)+'</span></td>'
+    return '<tr'+(has?'':' class="await-row"')+'>'
+      +'<td><span class="blk">'+esc(n)+'</span></td>'
       +'<td class="sub">'+esc(r.quarry_block_no||'')+'</td>'
-      +'<td>'+esc(dcm)+'</td>'
+      +'<td>'+esc(dcOf(o)||DASH)+'</td>'
       +'<td class="sub">'+esc(r.truck||'')+'</td>'
       +'<td>'+(has
           ? ('<b>'+(wt==null?DASH:wt.toFixed(2))+'</b> <span class="sub">MT</span>')
@@ -2493,28 +2583,84 @@ function renderBlockWise(m){
          shipment or arrivals parsing issues, format issues etc".
          So the box is HERE, on the row, where the gap is - not on another screen
          and not after a hunt. Type the tons, press enter, it is recorded. */
-      +'<td>'+(has?'':'<input class="bwwt" data-i="'+i+'" data-b="'+esc(num)+'" '
+      +'<td>'+(has?'':'<input class="bwwt" data-i="'+i+'" data-b="'+esc(n)+'" '
           +'type="number" step="0.001" min="0" placeholder="tons" '
           +'style="width:78px;text-align:right;font-size:12px;padding:3px 6px;'
           +'border:1px solid #cfd4dc;border-radius:5px">')+'</td>'
       +'</tr>';
-  });
-  m.innerHTML='<div class="frow" style="padding:8px 2px;gap:6px;flex-wrap:wrap">'
-    +'<span class="pill p-port">'+found+' matched</span>'
-    +'<span class="pill p-await">'+missing+' not found in arrivals</span>'
-    +'<span class="pill p-inlot">'+tons.toFixed(2)+' MT recorded from the agency</span>'
+  }
+
+  var rows='';
+  if(BWGROUP==='none'){
+    show.forEach(function(o){rows+=rowHtml(o);});
+  }else{
+    var order=[], bucket={};
+    show.forEach(function(o){var k=keyOf(o); if(!bucket[k]){bucket[k]=[];order.push(k);} bucket[k].push(o);});
+    order.forEach(function(k){
+      var g=bucket[k], gt=0, gm=0;
+      g.forEach(function(o){
+        if(o.r.arrival){ if(o.r.net_wt!=null&&o.r.net_wt!=='')gt+=(+o.r.net_wt); } else gm++;
+      });
+      rows+='<tr data-norq="1" class="bwgrp"><td colspan="7">'
+        +'<b>'+esc(k)+'</b> <span class="sub">'+DOT+' '+g.length+' block'+(g.length>1?'s':'')
+        +(gt?(' '+DOT+' '+gt.toFixed(2)+' MT'):'')
+        +(gm?(' '+DOT+' '+gm+' with no agency row'):'')
+        +'</span></td></tr>';
+      g.forEach(function(o){rows+=rowHtml(o);});
+    });
+  }
+
+  var seg=function(v,label,n){
+    return '<span class="vtog'+(BWVIEW===v?' on':'')+'" data-bwv="'+v+'">'+label
+      +(n==null?'':' <b>'+n+'</b>')+'</span>';
+  };
+  var opt=function(cur,v,label){return '<option value="'+v+'"'+(cur===v?' selected':'')+'>'+label+'</option>';};
+  var selCss='font-size:12px;padding:5px 7px;border:1px solid #cfd4dc;border-radius:7px;background:#fff;color:#5f6b7a';
+
+  m.innerHTML=
+     '<div class="frow" style="padding:8px 2px;gap:6px;flex-wrap:wrap;align-items:center">'
+    +seg('todo','Needs a weight',missing)
+    +seg('done','Already recorded',found)
+    +seg('all','Everything',all.length)
+    +'<span style="flex:1"></span>'
+    +'<label class="sub">Group by&nbsp;<select id="bwgrp" style="'+selCss+'">'
+      +opt(BWGROUP,'none','nothing')+opt(BWGROUP,'dc','challan')
+      +opt(BWGROUP,'truck','truck')+opt(BWGROUP,'arrival','arrival sheet')
+    +'</select></label>'
+    +'<label class="sub">Sort by&nbsp;<select id="bwsort" style="'+selCss+'">'
+      +opt(BWSORT,'block','block no')+opt(BWSORT,'quarry','quarry no')
+      +opt(BWSORT,'dc','challan')+opt(BWSORT,'truck','truck')
+      +opt(BWSORT,'weight','heaviest first')
+    +'</select></label>'
     +'</div>'
     +'<div class="sub" style="padding:0 2px 10px;line-height:1.6">'
-    +'The agency\'s weight for each block, <b>exactly as received</b>. They weigh the '
-    +'truck and divide, so a block figure is calculated - it is recorded, never questioned. '
-    +'<b>Our measurement and volume are final</b>, so theirs is not shown here at all.</div>'
+    +(BWVIEW==='todo'
+      ? ('<b>'+missing+'</b> block'+(missing===1?'':'s')+' the agency has sent no row for. '
+        +'The other <b>'+found+'</b> are recorded and have already moved on to the port or a lot '
+        +DOT+' <b>'+tons.toFixed(2)+' MT</b> recorded from the agency in total.')
+      : ('The agency\'s weight for each block, <b>exactly as received</b>. They weigh the '
+        +'truck and divide, so a block figure is calculated - it is recorded, never questioned. '
+        +'<b>Our measurement and volume are final</b>, so theirs is not shown here at all.'))
+    +'</div>'
     +(rows?('<table><thead><tr><th>Block</th><th>Quarry no</th><th>Challan</th><th>Truck</th>'
       +'<th>Their weight</th><th>Arrival</th><th>Enter it</th></tr></thead><tbody>'+rows+'</tbody></table>'
-      +'<div class="frow" style="margin-top:10px;padding-top:9px;border-top:1px solid #eef2f6">'
-      +'<span class="sub" id="bwn" style="flex:1">Type the agency\'s tonnage against any block they have not sent a row for. '
-      +'Nothing is compared \u2014 it is recorded exactly as given.</span>'
-      +'<button class="rb pri" id="bwsave">'+CHK+' Record the weights I typed\u2026</button></div>')
-      :'<div class="empty">Nothing dispatched yet.</div>');
+      +(BWVIEW==='done'?'':
+        '<div class="frow" style="margin-top:10px;padding-top:9px;border-top:1px solid #eef2f6">'
+        +'<span class="sub" id="bwn" style="flex:1">Type the agency\'s tonnage against any block they have not sent a row for. '
+        +'Nothing is compared \u2014 it is recorded exactly as given.</span>'
+        +'<button class="rb pri" id="bwsave">'+CHK+' Record the weights I typed\u2026</button></div>'))
+      :(BWVIEW==='todo'
+        ? '<div class="empty">'+CHK+' Every dispatched block has a weight from the agency. Nothing waiting here.</div>'
+        : '<div class="empty">Nothing dispatched yet.</div>'));
+
+  m.querySelectorAll('[data-bwv]').forEach(function(x){
+    x.addEventListener('click',function(){BWVIEW=x.dataset.bwv;renderBlockWise(m);});
+  });
+  var gsel=document.getElementById('bwgrp');
+  if(gsel)gsel.addEventListener('change',function(){BWGROUP=gsel.value;renderBlockWise(m);});
+  var ssel=document.getElementById('bwsort');
+  if(ssel)ssel.addEventListener('change',function(){BWSORT=ssel.value;renderBlockWise(m);});
+
   wireBlockWise(m);
   applyRQ();
 }
