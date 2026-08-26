@@ -7531,3 +7531,247 @@ def repair_arrival_block_numbers(arrival=None, dry_run=1, reason=None):
             "left_alone_uncorroborated": len(refused),
             "already_correct": untouched,
             "changes": would[:400], "refused": refused[:200]}
+
+
+# ==========================================================================
+# THE ARRIVAL ROW EDITOR.  26 Aug 2026.
+#
+# Two kinds of error reach an arrival row and they need different remedies:
+#
+#   1. OURS - the app changed what the agency wrote. That is not a person's
+#      job to correct. repair_arrival_block_numbers() puts it back, checked
+#      against their own file three ways, and nobody has to type anything.
+#
+#   2. THEIRS - the agency typed the wrong number. His finding, 26 Aug:
+#         "instead of 1359 wrongly they have entered block number as 1139"
+#         "instead of block number 1159 they have wrongly 1359"
+#      NOTHING in the data says they meant 1359. He knows it from the stone.
+#      Any code that tried to infer it would be repeating the exact mistake
+#      that caused this whole day. So the app does not guess - a PERSON says
+#      so, with a reason, and the app records it faithfully.
+#
+# [stated] "better give edit option for all including block numbers and
+#           mesurements after you find the errors"
+#
+# Rules, all of them learned the hard way today:
+#   * WHATEVER IS TYPED IS STORED. No resolving, no substituting, no helpful
+#     lookup. That single rule is the lesson of 26 August.
+#   * The agency's original value is kept beside it, never overwritten, so
+#     what they sent and what we corrected are both readable forever.
+#   * A reason is compulsory on the two fields that ARE the invoice - the
+#     block number and the weight. Measurements are ours; edit them freely.
+#   * Reversible. restore_agency_row() puts every original value back.
+#   * A number already on another row WARNS, it does not refuse. Correcting
+#     1139 to 1359 and then 1359 to 1159 is a chain, and a guard that blocked
+#     the second step would trap a person half way through - which is exactly
+#     what happened to ilkal on challan 0032 this morning.
+# ==========================================================================
+
+ARRIVAL_EDITABLE = {
+    "block_no": "block number",
+    "length": "length",
+    "width": "width",
+    "height": "height",
+    "cbm": "CBM",
+    "net_wt": "weight",
+    "vehicle_no": "vehicle",
+}
+# These two are the agency's own statement and they feed the invoice.
+ARRIVAL_NEEDS_REASON = ("block_no", "net_wt")
+
+# Where the agency's original is kept. Created once, never overwritten again.
+_ARRIVAL_ORIG = {
+    "block_no": "agency_block_no",
+    "length": "agency_length",
+    "width": "agency_width",
+    "height": "agency_height",
+    "cbm": "agency_cbm",
+    "net_wt": "agency_net_wt",
+    "vehicle_no": "agency_vehicle_no",
+}
+
+
+def _arrival_edit_fields_ready():
+    """Somewhere to keep what the agency actually sent. Never fails the caller."""
+    try:
+        meta = frappe.get_meta("Port Arrival Block")
+        from frappe.custom.doctype.custom_field.custom_field import create_custom_field
+        made = False
+        for src, keep in _ARRIVAL_ORIG.items():
+            if meta.has_field(keep):
+                continue
+            create_custom_field("Port Arrival Block", {
+                "fieldname": keep,
+                "label": "Agency " + ARRIVAL_EDITABLE.get(src, src),
+                "fieldtype": "Data",
+                "hidden": 1, "read_only": 1, "no_copy": 1,
+            }, ignore_validate=True)
+            made = True
+        if not meta.has_field("edit_note"):
+            create_custom_field("Port Arrival Block", {
+                "fieldname": "edit_note", "label": "Edit Note",
+                "fieldtype": "Small Text", "hidden": 1, "read_only": 1, "no_copy": 1,
+            }, ignore_validate=True)
+            made = True
+        if made:
+            frappe.clear_cache(doctype="Port Arrival Block")
+        return True
+    except Exception:
+        return False
+
+
+@frappe.whitelist()
+def arrival_row_for_edit(row=None, block_no=None, arrival=None):
+    """One arrival row, with what the agency sent beside what it reads now."""
+    name = row
+    if not name and block_no:
+        flt = {"block_no": _s(block_no), "parenttype": "Port Arrival"}
+        if arrival:
+            flt["parent"] = arrival
+        name = frappe.db.get_value("Port Arrival Block", flt, "name")
+    if not name:
+        frappe.throw("No arrival row found.")
+    meta = frappe.get_meta("Port Arrival Block")
+    fields = ["name", "parent", "idx", "recon_status", "resolution_note"]
+    fields += [f for f in ARRIVAL_EDITABLE if meta.has_field(f)]
+    fields += [f for f in _ARRIVAL_ORIG.values() if meta.has_field(f)]
+    if meta.has_field("edit_note"):
+        fields.append("edit_note")
+    d = frappe.db.get_value("Port Arrival Block", name, fields, as_dict=True) or {}
+    out = {"row": name, "arrival": d.get("parent"), "idx": d.get("idx"),
+           "recon_status": d.get("recon_status"), "edit_note": d.get("edit_note"),
+           "fields": []}
+    for f, label in ARRIVAL_EDITABLE.items():
+        if not meta.has_field(f):
+            continue
+        orig_f = _ARRIVAL_ORIG.get(f)
+        orig = d.get(orig_f) if orig_f and meta.has_field(orig_f) else None
+        out["fields"].append({
+            "field": f, "label": label, "now": d.get(f),
+            "agency_sent": orig,
+            "edited": orig not in (None, "") and _s(orig) != _s(d.get(f)),
+            "needs_reason": f in ARRIVAL_NEEDS_REASON,
+        })
+    return out
+
+
+@frappe.whitelist()
+def edit_arrival_row(row=None, values=None, reason=None, person=None):
+    """Correct what the agency wrote on one arrival row.
+
+    Stores EXACTLY what is given. Keeps their original. Warns about a clash,
+    never refuses one.
+    """
+    if not row:
+        frappe.throw("No arrival row given.")
+    values = _json.loads(values) if isinstance(values, str) else (values or {})
+    if not values:
+        frappe.throw("Nothing to change.")
+
+    bad = [k for k in values if k not in ARRIVAL_EDITABLE]
+    if bad:
+        frappe.throw("Not editable here: {0}".format(", ".join(sorted(bad))))
+
+    needs = [k for k in values if k in ARRIVAL_NEEDS_REASON]
+    reason = _s(reason)
+    if needs and len(reason) < 4:
+        frappe.throw(
+            "Changing the {0} needs a reason - that figure is the agency's own "
+            "statement and it is what the invoice is built from. Say what you "
+            "know, for example \"agency entered 1139, this stone is 1359\"."
+            .format(" and ".join(ARRIVAL_EDITABLE[k] for k in needs)))
+
+    _arrival_edit_fields_ready()
+    meta = frappe.get_meta("Port Arrival Block")
+    cur = frappe.db.get_value("Port Arrival Block", row,
+                              ["name", "parent"] + [f for f in ARRIVAL_EDITABLE
+                                                    if meta.has_field(f)],
+                              as_dict=True)
+    if not cur:
+        frappe.throw("That arrival row no longer exists.")
+
+    updates, changed, warnings = {}, [], []
+    for f, v in values.items():
+        if not meta.has_field(f):
+            continue
+        old = cur.get(f)
+        if _s(old) == _s(v):
+            continue
+        # Keep what the agency sent, once, before the first edit ever lands.
+        keep = _ARRIVAL_ORIG.get(f)
+        if keep and meta.has_field(keep):
+            if _s(frappe.db.get_value("Port Arrival Block", row, keep)) == "":
+                updates[keep] = _s(old)
+        updates[f] = v
+        changed.append({"field": f, "label": ARRIVAL_EDITABLE[f],
+                        "from": old, "to": v})
+
+        # A clash WARNS. It never refuses - see the note above about chains.
+        if f == "block_no":
+            others = frappe.get_all(
+                "Port Arrival Block",
+                filters={"block_no": _s(v), "parenttype": "Port Arrival",
+                         "parent": cur.get("parent"), "name": ["!=", row]},
+                fields=["name", "idx"], limit_page_length=5)
+            if others:
+                warnings.append(
+                    "{0} is also on row {1} of this sheet. Saved anyway - if you "
+                    "are correcting a run of numbers, fix that row next."
+                    .format(_s(v), ", ".join(str(o.idx) for o in others)))
+
+    if not updates:
+        return {"ok": 1, "changed": 0, "message": "Nothing was different."}
+
+    who = _s(person) or frappe.session.user
+    note = "{0} by {1} on {2}{3}".format(
+        "; ".join("{0} {1} -> {2}".format(c["label"], c["from"], c["to"]) for c in changed),
+        who, frappe.utils.now_datetime().strftime("%d %b %Y %H:%M"),
+        (" - " + reason) if reason else "")
+    if meta.has_field("edit_note"):
+        prev = _s(frappe.db.get_value("Port Arrival Block", row, "edit_note"))
+        updates["edit_note"] = (prev + "\n" if prev else "") + note
+
+    frappe.db.set_value("Port Arrival Block", row, updates, update_modified=False)
+    frappe.db.commit()
+    return {"ok": 1, "row": row, "changed": len(changed), "changes": changed,
+            "warnings": warnings, "note": note,
+            "message": "{0} corrected. The agency's original is kept and this is "
+                       "reversible.".format(len(changed))}
+
+
+@frappe.whitelist()
+def restore_agency_row(row=None, fields=None, reason=None, person=None):
+    """Put the agency's original values back on an arrival row."""
+    if not row:
+        frappe.throw("No arrival row given.")
+    meta = frappe.get_meta("Port Arrival Block")
+    want = _json.loads(fields) if isinstance(fields, str) else (fields or None)
+    updates, back = {}, []
+    for f, keep in _ARRIVAL_ORIG.items():
+        if want and f not in want:
+            continue
+        if not (meta.has_field(f) and meta.has_field(keep)):
+            continue
+        orig = frappe.db.get_value("Port Arrival Block", row, keep)
+        if _s(orig) == "":
+            continue
+        now = frappe.db.get_value("Port Arrival Block", row, f)
+        if _s(now) == _s(orig):
+            continue
+        updates[f] = orig
+        updates[keep] = ""
+        back.append({"field": f, "label": ARRIVAL_EDITABLE.get(f, f),
+                     "from": now, "back_to": orig})
+    if not updates:
+        return {"ok": 1, "restored": 0,
+                "message": "This row still reads exactly as the agency sent it."}
+    if meta.has_field("edit_note"):
+        prev = _s(frappe.db.get_value("Port Arrival Block", row, "edit_note"))
+        updates["edit_note"] = (prev + "\n" if prev else "") + (
+            "restored to the agency's own figures by {0}{1}".format(
+                _s(person) or frappe.session.user,
+                (" - " + _s(reason)) if _s(reason) else ""))
+    frappe.db.set_value("Port Arrival Block", row, updates, update_modified=False)
+    frappe.db.commit()
+    return {"ok": 1, "restored": len(back), "back": back,
+            "message": "Put back exactly as the agency sent it."}
