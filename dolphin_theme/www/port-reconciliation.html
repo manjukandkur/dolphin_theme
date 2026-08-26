@@ -2720,6 +2720,9 @@ function renderQueue(m){
     fetch('/api/method/dolphin_theme.api_arrivals.duplicate_rows',{credentials:'include'}).then(function(r){return r.json();}).then(function(j){return j.message||[];}).catch(function(){return [];})
   ]).then(function(res){
     var w=res[0]||{},dup=res[1]||[];
+    /* The repeats that agree with each other are filtered out of the queue,
+       but the count is printed on the card so nothing is silently removed. */
+    window.__QUIETDUP=+w.quiet_duplicates||0;
     WL=w;QDATA={rv:{},dup:dup};
     var g=w.groups||{},ix=ledIndex();
     var na=(g.no_arrival||{}),ot=(g.over_tonne||{}),nc=(g.no_challan||{});
@@ -2811,9 +2814,13 @@ function renderQueue(m){
         });
       });
       if(dup.length>60)rowsD+='<div class="qrow sub" data-norq="1">…and '+(dup.length-60)+' more.</div>';
-      h+=wlCard('dup',dup.length,'The same block number on more than one arrival row',
-        'Two rows carrying one number is a fact about the <b>sheets</b>, not proof that two records are the same stone. '
-        +'Keep the row that is right and send the other to the Trash — nothing is deleted, and it can be brought back.',
+      h+=wlCard('dup',dup.length,'The same block number, and the sheets disagree',
+        'The agency re-sends its whole running list every time, so one block on several rows is normal and is not shown here. '
+        +'These are the ones where the rows <b>do not say the same thing</b> — that is worth a person. '
+        +'Accept the row that is right, or send the wrong one to the Trash — nothing is deleted and it can be brought back.'
+        +(window.__QUIETDUP?('<br><br><span class="sub"><b>'+window.__QUIETDUP+'</b> other block number'
+          +(window.__QUIETDUP===1?'':'s')+' appear on several sheets with identical figures. '
+          +'That is the running list repeating, not a question — nothing to do about those.</span>'):''),
         rowsD,'');
     }
 
