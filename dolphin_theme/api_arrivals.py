@@ -7653,6 +7653,9 @@ def arrival_row_for_edit(row=None, block_no=None, arrival=None):
             .format(_s(block_no) or _s(row)))
     meta = frappe.get_meta("Port Arrival Block")
     fields = ["name", "parent", "idx", "recon_status", "resolution_note"]
+    for f in ("figure_questioned", "questioned_note"):
+        if meta.has_field(f):
+            fields.append(f)
     fields += [f for f in ARRIVAL_EDITABLE if meta.has_field(f)]
     fields += [f for f in _ARRIVAL_ORIG.values() if meta.has_field(f)]
     if meta.has_field("edit_note"):
@@ -7660,6 +7663,12 @@ def arrival_row_for_edit(row=None, block_no=None, arrival=None):
     d = frappe.db.get_value("Port Arrival Block", name, fields, as_dict=True) or {}
     out = {"row": name, "arrival": d.get("parent"), "idx": d.get("idx"),
            "recon_status": d.get("recon_status"), "edit_note": d.get("edit_note"),
+           # OUR own challan figures, so the right number can be put in with a
+           # click instead of typed from memory - and the flag state, because a
+           # questioned figure stays on the row rather than being deleted.
+           "ours": _our_figures_for(d.get("block_no")),
+           "questioned": bool(d.get("figure_questioned")),
+           "questioned_note": _s(d.get("questioned_note")),
            "fields": []}
     for f, label in ARRIVAL_EDITABLE.items():
         if not meta.has_field(f):
@@ -7795,3 +7804,290 @@ def restore_agency_row(row=None, fields=None, reason=None, person=None):
     frappe.db.commit()
     return {"ok": 1, "restored": len(back), "back": back,
             "message": "Put back exactly as the agency sent it."}
+
+
+# ==========================================================================
+# FLAG IT, DO NOT ERASE IT.  26 Aug 2026.
+#
+# [stated] "no flag it thoug to correct the mistake and enter our correct one"
+#
+# I had proposed stripping the port weights off the 56 blocks of the
+# XIAMENBLESS shipment because I could not tell which were the agency's own
+# figures and which had been borrowed from another block. He is right that
+# deleting is the wrong answer. A blank tells nobody anything; a figure with
+# a flag on it tells the next person exactly what happened and lets them fix
+# it. Nothing is destroyed and the history stays readable.
+#
+# So a row can be QUESTIONED - marked, with a reason, in place - and OUR own
+# challan figure is offered beside it so the correct number can be put in
+# with one click instead of being typed from memory.
+# ==========================================================================
+
+_FLAG_FIELDS = {
+    "figure_questioned": ("Figure Questioned", "Check"),
+    "questioned_note": ("Why It Is Questioned", "Small Text"),
+}
+
+
+def _flag_fields_ready():
+    try:
+        meta = frappe.get_meta("Port Arrival Block")
+        from frappe.custom.doctype.custom_field.custom_field import create_custom_field
+        made = False
+        for fn, (label, ftype) in _FLAG_FIELDS.items():
+            if meta.has_field(fn):
+                continue
+            create_custom_field("Port Arrival Block", {
+                "fieldname": fn, "label": label, "fieldtype": ftype,
+                "hidden": 1, "read_only": 1, "no_copy": 1,
+            }, ignore_validate=True)
+            made = True
+        if made:
+            frappe.clear_cache(doctype="Port Arrival Block")
+        return True
+    except Exception:
+        return False
+
+
+def _our_figures_for(block_no):
+    """What OUR paperwork says for this block - the challan is the reference."""
+    try:
+        from dolphin_theme.block_resolve import try_resolve
+        hit, _why = try_resolve(_s(block_no), allow_record_name=True)
+        name = hit.get("name") if hit else None
+        if not name:
+            return {}
+        r = frappe.get_all("DC Block Row",
+                           filters={"block": name, "parenttype": "Delivery Challan"},
+                           fields=["length_gross", "width_gross", "height_gross",
+                                   "gross_volume", "gross_tonnage", "parent"],
+                           limit_page_length=1)
+        if not r:
+            return {}
+        d = r[0]
+        return {"length": d.get("length_gross"), "width": d.get("width_gross"),
+                "height": d.get("height_gross"), "cbm": d.get("gross_volume"),
+                "net_wt": d.get("gross_tonnage"), "from_challan": d.get("parent")}
+    except Exception:
+        return {}
+
+
+@frappe.whitelist()
+def flag_arrival_row(row=None, reason=None, on=1, person=None):
+    """Mark a figure as questioned - in place, never deleted."""
+    if not row:
+        frappe.throw("No arrival row given.")
+    turning_on = _s(on) not in ("0", "false", "False", "")
+    reason = _s(reason)
+    if turning_on and len(reason) < 4:
+        frappe.throw("Say what is wrong with this figure. The note is the whole "
+                     "point of flagging rather than deleting.")
+    _flag_fields_ready()
+    meta = frappe.get_meta("Port Arrival Block")
+    if not meta.has_field("figure_questioned"):
+        frappe.throw("Could not create the flag field on this bench.")
+    who = _s(person) or frappe.session.user
+    updates = {"figure_questioned": 1 if turning_on else 0}
+    if meta.has_field("questioned_note"):
+        updates["questioned_note"] = ("{0} - {1}, {2}".format(
+            reason, who, frappe.utils.now_datetime().strftime("%d %b %Y"))
+            if turning_on else "")
+    frappe.db.set_value("Port Arrival Block", row, updates, update_modified=False)
+    frappe.db.commit()
+    return {"ok": 1, "row": row, "questioned": 1 if turning_on else 0,
+            "message": ("Flagged. The figure stays on the row and the reason is "
+                        "recorded beside it." if turning_on
+                        else "Flag removed.")}
+
+
+@frappe.whitelist()
+def flag_arrival_rows(rows=None, reason=None, person=None):
+    """Flag many rows at once, one reason covering all of them."""
+    rows = _json.loads(rows) if isinstance(rows, str) else (rows or [])
+    if not rows:
+        frappe.throw("No rows given.")
+    if len(_s(reason)) < 4:
+        frappe.throw("Say what is wrong with these figures.")
+    done, failed = [], []
+    for r in rows:
+        try:
+            flag_arrival_row(row=r, reason=reason, on=1, person=person)
+            done.append(r)
+        except Exception as e:
+            failed.append({"row": r, "why": _s(e)[:120]})
+    return {"ok": 1, "flagged": len(done), "failed": failed,
+            "message": "{0} figure(s) flagged. Nothing was deleted.".format(len(done))}
+
+
+@frappe.whitelist()
+def questioned_and_corrected(limit=500):
+    """Every arrival figure that was FLAGGED or CORRECTED, in one list.
+
+    [stated] "and it helps to search if there is confused or changed wrong
+              block et"
+
+    That is the point of flagging instead of deleting: months later somebody
+    can ask "which numbers did we ever doubt, and which did we change?" and
+    get a straight answer, with the agency's original still beside ours.
+    """
+    _flag_fields_ready()
+    _arrival_edit_fields_ready()
+    meta = frappe.get_meta("Port Arrival Block")
+    fields = ["name", "parent", "idx", "block_no", "net_wt", "cbm",
+              "length", "width", "height"]
+    for f in ("figure_questioned", "questioned_note", "edit_note"):
+        if meta.has_field(f):
+            fields.append(f)
+    for f in _ARRIVAL_ORIG.values():
+        if meta.has_field(f):
+            fields.append(f)
+
+    rows = frappe.get_all("Port Arrival Block",
+                          filters={"parenttype": "Port Arrival"},
+                          fields=fields, limit_page_length=int(limit) * 4,
+                          order_by="modified desc")
+    out = []
+    for r in rows:
+        flagged = bool(r.get("figure_questioned"))
+        changed = []
+        for f, keep in _ARRIVAL_ORIG.items():
+            if not meta.has_field(keep):
+                continue
+            orig = _s(r.get(keep))
+            if orig and orig != _s(r.get(f)):
+                changed.append({"field": f, "label": ARRIVAL_EDITABLE.get(f, f),
+                                "agency_sent": orig, "now": r.get(f)})
+        if not flagged and not changed:
+            continue
+        out.append({
+            "row": r.get("name"), "arrival": r.get("parent"), "idx": r.get("idx"),
+            "block_no": r.get("block_no"), "net_wt": r.get("net_wt"),
+            "questioned": flagged,
+            "why": _s(r.get("questioned_note")),
+            "corrections": changed,
+            "history": _s(r.get("edit_note")),
+        })
+        if len(out) >= int(limit):
+            break
+    return {"count": len(out),
+            "questioned": len([x for x in out if x["questioned"]]),
+            "corrected": len([x for x in out if x["corrections"]]),
+            "rows": out}
+
+
+# ==========================================================================
+# WHAT ELSE IS IN THE WORKBOOK?  26 Aug 2026.
+#
+# [stated] "check for other tabs in the excel sheets might be sitting insie"
+#
+# The 56 blocks of the XIAMENBLESS shipment carry mark BL/XMN. Every sheet
+# the app holds is YL, YFL or Elite's own - no BL/XMN anywhere. And the
+# parser takes the FIRST Dolphin-looking tab in a workbook and stops, so a
+# second mark on a second tab would never be read and nothing would say so.
+#
+# This lists EVERY tab in an agency file: its name, its size, whether our
+# header was found, and what block numbers it actually holds. Read-only. It
+# exists so nobody has to guess what is in a file again - including me, who
+# has guessed wrong twice tonight.
+# ==========================================================================
+
+@frappe.whitelist()
+def xls_tabs(arrival=None, file_url=None, sample=8):
+    """Every worksheet in an agency workbook, and what is on it."""
+    src = _s(file_url)
+    if not src and arrival:
+        src = _s(frappe.db.get_value("Port Arrival", arrival, "source_file"))
+    if not src:
+        return {"error": "No file. Give an arrival that has a source file, or a file_url."}
+    content = _arrival_file_bytes(src)
+    if content is None:
+        return {"error": "Could not read " + src}
+    try:
+        import xlrd
+    except Exception:
+        return {"error": "xlrd not installed on this bench."}
+    try:
+        wb = xlrd.open_workbook(file_contents=content)
+    except Exception as e:
+        return {"error": "Could not open the workbook: " + _s(e)[:160]}
+
+    single = wb.nsheets == 1
+    out = []
+    for sh in wb.sheets():
+        info = {"tab": sh.name, "rows": sh.nrows, "cols": sh.ncols,
+                "is_dolphin_sheet": False, "header_row": None,
+                "block_column": None, "block_numbers": [], "count": 0,
+                "by_hundred": {}}
+        try:
+            info["is_dolphin_sheet"] = bool(_xls_is_dolphin_sheet(sh, single))
+        except Exception:
+            pass
+        try:
+            hr, cm = _xls_header(sh)
+            info["header_row"] = hr
+            bcol = cm.get("block_no") if cm else None
+            info["block_column"] = bcol
+            if bcol is not None and hr is not None:
+                nums = []
+                for r in range(hr + 1, min(sh.nrows, hr + 4000)):
+                    v = _xls_s(sh.cell_value(r, bcol))
+                    if v and _re.search(r"\d", v):
+                        nums.append(v)
+                info["count"] = len(nums)
+                info["block_numbers"] = nums[:int(sample)]
+                bk = {}
+                for n in nums:
+                    try:
+                        k = int(int(float(n)) / 100) * 100
+                        bk[str(k)] = bk.get(str(k), 0) + 1
+                    except Exception:
+                        pass
+                info["by_hundred"] = bk
+        except Exception:
+            pass
+        out.append(info)
+
+    return {"file": src, "tabs": len(out),
+            "parser_would_read": next((t["tab"] for t in out if t["is_dolphin_sheet"]), None),
+            "sheets": out}
+
+
+@frappe.whitelist()
+def find_mark_across_files(mark=None, limit=40):
+    """Which agency file, and which TAB inside it, carries a given mark?
+
+    Answers the question that actually matters: 'where are the BL/XMN blocks?'
+    Reads every arrival's stored workbook, every tab, and reports where the
+    mark appears - whether or not the parser would ever have read it.
+    """
+    want = _s(mark).upper().replace(" ", "")
+    if not want:
+        frappe.throw("Give a mark, for example BL/XMN.")
+    seen, checked = [], 0
+    for a in frappe.get_all("Port Arrival", fields=["name", "source_file"],
+                            limit_page_length=int(limit), order_by="creation desc"):
+        src = _s(a.get("source_file"))
+        if not src:
+            continue
+        content = _arrival_file_bytes(src)
+        if content is None:
+            continue
+        try:
+            import xlrd
+            wb = xlrd.open_workbook(file_contents=content)
+        except Exception:
+            continue
+        checked += 1
+        for sh in wb.sheets():
+            hit_rows = 0
+            for r in range(min(sh.nrows, 4000)):
+                row = " ".join(_xls_s(sh.cell_value(r, c)).upper().replace(" ", "")
+                               for c in range(min(sh.ncols, 20)))
+                if want in row:
+                    hit_rows += 1
+            if hit_rows:
+                seen.append({"arrival": a.get("name"), "file": src.split("/")[-1],
+                             "tab": sh.name, "rows_mentioning_it": hit_rows,
+                             "tab_rows": sh.nrows})
+    return {"mark": _s(mark), "files_checked": checked,
+            "found_in": len(seen), "where": seen}
