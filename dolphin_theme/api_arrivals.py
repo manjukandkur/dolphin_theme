@@ -3021,10 +3021,64 @@ def reject_acceptance(row=None, block_no=None, arrival=None, reason=None,
     frappe.db.set_value("Port Arrival Block", name, updates, update_modified=False)
 
     hit, _why = try_resolve(bno, allow_record_name=False)
-    if hit and _s(hit.get("status")) == "At Port":
-        set_status(hit["name"], "Dispatched/Transported",
-                   "acceptance rejected: " + reason, machine=machine_of(machine),
-                   actor=person, allow_backwards=True)
+    # ==================================================================
+    # UNDOING ONE ACCEPTANCE MUST NOT UNDO SOMEBODY ELSE'S.  26 Aug 2026.
+    #
+    # This pulled the block off At Port on the assumption that THIS
+    # acceptance is what put it there. Block 1139 proved otherwise: it was
+    # already At Port on the strength of a different sheet, and undoing one
+    # acceptance demoted it to Dispatched/Transported. A block that four
+    # sheets agree has arrived does not stop having arrived because a person
+    # changed their mind about one row.
+    #
+    # So the block only comes back off At Port when NOTHING ELSE still says
+    # it is there: no other accepted row, and no other confirmed arrival.
+    # ==================================================================
+    _still_holds = False
+    if hit:
+        try:
+            _alt = _pab_alt_keys(bno) or {bno}
+            _others = frappe.get_all(
+                "Port Arrival Block",
+                filters={"block_no": ["in", sorted(_alt)],
+                         "parenttype": "Port Arrival",
+                         "name": ["!=", name]},
+                fields=["name", "parent", "recon_status", "resolution_type"],
+                limit_page_length=0)
+            _ds = _arrival_docstatus()
+            for _o in _others:
+                if _s(_o.get("resolution_type")) or _s(_o.get("recon_status")).lower() in ("resolved", "accepted"):
+                    _still_holds = True
+                    break
+                if _ds.get(_o.get("parent")) == 1:
+                    _still_holds = True
+                    break
+        except Exception:
+            _still_holds = True   # never demote on a failed check
+
+    if hit and _s(hit.get("status")) == "At Port" and not _still_holds:
+        # His rule: put it back to what it WAS, never further back.
+        _back = ""
+        try:
+            _back = _s(frappe.db.get_value("Quarry Block", hit["name"],
+                                           "status_before_at_port"))
+        except Exception:
+            _back = ""
+        if not _back:
+            # Nothing remembered - this acceptance predates the change, or
+            # the field was cleared. Dispatched/Transported is where a block
+            # sits between a submitted challan and the port, and it is the
+            # only safe default.
+            _back = "Dispatched/Transported"
+        if _back != "At Port":
+            set_status(hit["name"], _back,
+                       "acceptance rejected: " + reason, machine=machine_of(machine),
+                       actor=person, allow_backwards=True)
+            try:
+                frappe.db.set_value("Quarry Block", hit["name"],
+                                    "status_before_at_port", "")
+            except Exception:
+                pass
     if hit:
         log_event(hit["name"], "acceptance-rejected", "Resolved", "", reason,
                   machine_of(machine), person)
@@ -3080,6 +3134,28 @@ def accept_with_note(row=None, block_no=None, arrival=None, note=None,
                 person or frappe.session.user, machine_of(machine), note))
     except Exception:
         pass
+    # ==================================================================
+    # REMEMBER WHAT IT WAS.  26 Aug 2026, his correction:
+    #   "in undo is previous status not push back further"
+    #
+    # Exactly right, and it is the cleaner fix. An undo should put the
+    # block back to WHATEVER IT HELD BEFORE this acceptance - not to a
+    # hardcoded guess at where it must have come from. Block 1139 was
+    # already At Port from another sheet; undoing one row demoted it,
+    # because the undo assumed rather than remembered.
+    #
+    # So the status before the move is written down here, on the same
+    # field send_back_to_reconcile has used since 22 Aug, and the undo
+    # simply reads it back.
+    # ==================================================================
+    try:
+        _prev = _s(frappe.db.get_value("Quarry Block", hit["name"], "status"))
+        if _prev and _prev != to_status and _prev_field_ready():
+            frappe.db.set_value("Quarry Block", hit["name"],
+                                "status_before_at_port", _prev)
+    except Exception:
+        pass
+
     res = set_status(hit["name"], to_status, "accepted with note: " + note,
                      machine=machine_of(machine), actor=person)
     log_event(hit["name"], "accepted-with-note", None, to_status, note,
@@ -7701,6 +7777,48 @@ def edit_arrival_row(row=None, values=None, reason=None, person=None):
     if bad:
         frappe.throw("Not editable here: {0}".format(", ".join(sorted(bad))))
 
+    # ==================================================================
+    # WHAT MAY NOT BE TYPED.  26 Aug 2026, after he told me to go and
+    # break my own editor - which took four tries.
+    #
+    # "store exactly what is typed" is the right rule for a NUMBER we do
+    # not understand. It is not a licence to store nonsense that no
+    # person could have meant:
+    #   * a weight of -99 was accepted. A block cannot weigh minus
+    #     ninety-nine tonnes, and that figure is the invoice.
+    #   * a BLANK block number was accepted, orphaning the row so that
+    #     nothing could ever match it again and no screen would say why.
+    # Both went in silently. Neither is a correction; both are a slip.
+    #
+    # A number we simply do not recognise is different and still goes in
+    # - the agency may be right and our records wrong. That one warns.
+    # ==================================================================
+    for _f in ("net_wt", "cbm", "length", "width", "height"):
+        if _f not in values:
+            continue
+        _v = _s(values[_f])
+        if _v == "":
+            continue
+        try:
+            _n = float(_v)
+        except Exception:
+            frappe.throw("{0} has to be a number. \"{1}\" is not one."
+                         .format(ARRIVAL_EDITABLE[_f].capitalize(), _v))
+        if _n < 0:
+            frappe.throw("A {0} cannot be negative. Nothing weighs or measures "
+                         "less than nothing - check the figure."
+                         .format(ARRIVAL_EDITABLE[_f]))
+        if _f == "net_wt" and _n == 0:
+            frappe.throw("A weight of zero is not a correction. If the agency "
+                         "sent no weight for this block, flag the row instead "
+                         "so the gap is visible.")
+
+    if "block_no" in values and _s(values["block_no"]) == "":
+        frappe.throw("A block number cannot be blank. An arrival row with no "
+                     "number can never be matched to a block again and nothing "
+                     "on any screen would say why. If this row should not be "
+                     "here, send it to the Trash - that is reversible.")
+
     needs = [k for k in values if k in ARRIVAL_NEEDS_REASON]
     reason = _s(reason)
     if needs and len(reason) < 4:
@@ -7734,6 +7852,21 @@ def edit_arrival_row(row=None, values=None, reason=None, person=None):
         updates[f] = v
         changed.append({"field": f, "label": ARRIVAL_EDITABLE[f],
                         "from": old, "to": v})
+
+        # A number we do not recognise still goes in - the agency may be
+        # right and our records wrong - but it says so out loud.
+        if f == "block_no":
+            try:
+                from dolphin_theme.block_resolve import try_resolve
+                _hit, _why = try_resolve(_s(v), allow_record_name=True)
+                if not _hit:
+                    warnings.append(
+                        "Saved, but {0} does not match any block of ours. If that "
+                        "is what the agency wrote, leave it - it will show as not "
+                        "found in arrivals until the block is identified."
+                        .format(_s(v)))
+            except Exception:
+                pass
 
         # A clash WARNS. It never refuses - see the note above about chains.
         if f == "block_no":
