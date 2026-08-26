@@ -1332,6 +1332,117 @@ $('baccept').addEventListener('click',function(){var rs=selRows();rs.forEach(fun
    for a reason, because that figure is the invoice. Their original is kept and
    can be put back.
    ========================================================================== */
+/* ==========================================================================
+   THE ARRIVAL ROW EDITOR.  26 Aug 2026.
+
+   His finding: "instead of 1359 wrongly they have entered block number as
+   1139" and "instead of block number 1159 they have wrongly 1359". Those are
+   the AGENCY'S mistakes, not the app's. Nothing in the data can tell us they
+   meant 1359 - he knows it from the stone. So the app never guesses: a person
+   says so, with a reason, and the app records it exactly as typed.
+
+   [stated] "better give edit option for all including block numbers and
+             mesurements after you find the errors"
+
+   Whatever is typed is stored. No resolving, no substituting. Their original
+   is kept beside it. A clash warns and still saves, because 1139 -> 1359 ->
+   1159 is a chain and refusing the second step would trap a person half way.
+   ========================================================================== */
+function openArrivalRowEditor(opts){
+  opts=opts||{};
+  var ov=document.getElementById('__ae'); if(ov)ov.remove();
+  ov=document.createElement('div'); ov.id='__ae';
+  ov.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(15,37,64,.5);z-index:100006;display:flex;align-items:center;justify-content:center;padding:18px';
+  ov.innerHTML='<div style="background:#fff;border-radius:12px;width:760px;max-width:97vw;max-height:92vh;display:flex;flex-direction:column;box-shadow:0 18px 50px rgba(0,0,0,.3)">'
+    +'<div style="padding:14px 18px;border-bottom:1px solid #eef2f6;display:flex;align-items:center;gap:10px">'
+    +'<b style="flex:1;color:#0F2540;font-size:14px">Correct what the agency wrote</b>'
+    +'<button class="rb" id="__aex">Close</button></div>'
+    +'<div id="__aebody" style="padding:14px 18px;overflow:auto;flex:1"><div class="sub">Loading&hellip;</div></div>'
+    +'<div style="padding:12px 18px;border-top:1px solid #eef2f6;display:flex;align-items:center;gap:10px">'
+    +'<span class="sub" id="__aemsg" style="flex:1;font-size:12px">Measurements are ours &mdash; edit them freely. The block number and the weight are the agency&rsquo;s own statement and the invoice rests on them, so those ask for a reason.</span>'
+    +'<button class="rb" id="__aerestore">Put back what they sent</button>'
+    +'<button class="rb pri" id="__aesave">'+CHK+' Save&hellip;</button></div></div>';
+  document.body.appendChild(ov);
+  ov.querySelector('#__aex').addEventListener('click',function(){ov.remove();});
+  ov.addEventListener('click',function(e){if(e.target===ov)ov.remove();});
+
+  var body=ov.querySelector('#__aebody'), ROW=null;
+  var q=[]; if(opts.row)q.push('row='+encodeURIComponent(opts.row));
+  if(opts.block_no)q.push('block_no='+encodeURIComponent(opts.block_no));
+  if(opts.arrival)q.push('arrival='+encodeURIComponent(opts.arrival));
+
+  fetch('/api/method/dolphin_theme.api_arrivals.arrival_row_for_edit?'+q.join('&'),{credentials:'include'})
+    .then(function(r){return r.json();}).then(function(j){
+      var d=(j&&j.message)||{}; ROW=d;
+      if(!d.row){body.innerHTML='<div class="sub">That row could not be found.</div>';return;}
+      var h='<div class="sub" style="margin-bottom:10px">Sheet <b>'+esc(d.arrival||'')+'</b> &middot; row '+esc(String(d.idx||''))+
+            (d.recon_status?(' &middot; '+esc(d.recon_status)):'')+'</div>'
+        +'<table style="width:100%;border-collapse:collapse;font-size:13px">'
+        +'<thead><tr><th style="text-align:left;padding:6px 4px">Field</th>'
+        +'<th style="text-align:left;padding:6px 4px">The agency sent</th>'
+        +'<th style="text-align:left;padding:6px 4px">Reads now &mdash; type to correct</th></tr></thead><tbody>';
+      (d.fields||[]).forEach(function(f){
+        var sent=(f.agency_sent==null||f.agency_sent==='')?(f.edited?'':'&mdash;'):esc(String(f.agency_sent));
+        h+='<tr>'
+          +'<td style="padding:6px 4px">'+esc(f.label)+(f.needs_reason?' <span class="sub" title="the invoice rests on this">&bull;</span>':'')+'</td>'
+          +'<td style="padding:6px 4px;color:#6b7280">'+(f.edited?('<b>'+sent+'</b>'):sent)+'</td>'
+          +'<td style="padding:6px 4px"><input class="__aef" data-f="'+esc(f.field)+'" value="'+esc(f.now==null?'':String(f.now))+'" '
+          +'style="width:100%;font-size:13px;padding:5px 7px;border:1px solid '+(f.edited?'#c9a227':'#cfd4dc')+';border-radius:6px"></td></tr>';
+      });
+      h+='</tbody></table>';
+      if(d.edit_note)h+='<div class="sub" style="margin-top:12px;white-space:pre-wrap;line-height:1.6;border-top:1px solid #eef2f6;padding-top:9px"><b>History</b><br>'+esc(d.edit_note)+'</div>';
+      body.innerHTML=h;
+    }).catch(function(){body.innerHTML='<div class="sub" style="color:#a32d2d">Could not load that row.</div>';});
+
+  function typed(){
+    var out={}; body.querySelectorAll('.__aef').forEach(function(i){out[i.dataset.f]=i.value;});
+    return out;
+  }
+  ov.querySelector('#__aesave').addEventListener('click',function(){
+    if(!ROW||!ROW.row)return;
+    var vals=typed(), changed={};
+    (ROW.fields||[]).forEach(function(f){
+      var v=vals[f.field]; if(v===undefined)return;
+      if(String(v)!==String(f.now==null?'':f.now))changed[f.field]=v;
+    });
+    var keys=Object.keys(changed);
+    if(!keys.length){msg('Nothing was changed',1);return;}
+    var needs=keys.filter(function(k){
+      return (ROW.fields||[]).some(function(f){return f.field===k&&f.needs_reason;});});
+    var doSave=function(reason){
+      post('dolphin_theme.api_arrivals.edit_arrival_row',
+           {row:ROW.row, values:JSON.stringify(changed), reason:reason||''})
+        .then(function(j){
+          var r=(j&&j.message)||{};
+          (r.warnings||[]).forEach(function(w){msg(w,1);});
+          msg(CHK+' '+(r.message||'Saved'));
+          ov.remove(); loadAll(); renderRecon();
+        }).catch(function(e){msg('Could not save that correction',1);});
+    };
+    if(needs.length){
+      askReason('Correct '+keys.length+' field'+(keys.length===1?'':'s')+' on this arrival row',
+        'The agency&rsquo;s own figures are kept beside your correction and this can be put back at any time. '
+        +'Say what you know.',
+        doSave,{ok:'Save the correction',chips:[
+          'Agency entered the wrong block number',
+          'Spoke to the agency - this is the correction',
+          'Weighment slip says otherwise',
+          'Typing error on their sheet'
+        ]});
+    } else { doSave(''); }
+  });
+  ov.querySelector('#__aerestore').addEventListener('click',function(){
+    if(!ROW||!ROW.row)return;
+    askReason('Put this row back exactly as the agency sent it',
+      'Every figure they sent is restored and your corrections are cleared from this row.',
+      function(why){
+        post('dolphin_theme.api_arrivals.restore_agency_row',{row:ROW.row,reason:why})
+          .then(function(j){var r=(j&&j.message)||{};msg(CHK+' '+(r.message||'Restored'));
+            ov.remove();loadAll();renderRecon();})
+          .catch(function(){msg('Could not restore',1);});
+      },{ok:'Put it back',chips:['Corrected in error','The agency was right after all']});
+  });
+}
 function openShippingEditor(docname){
   var ov=document.getElementById('__se'); if(ov)ov.remove();
   ov=document.createElement('div'); ov.id='__se';
@@ -2575,7 +2686,12 @@ function renderBlockWise(m){
           ? ('<b>'+(wt==null?DASH:wt.toFixed(2))+'</b> <span class="sub">MT</span>')
           : '<span class="sub">'+DASH+'</span>')+'</td>'
       +'<td>'+(has
-          ? '<span class="pill p-port">matched '+esc(r.arrival||'')+'</span>'
+          ? ('<span class="pill p-port">matched '+esc(r.arrival||'')+'</span>'
+             /* 26 Aug 2026: the row is right here, so the correction belongs
+                here too - if the agency typed the wrong number, fix it where
+                you can see it. */
+             +' <span class="rb" data-bwedit="'+esc(n)+'" data-arr="'+esc(r.arrival||'')+'"'
+             +' style="font-size:11px;padding:2px 7px" title="the agency wrote the wrong number">edit</span>')
           : '<span class="sub">not found in arrivals</span>')+'</td>'
       /* 25 Aug 2026, his words: "give an option to enter weight for the blocks
          were we have not received arrivals details in block to block itself so
@@ -2653,6 +2769,13 @@ function renderBlockWise(m){
         ? '<div class="empty">'+CHK+' Every dispatched block has a weight from the agency. Nothing waiting here.</div>'
         : '<div class="empty">Nothing dispatched yet.</div>'));
 
+  /* Correct the agency's block number or weight from the row it appears on. */
+  m.querySelectorAll('[data-bwedit]').forEach(function(x){
+    x.addEventListener('click',function(e){
+      e.stopPropagation();
+      openArrivalRowEditor({block_no:x.dataset.bwedit, arrival:x.dataset.arr});
+    });
+  });
   m.querySelectorAll('[data-bwv]').forEach(function(x){
     x.addEventListener('click',function(){BWVIEW=x.dataset.bwv;renderBlockWise(m);});
   });
@@ -2809,6 +2932,10 @@ function renderQueue(m){
             +'<span>'+wlSize(r.length,r.width,r.height)+'</span>'
             +'<span>'+wlNum(r.cbm,3)+' CBM</span><span>'+wlNum(r.net_wt)+' MT</span>'
             +'<span style="flex:1"></span>'
+            /* 26 Aug 2026: when the AGENCY typed the wrong number, neither
+               accepting the row nor binning it is the answer - it needs
+               CORRECTING. The editor opens on this exact row. */
+            +'<span class="rb" data-aedit="'+esc(r.name)+'" data-b="'+esc(d.block_no)+'">Correct it&hellip;</span>'
             +'<span class="rb ok" data-note="'+esc(r.name)+'" data-b="'+esc(d.block_no)+'">Accept with note</span>'
             +'<span class="rb" data-del="'+esc(r.name)+'" data-b="'+esc(d.block_no)+'">Remove row</span></div>';
         });
@@ -2894,6 +3021,10 @@ function renderQueue(m){
 }
 
 function wireQueueActions(m){
+  /* Correct what the AGENCY wrote - block number, measurement, CBM, weight. */
+  m.querySelectorAll('[data-aedit]').forEach(function(el){el.addEventListener('click',function(){
+    openArrivalRowEditor({row:el.dataset.aedit});
+  });});
   m.querySelectorAll('[data-note]').forEach(function(el){el.addEventListener('click',function(){
     askReason('Accept block '+el.dataset.b,
       'The note is written onto the block, so it shows in Trace and in "find by note" afterwards.',
