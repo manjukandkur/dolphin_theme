@@ -2892,23 +2892,85 @@ def duplicate_rows(arrival=None):
                                   "resolution_type", "resolution_note", "vehicle_no"],
                           limit_page_length=0)
     ds = _arrival_docstatus()
+
+    # ==================================================================
+    # 26 Aug 2026. TWO FAULTS, BOTH FOUND BY HIM ON BLOCK 1139.
+    #
+    # 1. "even after accepting twice for block number 1139 giving reason
+    #    that 'Agency entered wrong' still nothing happens".
+    #    accept_with_note() writes recon_status="Resolved" onto the row
+    #    perfectly well. THIS function fetched recon_status and then never
+    #    looked at it, so an accepted row came straight back on the next
+    #    render. From his side: press the button, type a reason, nothing
+    #    changes. A settled row is now dropped, and once fewer than two
+    #    rows are left unsettled the group is finished and disappears.
+    #
+    # 2. The card was showing 200 groups and ~199 of them were normal.
+    #    His own rule (24 Aug): "arrivals xls is going to be like this
+    #    repetetive where they keep sending all the blocks arrived earlier
+    #    with the fresh trucks unloaded" - a block on five sheets is the
+    #    LIST arriving five times, not the stone. Where every sheet says
+    #    the SAME figures there is nothing to decide, and putting it in a
+    #    queue teaches people to ignore the queue.
+    #    Only a real DISAGREEMENT is asked about now. 1139 is a real one:
+    #    four rows say 1.840 CBM / 4.87 MT and two say 2.320 / 6.31 for
+    #    the same 194x104x91.
+    #    The quiet ones are COUNTED, never hidden - see quiet_duplicates().
+    # ==================================================================
+    SETTLED = ("resolved", "accepted")
+
+    def _settled(r):
+        if _s(r.get("resolution_type")):
+            return True
+        return _s(r.get("recon_status")).lower() in SETTLED
+
+    def _figures(g):
+        """What this row claims. Two rows agree only if ALL of it agrees."""
+        def n(v):
+            try:
+                return round(float(v or 0), 3)
+            except Exception:
+                return 0.0
+        return (n(g.get("length")), n(g.get("width")), n(g.get("height")),
+                n(g.get("cbm")), n(g.get("net_wt")))
+
     by = {}
     for r in rows:
         k = _s(r.block_no)
-        if k:
+        if k and not _settled(r):
             by.setdefault(k, []).append(dict(r, confirmed=1 if ds.get(r.parent) == 1 else 0))
-    out = []
+
+    out, quiet = [], 0
     for k, group in by.items():
         if len(group) < 2:
+            continue
+        if len({_figures(g) for g in group}) == 1:
+            # Every sheet says exactly the same thing. That is the cumulative
+            # list doing its job, not a question for a person.
+            quiet += 1
             continue
         out.append({
             "block_no": k,
             "count": len(group),
             "rows": sorted(group, key=lambda x: (0 if x["confirmed"] else 1, x["parent"])),
-            "identical": len({(_s(g["length"]), _s(g["width"]), _s(g["height"])) for g in group}) == 1,
+            "identical": len({(_s(g["length"]), _s(g["width"]), _s(g["height"]))
+                              for g in group}) == 1,
         })
     out.sort(key=lambda x: (-x["count"], x["block_no"]))
+    frappe.local.dolphin_quiet_dups = quiet
     return out
+
+
+@frappe.whitelist()
+def quiet_duplicates(arrival=None):
+    """How many block numbers sit on several sheets saying the SAME thing.
+
+    Nothing to decide about these - it is the agency re-sending its running
+    list, exactly as he said it would. Counted so the number stays visible
+    and nobody has to wonder what was filtered out of the queue.
+    """
+    duplicate_rows(arrival)
+    return {"quiet": int(getattr(frappe.local, "dolphin_quiet_dups", 0) or 0)}
 
 
 @frappe.whitelist()
@@ -4577,6 +4639,10 @@ def reconcile_worklist():
             "no_challan": {"count": len(no_challan), "blocks": no_challan[:200]},
             "duplicate": {"count": len(dups), "blocks": dups[:200]},
         },
+        # The repeats that agree with each other. Filtered out of the queue
+        # because there is nothing to decide, but never hidden - the page
+        # prints this number so nobody wonders what was taken out.
+        "quiet_duplicates": int(getattr(frappe.local, "dolphin_quiet_dups", 0) or 0),
         # Carried, never held: the note that travels to At Port with the block.
         # The screen marks these rows quietly; it never stops one.
         "size_notes": len(size_notes),
