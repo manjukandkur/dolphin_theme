@@ -64,11 +64,43 @@ def _row_keys(row):
     return out
 
 
+# A history table is not cargo. 26 Aug 2026.
+#
+# Delivery Challan has TWO child tables: dc_block_rows, which is the stone on
+# the truck, and block_edit_history (a Custom Field, DC Block Edit Log), which
+# is the audit trail of edits to those blocks. The log carries `block` and
+# `block_number` too, because it is a log ABOUT blocks.
+#
+# _doc_block_rows walked EVERY table, so each block was counted twice: once as
+# cargo and once as its own edit record. Challan 0032 then refused to save with
+#
+#     "Row 1 repeats block 1001591 from row 1."
+#
+# - a row accused of repeating itself, which is what tipped it off. ilkal could
+# not edit the challan at all after saving it once, because saving is what
+# creates the log rows that then blocked the next save.
+#
+# The guard counts CARGO. A log, a history, an audit trail or a trash stamp is
+# a record of what happened to the cargo and must never be mistaken for more of
+# it.
+_NOT_CARGO = ("log", "history", "audit", "trash", "trace", "event", "version")
+
+
+def _is_cargo_table(tf):
+    hay = "{0} {1}".format(_s(tf.fieldname), _s(tf.options)).lower()
+    return not any(w in hay for w in _NOT_CARGO)
+
+
 def _doc_block_rows(doc):
-    """[(child_row, {keys}), ...] across every child table on the document."""
+    """[(child_row, {keys}), ...] across every child table that carries BLOCKS.
+
+    History and log tables are skipped - see the note above.
+    """
     rows = []
     try:
         for tf in doc.meta.get_table_fields():
+            if not _is_cargo_table(tf):
+                continue
             for r in (doc.get(tf.fieldname) or []):
                 keys = _row_keys(r)
                 if keys:
@@ -213,7 +245,7 @@ def _check_across(doc, rows=None):
     clashes = {}
     for tf in doc.meta.get_table_fields():
         child_dt = tf.options
-        if not child_dt:
+        if not child_dt or not _is_cargo_table(tf):
             continue
         try:
             child_meta = frappe.get_meta(child_dt)
