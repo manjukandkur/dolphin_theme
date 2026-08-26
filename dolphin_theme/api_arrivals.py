@@ -7625,12 +7625,32 @@ def arrival_row_for_edit(row=None, block_no=None, arrival=None):
     """One arrival row, with what the agency sent beside what it reads now."""
     name = row
     if not name and block_no:
-        flt = {"block_no": _s(block_no), "parenttype": "Port Arrival"}
+        # 26 Aug 2026: "That row could not be found."
+        #
+        # The first version looked the row up on the EXACT number shown on
+        # screen. That number is OUR export number, while the arrival row is
+        # keyed by whatever the AGENCY wrote - so the editor could not find a
+        # row the ledger had matched perfectly well two lines above. It found
+        # it through the resolver; the editor was the only thing in the app
+        # still matching on one literal string.
+        #
+        # Same alt keys the rest of the app uses: the number given, plus the
+        # block's record id, quarry number and export number.
+        alt = _pab_alt_keys(block_no) or {_s(block_no)}
+        flt = {"block_no": ["in", sorted(alt)], "parenttype": "Port Arrival"}
         if arrival:
             flt["parent"] = arrival
         name = frappe.db.get_value("Port Arrival Block", flt, "name")
+        if not name and arrival:
+            # The sheet named on screen may be one of several carrying it.
+            flt.pop("parent", None)
+            name = frappe.db.get_value("Port Arrival Block", flt, "name")
     if not name:
-        frappe.throw("No arrival row found.")
+        frappe.throw(
+            "No arrival row could be found for {0}. The agency may never have "
+            "sent a row for this block - if so there is nothing to correct here; "
+            "record the weight by hand on Block to block instead."
+            .format(_s(block_no) or _s(row)))
     meta = frappe.get_meta("Port Arrival Block")
     fields = ["name", "parent", "idx", "recon_status", "resolution_note"]
     fields += [f for f in ARRIVAL_EDITABLE if meta.has_field(f)]
