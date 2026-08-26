@@ -1374,7 +1374,20 @@ function openArrivalRowEditor(opts){
   fetch('/api/method/dolphin_theme.api_arrivals.arrival_row_for_edit?'+q.join('&'),{credentials:'include'})
     .then(function(r){return r.json();}).then(function(j){
       var d=(j&&j.message)||{}; ROW=d;
-      if(!d.row){body.innerHTML='<div class="sub">That row could not be found.</div>';return;}
+      /* 26 Aug 2026: an error message with a live Save button beside it is worse
+         than the error. If there is no row, say why in plain words and take the
+         actions away. */
+      if(!d.row){
+        var why=(j&&j._server_messages)?String(j._server_messages):'';
+        try{ why=JSON.parse(why).map(function(x){return JSON.parse(x).message;}).join(' '); }catch(e){}
+        body.innerHTML='<div class="sub" style="line-height:1.7">'
+          +esc(why||'No arrival row could be found for this block. The agency may never have sent a row for it \u2014 if so there is nothing to correct here; record the weight by hand on Block to block instead.')
+          +'</div>';
+        var ft=ov.querySelector('#__aesave'); if(ft)ft.style.display='none';
+        var rb=ov.querySelector('#__aerestore'); if(rb)rb.style.display='none';
+        var mg=ov.querySelector('#__aemsg'); if(mg)mg.textContent='Nothing to edit on this row.';
+        return;
+      }
       var h='<div class="sub" style="margin-bottom:10px">Sheet <b>'+esc(d.arrival||'')+'</b> &middot; row '+esc(String(d.idx||''))+
             (d.recon_status?(' &middot; '+esc(d.recon_status)):'')+'</div>'
         +'<table style="width:100%;border-collapse:collapse;font-size:13px">'
