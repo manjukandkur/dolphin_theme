@@ -535,6 +535,246 @@ def _xls_num(v):
         return None
 
 
+# ---------------------------------------------------------------------------
+# ONE WORKBOOK READER FOR BOTH FORMATS.  28 Aug 2026
+#
+# [stated] "last parsing for 800 series block did it go through yesterday"
+#
+# It did not. The sheet Mahantesh sent on 27 Aug -- "56 BLOCK DOLPHIN
+# INTERNATIONAL.xlsx", the 801-856 series nobody could find in any of the nine
+# workbooks -- created a Port Arrival, attached its file, and imported nothing.
+# The Error Log said it in as many words: "Excel xlsx file; not supported".
+#
+# Every sheet before it was legacy BIFF .xls from Puyvast, and xlrd -- which
+# reads only that format -- was called directly in six places. One agency
+# pressing Save As .xlsx was enough to lose an entire arrival silently, on a
+# 15-minute retry that logged 214 identical failures overnight.
+#
+# So the format is decided ONCE, here, from the file's own magic bytes, and
+# every reader in this file goes through _open_workbook(). openpyxl is wrapped
+# to present the small xlrd surface the rest of this file already speaks --
+# .sheets(), .nsheets, sheet.name/.nrows/.ncols/.cell_value/.cell_type -- so
+# nothing downstream needs to know which format it is looking at.
+# ---------------------------------------------------------------------------
+import datetime as _dt
+
+XLC_EMPTY, XLC_TEXT, XLC_NUMBER, XLC_DATE, XLC_BOOL, XLC_ERROR = 0, 1, 2, 3, 4, 5
+
+# Excel's day zero. openpyxl hands back real datetimes; xlrd hands back the
+# serial number. Converting openpyxl's side keeps _xls_cell_out identical for
+# both, so the viewer renders a date the same way whichever format it came from.
+_XL_EPOCH = _dt.datetime(1899, 12, 30)
+
+
+def _xl_serial(v):
+    if isinstance(v, _dt.datetime):
+        d = v
+    elif isinstance(v, _dt.date):
+        d = _dt.datetime(v.year, v.month, v.day)
+    elif isinstance(v, _dt.time):
+        return (v.hour * 3600 + v.minute * 60 + v.second) / 86400.0
+    else:
+        return v
+    delta = d - _XL_EPOCH
+    return delta.days + delta.seconds / 86400.0
+
+
+class _XlsxSheet(object):
+    """One .xlsx worksheet, read the way xlrd presents one."""
+
+    def __init__(self, ws):
+        self._ws = ws
+        self.name = ws.title
+        rows = [list(r) for r in ws.iter_rows(values_only=True)]
+        # Trailing blank rows and columns are an artefact of how the file was
+        # saved, not content. Trimmed so nrows/ncols mean what they mean in xlrd.
+        while rows and all(v is None or str(v).strip() == "" for v in rows[-1]):
+            rows.pop()
+        self._rows = rows
+        self.nrows = len(rows)
+        self.ncols = max([len(r) for r in rows]) if rows else 0
+
+    def _raw(self, r, c):
+        try:
+            row = self._rows[r]
+        except Exception:
+            return None
+        return row[c] if c < len(row) else None
+
+    def cell_value(self, r, c):
+        v = self._raw(r, c)
+        if v is None:
+            return ""
+        if isinstance(v, bool):
+            return 1 if v else 0
+        if isinstance(v, (_dt.datetime, _dt.date, _dt.time)):
+            return _xl_serial(v)
+        return v
+
+    def cell_type(self, r, c):
+        v = self._raw(r, c)
+        if v is None:
+            return XLC_EMPTY
+        if isinstance(v, bool):
+            return XLC_BOOL
+        if isinstance(v, (_dt.datetime, _dt.date, _dt.time)):
+            return XLC_DATE
+        if isinstance(v, (int, float)):
+            return XLC_NUMBER
+        return XLC_TEXT
+
+    def cell_bg(self, r, c):
+        try:
+            fill = self._ws.cell(row=r + 1, column=c + 1).fill
+            if not fill or fill.patternType in (None, "none"):
+                return ""
+            rgb = getattr(fill.start_color, "rgb", None)
+            if not isinstance(rgb, str) or len(rgb) < 6:
+                return ""
+            return "#" + rgb[-6:].lower()
+        except Exception:
+            return ""
+
+
+class _XlsxBook(object):
+    kind = "xlsx"
+    datemode = 0
+
+    def __init__(self, content):
+        import io
+        from openpyxl import load_workbook
+        # data_only: the cached result of a formula, which is what a person
+        # reading the sheet sees. A formula string is no use to an importer.
+        self._wb = load_workbook(io.BytesIO(content), data_only=True)
+        self._sheets = [_XlsxSheet(ws) for ws in self._wb.worksheets]
+        self.nsheets = len(self._sheets)
+        self.has_colors = True
+
+    def sheets(self):
+        return self._sheets
+
+    def sheet_bg(self, sh, r, c):
+        return sh.cell_bg(r, c)
+
+
+class _XlsBook(object):
+    kind = "xls"
+
+    def __init__(self, content):
+        import xlrd
+        self.has_colors = True
+        try:
+            self._wb = xlrd.open_workbook(file_contents=content, formatting_info=True)
+        except Exception:
+            self._wb = xlrd.open_workbook(file_contents=content)
+            self.has_colors = False
+        self.nsheets = self._wb.nsheets
+        self.datemode = self._wb.datemode
+
+    def sheets(self):
+        return self._wb.sheets()
+
+    def sheet_bg(self, sh, r, c):
+        if not self.has_colors:
+            return ""
+        try:
+            xf = self._wb.xf_list[sh.cell_xf_index(r, c)]
+            if xf.background.fill_pattern != 1:
+                return ""
+            rgb = self._wb.colour_map.get(xf.background.pattern_colour_index)
+            if not rgb:
+                return ""
+            return "#%02x%02x%02x" % rgb
+        except Exception:
+            return ""
+
+
+def _open_workbook(content):
+    """A workbook for .xls or .xlsx bytes, with the same surface either way.
+
+    The magic bytes decide which reader to try first -- .xlsx is a ZIP ("PK"),
+    .xls is an OLE2 compound file -- and the other is still tried afterwards,
+    because a file named .xls that is really .xlsx (and the reverse) is common
+    when someone re-saves an agency sheet."""
+    if not content:
+        frappe.throw("There is no file content to read.")
+    is_zip = content[:2] == b"PK"
+    order = (_XlsxBook, _XlsBook) if is_zip else (_XlsBook, _XlsxBook)
+    problems = []
+    for cls in order:
+        try:
+            return cls(content)
+        except Exception as e:
+            problems.append("{0}: {1}".format(cls.kind, e))
+    frappe.throw("This spreadsheet could not be read as .xls or .xlsx. " +
+                 " | ".join(problems))
+
+
+# ---------------------------------------------------------------------------
+# READING A SHEET THAT DOES NOT LABEL ITS OWN COLUMNS.  28 Aug 2026
+#
+# [stated] "some agencies do not fill measurements properly"
+# [stated] "find our block numbers, take their tonnage, record it"
+#
+# The Krishnapatnam 801-856 sheet names S.NO, Vehicle No., Date, Mark, Location,
+# Block No., ADO No., Permit No., Gross Wt., Tare Wt. and Nett. Wt. -- and then
+# leaves the measurement and CBM columns unlabelled, with a stray "Total CBM"
+# heading sitting three columns away from the actual CBM. Read by header alone,
+# 56 blocks import with no volume and no tonnage at all, which is the one thing
+# the sheet exists to tell us.
+#
+# So the unlabelled columns are IDENTIFIED, not guessed, and identified the way
+# a person checking the sheet would: L x W x H in centimetres must equal the
+# CBM printed beside it. A column earns the name "CBM" by agreeing with that
+# arithmetic on most of the sheet, and the count is reported rather than
+# assumed. On the 27 Aug sheet it agrees on 56 rows of 56, and the column total
+# lands on the sheet's own printed total of 352.05.
+# ---------------------------------------------------------------------------
+def _hdr_key(t):
+    """A header label reduced to what identifies it: letters and digits only."""
+    return "".join(ch for ch in _s(t).lower() if ch.isalnum())
+
+
+def _row_numbers(sheet, r, start):
+    """Every numeric cell on a row from `start`, as (column, value)."""
+    out = []
+    for c in range(start, sheet.ncols):
+        v = _xls_num(sheet.cell_value(r, c))
+        if v is not None:
+            out.append((c, v))
+    return out
+
+
+def _row_dims_and_cbm(sheet, r, start):
+    """(length, width, height, cbm) read off one row without a header to guide it.
+
+    The three sides are the first three whole numbers in a plausible centimetre
+    range; the CBM is the first number after them that equals their product.
+    Nothing is returned unless that arithmetic holds, so a row this cannot read
+    comes back empty rather than wrong."""
+    nums = _row_numbers(sheet, r, start)
+    dims, after = [], None
+    for i, (c, v) in enumerate(nums):
+        if len(dims) < 3:
+            if float(v).is_integer() and 30 <= v <= 900:
+                dims.append(v)
+                after = i
+        else:
+            break
+    if len(dims) < 3 or after is None:
+        return (None, None, None, None)
+    vol = dims[0] * dims[1] * dims[2] / 1000000.0
+    for c, v in nums[after + 1:]:
+        if v > 0 and abs(v - vol) <= max(0.03 * vol, 0.02):
+            return (dims[0], dims[1], dims[2], v)
+    return (None, None, None, None)
+
+
+def _vehicle_key(v):
+    return "".join(ch for ch in _s(v).upper() if ch.isalnum())
+
+
+
 def _xls_is_dolphin_sheet(sheet, single):
     """Keep the Dolphin sheet: the only sheet, or a tab whose name / top title
     rows mention 'dolphin'. Drop tabs whose title names another firm (M/S. ...)."""
@@ -574,6 +814,17 @@ def _xls_header(sheet):
                     cm["ado"] = c
                 elif t in ("permit no", "permit no."):
                     cm["permit"] = c
+                # 28 Aug 2026. The weighbridge columns. They must be read
+                # BEFORE the generic weight rule below, or "Nett. Wt." is taken
+                # for a per-block weight and every block on a truck is given the
+                # whole truck's tonnage.
+                elif _hdr_key(t) in ("grosswt", "grossweight", "grosswtmt", "gross"):
+                    cm.setdefault("gross", c)
+                elif _hdr_key(t) in ("tarewt", "tareweight", "tarewtmt", "tare"):
+                    cm.setdefault("tare", c)
+                elif _hdr_key(t) in ("nettwt", "netwt", "nettweight", "netweight",
+                                     "nettwtmt", "netwtmt"):
+                    cm.setdefault("nett", c)
                 elif "weight" in t or t == "a/wt":
                     cm.setdefault("weight", c)
                 elif t == "measurement":
@@ -586,6 +837,16 @@ def _xls_header(sheet):
                            "party", "party name", "company", "consignor",
                            "exporter/shipper", "name of exporter"):
                     cm.setdefault("exporter", c)
+            # 28 Aug 2026. "Nett Wt." means two different things on two kinds of
+            # sheet, and reading it the wrong way is expensive in both
+            # directions. On a weighbridge sheet it is the WHOLE TRUCK, sitting
+            # beside Gross and Tare, and giving it to a single block would
+            # multiply that block's tonnage several times over. On a plain block
+            # list it is that block's own weight and must be taken as-is.
+            # A tare column is what tells them apart: nothing is tared but a
+            # vehicle. No tare, no weighbridge - so it is a per-block weight.
+            if "nett" in cm and "tare" not in cm and "weight" not in cm:
+                cm["weight"] = cm.pop("nett")
             return r, cm
     return None, {}
 
@@ -617,17 +878,25 @@ def _is_dolphin_party(v):
 
 
 def _parse_arrival_xls(content):
-    """content: bytes of a .xls. Returns (rows, sheet_name) for the Dolphin sheet."""
-    try:
-        import xlrd
-    except Exception:
-        frappe.throw(
-            "The .xls reader (xlrd) is not installed on this bench. "
-            "Add xlrd to the app's requirements and redeploy."
-        )
-    wb = xlrd.open_workbook(file_contents=content)
+    """content: bytes of a .xls or .xlsx. Returns (rows, sheet_name).
+
+    28 Aug 2026: reads both formats (see _open_workbook) and, where the agency
+    left the measurement/CBM columns unlabelled, identifies them by arithmetic
+    (see _row_dims_and_cbm) instead of importing the sheet with no figures.
+
+    Weight, in the order the sheet offers it:
+      1. a column the sheet itself names as a per-block weight -- taken as-is;
+      2. failing that, the weighbridge tickets: Gross - Tare = Nett for a whole
+         truck, apportioned across that truck's blocks by CBM. That is not our
+         arithmetic, it is the sheet's own -- on the 27 Aug sheet the agency
+         wrote the same split against the first block of each truck, and our
+         figure reproduces theirs on all 25 tickets.
+    How the weights were arrived at is reported, never assumed silently."""
+    wb = _open_workbook(content)
     single = wb.nsheets == 1
     rows, used_sheet, skipped_other = [], None, []
+    notes = {"format": wb.kind, "cbm_inferred": 0, "weight_method": "none",
+             "tickets": 0, "blocks_without_weight": []}
     for sh in wb.sheets():
         if not _xls_is_dolphin_sheet(sh, single):
             continue
@@ -635,6 +904,7 @@ def _parse_arrival_xls(content):
         if hr is None or "block_no" not in cm:
             continue
         used_sheet = sh.name
+        bcol = cm["block_no"]
         _last_exporter = ""
         for r in range(hr + 1, sh.nrows):
             bno = _xls_s(sh.cell_value(r, cm["block_no"]))
@@ -672,25 +942,95 @@ def _parse_arrival_xls(content):
                     skipped_other.append({"block_no": bno, "exporter": _who})
                     continue
 
+            cbm = _xls_num(sh.cell_value(r, cm["cbm"])) if "cbm" in cm else None
+            weight = _xls_num(sh.cell_value(r, cm["weight"])) if "weight" in cm else None
+
+            # The unlabelled sheet. This runs only for a column the HEADER did
+            # not name at all -- a header that names a column is believed, and a
+            # blank cell under a named column stays blank. And it fills nothing
+            # unless L x W x H proves which column is which.
+            if "cbm" not in cm or "meas" not in cm:
+                il, iw, ih, icbm = _row_dims_and_cbm(sh, r, bcol + 1)
+                if icbm is not None:
+                    if "cbm" not in cm:
+                        cbm = icbm
+                        notes["cbm_inferred"] += 1
+                    if "meas" not in cm:
+                        length, width, height = il, iw, ih
+
             rows.append({
                 "block_no": bno,
                 "mark": (cell("mark") or None),
-                "cbm": _xls_num(sh.cell_value(r, cm["cbm"])) if "cbm" in cm else None,
-                "weight": _xls_num(sh.cell_value(r, cm["weight"])) if "weight" in cm else None,
+                "cbm": cbm,
+                "weight": weight,
                 "length": length, "width": width, "height": height,
                 "vehicle_no": cell("vehicle"),
                 "yard_location": cell("location"),
                 "line_no": cell("line"),
                 "ado_no": cell("ado"),
                 "permit_no": cell("permit"),
+                "_gross": _xls_num(sh.cell_value(r, cm["gross"])) if "gross" in cm else None,
+                "_tare": _xls_num(sh.cell_value(r, cm["tare"])) if "tare" in cm else None,
+                "_nett": _xls_num(sh.cell_value(r, cm["nett"])) if "nett" in cm else None,
             })
+        if "weight" in cm:
+            notes["weight_method"] = "the sheet's own per-block weight column"
+
+    _apportion_truck_weights(rows, notes)
+    # Port Arrival Block already carries gross_wt / tare_wt. The weighbridge
+    # ticket is the evidence behind an apportioned tonnage, so it is kept on the
+    # row that carried it rather than being read once and discarded.
+    for r in rows:
+        r["gross_wt"] = r.pop("_gross", None)
+        r["tare_wt"] = r.pop("_tare", None)
+        r.pop("_nett", None)
+
     if skipped_other:
         try:
             frappe.local.dolphin_skipped_other_party = skipped_other
         except Exception:
             pass
+    try:
+        frappe.local.dolphin_parse_notes = notes
+    except Exception:
+        pass
     return rows, used_sheet
 
+
+def _apportion_truck_weights(rows, notes):
+    """Weighbridge tickets -> a weight for every block on the truck.
+
+    His rule, 25 Aug: "agencies weigh the whole truck, subtract tare, divide by
+    block count. Accept the agency's per-block weight exactly as received. It is
+    arithmetic, not a weighing." This is that arithmetic, done from the sheet's
+    own gross/tare/nett and the sheet's own CBM. Nothing is compared with our
+    figures and nothing is disputed."""
+    if any(r.get("weight") is not None for r in rows):
+        return
+    tickets = [r for r in rows if r.get("_nett") is not None]
+    if not tickets:
+        return
+    groups = {}
+    for r in rows:
+        groups.setdefault(_vehicle_key(r.get("vehicle_no")), []).append(r)
+    done = 0
+    for key, members in groups.items():
+        nett = sum(flt(m.get("_nett")) for m in members if m.get("_nett") is not None)
+        total_cbm = sum(flt(m.get("cbm")) for m in members if m.get("cbm") is not None)
+        if not nett or not total_cbm:
+            continue
+        for m in members:
+            if m.get("cbm") is None:
+                continue
+            m["weight"] = round(flt(m["cbm"]) / total_cbm * nett, 3)
+            done += 1
+    notes["tickets"] = len(tickets)
+    notes["blocks_without_weight"] = [r["block_no"] for r in rows if r.get("weight") is None]
+    if done:
+        notes["weight_method"] = (
+            "{0} weighbridge ticket(s) on the sheet (gross - tare = nett), each "
+            "truck's nett apportioned across its own blocks by CBM".format(len(tickets)))
+        notes["weight_total"] = round(sum(flt(r.get("weight")) for r in rows), 3)
 
 
 # --------------------------------------------------------------------------
@@ -733,6 +1073,87 @@ def _resolve_mark(raw):
     except Exception:
         return None
     return None
+
+def _attach_source_file(pa, content, fname):
+    """Keep the sheet that was imported, and point the arrival at it.
+
+    28 Aug 2026. import_xls read the uploaded file, took the rows out of it and
+    threw the bytes away. Nothing on the arrival said which file it came from,
+    so "Open sheet" had nothing to open and a hand-imported arrival could never
+    be checked against the original -- the one document that settles an argument
+    with an agency. The file is now stored against the arrival and source_file
+    points at it. Re-importing the same bytes reuses the file already there
+    rather than piling up copies of the same sheet."""
+    if not content or not pa.meta.has_field("source_file"):
+        return None
+    import hashlib
+    digest = hashlib.md5(content).hexdigest()
+    for f in frappe.get_all("File",
+            filters={"attached_to_doctype": "Port Arrival",
+                     "attached_to_name": pa.name},
+            fields=["name", "file_url", "content_hash"]):
+        if f.get("content_hash") == digest and f.get("file_url"):
+            if pa.get("source_file") != f.file_url:
+                frappe.db.set_value("Port Arrival", pa.name, "source_file",
+                                    f.file_url, update_modified=False)
+                pa.source_file = f.file_url
+            return f.file_url
+    url = None
+    try:
+        from frappe.utils.file_manager import save_file
+        fdoc = save_file(fname or "arrival.xls", content, "Port Arrival",
+                         pa.name, is_private=1)
+        url = fdoc.file_url
+    except Exception:
+        fdoc = frappe.get_doc({
+            "doctype": "File",
+            "file_name": fname or "arrival.xls",
+            "attached_to_doctype": "Port Arrival",
+            "attached_to_name": pa.name,
+            "is_private": 1,
+            "content": content,
+        })
+        fdoc.insert(ignore_permissions=True)
+        url = fdoc.file_url
+    if url:
+        frappe.db.set_value("Port Arrival", pa.name, "source_file", url,
+                            update_modified=False)
+        pa.source_file = url
+    return url
+
+
+def _parse_notes():
+    try:
+        return dict(getattr(frappe.local, "dolphin_parse_notes", None) or {})
+    except Exception:
+        return {}
+
+
+def _say_how_weights_came(pa, notes):
+    """Write onto the arrival, in plain words, where its tonnage came from.
+
+    A figure whose origin is not written down is a figure nobody can defend
+    later. This is the record, on the document itself."""
+    if not notes:
+        return
+    method = notes.get("weight_method") or "none"
+    if method == "none":
+        return
+    line = "Tonnage on this sheet: " + method + "."
+    if notes.get("weight_total"):
+        line += " Total {0} MT.".format(notes["weight_total"])
+    if notes.get("cbm_inferred"):
+        line += (" The sheet did not label its measurement columns; CBM was "
+                 "identified on {0} row(s) by L x W x H matching the printed "
+                 "volume.".format(notes["cbm_inferred"]))
+    missing = notes.get("blocks_without_weight") or []
+    if missing:
+        line += " No weight on the sheet for: {0}.".format(", ".join(missing[:40]))
+    try:
+        frappe.get_doc("Port Arrival", pa.name).add_comment("Comment", line)
+    except Exception:
+        pass
+
 
 @frappe.whitelist()
 def import_xls(arrival=None, mark=None, agency=None):
@@ -801,7 +1222,8 @@ def import_xls(arrival=None, mark=None, agency=None):
         if r.get("mark"):
             b.mark = r["mark"]
         for k in ("length", "width", "height", "cbm",
-                  "vehicle_no", "yard_location", "line_no", "ado_no", "permit_no"):
+                  "vehicle_no", "yard_location", "line_no", "ado_no",
+                  "permit_no", "gross_wt", "tare_wt"):
             if r.get(k) is not None and b.meta.has_field(k):
                 b.set(k, r[k])
         if r.get("weight") is not None:
@@ -827,11 +1249,26 @@ def import_xls(arrival=None, mark=None, agency=None):
     except Exception:
         frappe.log_error(frappe.get_traceback(), "import_xls reconcile")
 
+    notes = _parse_notes()
+    try:
+        _attach_source_file(pa, content, fname)
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), "import_xls source file")
+    try:
+        _say_how_weights_came(pa, notes)
+    except Exception:
+        pass
+
     frappe.db.commit()
     out = {
         "arrival": pa.name,
         "sheet": sheet,
         "file": fname,
+        "source_file": pa.get("source_file") or "",
+        "read_as": notes.get("format") or "",
+        "weight_method": notes.get("weight_method") or "",
+        "weight_total": notes.get("weight_total") or 0,
+        "blocks_without_weight": notes.get("blocks_without_weight") or [],
         "created": created,
         "updated": updated,
         "duplicates": 0,
@@ -1819,8 +2256,7 @@ def _xls_tokens(content, file_url=""):
 
     if not name.endswith(".xlsx"):
         try:
-            import xlrd
-            wb = xlrd.open_workbook(file_contents=content)
+            wb = _open_workbook(content)
             for sh in wb.sheets():
                 for r in range(sh.nrows):
                     for c in range(sh.ncols):
@@ -2103,32 +2539,13 @@ def arrival_xls_grid(arrival=None, max_rows=5000):
     if content is None:
         return {"error": "Source file not found: " + src}
     try:
-        import xlrd
-    except Exception:
-        return {"error": "xlrd not installed on this bench."}
-    fmt = True
-    try:
-        wb = xlrd.open_workbook(file_contents=content, formatting_info=True)
-    except Exception:
-        fmt = False
-        try:
-            wb = xlrd.open_workbook(file_contents=content)
-        except Exception as e:
-            return {"error": "Could not read sheet: " + str(e)}
+        wb = _open_workbook(content)
+    except Exception as e:
+        return {"error": "Could not read sheet: " + str(e)}
+    fmt = bool(getattr(wb, "has_colors", False))
 
     def _bg(sh, r, c):
-        if not fmt:
-            return ""
-        try:
-            xf = wb.xf_list[sh.cell_xf_index(r, c)]
-            if xf.background.fill_pattern != 1:
-                return ""
-            rgb = wb.colour_map.get(xf.background.pattern_colour_index)
-            if not rgb:
-                return ""
-            return "#%02x%02x%02x" % rgb
-        except Exception:
-            return ""
+        return wb.sheet_bg(sh, r, c)
 
     single = wb.nsheets == 1
     grid, tags, colors, used, hr = [], [], [], None, None
@@ -2273,7 +2690,8 @@ def parse_email_arrivals(limit=60):
             if r.get("mark") and _ok_mark(b, "mark", r["mark"]):
                 b.mark = r["mark"]
             for k in ("length", "width", "height", "cbm",
-                      "vehicle_no", "yard_location", "line_no", "ado_no", "permit_no"):
+                      "vehicle_no", "yard_location", "line_no", "ado_no",
+                      "permit_no", "gross_wt", "tare_wt"):
                 if r.get(k) is not None and b.meta.has_field(k):
                     b.set(k, r[k])
             if r.get("weight") is not None:
@@ -2298,7 +2716,16 @@ def parse_email_arrivals(limit=60):
                 }, update_modified=False)
         except Exception:
             frappe.log_error(frappe.get_traceback(), "parse_email_arrivals classify")
-        out.append({"arrival": pa.name, "blocks": len(rows), "sheet": sheet})
+        _notes = _parse_notes()
+        try:
+            _say_how_weights_came(pa, _notes)
+        except Exception:
+            pass
+        out.append({"arrival": pa.name, "blocks": len(rows), "sheet": sheet,
+                    "read_as": _notes.get("format") or "",
+                    "weight_method": _notes.get("weight_method") or "",
+                    "weight_total": _notes.get("weight_total") or 0,
+                    "blocks_without_weight": _notes.get("blocks_without_weight") or []})
     frappe.db.commit()
     # 24 Aug 2026. [stated] "can you avoid arrivals with empty sheet?"
     # An incoming mail with nothing parsable attached still created a Port
@@ -3996,14 +4423,9 @@ def arrival_xls_sheets(file=None, communication=None, arrival=None, max_rows=600
         return {"ok": 0, "error": "Could not read the attachment: %s" % e}
 
     try:
-        import xlrd
-    except Exception:
-        return {"ok": 0, "error": "The .xls reader (xlrd) is not installed on this bench."}
-
-    try:
-        wb = xlrd.open_workbook(file_contents=content)
+        wb = _open_workbook(content)
     except Exception as e:
-        return {"ok": 0, "error": "This file is not a readable .xls: %s" % e}
+        return {"ok": 0, "error": "This file could not be read as a spreadsheet: %s" % e}
 
     single = wb.nsheets == 1
     out_sheets = []
@@ -8136,11 +8558,7 @@ def xls_tabs(arrival=None, file_url=None, sample=8):
     if content is None:
         return {"error": "Could not read " + src}
     try:
-        import xlrd
-    except Exception:
-        return {"error": "xlrd not installed on this bench."}
-    try:
-        wb = xlrd.open_workbook(file_contents=content)
+        wb = _open_workbook(content)
     except Exception as e:
         return {"error": "Could not open the workbook: " + _s(e)[:160]}
 
@@ -8206,8 +8624,7 @@ def find_mark_across_files(mark=None, limit=40):
         if content is None:
             continue
         try:
-            import xlrd
-            wb = xlrd.open_workbook(file_contents=content)
+            wb = _open_workbook(content)
         except Exception:
             continue
         checked += 1
