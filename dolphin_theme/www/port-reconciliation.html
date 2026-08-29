@@ -3024,8 +3024,22 @@ function renderQueue(m){
     if(dup.length){
       var rowsD='';
       dup.slice(0,60).forEach(function(d){
+        var who=d.block||{}, whoLine='';
+        /* 28 Aug 2026. His question, asked three times: "so it is supposed to
+           be in one place right?" It is. This line says which stone the card
+           is about and where that stone already is, so the card can never be
+           read as a second block. */
+        if(who.one_block){
+          whoLine='<span class="sub"> · one block'
+            +(who.status?(', '+esc(who.status.toLowerCase())):'')
+            +(who.quarry_no?(' · quarry '+esc(who.quarry_no)):'')
+            +(who.export_no?(' / export '+esc(who.export_no)):'')+'</span>';
+        } else if(who.note){
+          whoLine='<span class="sub" style="color:#a15c00"> · '+esc(who.note)+'</span>';
+        }
         rowsD+='<div class="qrow" data-norq="1" style="font-weight:600"><span class="blkno">'+esc(d.block_no)+'</span>'
-          +'<span class="sub">on '+d.count+' arrival rows'+(d.identical?' · same measurements':' · different measurements')+'</span></div>';
+          +'<span class="sub">on '+d.count+' sheet rows'+(d.identical?' · same measurements':' · different measurements')+'</span>'
+          +whoLine+'</div>';
         d.rows.forEach(function(r){
           rowsD+='<div class="qrow"><span style="width:14px"></span><span class="sub">'+esc(r.parent||'')+(r.confirmed?'':' · draft')+'</span>'
             +'<span>'+wlSize(r.length,r.width,r.height)+'</span>'
@@ -3041,9 +3055,12 @@ function renderQueue(m){
       });
       if(dup.length>60)rowsD+='<div class="qrow sub" data-norq="1">…and '+(dup.length-60)+' more.</div>';
       h+=wlCard('dup',dup.length,'The same block number, and the sheets disagree',
-        'The agency re-sends its whole running list every time, so one block on several rows is normal and is not shown here. '
+        '<b>These are sheet rows, not blocks.</b> Each card is one block — it says below which one, and where that block already is. '
+        +'A block listed here is not waiting for anything and is not a second stone; what disagrees is the paperwork about it. '
+        +'The agency re-sends its whole running list every time, so one block on several rows is normal and is not shown here. '
         +'These are the ones where the rows <b>do not say the same thing</b> — that is worth a person. '
-        +'Accept the row that is right, or send the wrong one to the Trash — nothing is deleted and it can be brought back.'
+        +'Accept the row that is right — that settles the block and closes the rest behind it — or send the wrong row to the Trash. '
+        +'Nothing is deleted and anything can be brought back.'
         +(window.__QUIETDUP?('<br><br><span class="sub"><b>'+window.__QUIETDUP+'</b> other block number'
           +(window.__QUIETDUP===1?'':'s')+' appear on several sheets with identical figures. '
           +'That is the running list repeating, not a question — nothing to do about those.</span>'):''),

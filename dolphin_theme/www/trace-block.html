@@ -147,7 +147,7 @@ s.push(stage(st(4),'&#9875;','At Port',(rank>=4?xno:'not yet'),rank<4,false));
 s.push(stage(rank>=5?'done':'','&#128674;','Shipped',(rank>=5?xno:'not yet'),rank<5,false));
 return '<div class="journey">'+s.join('')+'</div>';
 }
-function render(q,bl){
+function render(q,bl,other){
 var R=document.getElementById('result');
 if(!bl.length){
 /* 23 Aug 2026. Typing "dc 021" flashed "No block dc 021 found" for about a
@@ -157,7 +157,31 @@ if(!bl.length){
 if(window.__dipIsDoc && window.__dipIsDoc(q)){
 R.innerHTML='<div class="empty">Looking up <b>'+esc(q)+'</b>&hellip;</div>';return;}
 R.innerHTML='<div class="empty">No block <b>'+esc(q)+'</b> found. Try the other number (quarry vs export).</div>';return;}
-R.innerHTML=bl.map(function(b){
+/* ---------------------------------------------------------------
+   28 Aug 2026. [stated] "when searched in the trace block it is confusing
+   when the block is showing at port check and simplify if it is under needs
+   you etc? one should not assume there are 2 blocks and remove one"
+   and, three times over: "so it is supposed to be in one place right?"
+
+   Two different things were reading as "two blocks":
+   1. a number that is one stone's QUARRY number and another stone's EXPORT
+      number - 114 numbers on this site do that, and it is permanent;
+   2. several arrival sheet rows naming the same block, which is the agency's
+      running list repeating, not a second stone.
+   Both are now said out loud, at the top, before anyone can decide to
+   delete something.
+   --------------------------------------------------------------- */
+var warn='';
+if(other && other.q && other.e && other.q.name!==other.e.name){
+warn='<div class="card" style="border-left:4px solid #a15c00">'
++'<div style="font-weight:700;margin-bottom:4px">The number '+esc(q)+' belongs to two different stones.</div>'
++'<div class="meta">Quarry number '+esc(q)+' is the block whose export number is <b>'
++esc(other.q.export_block_no||'not yet')+'</b>. Export number '+esc(q)+' is the block whose quarry number is <b>'
++esc(other.e.block_number||'')+'</b>.</div>'
++'<div class="meta">Both are real, separate blocks. <b>Neither is a duplicate and neither should be removed.</b> '
++'Search the other number to see the other one.</div></div>';
+}
+R.innerHTML=warn+bl.map(function(b){
 var sc=SC[b.status]||['#f1efe8','#444441'];
 var dim=(b.length_gross||'')+'&times;'+(b.width_gross||'')+'&times;'+(b.height_gross||'');
 var cbm=b.gross_volume?(' &middot; '+(+b.gross_volume).toFixed(2)+' cbm'):'';
@@ -170,6 +194,8 @@ return '<div class="card">'
 +'<span class="badge" style="margin-left:auto;background:'+sc[0]+';color:'+sc[1]+'">&#128205; '+esc(b.status||'')+'</span></div>'
 +'<div class="meta" id="mline-'+esc(b.name)+'">'+mline(b,null,false)+'</div>'
 +'<div class="idrule">Quarry block number up to Delivery Challan &middot; export number from Transport onward</div>'
++'<div class="idrule">This is one block, and the badge above is where it is now. '
++'Arrival sheets can list it many times &mdash; those are sheet <b>rows</b>, not blocks, and a question about them never means there are two stones.</div>'
 +journey(b)
 +'</div>';
 }).join('')+'<div class="foot">Dolphin International &middot; Trace a block</div>';
@@ -195,7 +221,15 @@ function go(){var q=document.getElementById('q').value.trim();if(!q){document.ge
    "dc 0133" is not a block number. Leave it alone and the rest stops happening. */
 if(window.__dipIsDoc && window.__dipIsDoc(q)){
 document.getElementById('result').innerHTML='<div class="empty">Looking up <b>'+esc(q)+'</b>&hellip;</div>';return;}
-api([['block_number','=',q]]).then(function(bl){ if(bl.length) return bl; return api([['export_block_no','=',q]]); }).then(function(bl){ if(bl.length) return bl; return api([['name','=',q]]); }).then(function(bl){ render(q,bl); }).catch(function(e){document.getElementById('result').innerHTML='<div class="empty">Error: '+esc(e.message)+'</div>';});
+/* Both numberings are asked at once, so a number that means two different
+   stones is caught and said, instead of the first match quietly winning. */
+Promise.all([api([['block_number','=',q]]),api([['export_block_no','=',q]])]).then(function(r){
+var byQ=r[0]||[],byE=r[1]||[];
+if(byQ.length||byE.length){
+var other=(byQ.length&&byE.length&&byQ[0].name!==byE[0].name)?{q:byQ[0],e:byE[0]}:null;
+render(q,byQ.length?byQ:byE,other);return;}
+return api([['name','=',q]]).then(function(bl){render(q,bl,null);});
+}).catch(function(e){document.getElementById('result').innerHTML='<div class="empty">Error: '+esc(e.message)+'</div>';});
 }
 document.getElementById('q').addEventListener('input',function(){clearTimeout(t);t=setTimeout(go,350);});
 /* BLK-08: expose render() so the appended range-search block can reuse it. Added line only. */
