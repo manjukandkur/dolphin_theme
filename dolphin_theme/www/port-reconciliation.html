@@ -3126,7 +3126,7 @@ function wireQueueActions(m){
   });});
   m.querySelectorAll('[data-note]').forEach(function(el){el.addEventListener('click',function(){
     askReason('Accept block '+el.dataset.b,
-      'The note is written onto the block, so it shows in Trace and in "find by note" afterwards.',
+      'This settles the block, not just this row: the other rows for '+el.dataset.b+' are closed behind the one you accept. Nothing is deleted and Undo brings them all back. The note is written onto the block, so it shows in Trace and in "find by note" afterwards.',
       function(note){
         post('dolphin_theme.api_arrivals.accept_with_note',{row:el.dataset.note,note:note,machine:_machine()})
           .then(function(j){var r=(j&&j.message)||{};msg(r.message||(CHK+' '+el.dataset.b+' accepted with note'));loadAll();renderRecon();})
@@ -3143,7 +3143,7 @@ function wireQueueActions(m){
       'The row goes back to unresolved and the block comes off At Port. Nothing is deleted.',
       function(why){
         post('dolphin_theme.api_arrivals.reject_acceptance',{row:el.dataset.rej,reason:why,machine:_machine()})
-          .then(function(){msg(CHK+' Acceptance undone for '+el.dataset.b);loadAll();renderRecon();})
+          .then(function(j){var r=(j&&j.message)||{};msg(CHK+' '+(r.message||('Acceptance undone for '+el.dataset.b)));loadAll();renderRecon();})
           .catch(function(){msg('Could not undo',1);});
       },{ok:'Send it back',chips:[
         'Accepted by mistake',
