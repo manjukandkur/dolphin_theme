@@ -3367,6 +3367,46 @@ def duplicate_rows(arrival=None):
         if k and not _settled(r):
             by.setdefault(k, []).append(dict(r, confirmed=1 if ds.get(r.parent) == 1 else 0))
 
+    # ==================================================================
+    # SAY WHICH STONE THIS IS, ON THE CARD.  28 Aug 2026
+    #
+    # [stated] "1139 is in both the places in needs and at stock at port
+    # also????" ... "so it is supposed to be in one place right?"
+    #
+    # It is, and it is: ONE block, at port. What sits in this queue is not the
+    # block, it is arrival sheet ROWS carrying that number which disagree with
+    # each other. The card never said so, so it read as a second pile of stone
+    # -- and his standing worry follows straight from that: [stated] "one
+    # should not assume there are 2 blocks and remove one".
+    #
+    # So every group now carries the block's own identity and where it already
+    # is. Nothing here can be mistaken for a second block.
+    # ==================================================================
+    ident = {}
+    try:
+        for q in frappe.get_all("Quarry Block",
+                                fields=["name", "block_number", "export_block_no",
+                                        "status"],
+                                limit_page_length=0):
+            for key in (_s(q.get("export_block_no")), _s(q.get("block_number"))):
+                if key:
+                    ident.setdefault(key, []).append(q)
+    except Exception:
+        ident = {}
+
+    def _who_is(k):
+        hits = ident.get(k) or []
+        if len(hits) != 1:
+            return {"one_block": 0,
+                    "note": ("that number belongs to more than one block - "
+                             "check Trace before deciding") if hits else
+                            "no block on this site answers to that number"}
+        q = hits[0]
+        return {"one_block": 1, "record": _s(q.get("name")),
+                "quarry_no": _s(q.get("block_number")),
+                "export_no": _s(q.get("export_block_no")),
+                "status": _s(q.get("status"))}
+
     out, quiet = [], 0
     for k, group in by.items():
         if len(group) < 2:
@@ -3382,6 +3422,7 @@ def duplicate_rows(arrival=None):
             "rows": sorted(group, key=lambda x: (0 if x["confirmed"] else 1, x["parent"])),
             "identical": len({(_s(g["length"]), _s(g["width"]), _s(g["height"]))
                               for g in group}) == 1,
+            "block": _who_is(k),
         })
     out.sort(key=lambda x: (-x["count"], x["block_no"]))
     frappe.local.dolphin_quiet_dups = quiet
@@ -3728,6 +3769,59 @@ def accept_with_note(row=None, block_no=None, arrival=None, note=None,
     return {"ok": True, "row": name, "block_no": bno, "block": hit["name"],
             "status": res.get("status"), "superseded": len(swept),
             "message": "Block {0} accepted with a note.".format(bno) + _swept_line()}
+
+
+@frappe.whitelist()
+def finish_open_accepts(dry_run=1, person=None, machine=None):
+    """Finish the acceptances that were left half-done before 28 Aug 2026.
+
+    Accepting used to settle only the row that was pressed, so a block someone
+    had already accepted kept coming back with the rest of its group. Those
+    earlier decisions are still good decisions -- this closes the rows that
+    should have been closed behind them at the time, with the person's own note
+    carried across and the same undo.
+
+    Read-only unless dry_run is 0. Touches ONLY blocks that already carry an
+    accepted row and are still being asked about; it never accepts anything on
+    anybody's behalf."""
+    dry = _s(dry_run) not in ("0", "false", "False", "")
+    groups = duplicate_rows() or []
+    out = []
+    for g in groups:
+        bno = _s(g.get("block_no"))
+        if not bno:
+            continue
+        accepted = None
+        for r in frappe.get_all(
+                "Port Arrival Block",
+                filters={"block_no": bno, "parenttype": "Port Arrival",
+                         "resolution_type": "Accepted as-is"},
+                fields=["name", "parent", "resolution_note", "resolved_by",
+                        "resolved_on"],
+                order_by="resolved_on desc", limit_page_length=0):
+            accepted = r
+            break
+        if not accepted:
+            continue
+        note = _s(accepted.get("resolution_note")) or "accepted earlier"
+        who = person or _s(accepted.get("resolved_by")) or frappe.session.user
+        if dry:
+            others = [o["name"] for o in _other_rows_for_block(accepted["name"], bno)
+                      if not _s(o.get("resolution_type"))
+                      and _s(o.get("recon_status")).lower() not in ("resolved", "accepted")]
+            out.append({"block_no": bno, "accepted_on": accepted.get("parent"),
+                        "accepted_by": who, "note": note[:80],
+                        "rows_to_close": len(others)})
+            continue
+        swept = _supersede_other_rows(accepted["name"], bno, note, who, machine)
+        out.append({"block_no": bno, "accepted_on": accepted.get("parent"),
+                    "accepted_by": who, "note": note[:80],
+                    "rows_closed": len(swept)})
+    if not dry:
+        frappe.db.commit()
+    return {"dry_run": bool(dry), "blocks": len(out),
+            "rows": sum(x.get("rows_to_close", x.get("rows_closed", 0)) for x in out),
+            "detail": out[:200]}
 
 
 @frappe.whitelist()
