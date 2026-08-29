@@ -8135,7 +8135,36 @@ def repair_arrival_block_numbers(arrival=None, dry_run=1, reason=None):
                 if checks["second_list"]:
                     agreed.append("second_list")
 
-            solid = checks["weight"] and checks["cbm"] and len(agreed) >= 3
+            # ==========================================================
+            # ASK FOR EVIDENCE THE AGENCY ACTUALLY SENDS.  28 Aug 2026
+            #
+            # [stated] "30 jul arrivals doesnt have 804 is not there then why
+            # is it listed? parsing is not correct rechecck" -- and he was
+            # right. 24 rows on ARR-30Jul2026-NA-2 carry a number that appears
+            # NOWHERE in the sheet: the agency wrote 1378, the record says 804.
+            #
+            # This repair had already found all 24 and refused every one of
+            # them, because it wanted three witnesses out of five and only two
+            # existed. That sheet's header is SL.NO / DATE / SHIPPER / MARKING
+            # / BLOCK NO / CBM / AD NO / CALUCULATED WEIGHT / LINE NO. / WAY O
+            # TRANSPORT -- there is no length, width or height column at all,
+            # and no second listing. His own rule says so: "few shipping
+            # agencies like in Krishnapatnam are not entering proper
+            # measurements". So the bar was asking for a witness this agency
+            # never sends, and 24 misfiled rows sat there because of it.
+            #
+            # So the bar is now set by what the SHEET can offer. Where it
+            # carries dimensions, three witnesses as before -- a dimension that
+            # disagrees still stops the write. Where it carries none, weight
+            # AND cbm both agreeing on a row already aligned by position is the
+            # whole of the available evidence, and it is enough.
+            # ==========================================================
+            _has_dim_cols = any(
+                any(k in h for k in ("length", "width", "height",
+                                     "l(cm)", "w(cm)", "h(cm)"))
+                for h in hdr)
+            _needed = 3 if _has_dim_cols else 2
+            solid = checks["weight"] and checks["cbm"] and len(agreed) >= _needed
             if second and not checks.get("second_list"):
                 # The sheet lists every block twice. If their own second list
                 # does not carry this number at this weight, do not write it.
@@ -8144,12 +8173,16 @@ def repair_arrival_block_numbers(arrival=None, dry_run=1, reason=None):
                 refused.append({"arrival": nm, "row_idx": st.idx,
                                 "stored_as": _s(st.block_no), "agency_wrote": agency_no,
                                 "agreed_on": agreed,
+                                "witnesses_available": (5 if _has_dim_cols else 2)
+                                                       + (1 if second else 0),
                                 "why": "the figures do not corroborate it - left alone"})
                 continue
 
             would.append({"arrival": nm, "row_idx": st.idx,
                           "from": _s(st.block_no), "to": agency_no,
-                          "agreed_on": agreed, "mt": st.net_wt})
+                          "agreed_on": agreed, "needed": _needed,
+                          "sheet_has_measurements": bool(_has_dim_cols),
+                          "cbm": st.cbm, "mt": st.net_wt})
             changed_here += 1
             if not dry:
                 frappe.db.set_value("Port Arrival Block", st.name, {
