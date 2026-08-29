@@ -3806,7 +3806,12 @@ def finish_open_accepts(dry_run=1, person=None, machine=None):
         note = _s(accepted.get("resolution_note")) or "accepted earlier"
         who = person or _s(accepted.get("resolved_by")) or frappe.session.user
         if dry:
-            others = [o["name"] for o in _other_rows_for_block(accepted["name"], bno)
+            # 29 Aug 2026: the two arguments were the wrong way round here, so
+            # the dry run reported 0 rows to close on blocks that plainly had
+            # some. Found by running it against 1139 and 1031 and not believing
+            # the answer. The sweep itself was always correct; only this count
+            # was wrong -- but a count shown to a person has to be right.
+            others = [o["name"] for o in _other_rows_for_block(bno, accepted["name"])
                       if not _s(o.get("resolution_type"))
                       and _s(o.get("recon_status")).lower() not in ("resolved", "accepted")]
             out.append({"block_no": bno, "accepted_on": accepted.get("parent"),
