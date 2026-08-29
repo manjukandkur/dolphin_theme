@@ -275,11 +275,47 @@ def _draft_checks():
                "The agency sent a spreadsheet and we read nothing out of it. "
                "That is a lost arrival and a parsing bug, not an empty sheet. "
                "It must never be deleted as one - it needs looking at."),
+        _check("arrivals.accepting_finishes_the_block",
+               "A block someone accepted is not asked about again",
+               not _accepted_blocks_still_in_queue(),
+               _cap(_accepted_blocks_still_in_queue()),
+               "He pressed Accept, typed a reason, and the block came back in "
+               "the queue. Accepting settles the BLOCK, not one row: every "
+               "other unsettled row for that number is closed behind the one "
+               "accepted. If this fails, that sweep has stopped working."),
         _check("draft.counted",
                "Draft challans on the site right now",
                True, {"draft_challans": len(draft_dcs),
                       "blocks_only_on_a_draft": len(only_draft)}),
     ]
+
+
+def _accepted_blocks_still_in_queue():
+    """Block numbers a person has ACCEPTED that are still being asked about.
+
+    28 Aug 2026, his report: "even after giving a reason note and accepted one,
+    still again it is reflecting under needs you". Only the row he pressed was
+    settled; the rest of the group still disagreed, so the question came back.
+    Accepting now closes the block. This is the guard that says so, forever: if
+    a block carries an accepted row and still appears in the disagreement queue,
+    the button has stopped finishing its job."""
+    try:
+        from dolphin_theme.api_arrivals import duplicate_rows
+        groups = duplicate_rows() or []
+        if not groups:
+            return []
+        nums = [_s(g.get("block_no")) for g in groups if _s(g.get("block_no"))]
+        if not nums:
+            return []
+        accepted = frappe.get_all(
+            "Port Arrival Block",
+            filters={"block_no": ["in", nums], "parenttype": "Port Arrival",
+                     "resolution_type": "Accepted as-is"},
+            fields=["block_no"], limit_page_length=0)
+        seen = {_s(r.get("block_no")) for r in accepted}
+        return sorted(n for n in set(nums) if n in seen)
+    except Exception:
+        return []
 
 
 def _lot_gate_sane():

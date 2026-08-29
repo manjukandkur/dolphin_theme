@@ -3447,6 +3447,11 @@ def reject_acceptance(row=None, block_no=None, arrival=None, reason=None,
             updates[f] = v
     frappe.db.set_value("Port Arrival Block", name, updates, update_modified=False)
 
+    # The rows this acceptance closed behind it come back first, so the
+    # "does anything else still say this block arrived?" test below is asked
+    # against the true state and not against our own sweep.
+    reopened = _reopen_superseded_rows(name, bno)
+
     hit, _why = try_resolve(bno, allow_record_name=False)
     # ==================================================================
     # UNDOING ONE ACCEPTANCE MUST NOT UNDO SOMEBODY ELSE'S.  26 Aug 2026.
@@ -3510,7 +3515,129 @@ def reject_acceptance(row=None, block_no=None, arrival=None, reason=None,
         log_event(hit["name"], "acceptance-rejected", "Resolved", "", reason,
                   machine_of(machine), person)
     frappe.db.commit()
-    return {"ok": True, "row": name, "block_no": bno}
+    return {"ok": True, "row": name, "block_no": bno,
+            "reopened": len(reopened),
+            "message": ("Acceptance undone for {0}.".format(bno)
+                        + ((" {0} row(s) closed behind it are back in the "
+                            "queue.".format(len(reopened))) if reopened else ""))}
+
+
+# ---------------------------------------------------------------------------
+# ACCEPTING A ROW ANSWERS THE BLOCK, NOT JUST THE ROW.  28 Aug 2026
+#
+# [stated] "even after giving a reason note and accepted one, still again it is
+# reflecting under needs you"
+#
+# It was. Block 1031 had four rows; he accepted one at 11:05 with the note
+# "Agency mistake, sorted", and the other three still disagreed with each other,
+# so the group came straight back with three rows in it. Block 1139 the same,
+# twice, on two different days. The acceptance saved correctly every time -- the
+# question simply was not finished.
+#
+# The screen already says what accepting means: "Accept the row that is right,
+# or send the wrong one to the Trash." So accepting is a decision about the
+# BLOCK. Every other unsettled row for that block is therefore closed as
+# superseded by the one he kept, carrying his note, his name and the sheet he
+# accepted, and reject_acceptance re-opens all of them together.
+#
+# Nothing is deleted. Nothing is compared. The figures on the superseded rows
+# stay exactly as the agency sent them.
+# ---------------------------------------------------------------------------
+SUPERSEDED_TYPE = "Superseded by accepted row"
+SUPERSEDED_PREFIX = "Superseded by the row accepted on "
+
+
+def _resolution_type_allows(value):
+    """True when resolution_type can actually hold this option. If the option is
+    not there yet, the row is still settled by recon_status and the note says
+    why -- a missing Select option must never leave a decision unrecorded."""
+    try:
+        f = frappe.get_meta("Port Arrival Block").get_field("resolution_type")
+        if not f:
+            return False
+        if f.fieldtype != "Select":
+            return True
+        return value in [o.strip() for o in (f.options or "").split("\n")]
+    except Exception:
+        return False
+
+
+def _other_rows_for_block(block_no, exclude):
+    """The rows the person was actually shown — the ones carrying the SAME
+    number, exactly as the queue groups them. Deliberately NOT widened through
+    _pab_alt_keys: on this site a number can be one stone's quarry number and
+    another stone's export number, and closing a row the person never saw would
+    be the bare-number mistake all over again."""
+    key = _s(block_no)
+    if not key:
+        return []
+    try:
+        return frappe.get_all(
+            "Port Arrival Block",
+            filters={"block_no": key,
+                     "parenttype": "Port Arrival",
+                     "name": ["!=", exclude]},
+            fields=["name", "parent", "recon_status", "resolution_type",
+                    "resolution_note"],
+            limit_page_length=0)
+    except Exception:
+        return []
+
+
+def _supersede_other_rows(kept_row, block_no, note, person=None, machine=None):
+    """Close the block's other unsettled rows behind the one that was accepted."""
+    from dolphin_theme.block_resolve import machine_of
+    meta = frappe.get_meta("Port Arrival Block")
+    kept_sheet = _s(frappe.db.get_value("Port Arrival Block", kept_row, "parent"))
+    who = person or frappe.session.user
+    done = []
+    for o in _other_rows_for_block(block_no, kept_row):
+        if _s(o.get("resolution_type")):
+            continue
+        if _s(o.get("recon_status")).lower() in ("resolved", "accepted"):
+            continue
+        upd = {
+            "recon_status": "Resolved",
+            "resolution_note": "{0}{1} · {2} · {3}".format(
+                SUPERSEDED_PREFIX, kept_sheet or "another sheet", who, note),
+        }
+        if meta.has_field("resolution_type") and _resolution_type_allows(SUPERSEDED_TYPE):
+            upd["resolution_type"] = SUPERSEDED_TYPE
+        if meta.has_field("resolved_by"):
+            upd["resolved_by"] = frappe.session.user
+        if meta.has_field("resolved_on"):
+            upd["resolved_on"] = now_datetime()
+        if meta.has_field("resolved_machine"):
+            upd["resolved_machine"] = machine_of(machine)
+        try:
+            frappe.db.set_value("Port Arrival Block", o["name"], upd,
+                                update_modified=False)
+            done.append(o["name"])
+        except Exception:
+            frappe.log_error(frappe.get_traceback(), "supersede arrival row")
+    return done
+
+
+def _reopen_superseded_rows(kept_row, block_no):
+    """Undo the sweep above: every row closed behind this acceptance comes back."""
+    back = []
+    for o in _other_rows_for_block(block_no, kept_row):
+        note = _s(o.get("resolution_note"))
+        is_superseded = (_s(o.get("resolution_type")) == SUPERSEDED_TYPE
+                         or note.startswith(SUPERSEDED_PREFIX))
+        if not is_superseded:
+            continue
+        try:
+            frappe.db.set_value("Port Arrival Block", o["name"], {
+                "recon_status": "",
+                "resolution_type": None,
+                "resolution_note": "RE-OPENED: the acceptance behind this row "
+                                   "was undone. Previously — " + note,
+            }, update_modified=False)
+            back.append(o["name"])
+        except Exception:
+            frappe.log_error(frappe.get_traceback(), "reopen superseded row")
+    return back
 
 
 @frappe.whitelist()
@@ -3549,12 +3676,22 @@ def accept_with_note(row=None, block_no=None, arrival=None, note=None,
         updates["resolved_machine"] = machine_of(machine)
     frappe.db.set_value("Port Arrival Block", name, updates, update_modified=False)
 
+    swept = _supersede_other_rows(name, bno, note, person, machine)
+
+    def _swept_line():
+        if not swept:
+            return ""
+        return (" The other {0} row(s) for {1} were closed behind it — nothing "
+                "deleted, undo brings them back.".format(len(swept), bno))
+
     hit, why = try_resolve(bno, allow_record_name=False)
     if not hit:
         frappe.db.commit()
         return {"ok": True, "row": name, "block_no": bno, "block": None, "why": why,
-                "message": "Row accepted, but {0} does not resolve to exactly one "
-                           "block, so no block status was changed.".format(bno)}
+                "superseded": len(swept),
+                "message": ("Row accepted, but {0} does not resolve to exactly one "
+                            "block, so no block status was changed.".format(bno)
+                            + _swept_line())}
     try:
         frappe.get_doc("Quarry Block", hit["name"]).add_comment(
             "Comment", "Accepted at port with note · {0} · {1} · {2}".format(
@@ -3589,7 +3726,8 @@ def accept_with_note(row=None, block_no=None, arrival=None, note=None,
               machine_of(machine), person)
     frappe.db.commit()
     return {"ok": True, "row": name, "block_no": bno, "block": hit["name"],
-            "status": res.get("status")}
+            "status": res.get("status"), "superseded": len(swept),
+            "message": "Block {0} accepted with a note.".format(bno) + _swept_line()}
 
 
 @frappe.whitelist()

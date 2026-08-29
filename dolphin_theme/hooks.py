@@ -75,6 +75,7 @@ doc_events = {
 # writes a Property Setter only when an option is genuinely missing.
 after_migrate = [
     "dolphin_theme.lifecycle.ensure_stages",
+    "dolphin_theme.lifecycle.ensure_resolution_types",
     "dolphin_theme.sizing.ensure_fields",
 ]
 

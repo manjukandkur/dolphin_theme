@@ -573,3 +573,45 @@ def _as_list(v):
     if not out:
         frappe.throw("No blocks given.")
     return out
+
+
+# ---------------------------------------------------------------------------
+# 28 Aug 2026. A row closed behind an accepted one is neither "Accepted as-is"
+# nor "Removed (duplicate)" — it is superseded, and calling it either of those
+# would misreport what a person decided. The option is added the same way the
+# stages are: a Property Setter, which is site data and survives every deploy.
+# Idempotent.
+# ---------------------------------------------------------------------------
+RESOLUTION_TYPES = ("Superseded by accepted row",)
+
+
+def ensure_resolution_types():
+    """Make 'Superseded by accepted row' selectable on Port Arrival Block."""
+    try:
+        meta = frappe.get_meta("Port Arrival Block")
+        field = meta.get_field("resolution_type")
+        if not field or field.fieldtype != "Select":
+            return {"ok": False, "reason": "resolution_type is not a Select field"}
+        opts = [o for o in (field.options or "").split("\n")]
+        missing = [s for s in RESOLUTION_TYPES if s not in opts]
+        if not missing:
+            return {"ok": True, "added": []}
+        opts.extend(missing)
+        frappe.make_property_setter({
+            "doctype": "Port Arrival Block",
+            "fieldname": "resolution_type",
+            "property": "options",
+            "value": "\n".join(opts),
+            "property_type": "Text",
+        }, is_system_generated=False)
+        frappe.clear_cache(doctype="Port Arrival Block")
+        return {"ok": True, "added": missing}
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), "Dolphin ensure_resolution_types")
+        return {"ok": False}
+
+
+@frappe.whitelist()
+def setup_resolution_types():
+    """Run ensure_resolution_types() on demand, without waiting for a migrate."""
+    return ensure_resolution_types()
