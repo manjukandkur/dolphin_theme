@@ -3829,6 +3829,122 @@ def finish_open_accepts(dry_run=1, person=None, machine=None):
             "detail": out[:200]}
 
 
+RETIRED_PREFIX = "RETIRED: "
+
+
+@frappe.whitelist()
+def retire_arrival_sheet(arrival=None, reason=None, person=None, machine=None,
+                         dry_run=1):
+    """Retire a stand-in arrival sheet. Nothing is deleted and no stone moves.
+
+    29 Aug 2026. ARR-27Jul2026-NA was never a sheet. Its own version records say
+    it: created 27 Jul with 1300-series numbers and no figures, filled with
+    another consignment's figures on 17 Aug, then relabelled 801-856 on 19 Aug
+    by 62 renames of which NOT ONE holds up (export 820 is quarry 2081, not
+    1342). 49 of its 56 rows carry figures that are not that block's. It was a
+    stand-in raised because no agency sheet existed, and the real sheet has
+    since arrived.
+
+    So this closes every unsettled row on the sheet as superseded, with the
+    reason written onto each row, and stops it asking questions. It deliberately
+    does NOT touch the document's status, does not remove it as arrival
+    evidence, and does not move a single block -- retiring a piece of paper must
+    never move stone. `restore_arrival_sheet` puts every row back.
+
+    Read-only unless dry_run is 0."""
+    from dolphin_theme.block_resolve import machine_of
+    dry = _s(dry_run) not in ("0", "false", "False", "")
+    arrival = _s(arrival)
+    if not arrival or not frappe.db.exists("Port Arrival", arrival):
+        frappe.throw("Which arrival sheet is being retired?")
+    if not dry and len(_s(reason)) < 8:
+        frappe.throw("Say why this sheet is being retired - that reason is "
+                     "written onto every row and is the only record of it.")
+
+    rows = frappe.get_all("Port Arrival Block",
+                          filters={"parent": arrival, "parenttype": "Port Arrival"},
+                          fields=["name", "block_no", "recon_status",
+                                  "resolution_type"],
+                          order_by="idx asc", limit_page_length=0)
+    meta = frappe.get_meta("Port Arrival Block")
+    who = person or frappe.session.user
+    touched, already = [], 0
+    for r in rows:
+        if _s(r.get("resolution_type")) or _s(r.get("recon_status")).lower() in (
+                "resolved", "accepted"):
+            already += 1
+            continue
+        if dry:
+            touched.append(_s(r.get("block_no")))
+            continue
+        upd = {"recon_status": "Resolved",
+               "resolution_note": RETIRED_PREFIX + _s(reason)}
+        if meta.has_field("resolution_type") and _resolution_type_allows(SUPERSEDED_TYPE):
+            upd["resolution_type"] = SUPERSEDED_TYPE
+        if meta.has_field("resolved_by"):
+            upd["resolved_by"] = frappe.session.user
+        if meta.has_field("resolved_on"):
+            upd["resolved_on"] = now_datetime()
+        if meta.has_field("resolved_machine"):
+            upd["resolved_machine"] = machine_of(machine)
+        try:
+            frappe.db.set_value("Port Arrival Block", r["name"], upd,
+                                update_modified=False)
+            touched.append(_s(r.get("block_no")))
+        except Exception:
+            frappe.log_error(frappe.get_traceback(), "retire_arrival_sheet")
+    if not dry:
+        try:
+            frappe.get_doc("Port Arrival", arrival).add_comment(
+                "Comment",
+                "Sheet retired by {0}. {1} row(s) closed as superseded. "
+                "Nothing deleted, no block moved, and the sheet is still "
+                "readable. Reason: {2}".format(who, len(touched), _s(reason)))
+        except Exception:
+            pass
+        frappe.db.commit()
+    return {"dry_run": bool(dry), "arrival": arrival, "rows": len(rows),
+            "retired": len(touched), "already_settled": already,
+            "blocks": touched[:200]}
+
+
+@frappe.whitelist()
+def restore_arrival_sheet(arrival=None, reason=None, person=None):
+    """Undo retire_arrival_sheet: every row it closed comes back to the queue."""
+    arrival = _s(arrival)
+    if not arrival:
+        frappe.throw("Which arrival sheet?")
+    back = []
+    for r in frappe.get_all("Port Arrival Block",
+                            filters={"parent": arrival,
+                                     "parenttype": "Port Arrival"},
+                            fields=["name", "block_no", "resolution_note"],
+                            limit_page_length=0):
+        note = _s(r.get("resolution_note"))
+        if not note.startswith(RETIRED_PREFIX):
+            continue
+        try:
+            frappe.db.set_value("Port Arrival Block", r["name"], {
+                "recon_status": "",
+                "resolution_type": None,
+                "resolution_note": "RE-OPENED: the sheet was un-retired. "
+                                   "Previously - " + note,
+            }, update_modified=False)
+            back.append(_s(r.get("block_no")))
+        except Exception:
+            frappe.log_error(frappe.get_traceback(), "restore_arrival_sheet")
+    if back:
+        try:
+            frappe.get_doc("Port Arrival", arrival).add_comment(
+                "Comment", "Sheet un-retired by {0}. {1} row(s) back in the "
+                "queue. {2}".format(person or frappe.session.user, len(back),
+                                    _s(reason)))
+        except Exception:
+            pass
+        frappe.db.commit()
+    return {"arrival": arrival, "restored": len(back), "blocks": back[:200]}
+
+
 @frappe.whitelist()
 def find_by_note(q=None, limit=300):
     """Find every block carrying a note, optionally matching text.
