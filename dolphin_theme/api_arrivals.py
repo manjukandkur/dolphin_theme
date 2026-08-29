@@ -3946,6 +3946,116 @@ def restore_arrival_sheet(arrival=None, reason=None, person=None):
 
 
 @frappe.whitelist()
+def apply_agency_weights(shipping_document=None, lot=None, arrival=None,
+                         reason=None, person=None, dry_run=1):
+    """Take the tonnage on a shipment from the agency's own sheet.
+
+    29 Aug 2026. His rule, 17 Aug: "The weight in Tons and kgs from port
+    shipping agency is final for invoicing." Until now that had to happen by
+    hand, and on SHP-EXP-00005 it had gone wrong in the worst way: 23 of the 56
+    rows carried a weight lifted off a DIFFERENT stone that merely shared the
+    number, so the invoice stood on 728.537 MT against the agency's weighed
+    965.98. This makes the rule a single action instead of 56 edits.
+
+    Every block is matched to the named arrival sheet ON ITS OWN NUMBER, and
+    only that sheet is read, so where the figure came from is one document that
+    can be opened. A block the sheet does not carry is left exactly as it is and
+    named in the result -- never guessed at.
+
+    What the row keeps: the agency's figure in `agency_net_tonnage`, which is
+    now true (it really is the agency's), the previous value written into the
+    row's note, and the reason. Read-only unless dry_run is 0."""
+    dry = _s(dry_run) not in ("0", "false", "False", "")
+    arrival = _s(arrival)
+    if not arrival or not frappe.db.exists("Port Arrival", arrival):
+        frappe.throw("Which arrival sheet are the weights being taken from?")
+    if not dry and len(_s(reason)) < 8:
+        frappe.throw("Say why the weights are being taken from this sheet - the "
+                     "reason goes onto every row that changes, and this figure "
+                     "is the invoice.")
+    if not shipping_document and not lot:
+        frappe.throw("Which shipment - a shipping document, a lot, or both?")
+
+    agency = {}
+    for r in frappe.get_all("Port Arrival Block",
+                            filters={"parent": arrival,
+                                     "parenttype": "Port Arrival"},
+                            fields=["block_no", "net_wt", "cbm"],
+                            limit_page_length=0):
+        key = _s(r.get("block_no"))
+        if key and flt(r.get("net_wt")):
+            agency[key] = flt(r.get("net_wt"))
+    if not agency:
+        frappe.throw("{0} carries no weights to take.".format(arrival))
+
+    out = {"dry_run": bool(dry), "arrival": arrival, "documents": []}
+
+    def _do(doctype, name, table):
+        doc = frappe.get_doc(doctype, name)
+        if cint(doc.docstatus) == 1:
+            return {"document": name, "skipped": "it is submitted - cancel or "
+                    "amend it first; a filed document is not edited behind its "
+                    "own back"}
+        rows = doc.get(table) or []
+        changed, missing, same = [], [], 0
+        before = round(sum(flt(r.get("net_tonnage")) for r in rows), 3)
+        for r in rows:
+            keys = [_s(r.get("export_block_no")), _s(r.get("block_no"))]
+            hit = next((agency[k] for k in keys if k and k in agency), None)
+            if hit is None:
+                missing.append(_s(r.get("export_block_no") or r.get("block_no")))
+                continue
+            was = flt(r.get("net_tonnage"))
+            if _near(was, hit, 0.005):
+                same += 1
+                continue
+            changed.append({"block": _s(r.get("export_block_no") or r.get("block_no")),
+                            "was": round(was, 3), "now": round(hit, 3)})
+            if dry:
+                continue
+            if r.meta.has_field("agency_net_tonnage"):
+                r.set("agency_net_tonnage", hit)
+            if r.meta.has_field("agency_net_kgs"):
+                r.set("agency_net_kgs", cint(round(hit * 1000)))
+            r.set("net_tonnage", hit)
+            if r.meta.has_field("net_kgs"):
+                r.set("net_kgs", cint(round(hit * 1000)))
+            for f in ("edit_note", "remarks", "note"):
+                if r.meta.has_field(f):
+                    r.set(f, ("weight taken from {0}: was {1}, now {2}. {3}"
+                              .format(arrival, round(was, 3), round(hit, 3),
+                                      _s(reason)))[:500])
+                    break
+        after = round(sum(flt(r.get("net_tonnage")) for r in rows), 3)
+        if not dry and changed:
+            doc.flags.ignore_mandatory = True
+            doc.save(ignore_permissions=True)
+            try:
+                doc.add_comment("Comment",
+                                "Tonnage taken from {0} by {1}. {2} row(s) "
+                                "changed, total {3} -> {4} MT. Reason: {5}"
+                                .format(arrival, person or frappe.session.user,
+                                        len(changed), before, after, _s(reason)))
+            except Exception:
+                pass
+        return {"document": name, "rows": len(rows), "changed": len(changed),
+                "already_right": same, "not_on_the_sheet": missing,
+                "total_before": before, "total_after": after,
+                "detail": changed[:200]}
+
+    if lot:
+        out["documents"].append(_do("Export Shipment Lot", lot,
+                                    _lot_table_field(frappe.get_doc(
+                                        "Export Shipment Lot", lot))))
+    if shipping_document:
+        out["documents"].append(_do("Shipping Document", shipping_document,
+                                    "blocks"))
+    if not dry:
+        frappe.db.commit()
+    return out
+
+
+@frappe.whitelist()
 def find_by_note(q=None, limit=300):
     """Find every block carrying a note, optionally matching text.
 
