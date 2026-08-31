@@ -113,6 +113,22 @@ CUSTOM_FIELDS = [
         "fieldname": "size_rule_display", "label": "Sizes by", "fieldtype": "Small Text",
         "insert_after": "size_variation", "read_only": 1,
         "description": "Which bands this document was sorted by, in words. Written on every save."}),
+    # A block promoted to a higher band because the buyer agreed. Three fields,
+    # because a promotion without a name on it is just an edit.
+    ("Shipping Block", {
+        "fieldname": "size_promoted_from", "label": "Promoted from", "fieldtype": "Data",
+        "insert_after": "carried_size", "read_only": 1,
+        "description": "The size the bands gave this block before a person promoted it."}),
+    ("Shipping Block", {
+        "fieldname": "size_consent_by", "label": "Buyer consent from", "fieldtype": "Data",
+        "insert_after": "size_promoted_from", "read_only": 1,
+        "description": "Who at the buyer agreed. A note inside the shipping document "
+                       "only - 31 Aug 2026, his instruction: \"nothing should reflect "
+                       "in the printout you can take note in the shipping documents\". "
+                       "The invoice and the packing list are unchanged."}),
+    ("Shipping Block", {
+        "fieldname": "size_consent_on", "label": "Consent recorded", "fieldtype": "Datetime",
+        "insert_after": "size_consent_by", "read_only": 1}),
 ]
 
 
@@ -314,8 +330,13 @@ def _source_measurements(key):
 
 
 def _doc_consignee(doc):
-    """The buyer this document belongs to, whatever the doctype calls the field."""
-    for f in ("export_consignee", "consignee", "buyer"):
+    """The buyer this document belongs to, whatever the doctype calls the field.
+
+    31 Aug 2026. [stated] "size segregation at BI level should happen based on
+    the size defined for that buyer on the previous invoice unless selected
+    manually otherwise" - so the Buyer Inspection is included, and it names its
+    buyer `export_buyer`."""
+    for f in ("export_consignee", "export_buyer", "consignee", "local_buyer", "buyer"):
         try:
             if doc.meta.has_field(f) and _s(doc.get(f)):
                 return _s(doc.get(f))
@@ -683,10 +704,19 @@ def learned_size_rule(consignee=None):
     consignee = _s(consignee)
     if not consignee:
         frappe.throw("Which buyer?")
+    # 31 Aug 2026. [stated] "it doesnt matter till the shipping docs whatever may
+    # be the size category.. but thumbrule in general is size as per previous
+    # shipping docs for that consignee".
+    #
+    # So the newest document first: its bands ARE the thumb rule. The figures
+    # across every document they have taken are reported beside it, because the
+    # two can differ and the difference is worth seeing before either is saved.
     docs = frappe.get_all("Shipping Document",
                           filters={"export_consignee": consignee},
-                          fields=["name", "docstatus"], limit_page_length=0)
-    seen, sizes = [], {}
+                          fields=["name", "docstatus", "shipment_date", "creation"],
+                          order_by="ifnull(shipment_date, creation) desc",
+                          limit_page_length=0)
+    seen, sizes, latest = [], {}, {}
     for d in docs:
         try:
             sd = frappe.get_doc("Shipping Document", d.name)
@@ -711,7 +741,23 @@ def learned_size_rule(consignee=None):
             n += 1
         if n:
             seen.append({"document": d.name, "blocks": n,
+                         "date": _s(d.get("shipment_date"))[:10],
                          "submitted": cint(d.docstatus) == 1})
+            if not latest:
+                # the newest document that actually carries sized blocks
+                latest = {"document": d.name, "date": _s(d.get("shipment_date"))[:10],
+                          "sizes": {}}
+                for b in (sd.get("blocks") or []):
+                    l2, w2, h2 = (flt(b.get("length")), flt(b.get("width")),
+                                  flt(b.get("height")))
+                    c2 = _s(b.get(SIZE_FIELD))
+                    if not (l2 and w2 and h2 and c2):
+                        continue
+                    k2 = latest["sizes"].setdefault(
+                        c2, {"n": 0, "l": l2, "w": w2, "h": h2})
+                    k2["n"] += 1
+                    k2["l"] = min(k2["l"], l2); k2["w"] = min(k2["w"], w2)
+                    k2["h"] = min(k2["h"], h2)
     house = {c.get("size_category_name") or c["name"]:
              (cint(c.get("min_length")), cint(c.get("min_width")), cint(c.get("min_height")))
              for c in _categories()}
@@ -727,13 +773,20 @@ def learned_size_rule(consignee=None):
             "stricter_than_house": [int(k["min_l"]) - h_l, int(k["min_w"]) - h_w,
                                     int(k["min_h"]) - h_h],
         })
+    thumb = []
+    for cat, k in sorted((latest.get("sizes") or {}).items()):
+        thumb.append({"size": cat, "blocks": k["n"],
+                      "smallest_accepted": [int(k["l"]), int(k["w"]), int(k["h"])]})
     return {"consignee": consignee, "buyer_name": _buyer_name(consignee),
             "from_documents": seen,
             "blocks_read": sum(s["blocks"] for s in out),
+            "thumb_rule": {"document": latest.get("document"),
+                           "date": latest.get("date"), "sizes": thumb},
             "sizes": out,
-            "note": "The smallest block accepted at each size is the floor this buyer "
-                    "agreed to. It is a floor, not a promise - take it exactly or "
-                    "leave yourself a cushion."}
+            "note": "The thumb rule is their PREVIOUS shipping document. The figures "
+                    "under 'sizes' are the floor across every document they have "
+                    "taken - shown beside it because the two can differ, and the "
+                    "smallest ever accepted is a floor, not a promise."}
 
 
 @frappe.whitelist()
@@ -798,3 +851,141 @@ def save_size_rule(consignee=None, variation=None, cushion=0, reason=None,
             "buyer_name": _buyer_name(consignee), "variation": variation,
             "cushion_cm": cush, "bands": planned, "written": done,
             "blocks_read": learned.get("blocks_read")}
+
+
+# ===========================================================================
+# THE MARGINAL ONES.  31 Aug 2026
+#
+# [stated] "if the defined size 190*80*50 threshold equals or more is A and rest
+#  C. If you come across blocks with 2-3 cms variation eg: 188*200*100,
+#  220*77*100 etc you can highlight them so that if buyer consents will be
+#  pushed to higer price band like A size etc"
+#
+# So the sort keeps doing its job, and the only blocks it asks about are the
+# ones that missed the higher band by a hair. Three centimetres by default,
+# his figure. A block that misses on two dimensions is still marginal if both
+# shortfalls are inside the tolerance - it is the size of the miss that matters,
+# not how many sides missed.
+#
+# Nothing is promoted by the app. [stated] "it will be decided by the person who
+# is making the shipping documents only after taking buyer's consent.. we cannot
+# or app cannot decide it should still go by the defined rules" - so the sort
+# always follows the bands, the app only ever HIGHLIGHTS, and a promotion is a
+# person recording that the buyer agreed.
+#
+# [stated] "nothing should reflect in the printout you can take note in the
+# shipping documents" - so the consent is a note on the document and NOTHING
+# reaches the invoice or the packing list. No footnote, no marker, no change to
+# either print format.
+# ===========================================================================
+
+MARGINAL_CM = 3
+
+
+@frappe.whitelist()
+def marginal_blocks(shipping_document=None, tolerance_cm=None):
+    """Blocks that missed a higher size band by no more than the tolerance."""
+    name = _s(shipping_document)
+    if not name:
+        frappe.throw("Which shipping document?")
+    tol = cint(tolerance_cm) if tolerance_cm not in (None, "") else MARGINAL_CM
+    doc = frappe.get_doc("Shipping Document", name)
+    consignee = _doc_consignee(doc)
+    variation = _s(doc.get("size_variation"))
+    bands = _categories(consignee, variation)
+    order = {"A": 1, "B": 2, "C": 3}
+
+    def rank(cat):
+        return order.get(_s(cat), 9)
+
+    out = []
+    for b in (doc.get("blocks") or []):
+        l, w, h = flt(b.get("length")), flt(b.get("width")), flt(b.get("height"))
+        if not (l and w and h):
+            continue
+        now = _s(b.get(SIZE_FIELD))
+        for c in bands:
+            cat = _s(c.get("size_category_name")) or _s(c.get("name"))
+            if rank(cat) >= rank(now):
+                continue          # only ever look UPWARDS
+            ml, mw, mh = (cint(c.get("min_length")), cint(c.get("min_width")),
+                          cint(c.get("min_height")))
+            short = []
+            if l < ml:
+                short.append(("length", ml - l))
+            if w < mw:
+                short.append(("width", mw - w))
+            if h < mh:
+                short.append(("height", mh - h))
+            if not short:
+                continue          # it clears; the sort would have put it here
+            if max(d for _, d in short) > tol:
+                continue          # not marginal, genuinely smaller
+            out.append({
+                "row": _s(b.name),
+                "block": _s(b.get("export_block_no")) or _s(b.get("block_no")),
+                "size": [int(l), int(w), int(h)],
+                "now": now, "could_be": cat,
+                "short_by": [{"side": k, "cm": int(round(d))} for k, d in short],
+                "worst_cm": int(round(max(d for _, d in short))),
+                "band": [ml, mw, mh],
+                "net_tonnage": flt(b.get("net_tonnage")),
+            })
+            break
+    out.sort(key=lambda x: x["worst_cm"])
+    return {"document": name, "tolerance_cm": tol,
+            "sizes_by": rule_in_force(consignee, variation),
+            "count": len(out), "blocks": out,
+            "note": "These missed the higher band by {0} cm or less. Nothing moves "
+                    "unless a person records that the buyer agreed.".format(tol)}
+
+
+@frappe.whitelist()
+def promote_block_size(shipping_document=None, row=None, to_size=None,
+                       agreed_by=None, reason=None, person=None, dry_run=1):
+    """Move one block up a band because the buyer said yes. Reversible."""
+    dry = _s(dry_run) not in ("0", "false", "False", "")
+    name, row, to_size = _s(shipping_document), _s(row), _s(to_size)
+    if not (name and row and to_size):
+        frappe.throw("Which document, which row, and to which size?")
+    if not dry and len(_s(agreed_by)) < 2:
+        frappe.throw("Name the person at the buyer who agreed - that name is the "
+                     "whole point of a promotion rather than an edit.")
+    doc = frappe.get_doc("Shipping Document", name)
+    if cint(doc.docstatus) == 1:
+        frappe.throw("{0} is submitted. A filed document is not edited behind its "
+                     "own back.".format(name))
+    target = None
+    for b in (doc.get("blocks") or []):
+        if _s(b.name) == row:
+            target = b
+            break
+    if target is None:
+        frappe.throw("That row is not on {0}.".format(name))
+    was = _s(target.get(SIZE_FIELD))
+    if dry:
+        return {"dry_run": True, "document": name,
+                "block": _s(target.get("export_block_no")) or _s(target.get("block_no")),
+                "from": was, "to": to_size}
+    if target.meta.has_field("size_promoted_from") and not _s(target.get("size_promoted_from")):
+        target.set("size_promoted_from", was)
+    if target.meta.has_field("size_consent_by"):
+        target.set("size_consent_by", _s(agreed_by))
+    if target.meta.has_field("size_consent_on"):
+        target.set("size_consent_on", frappe.utils.now())
+    target.set(SIZE_FIELD, to_size)
+    doc.flags.ignore_mandatory = True
+    doc.save(ignore_permissions=True)
+    try:
+        doc.add_comment("Comment",
+                        "Block {0} moved from {1} to {2} with the buyer's consent - "
+                        "agreed by {3}, recorded by {4}. {5}".format(
+                            _s(target.get("export_block_no")) or _s(target.get("block_no")),
+                            was or "(none)", to_size, _s(agreed_by),
+                            person or frappe.session.user, _s(reason)))
+    except Exception:
+        pass
+    frappe.db.commit()
+    return {"ok": True, "document": name,
+            "block": _s(target.get("export_block_no")) or _s(target.get("block_no")),
+            "from": was, "to": to_size, "agreed_by": _s(agreed_by)}

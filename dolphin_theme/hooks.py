@@ -54,8 +54,14 @@ doc_events = {
     "Local Tax Invoice": {
         "validate": "dolphin_theme.local_tax_invoice.compute_totals",
     },
+    # 31 Aug 2026. The size is decided where the buyer's own measurement is
+    # taken, using THAT buyer's bands - read from what they accepted on their
+    # last invoice. A size already chosen by hand is never overwritten.
     "Buyer Inspection": {
-        "validate": "dolphin_theme.guards.guard",
+        "validate": [
+            "dolphin_theme.guards.guard",
+            "dolphin_theme.sizing.carry_sizes",
+        ],
     },
     "Port Arrival": {
         "validate": [
