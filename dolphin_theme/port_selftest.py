@@ -275,6 +275,13 @@ def _draft_checks():
                "The agency sent a spreadsheet and we read nothing out of it. "
                "That is a lost arrival and a parsing bug, not an empty sheet. "
                "It must never be deleted as one - it needs looking at."),
+        _check("shipping.export_numbers_trace",
+               "Every block on a shipping document is a real block, under its own number",
+               not _shipping_number_faults(), _cap(_shipping_number_faults()),
+               "The shipping document becomes the invoice. A row whose export "
+               "number does not match the block it links to, or that links no "
+               "block at all, is a number nobody can trace back through the "
+               "challan and the arrival sheet."),
         _check("atport.arrival_means_at_port",
                "A block the agency's confirmed sheet says arrived is at the port",
                not _arrived_but_not_at_port(), _cap(_arrived_but_not_at_port()),
@@ -344,6 +351,63 @@ def _arrived_but_not_at_port():
         return list(out.get("blocks") or [])
     except Exception:
         return []
+
+
+def _shipping_number_faults():
+    """Every block on a shipping document must be a real block, and the export
+    number printed beside it must be that block's own.
+
+    31 Aug 2026. [stated] "in shipping documents you need to check once the list
+    of blocks carry correct export numbers from respective BI-DC-Arrivals etc
+    and even check if it is already checking all that even at port too."
+
+    It was not. The port has five identity checks and the lots have three; the
+    shipping document - the one that becomes the invoice - had none. This is
+    that check, and it is the strongest form: the row must LINK a block record,
+    and the number on the row must equal the number on that record. A row with
+    no link at all is the worst case, because nothing can be verified about it."""
+    faults = []
+    try:
+        docs = frappe.get_all("Shipping Document", fields=["name", "docstatus"],
+                              limit_page_length=0)
+    except Exception:
+        return faults
+    for d in docs:
+        try:
+            sd = frappe.get_doc("Shipping Document", d.name)
+        except Exception:
+            continue
+        rows = sd.get("blocks") or []
+        if not rows:
+            continue
+        names = list({_s(r.get("block")) for r in rows if _s(r.get("block"))})
+        by = {}
+        if names:
+            try:
+                for q in frappe.get_all("Quarry Block",
+                                        filters={"name": ["in", names]},
+                                        fields=["name", "block_number",
+                                                "export_block_no"],
+                                        limit_page_length=0):
+                    by[_s(q.get("name"))] = q
+            except Exception:
+                pass
+        for r in rows:
+            shown = _s(r.get("export_block_no"))
+            link = _s(r.get("block"))
+            if not link:
+                faults.append("{0}: row {1} names no block record at all".format(
+                    d.name, shown or _s(r.get("block_no")) or "(blank)"))
+                continue
+            q = by.get(link) or {}
+            real = _s(q.get("export_block_no"))
+            if not real:
+                faults.append("{0}: {1} - block {2} has no export number".format(
+                    d.name, shown or "(blank)", _s(q.get("block_number"))))
+            elif real != shown:
+                faults.append("{0}: row says {1}, block {2} says {3}".format(
+                    d.name, shown or "(blank)", _s(q.get("block_number")), real))
+    return faults
 
 
 def _lot_gate_sane():

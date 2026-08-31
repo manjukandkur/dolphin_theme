@@ -714,7 +714,11 @@ def learned_size_rule(consignee=None):
     docs = frappe.get_all("Shipping Document",
                           filters={"export_consignee": consignee},
                           fields=["name", "docstatus", "shipment_date", "creation"],
-                          order_by="ifnull(shipment_date, creation) desc",
+                          # Frappe validates the order_by field format, so no
+                          # ifnull() here - it refuses the whole query. Newest
+                          # shipment date first, and creation breaks the tie for
+                          # a document that has no date yet.
+                          order_by="shipment_date desc, creation desc",
                           limit_page_length=0)
     seen, sizes, latest = [], {}, {}
     for d in docs:
