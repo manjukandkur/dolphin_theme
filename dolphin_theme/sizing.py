@@ -93,6 +93,26 @@ CUSTOM_FIELDS = [
     ("Shipping Block", {
         "fieldname": "carried_size", "label": "Carried size (before override)", "fieldtype": "Data",
         "insert_after": "size_overridden", "read_only": 1}),
+    # 31 Aug 2026. [stated] "let the buyer name appear not Ec 12" and
+    # [stated] "whatever is decided on the invoice will be the correct for the
+    # respective buyer" and [stated] "rather than grade wise we can create
+    # another size master saying Best cheer B grade size master etc".
+    #
+    # So a size rule is identified by the BUYER on the document plus an optional
+    # VARIATION name — never by a grade column. "XIAMEN BLESS" is one rule,
+    # "XIAMEN BLESS · B grade" is another, and both are ordinary rows in the
+    # Granite Size Category master, which already carries buyer and
+    # variation_label for exactly this.
+    ("Shipping Document", {
+        "fieldname": "size_variation", "label": "Size rule variation", "fieldtype": "Data",
+        "insert_after": "allow_size_override",
+        "description": "Blank uses this buyer's own size rule. Type a variation name "
+                       "(for example B grade) to use their second rule instead. "
+                       "Where a buyer has no rule at all, the house A/B/C is used."}),
+    ("Shipping Document", {
+        "fieldname": "size_rule_display", "label": "Sizes by", "fieldtype": "Small Text",
+        "insert_after": "size_variation", "read_only": 1,
+        "description": "Which bands this document was sorted by, in words. Written on every save."}),
 ]
 
 
@@ -129,21 +149,67 @@ def setup_sizing():
 # The size axis
 # ---------------------------------------------------------------------------
 
-def _categories():
-    """Active Granite Size Categories, largest thresholds first so the most
-    specific band wins."""
+def _categories(consignee=None, variation=None):
+    """The bands in force — this buyer's own rule when they have one, else the house.
+
+    31 Aug 2026. This used to end with
+
+        rows = [r for r in rows if not cint(r.get("is_custom"))]
+
+    which threw away every buyer-specific row before anything read them. The
+    master has carried `buyer`, `export_consignee` and `variation_label` all
+    along; that one line switched the whole capability off, so every buyer was
+    judged by the house A/B/C whether it suited them or not.
+
+    A rule is (buyer, variation). Blank variation is the buyer's main rule;
+    "B grade" is their second one. Grade is never a column — it is part of the
+    rule's name, which is his decision and the simpler one."""
     try:
         rows = frappe.get_all(
             "Granite Size Category",
             filters={"is_active": 1},
             fields=["name", "size_category_name", "min_length", "min_width",
-                    "min_height", "min_volume", "max_volume", "sort_order", "is_custom"],
+                    "min_height", "min_volume", "max_volume", "sort_order",
+                    "is_custom", "buyer", "export_consignee", "variation_label"],
             limit_page_length=0)
     except Exception:
         return []
-    rows = [r for r in rows if not cint(r.get("is_custom"))]
-    rows.sort(key=lambda r: (cint(r.get("sort_order")) or 99))
-    return rows
+
+    want_var = _s(variation)
+    mine = []
+    if consignee:
+        key = _s(consignee)
+        for r in rows:
+            if _s(r.get("export_consignee")) != key and _s(r.get("buyer")) != key:
+                continue
+            if _s(r.get("variation_label")) != want_var:
+                continue
+            mine.append(r)
+    if not mine:
+        # the house rule: rows that belong to nobody in particular
+        mine = [r for r in rows
+                if not _s(r.get("export_consignee")) and not _s(r.get("buyer"))
+                and not _s(r.get("variation_label"))]
+    mine.sort(key=lambda r: (cint(r.get("sort_order")) or 99))
+    return mine
+
+
+def rule_in_force(consignee=None, variation=None):
+    """One line of plain English naming the bands a document was sorted by."""
+    rows = _categories(consignee, variation)
+    if not rows:
+        return "no size rule found"
+    owned = any(_s(r.get("export_consignee")) or _s(r.get("buyer")) for r in rows)
+    if not owned:
+        return "house rule (A / B / C)"
+    name = ""
+    try:
+        name = _s(frappe.db.get_value("Export Consignee", consignee, "company_name"))
+    except Exception:
+        name = ""
+    name = name or _s(consignee)
+    var = _s(variation)
+    return name + (" · " + var if var else "") + " — own bands"
 
 
 def _profile(name=None):
@@ -158,7 +224,8 @@ def _profile(name=None):
         return None
 
 
-def size_category_for(length, width, height, volume=None, profile=None):
+def size_category_for(length, width, height, volume=None, profile=None,
+                      consignee=None, variation=None):
     """The SIZE category (A size / B size), from the measurements.
 
     Never returns a quality grade. Returns None when there is nothing to judge —
@@ -180,7 +247,7 @@ def size_category_for(length, width, height, volume=None, profile=None):
         bands = [(c.get("size_category_name") or c["name"],
                   flt(c.get("min_length")), flt(c.get("min_width")),
                   flt(c.get("min_height")), flt(c.get("min_volume")),
-                  flt(c.get("max_volume"))) for c in _categories()]
+                  flt(c.get("max_volume"))) for c in _categories(consignee, variation)]
 
     vol = flt(volume) or round(l * w * h / 1e6, 3)
     for name, ml, mw, mh, mnv, mxv in bands:
@@ -246,7 +313,18 @@ def _source_measurements(key):
     }
 
 
-def fill_row(row, doctype, force=False):
+def _doc_consignee(doc):
+    """The buyer this document belongs to, whatever the doctype calls the field."""
+    for f in ("export_consignee", "consignee", "buyer"):
+        try:
+            if doc.meta.has_field(f) and _s(doc.get(f)):
+                return _s(doc.get(f))
+        except Exception:
+            continue
+    return None
+
+
+def fill_row(row, doctype, force=False, consignee=None, variation=None):
     """Put measurements and the size category onto one child row. Returns True
     when something was written. Never overwrites a value unless force."""
     fields = DIMS.get(doctype)
@@ -259,7 +337,8 @@ def fill_row(row, doctype, force=False):
     if have and not force:
         # dimensions are there; the size category may still be missing
         if meta.has_field(SIZE_FIELD) and not _s(row.get(SIZE_FIELD)):
-            cat = size_category_for(row.get(fl), row.get(fw), row.get(fh), row.get(fv))
+            cat = size_category_for(row.get(fl), row.get(fw), row.get(fh), row.get(fv),
+                                    consignee=consignee, variation=variation)
             if cat:
                 row.set(SIZE_FIELD, cat)
                 return True
@@ -299,8 +378,15 @@ def carry_sizes(doc, method=None):
                 if override:
                     _note_override(row, child_dt)
                     continue
-                if fill_row(row, child_dt):
+                if fill_row(row, child_dt, consignee=_doc_consignee(doc),
+                            variation=_s(doc.get("size_variation"))):
                     filled += 1
+        try:
+            if doc.meta.has_field("size_rule_display"):
+                doc.size_rule_display = rule_in_force(_doc_consignee(doc),
+                                                      _s(doc.get("size_variation")))
+        except Exception:
+            pass
         if filled and doc.doctype == "Port Arrival":
             frappe.msgprint(
                 "Measurements carried onto {0} block row(s) from the Buyer Inspection, "
@@ -522,3 +608,193 @@ def rate_breakdown(shipping_document=None):
         "note": "size_category is the A size / B size band. grade is the A grade / "
                 "B grade quality. They are separate axes and both are shown.",
     }
+
+
+# ===========================================================================
+# THE INVOICE IS THE SIZE MASTER.  31 Aug 2026
+#
+# [stated] "I was struggling to find a right way to ascertain how to make or
+#  decide a size master? the answer I realised is whatever is decided on the
+#  invoice will be the correct for the respective buyer. Whatever is there in
+#  stock and sizes defined there is a fair indicator of sizes"
+#
+# So nobody dictates the bands in advance. Every block a buyer accepted at a
+# size on an invoice IS their rule; the smallest one they took is the floor they
+# agreed to. This reads that back and offers to save it — with the count it was
+# learned from, so a single odd block that slipped through once is visible
+# rather than silently dragging the floor down.
+#
+# Measured on his own data the day this was written: the house rule says A is
+# 190 x 80 x 50, and XIAMEN BLESS TRADING CO.,LTD have never accepted an A
+# smaller than 207 x 92 x 59 across 58 blocks on two invoices. The generic band
+# would pass them stone they have never once taken.
+# ===========================================================================
+
+def _buyer_name(consignee):
+    try:
+        n = _s(frappe.db.get_value("Export Consignee", consignee, "company_name"))
+        if n:
+            return n
+    except Exception:
+        pass
+    return _s(consignee)
+
+
+@frappe.whitelist()
+def size_rules():
+    """Every size rule that exists: the house one, and one per buyer/variation."""
+    try:
+        rows = frappe.get_all(
+            "Granite Size Category", filters={"is_active": 1},
+            fields=["name", "size_category_name", "size_group", "min_length",
+                    "min_width", "min_height", "min_volume", "buyer",
+                    "export_consignee", "variation_label", "sort_order"],
+            limit_page_length=0)
+    except Exception:
+        return []
+    groups = {}
+    for r in rows:
+        owner = _s(r.get("export_consignee")) or _s(r.get("buyer"))
+        key = (owner, _s(r.get("variation_label")))
+        groups.setdefault(key, []).append(r)
+    out = []
+    for (owner, var), rs in groups.items():
+        rs.sort(key=lambda x: (cint(x.get("sort_order")) or 99))
+        out.append({
+            "consignee": owner,
+            "buyer_name": _buyer_name(owner) if owner else "",
+            "variation": var,
+            "label": (("house rule (A / B / C)") if not owner
+                      else _buyer_name(owner) + (" · " + var if var else "")),
+            "sizes": [{"size": _s(x.get("size_category_name")) or _s(x.get("name")),
+                       "min_length": cint(x.get("min_length")),
+                       "min_width": cint(x.get("min_width")),
+                       "min_height": cint(x.get("min_height")),
+                       "min_volume": flt(x.get("min_volume")),
+                       "row": _s(x.get("name"))} for x in rs],
+        })
+    out.sort(key=lambda g: (0 if not g["consignee"] else 1, g["label"]))
+    return out
+
+
+@frappe.whitelist()
+def learned_size_rule(consignee=None):
+    """What this buyer has actually accepted, read off their own invoices."""
+    consignee = _s(consignee)
+    if not consignee:
+        frappe.throw("Which buyer?")
+    docs = frappe.get_all("Shipping Document",
+                          filters={"export_consignee": consignee},
+                          fields=["name", "docstatus"], limit_page_length=0)
+    seen, sizes = [], {}
+    for d in docs:
+        try:
+            sd = frappe.get_doc("Shipping Document", d.name)
+        except Exception:
+            continue
+        n = 0
+        for b in (sd.get("blocks") or []):
+            l, w, h = flt(b.get("length")), flt(b.get("width")), flt(b.get("height"))
+            if not (l and w and h):
+                continue
+            cat = _s(b.get(SIZE_FIELD))
+            if not cat:
+                continue
+            v = flt(b.get("net_volume")) or round(l * w * h / 1e6, 3)
+            k = sizes.setdefault(cat, {"n": 0, "min_l": l, "min_w": w, "min_h": h,
+                                       "min_v": v, "max_l": l, "max_w": w, "max_h": h})
+            k["n"] += 1
+            k["min_l"] = min(k["min_l"], l); k["max_l"] = max(k["max_l"], l)
+            k["min_w"] = min(k["min_w"], w); k["max_w"] = max(k["max_w"], w)
+            k["min_h"] = min(k["min_h"], h); k["max_h"] = max(k["max_h"], h)
+            k["min_v"] = min(k["min_v"], v)
+            n += 1
+        if n:
+            seen.append({"document": d.name, "blocks": n,
+                         "submitted": cint(d.docstatus) == 1})
+    house = {c.get("size_category_name") or c["name"]:
+             (cint(c.get("min_length")), cint(c.get("min_width")), cint(c.get("min_height")))
+             for c in _categories()}
+    out = []
+    for cat, k in sorted(sizes.items()):
+        h_l, h_w, h_h = house.get(cat, (0, 0, 0))
+        out.append({
+            "size": cat, "blocks": k["n"],
+            "smallest_accepted": [int(k["min_l"]), int(k["min_w"]), int(k["min_h"])],
+            "largest": [int(k["max_l"]), int(k["max_w"]), int(k["max_h"])],
+            "smallest_cbm": round(k["min_v"], 3),
+            "house_rule": [h_l, h_w, h_h],
+            "stricter_than_house": [int(k["min_l"]) - h_l, int(k["min_w"]) - h_w,
+                                    int(k["min_h"]) - h_h],
+        })
+    return {"consignee": consignee, "buyer_name": _buyer_name(consignee),
+            "from_documents": seen,
+            "blocks_read": sum(s["blocks"] for s in out),
+            "sizes": out,
+            "note": "The smallest block accepted at each size is the floor this buyer "
+                    "agreed to. It is a floor, not a promise - take it exactly or "
+                    "leave yourself a cushion."}
+
+
+@frappe.whitelist()
+def save_size_rule(consignee=None, variation=None, cushion=0, reason=None,
+                   person=None, dry_run=1):
+    """Write what the invoices say into the master as this buyer's own rule.
+
+    cushion: centimetres to subtract from every learned minimum, so one unusually
+    small block that slipped through once does not become the rule. Nothing is
+    written unless dry_run is 0, and every row records where the numbers came
+    from."""
+    dry = _s(dry_run) not in ("0", "false", "False", "")
+    consignee = _s(consignee)
+    variation = _s(variation)
+    if not consignee:
+        frappe.throw("Which buyer?")
+    if not dry and len(_s(reason)) < 6:
+        frappe.throw("Say why this rule is being saved - it is written onto every row.")
+    learned = learned_size_rule(consignee)
+    cush = cint(cushion)
+    planned, done = [], []
+    for s in learned.get("sizes") or []:
+        l, w, h = s["smallest_accepted"]
+        band = {"size": s["size"], "min_length": max(0, l - cush),
+                "min_width": max(0, w - cush), "min_height": max(0, h - cush),
+                "learned_from": s["blocks"]}
+        planned.append(band)
+        if dry:
+            continue
+        row_name = "{0}-{1}-{2}".format(consignee, variation or "main", s["size"])
+        payload = {
+            "doctype": "Granite Size Category",
+            "size_category_name": s["size"],
+            "size_group": s["size"] if s["size"] in ("A", "B", "C") else "Custom",
+            "variation_label": variation,
+            "export_consignee": consignee,
+            "is_custom": 1, "is_active": 1,
+            "min_length": band["min_length"], "min_width": band["min_width"],
+            "min_height": band["min_height"],
+            "sort_order": {"A": 1, "B": 2, "C": 3}.get(s["size"], 5),
+            "description": ("Read from {0}'s own invoices - the smallest block they "
+                            "accepted as {1}, over {2} block(s){3}. {4}").format(
+                                _buyer_name(consignee), s["size"], s["blocks"],
+                                (", less a {0} cm cushion".format(cush) if cush else ""),
+                                _s(reason)),
+        }
+        try:
+            if frappe.db.exists("Granite Size Category", row_name):
+                d = frappe.get_doc("Granite Size Category", row_name)
+                d.update({k: v for k, v in payload.items() if k != "doctype"})
+                d.save(ignore_permissions=True)
+            else:
+                d = frappe.get_doc(payload)
+                d.flags.ignore_mandatory = True
+                d.insert(ignore_permissions=True, set_name=row_name)
+            done.append(d.name)
+        except Exception:
+            frappe.log_error(frappe.get_traceback(), "save_size_rule")
+    if not dry:
+        frappe.db.commit()
+    return {"dry_run": bool(dry), "consignee": consignee,
+            "buyer_name": _buyer_name(consignee), "variation": variation,
+            "cushion_cm": cush, "bands": planned, "written": done,
+            "blocks_read": learned.get("blocks_read")}
