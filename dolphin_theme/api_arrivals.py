@@ -118,6 +118,75 @@ def reconcile_arrival(name):
     return res
 
 
+# ---------------------------------------------------------------------------
+# THE RECORD THE PAPERWORK NAMES, NOT THE NUMBER.  29 Aug 2026
+#
+# [stated] "although the block was at arrials and reconcilation was done on
+# 30 july aug etc still block is not showing at port it isays not yet why?"
+#
+# Block 5225 (export 1359). Its arrival row was accepted, the register showed
+# it at port, and the block itself still read Dispatched/Transported, because
+# the move was attempted through the NUMBER: 1359 is 5225's export number AND
+# another block's quarry number, so the lookup found two stones and refused.
+#
+# Refusing was right - guessing there is what once moved 56 blocks to a port
+# they had never reached. But it was refusing UNNECESSARILY: the ledger row
+# already knew the stone, because the submitted challan DC-GCHG-054 LINKS to
+# it. His own rule, 25 Aug: "prefer the RECORD the paperwork links to over any
+# number. Use a number only to confirm the record answers to it."
+#
+# So: the number is tried first; if it is ambiguous, the SUBMITTED challan's
+# link decides - and only when exactly one submitted challan names that number
+# (_dc_block_link_index drops a number two challans disagree about). If neither
+# can name one stone, nothing is written, exactly as before. 43 blocks were
+# held this way.
+# ---------------------------------------------------------------------------
+def _dc_link_cached():
+    try:
+        idx = getattr(frappe.local, "dolphin_dc_link_idx", None)
+        if idx is None:
+            idx = _dc_block_link_index()
+            frappe.local.dolphin_dc_link_idx = idx
+        return idx
+    except Exception:
+        try:
+            return _dc_block_link_index()
+        except Exception:
+            return {}
+
+
+def _resolve_for_arrival(bno):
+    """(hit, why) for a number on an arrival row. Falls back from the number to
+    the record a submitted challan names. Never guesses."""
+    from dolphin_theme.block_resolve import try_resolve
+    key = _s(bno)
+    if not key:
+        return None, "no number on the row"
+    try:
+        hit, why = try_resolve(key, allow_record_name=False)
+    except Exception:
+        hit, why = None, "could not be resolved"
+    if hit:
+        return hit, why
+    link = (_dc_link_cached() or {}).get(key)
+    if not link or not link.get("block"):
+        return None, why
+    try:
+        q = frappe.db.get_value("Quarry Block", link["block"],
+                                ["name", "status", "block_number",
+                                 "export_block_no"], as_dict=True)
+    except Exception:
+        q = None
+    if not q:
+        return None, why
+    return ({"name": q.get("name"), "status": q.get("status"),
+             "block_number": q.get("block_number"),
+             "export_block_no": q.get("export_block_no"),
+             "found_by": "the submitted challan {0} that names it".format(
+                 link.get("dc"))},
+            "resolved by the challan link, not the number")
+
+
 def _mark_at_port(pa):
     """A block confirmed arrived (Matched, or a non-duplicate resolution) is physically
     AT THE PORT -> flip its Quarry Block status to 'At Port'.
@@ -151,7 +220,7 @@ def _mark_at_port(pa):
             # live stock. The evidence is kept and shown, but nothing is written.
             skipped.append({"block": bno, "why": "draft-arrival"})
             continue
-        hit, why = try_resolve(bno, allow_record_name=False)
+        hit, why = _resolve_for_arrival(bno)
         if not hit:
             skipped.append({"block": bno, "why": why})
             continue
@@ -3725,7 +3794,7 @@ def accept_with_note(row=None, block_no=None, arrival=None, note=None,
         return (" The other {0} row(s) for {1} were closed behind it — nothing "
                 "deleted, undo brings them back.".format(len(swept), bno))
 
-    hit, why = try_resolve(bno, allow_record_name=False)
+    hit, why = _resolve_for_arrival(bno)
     if not hit:
         frappe.db.commit()
         return {"ok": True, "row": name, "block_no": bno, "block": None, "why": why,
@@ -4053,6 +4122,203 @@ def apply_agency_weights(shipping_document=None, lot=None, arrival=None,
     if not dry:
         frappe.db.commit()
     return out
+
+
+# ===========================================================================
+# ONE DEFINITION OF "NEEDS YOU".  29 Aug 2026
+#
+# [stated] "it is reading wrongly as 14 needs you at the bottom bird eye?
+# rework on it build it properly that will help me"
+#
+# The page said 0 and the floating badge said 14, because the badge was never
+# reading the app at all - a Server Script called "Stock Pipeline Ticker"
+# re-implemented the words "needs you" in its own way, which is why it survived
+# every fix made to the page. Two definitions of the same word, which is the
+# fault this whole system keeps coming back to.
+#
+# Three things it was counting, checked one by one:
+#   * "Weight that will not settle" (2: 1031, 1139) - it counted a block whose
+#     weight changes more than once across sheets and NEVER looked at whether a
+#     person had settled it. Both had been settled.
+#   * "Weight far from our own tonnage estimate" (1) - the agency's weight
+#     against our own CBM x 2.6. [stated] "there should not be any tolerance
+#     msmts checking this it is just simple accept whatever buyer measurement
+#     is. it is final!" That item is GONE, not corrected.
+#   * "Arrival emails never turned into an arrival" (11) - crude (it guessed at
+#     the sender, so Mahantesh's address would never have matched) but pointing
+#     at something true: sheets that arrived by email and were never imported.
+#
+# So the badge now asks the app. Everything below is counted by the same code
+# the Reconciliation page uses, and every item names something a person can
+# actually go and do.
+# ===========================================================================
+def _held_by_a_number():
+    """Blocks the register says are at the port whose own status never caught
+    up, split by WHY - because the two reasons need different answers."""
+    held, ahead = [], []
+    try:
+        rows = ledger_view() or []
+    except Exception:
+        return held, ahead
+    names = list({r.get("qb") for r in rows if r.get("qb")})
+    if not names:
+        return held, ahead
+    status = {}
+    try:
+        for q in frappe.get_all("Quarry Block", filters={"name": ["in", names]},
+                                fields=["name", "status"], limit_page_length=0):
+            status[_s(q.get("name"))] = _s(q.get("status"))
+    except Exception:
+        return held, ahead
+    for r in rows:
+        qb = _s(r.get("qb"))
+        st = status.get(qb, "")
+        if st in ("At Port", "Shipped", "Sold"):
+            continue
+        entry = {"block": _s(r.get("export_block_no") or r.get("block_no")),
+                 "qb": qb, "status": st, "state": _s(r.get("state")),
+                 "dc": _s(r.get("dc"))}
+        if _s(r.get("state")) == "port":
+            held.append(entry)
+        else:
+            ahead.append(entry)
+    return held, ahead
+
+
+def _sheets_that_never_became_an_arrival():
+    """An email carrying a spreadsheet that never became a Port Arrival.
+
+    Judged by the FILE, not by the sender - the 27 Aug sheet came from a gmail
+    address no sender rule would have matched, and it was the one that mattered."""
+    out = []
+    try:
+        comms = frappe.get_all(
+            "Communication",
+            filters={"sent_or_received": "Received", "has_attachment": 1},
+            fields=["name", "sender", "subject", "communication_date",
+                    "reference_doctype"],
+            order_by="communication_date desc", limit_page_length=300)
+    except Exception:
+        return out
+    for c in comms:
+        if _s(c.get("reference_doctype")) == "Port Arrival":
+            continue
+        try:
+            files = frappe.get_all("File",
+                                   filters={"attached_to_doctype": "Communication",
+                                            "attached_to_name": c.name},
+                                   fields=["file_name"], limit_page_length=0)
+        except Exception:
+            files = []
+        sheets = [_s(f.get("file_name")) for f in files
+                  if _s(f.get("file_name")).lower().endswith((".xls", ".xlsx"))]
+        if not sheets:
+            continue
+        out.append({"communication": c.name, "from": _s(c.get("sender")),
+                    "subject": _s(c.get("subject"))[:80],
+                    "date": _s(c.get("communication_date"))[:10],
+                    "files": sheets})
+    return out
+
+
+@frappe.whitelist()
+def attention_now():
+    """Everything genuinely waiting on a person, counted once, in one place."""
+    items = []
+
+    def add(label, n, detail, go, why):
+        if n:
+            items.append({"label": label, "n": int(n), "detail": detail,
+                          "go": go, "why": why})
+
+    try:
+        dups = duplicate_rows() or []
+    except Exception:
+        dups = []
+    add("Sheets disagree about the same block", len(dups),
+        ", ".join(_s(g.get("block_no")) for g in dups[:8]),
+        "/port-reconciliation",
+        "Two sheets say different things about one block. Accept the row that "
+        "is right and the rest close behind it.")
+
+    try:
+        nf = blocks_not_found_in_arrivals() or []
+        nf = nf if isinstance(nf, list) else (nf.get("blocks") or [])
+    except Exception:
+        nf = []
+    add("Dispatched, but on no arrival sheet", len(nf),
+        ", ".join(_s(x.get("block_no") or x.get("block")) for x in nf[:8]),
+        "/port-reconciliation",
+        "We sent it and no agency sheet lists it. Not found is just not found - "
+        "record the weight by hand or ask the agency.")
+
+    try:
+        sz = size_vs_cbm_questions() or []
+        sz = sz if isinstance(sz, list) else (sz.get("questions") or [])
+    except Exception:
+        sz = []
+    add("A size that does not multiply out to its CBM", len(sz),
+        ", ".join(_s(x.get("block_no") or x.get("block")) for x in sz[:8]),
+        "/port-reconciliation",
+        "The three dimensions and the CBM beside them disagree. One of the two "
+        "is wrong and only a person knows which.")
+
+    held, ahead = _held_by_a_number()
+    add("At the port, but the block could not be moved", len(held),
+        ", ".join(x["block"] for x in held[:8]),
+        "/port-reconciliation",
+        "The register has these at the port and the block's own status never "
+        "caught up - the number on the sheet answers to two stones, so nothing "
+        "was written rather than guessed.")
+
+    sheets = _sheets_that_never_became_an_arrival()
+    add("A sheet arrived by email and was never imported", len(sheets),
+        ", ".join(s["date"] for s in sheets[:8]),
+        "/port-reconciliation",
+        "These emails carry a spreadsheet and no arrival was ever created from "
+        "them. Import them from the Arrivals tab.")
+
+    return {"total": sum(i["n"] for i in items), "items": items,
+            "ahead_of_at_port": len(ahead),
+            "as_of": _s(now_datetime())[:16]}
+
+
+@frappe.whitelist()
+def move_held_blocks_to_port(reason=None, person=None, machine=None, dry_run=1):
+    """Move the blocks the register has at the port whose status never caught up.
+
+    Only blocks whose ledger state is already 'port' and whose stone the
+    paperwork names (see _resolve_for_arrival). A block that is further along -
+    on a lot or a shipping document - is left alone and reported separately,
+    because 'At Port' would be a step backwards for it. Reversible with
+    send_back_to_reconcile. Read-only unless dry_run is 0."""
+    from dolphin_theme.block_resolve import set_status
+    dry = _s(dry_run) not in ("0", "false", "False", "")
+    if not dry and len(_s(reason)) < 8:
+        frappe.throw("Say why these blocks are being brought up to date - it is "
+                     "written onto every one of them.")
+    held, ahead = _held_by_a_number()
+    moved, refused = [], []
+    for h in held:
+        if dry:
+            moved.append(h)
+            continue
+        try:
+            res = set_status(h["qb"], "At Port",
+                             "the register already had it at the port; status "
+                             "brought up to date. " + _s(reason),
+                             machine=_s(machine) or "server (status catch-up)",
+                             actor=person)
+            (moved if res.get("ok") else refused).append(
+                dict(h, why=res.get("error")))
+        except Exception as e:
+            refused.append(dict(h, why=_s(e)[:120]))
+    if not dry:
+        frappe.db.commit()
+    return {"dry_run": bool(dry), "moved": len(moved), "refused": len(refused),
+            "left_alone_further_along": len(ahead),
+            "blocks": [m["block"] for m in moved][:200],
+            "refused_detail": refused[:50]}
 
 
 @frappe.whitelist()
