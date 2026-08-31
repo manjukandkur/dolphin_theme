@@ -187,52 +187,115 @@ def _resolve_for_arrival(bno):
             "resolved by the challan link, not the number")
 
 
+# ---------------------------------------------------------------------------
+# AN ARRIVAL MEANS AT PORT.  31 Aug 2026 — his rule, and it overrides what was
+# here before.
+#
+# [stated] "once you recieve arrivals for any block from agency it is at port.
+#  no the list o f blocks yo have given are at port what is the confusion why
+#  are they still dispatched? revisit and see where you are going wrong on
+#  status"
+# [stated] "even if there is any dispute with regrds to measurement, tonnage
+#  etc still it is at port make this note and correction"
+#
+# WHAT WAS WRONG. This function gated on `row.recon_status == "Matched"`. Every
+# arrival row for the 33 blocks he asked about was tagged **"Duplicate"** — and
+# Duplicate only means the block appears on more than one sheet, which is the
+# agency's normal running list and which he has told us twice is normal. So the
+# app withheld At Port because the stone had been listed twice. His own screen
+# already said the right thing — "a size difference does not hold anything, it
+# goes to At Port with the block as a note" — and the code never honoured it.
+#
+# It is also why the 30 Aug identity fix changed nothing on its own: resolving
+# the right stone does not help when the gate in front of it says no.
+#
+# THE RULE NOW:
+#   A row on a CONFIRMED (submitted) arrival that resolves to exactly one of our
+#   blocks IS the arrival. The block is at the port.
+#   Nothing about FIGURES ever holds it — not a measurement difference, not a
+#   tonnage or CBM difference, not the same block on four sheets. A disagreement
+#   is a question about paperwork, never about where the stone is.
+#   The only things that hold a block back are a person's own decisions: a row
+#   removed to the Trash, a rejected acceptance, or a block sent back to
+#   reconcile.
+#
+# And it never moves a block BACKWARDS: a block already on a lot goes to
+# "In Export Shipment Lot", not to At Port, and anything further along is left
+# exactly where it is.
+# ---------------------------------------------------------------------------
+
+# The ladder, in order. Used only to refuse a backwards write.
+STAGE_RANK = {
+    "In Stock": 0, "Buyer Marked": 1, "In Delivery Challan": 2,
+    "Dispatched/Transported": 3, "At Port": 4, "Reconciled": 5,
+    "Ready for Export Lot": 6, "In Export Shipment Lot": 7,
+    "Loaded": 8, "Shipped": 9, "Sold": 10,
+}
+
+
+def _person_withdrew_this_row(row):
+    """Only a person's decision holds a block back — never a computed flag."""
+    if _s(row.get("resolution_type")) == "Removed (duplicate)":
+        return "a person moved this row to the Trash"
+    if _s(row.get("resolution_note")).startswith("REJECTED:"):
+        return "a person rejected this acceptance"
+    return ""
+
+
 def _mark_at_port(pa):
-    """A block confirmed arrived (Matched, or a non-duplicate resolution) is physically
-    AT THE PORT -> flip its Quarry Block status to 'At Port'.
-
-    REWRITTEN 17 Aug 2026. The previous version called
-    ``frappe.db.exists("Quarry Block", bno)`` — it resolved a number typed by a
-    shipping agency against the Quarry Block RECORD ID. Because the record id is
-    an autoincrementing integer, every plausible number matched something, and
-    56 blocks were moved to a port they had never reached; 25 of them were
-    provably the wrong block.
-
-    Now: the number is resolved against export number then quarry number only,
-    a number that matches two blocks writes NOTHING, and every write is a
-    versioned save carrying the arrival it came from as its reason.
+    """Put every block on a confirmed arrival where the paperwork says it is.
 
     Returns a report so the caller can show what was refused instead of the
     refusal being invisible."""
-    from dolphin_theme.block_resolve import try_resolve, set_status
+    from dolphin_theme.block_resolve import set_status
 
     moved, skipped = [], []
     draft = (getattr(pa, "docstatus", 0) or 0) == 0
+    if draft:
+        # B36's root cause in its other guise: a DRAFT arrival must not move
+        # live stock. The evidence is kept and shown, but nothing is written.
+        return {"moved": 0, "skipped": [{"block": _s(r.block_no),
+                                         "why": "draft-arrival"} for r in pa.blocks]}
+    lots = _lot_membership()
+    sent_back = _sent_back_index()
+
     for row in pa.blocks:
-        bno = str(row.block_no or "").strip()
-        arrived = (row.recon_status == "Matched") or (
-            row.resolution_type and row.resolution_type != "Removed (duplicate)"
-        )
-        if not (arrived and bno):
+        bno = _s(row.block_no)
+        if not bno:
             continue
-        if draft:
-            # B36's root cause, in its other guise: a DRAFT arrival must not move
-            # live stock. The evidence is kept and shown, but nothing is written.
-            skipped.append({"block": bno, "why": "draft-arrival"})
+        stop = _person_withdrew_this_row(row)
+        if stop:
+            skipped.append({"block": bno, "why": stop})
             continue
         hit, why = _resolve_for_arrival(bno)
         if not hit:
             skipped.append({"block": bno, "why": why})
             continue
-        cur = _s(hit.get("status"))
-        if cur in ("At Port", "Shipped", "Sold"):
+        name = _s(hit.get("name"))
+        if sent_back.get(name):
+            skipped.append({"block": bno,
+                            "why": "a person sent this block back to reconcile"})
             continue
-        res = set_status(hit["name"], "At Port",
+
+        # On a lot it is PAST the port. Say so, rather than dragging it back.
+        on_lot = None
+        for key in (bno, _s(hit.get("export_block_no")),
+                    _s(hit.get("block_number")), name):
+            if key and key in lots:
+                on_lot = lots[key]
+                break
+        target = "In Export Shipment Lot" if on_lot else "At Port"
+
+        cur = _s(hit.get("status"))
+        if STAGE_RANK.get(cur, -1) >= STAGE_RANK.get(target, 99):
+            continue
+
+        res = set_status(name, target,
                          "arrived on {0} (row {1})".format(pa.name, row.idx),
                          machine="server (arrival reconcile)")
         (moved if res.get("ok") else skipped).append(
-            {"block": bno, "name": hit["name"], "why": res.get("error")})
-    return {"moved": len(moved), "skipped": skipped}
+            {"block": bno, "name": name, "to": target, "why": res.get("error")})
+    return {"moved": len(moved), "skipped": skipped, "detail": moved[:200]}
 
 
 @frappe.whitelist()
@@ -4284,41 +4347,97 @@ def attention_now():
 
 
 @frappe.whitelist()
-def move_held_blocks_to_port(reason=None, person=None, machine=None, dry_run=1):
-    """Move the blocks the register has at the port whose status never caught up.
+def apply_arrival_status(reason=None, person=None, machine=None, dry_run=1):
+    """Run the at-port rule across every CONFIRMED arrival sheet.
 
-    Only blocks whose ledger state is already 'port' and whose stone the
-    paperwork names (see _resolve_for_arrival). A block that is further along -
-    on a lot or a shipping document - is left alone and reported separately,
-    because 'At Port' would be a step backwards for it. Reversible with
-    send_back_to_reconcile. Read-only unless dry_run is 0."""
-    from dolphin_theme.block_resolve import set_status
+    31 Aug 2026. This replaces move_held_blocks_to_port, which existed only
+    because the rule itself was wrong: it treated a block whose label lagged as
+    a special case needing a catch-up action. With the rule corrected there is
+    no special case — there is one rule, and this applies it to the sheets that
+    are already confirmed so history is judged by the same rule as tomorrow's
+    sheet. Two ways to decide one thing is the fault this app keeps repeating;
+    there is now one.
+
+    Moves a block forward only, and never past what the paperwork says: a block
+    on a lot lands on "In Export Shipment Lot", not At Port. Read-only unless
+    dry_run is 0. Everything it does is reversible with send_back_to_reconcile."""
     dry = _s(dry_run) not in ("0", "false", "False", "")
     if not dry and len(_s(reason)) < 8:
-        frappe.throw("Say why these blocks are being brought up to date - it is "
-                     "written onto every one of them.")
-    held, ahead = _held_by_a_number()
-    moved, refused = [], []
-    for h in held:
-        if dry:
-            moved.append(h)
-            continue
+        frappe.throw("Say why the arrival rule is being applied - it is written "
+                     "onto every block that moves.")
+
+    sheets = frappe.get_all("Port Arrival", filters={"docstatus": 1},
+                            fields=["name"], order_by="creation asc",
+                            limit_page_length=0)
+    would, refused, seen = [], {}, set()
+    lots = _lot_membership()
+    sent_back = _sent_back_index()
+
+    for sh in sheets:
         try:
-            res = set_status(h["qb"], "At Port",
-                             "the register already had it at the port; status "
-                             "brought up to date. " + _s(reason),
-                             machine=_s(machine) or "server (status catch-up)",
-                             actor=person)
-            (moved if res.get("ok") else refused).append(
-                dict(h, why=res.get("error")))
-        except Exception as e:
-            refused.append(dict(h, why=_s(e)[:120]))
+            pa = frappe.get_doc("Port Arrival", sh.name)
+        except Exception:
+            continue
+        for row in (pa.blocks or []):
+            bno = _s(row.block_no)
+            if not bno:
+                continue
+            stop = _person_withdrew_this_row(row)
+            if stop:
+                refused.setdefault(stop, []).append(bno)
+                continue
+            hit, why = _resolve_for_arrival(bno)
+            if not hit:
+                refused.setdefault(_s(why) or "could not be resolved to one block",
+                                   []).append(bno)
+                continue
+            name = _s(hit.get("name"))
+            if name in seen:
+                continue
+            if sent_back.get(name):
+                refused.setdefault("a person sent it back to reconcile", []).append(bno)
+                continue
+            on_lot = None
+            for key in (bno, _s(hit.get("export_block_no")),
+                        _s(hit.get("block_number")), name):
+                if key and key in lots:
+                    on_lot = lots[key]
+                    break
+            target = "In Export Shipment Lot" if on_lot else "At Port"
+            cur = _s(hit.get("status"))
+            if STAGE_RANK.get(cur, -1) >= STAGE_RANK.get(target, 99):
+                continue
+            seen.add(name)
+            would.append({"block": _s(hit.get("export_block_no")) or bno,
+                          "qb": name, "from": cur, "to": target,
+                          "sheet": pa.name})
+
     if not dry:
+        from dolphin_theme.block_resolve import set_status
+        done = []
+        for w in would:
+            try:
+                res = set_status(w["qb"], w["to"],
+                                 "the agency's sheet {0} says it arrived. {1}".format(
+                                     w["sheet"], _s(reason)),
+                                 machine=_s(machine) or "server (arrival rule)",
+                                 actor=person)
+                if res.get("ok"):
+                    done.append(w)
+                else:
+                    refused.setdefault(_s(res.get("error")) or "refused", []).append(w["block"])
+            except Exception as e:
+                refused.setdefault(_s(e)[:80], []).append(w["block"])
         frappe.db.commit()
-    return {"dry_run": bool(dry), "moved": len(moved), "refused": len(refused),
-            "left_alone_further_along": len(ahead),
-            "blocks": [m["block"] for m in moved][:200],
-            "refused_detail": refused[:50]}
+        would = done
+
+    return {"dry_run": bool(dry), "sheets": len(sheets),
+            "moved" if not dry else "would_move": len(would),
+            "to_at_port": len([w for w in would if w["to"] == "At Port"]),
+            "to_in_lot": len([w for w in would if w["to"] != "At Port"]),
+            "blocks": [w["block"] for w in would][:250],
+            "left_alone": {k: len(v) for k, v in refused.items()},
+            "left_alone_examples": {k: v[:8] for k, v in refused.items()}}
 
 
 @frappe.whitelist()

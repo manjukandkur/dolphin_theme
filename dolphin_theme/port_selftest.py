@@ -275,6 +275,14 @@ def _draft_checks():
                "The agency sent a spreadsheet and we read nothing out of it. "
                "That is a lost arrival and a parsing bug, not an empty sheet. "
                "It must never be deleted as one - it needs looking at."),
+        _check("atport.arrival_means_at_port",
+               "A block the agency's confirmed sheet says arrived is at the port",
+               not _arrived_but_not_at_port(), _cap(_arrived_but_not_at_port()),
+               "His rule, 31 Aug 2026: an arrival on a confirmed sheet means the "
+               "block is at the port, and a dispute about measurement or tonnage "
+               "never holds it - that is a question about paperwork, not about "
+               "where the stone is. If this fails, something is gating the move "
+               "on a figure again."),
         _check("arrivals.accepting_finishes_the_block",
                "A block someone accepted is not asked about again",
                not _accepted_blocks_still_in_queue(),
@@ -314,6 +322,26 @@ def _accepted_blocks_still_in_queue():
             fields=["block_no"], limit_page_length=0)
         seen = {_s(r.get("block_no")) for r in accepted}
         return sorted(n for n in set(nums) if n in seen)
+    except Exception:
+        return []
+
+
+def _arrived_but_not_at_port():
+    """Blocks a CONFIRMED agency sheet says arrived that are not at the port.
+
+    31 Aug 2026. [stated] "once you recieve arrivals for any block from agency
+    it is at port" and "even if there is any dispute with regrds to
+    measurement, tonnage etc still it is at port".
+
+    The old rule moved a block only when its arrival row was tagged "Matched",
+    so 64 blocks sat at Dispatched because the agency had listed them on more
+    than one sheet - its normal running list. This check fails the moment that
+    can happen again. A person's own decision - a row trashed, an acceptance
+    rejected, a block sent back - is not a failure and is excluded."""
+    try:
+        from dolphin_theme.api_arrivals import apply_arrival_status
+        out = apply_arrival_status(dry_run=1) or {}
+        return list(out.get("blocks") or [])
     except Exception:
         return []
 
