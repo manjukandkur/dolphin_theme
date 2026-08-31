@@ -2036,7 +2036,11 @@ frappe.listview_settings = frappe.listview_settings || {};
     } else {
       (att.items || []).forEach(function (it) {
         if (!it.n) { return; }
+        /* 29 Aug 2026: every line says what it means, not just how many.
+           A bare count sends a person hunting - which is how "14 need you" sat
+           there meaning three different things, two of them wrong. */
         h += '<div class="row" data-go="' + e6(it.go) + '"><b>' + it.n + "</b><span>" + e6(it.label) +
+          (it.why ? ('<span style="display:block;font-size:10.5px;color:#95a0ad;line-height:1.35;margin-top:1px">' + e6(it.why) + "</span>") : "") +
           '</span><span class="d">' + e6(it.detail || "") + "</span></div>";
       });
     }
@@ -2281,7 +2285,9 @@ frappe.listview_settings = frappe.listview_settings || {};
       (att.items || []).forEach(function (it) {
         if (!it.n) { return; }
         h += '<div class="rowx" data-go="' + e6(it.go) + '"><b>' + it.n + "</b><span>" +
-          e6(it.label) + '</span><span class="d">' + e6(it.detail || "") + "</span></div>";
+          e6(it.label) +
+          (it.why ? ('<span style="display:block;font-size:10.5px;color:#95a0ad;line-height:1.35;margin-top:1px">' + e6(it.why) + "</span>") : "") +
+          '</span><span class="d">' + e6(it.detail || "") + "</span></div>";
       });
     }
     h += "</div></div>";
@@ -2371,10 +2377,38 @@ frappe.listview_settings = frappe.listview_settings || {};
     var now = Date.now();
     if (!force && now - last < EVERY) { return; }
     last = now;
-    fetch("/api/method/stock_pipeline", { credentials: "include" })
+    /* ------------------------------------------------------------------
+       29 Aug 2026. His words: "it is reading wrongly as 14 needs you at the
+       bottom bird eye? rework on it build it properly that will help me."
+
+       The badge said 14 while the page said 0, because the two were not
+       reading the same thing: the stock ticker re-implemented "needs you" in
+       its own way, so every fix made to the page left the badge untouched.
+       It counted blocks a person had already settled, and it counted the
+       agency's weight against our own estimate - a comparison he banned.
+
+       The stock figures still come from the ticker; "needs you" now comes
+       from the app, from the same code the Reconciliation page uses. One
+       definition. If that call fails the badge shows the stock data with no
+       count at all rather than an invented one.
+       ------------------------------------------------------------------ */
+    var stock = fetch("/api/method/stock_pipeline", { credentials: "include" })
       .then(function (r) { return r.json(); })
-      .then(function (j) { if (j && j.message) { data = j.message; paint(); if (open) { drawPanel(document.getElementById("di-panel"), null); } if (sheetOpen()) { drawSheet(); } } })
-      .catch(function () {});
+      .then(function (j) { return (j && j.message) || null; })
+      .catch(function () { return null; });
+    var need = fetch("/api/method/dolphin_theme.api_arrivals.attention_now", { credentials: "include" })
+      .then(function (r) { return r.json(); })
+      .then(function (j) { return (j && j.message) || null; })
+      .catch(function () { return null; });
+    Promise.all([stock, need]).then(function (both) {
+      var d = both[0], a = both[1];
+      if (!d) { return; }
+      d.attention = a || { items: [], total: 0 };
+      data = d;
+      paint();
+      if (open) { drawPanel(document.getElementById("di-panel"), null); }
+      if (sheetOpen()) { drawSheet(); }
+    });
   }
 
   setInterval(function () { mount(); refresh(false); }, 5000);
