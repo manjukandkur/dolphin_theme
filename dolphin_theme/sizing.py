@@ -451,6 +451,26 @@ def seed_bands(doc, method=None):
             return
         if doc.get("size_bands"):
             return
+        seeded, src = _seed_for(doc)
+        for b in seeded:
+            doc.append("size_bands", b)
+        if doc.meta.has_field("size_seeded_from"):
+            doc.size_seeded_from = src
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), "Dolphin seed_bands")
+
+
+def _seed_for(doc):
+    """What a document's thresholds should start as - his option B.
+
+    The last lot to the same consignee: its own thresholds if it has them, else
+    the figures read off its blocks, else the standard set. Reads ONE previous
+    document and stores nothing against the buyer.
+
+    1 Sep 2026: pulled out of seed_bands so a lot that already exists - every lot
+    made before this shipped - can be pre-filled from the panel instead of being
+    stuck on the standard forever."""
+    try:
         consignee = _doc_consignee(doc)
         seeded, src = [], ""
         if consignee:
@@ -473,12 +493,34 @@ def seed_bands(doc, method=None):
                     break
         if not seeded:
             seeded, src = _standard_as_bands(), "the standard set"
-        for b in seeded:
-            doc.append("size_bands", b)
-        if doc.meta.has_field("size_seeded_from"):
-            doc.size_seeded_from = src
+        return seeded, src
     except Exception:
-        frappe.log_error(frappe.get_traceback(), "Dolphin seed_bands")
+        frappe.log_error(frappe.get_traceback(), "Dolphin _seed_for")
+        return _standard_as_bands(), "the standard set"
+
+
+@frappe.whitelist()
+def seed_now(doctype=None, name=None, reason=None, person=None, dry_run=1):
+    """Pre-fill an EXISTING document's thresholds the way a new one would be.
+
+    Every lot made before 1 Sep 2026 has no thresholds of its own and therefore
+    reads the standard set. This gives it the same start a new lot gets, without
+    waiting for anyone to type the figures again."""
+    dry = _s(dry_run) not in ("0", "false", "False", "")
+    doc = _doc_for_panel(doctype, name)
+    seeded, src = _seed_for(doc)
+    if not seeded:
+        frappe.throw("Nothing to pre-fill from.")
+    if dry:
+        moved = _resort(doc, [{"size_category_name": b["size_category_name"],
+                               "min_length": b["min_length"], "min_width": b["min_width"],
+                               "min_height": b["min_height"]} for b in seeded])
+        doc.reload()
+        return {"dry_run": True, "bands": seeded, "source": src,
+                "would_move": moved, "count": len(moved)}
+    return set_bands(doctype=doc.doctype, name=doc.name, bands=seeded,
+                     reason=(_s(reason) or "Pre-filled from {0}.".format(src)),
+                     person=person, dry_run=0)
 
 
 def rule_in_force(doc=None):
@@ -1255,6 +1297,8 @@ def panel(doctype=None, name=None):
         "override": override,
         "owner": owner,
         "frozen": _s(doc.get("export_status")) == "Exported" or cint(doc.docstatus) == 1,
+        "own_bands": bool(_band_rows(doc)),
+        "seeded_from": _s(doc.get("size_seeded_from")),
         "bands": [{"size": _s(b.get("size_category_name")) or _s(b.get("name")),
                    "min_length": cint(b.get("min_length")),
                    "min_width": cint(b.get("min_width")),
