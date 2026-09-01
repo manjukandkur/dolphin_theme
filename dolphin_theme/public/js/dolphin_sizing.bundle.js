@@ -186,6 +186,37 @@
     d.show();
   }
 
+  /* 1 Sep 2026, after his question "what is who at the buyer agreed".
+     Only a move UP a band is a promotion - a block being taken as better than it
+     measures, which is the buyer conceding something and is the whole reason a
+     name is recorded. A move DOWN, or a correction the thresholds already agree
+     with, costs the buyer nothing and asks for no name. */
+  function sizeFields(plan, to) {
+    var moved = plan.changed || [];
+    var up = moved.filter(function (c) { return c.up; });
+    var f = [{ fieldtype: 'HTML', options:
+      '<div class="dsz"><b>' + plan.count + ' change, ' + plan.already + ' already ' +
+      esc(to) + '.</b><div class="sm" style="margin-top:5px">' +
+      moved.slice(0, 15).map(function (c) {
+        return esc(c.block) + ' ' + esc(c.from) + ' &rarr; ' + esc(c.to) +
+               (c.up ? ' <b>&uarr;</b>' : '');
+      }).join(' &middot; ') +
+      (moved.length > 15 ? ' &middot; +' + (moved.length - 15) + ' more' : '') + '</div>' +
+      (up.length
+        ? '<div class="note" style="margin-top:8px"><b>' + up.length + ' move UP a band.</b> ' +
+          'The thresholds did not put ' + (up.length === 1 ? 'that block' : 'those blocks') +
+          ' there, so this records that the buyer agreed &mdash; and needs the name of who did.</div>'
+        : '<div class="sm" style="margin-top:8px">Nothing moves up a band, so no buyer consent ' +
+          'is involved. A reason is enough.</div>') +
+      '</div>' }];
+    if (up.length) {
+      f.push({ fieldname: 'agreed_by', fieldtype: 'Data',
+               label: 'Who at the buyer agreed', reqd: 1 });
+    }
+    f.push({ fieldname: 'reason', fieldtype: 'Small Text', label: 'Note', reqd: 1 });
+    return f;
+  }
+
   /* ================================================================ SIZES */
   function sizesHtml(d) {
     var h = ['<div class="dsz">'];
@@ -503,18 +534,7 @@
           if (!plan) return;
           var dlg = new frappe.ui.Dialog({
             title: rows.length + ' block(s) → size ' + to,
-            fields: [
-              { fieldtype: 'HTML', options: '<div class="dsz"><b>' + plan.count +
-                ' change, ' + plan.already + ' already ' + esc(to) + '.</b>' +
-                '<div class="sm" style="margin-top:5px">' +
-                (plan.changed || []).slice(0, 15).map(function (c) {
-                  return esc(c.block) + ' ' + esc(c.from) + ' &rarr; ' + esc(c.to);
-                }).join(' &middot; ') + '</div>' +
-                '<div class="sm" style="margin-top:8px">The thresholds did not put these blocks ' +
-                'here. Moving them is a record that the buyer agreed, so it needs a name.</div></div>' },
-              { fieldname: 'agreed_by', fieldtype: 'Data', label: 'Who at the buyer agreed', reqd: 1 },
-              { fieldname: 'reason', fieldtype: 'Small Text', label: 'Note', reqd: 1 }
-            ],
+            fields: sizeFields(plan, to),
             primary_action_label: 'Apply',
             primary_action: function (v) {
               call('set_sizes', { doctype: d.doctype, name: d.name, rows: JSON.stringify(rows),
@@ -536,10 +556,28 @@
         title: 'Set sizes by block-number range',
         what: 'size', blocks: d.blocks,
         apply: function (groups) {
-          frappe.prompt([
-            { fieldname: 'agreed_by', fieldtype: 'Data', label: 'Who at the buyer agreed', reqd: 1 },
-            { fieldname: 'reason', fieldtype: 'Small Text', label: 'Note', reqd: 1 }
-          ], function (v) {
+          /* find out first whether anything moves UP; only then ask for a name */
+          var probes = groups.map(function (g) {
+            return call('set_sizes', { doctype: d.doctype, name: d.name,
+                                       rows: JSON.stringify(g.rows), to_size: g.value,
+                                       dry_run: 1 });
+          });
+          Promise.all(probes).then(function (plans) {
+            var ups = 0;
+            plans.forEach(function (p) { ups += ((p && p.promotions) || []).length; });
+            var fields = [];
+            if (ups) {
+              fields.push({ fieldtype: 'HTML', options:
+                '<div class="dsz note"><b>' + ups + ' block(s) move UP a band.</b> That is the ' +
+                'buyer taking stone as better than it measures, so it needs the name of who agreed.</div>' });
+              fields.push({ fieldname: 'agreed_by', fieldtype: 'Data',
+                            label: 'Who at the buyer agreed', reqd: 1 });
+            } else {
+              fields.push({ fieldtype: 'HTML', options:
+                '<div class="dsz sm">Nothing moves up a band, so no buyer consent is involved.</div>' });
+            }
+            fields.push({ fieldname: 'reason', fieldtype: 'Small Text', label: 'Note', reqd: 1 });
+            frappe.prompt(fields, function (v) {
             var chain = Promise.resolve(), done = 0;
             groups.forEach(function (g) {
               chain = chain.then(function () {
@@ -554,7 +592,8 @@
               frappe.show_alert({ message: done + ' block(s) re-sized by range', indicator: 'green' });
               frm.reload_doc();
             });
-          }, 'Apply the ranges', 'Apply');
+            }, 'Apply the ranges', 'Apply');
+          });
         }
       });
     });
