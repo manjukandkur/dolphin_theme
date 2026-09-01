@@ -86,6 +86,106 @@
     return Object.keys(t).filter(function (k) { return t[k]; });
   }
 
+  /* =========================================================== BY RANGE
+     1 Sep 2026, his words: "if more number of blocks are there give an option
+     to give range also like blocks numbers from 800-1000 A 500-550 B etc".
+
+     So you type the ranges and what each one is, and the whole thing goes in
+     one action. One line per range; the value at the end of the line:
+
+         800-1000 A
+         500-550  B
+         1327     C          (a single number is a range of one)
+         801-820, 856  A      (a list works too)
+
+     Everything is resolved against the block numbers actually on this document,
+     shown to you before anything is written, and applied as one save per value.
+     A range that matches nothing is called out rather than passed over. */
+
+  function numOf(b) {
+    var m = String(b == null ? '' : b).match(/\d+/);
+    return m ? parseInt(m[0], 10) : null;
+  }
+
+  function parseRanges(text) {
+    var out = [], bad = [];
+    String(text || '').split(/[\n;]+/).forEach(function (line) {
+      var raw = line.trim();
+      if (!raw) return;
+      /* the value is the last word; everything before it is the number spec */
+      var m = raw.match(/^(.*?)[\s=:>-]*([A-Za-z][A-Za-z0-9]*)\s*$/);
+      if (!m) { bad.push(raw); return; }
+      var spec = m[1].trim().replace(/[,\s]+$/, ''), value = m[2].trim();
+      if (!spec) { bad.push(raw); return; }
+      var parts = spec.split(/[,\s]+/).filter(Boolean), ranges = [];
+      parts.forEach(function (p) {
+        var r = p.match(/^(\d+)\s*(?:-|to|–)\s*(\d+)$/i);
+        if (r) { ranges.push([parseInt(r[1], 10), parseInt(r[2], 10)]); return; }
+        if (/^\d+$/.test(p)) { ranges.push([parseInt(p, 10), parseInt(p, 10)]); return; }
+        bad.push(p);
+      });
+      if (ranges.length) out.push({ raw: raw, value: value, ranges: ranges });
+    });
+    return { lines: out, bad: bad };
+  }
+
+  function matchRows(blocks, line) {
+    var rows = [], seen = {};
+    (blocks || []).forEach(function (b) {
+      var n = numOf(b.block);
+      if (n == null) return;
+      var hit = line.ranges.some(function (r) {
+        var lo = Math.min(r[0], r[1]), hi = Math.max(r[0], r[1]);
+        return n >= lo && n <= hi;
+      });
+      if (hit && !seen[b.row]) { seen[b.row] = 1; rows.push(b.row); }
+    });
+    return rows;
+  }
+
+  /* One dialog, used for size and for grade. `apply` gets [{value, rows}] back. */
+  function rangeDialog(opts) {
+    var d = new frappe.ui.Dialog({
+      title: opts.title,
+      size: 'large',
+      fields: [
+        { fieldtype: 'HTML', options:
+          '<div class="dsz sm" style="line-height:1.6">One line per range, with ' +
+          'the ' + opts.what + ' at the end of the line. A single number is a range ' +
+          'of one, and a comma list works too.<pre style="margin:6px 0;padding:8px 10px;' +
+          'background:#f4f6f8;border-radius:6px;font-size:12px">800-1000 A\n500-550  B\n' +
+          '1327     C\n801-820, 856  A</pre></div>' },
+        { fieldname: 'spec', fieldtype: 'Small Text', label: 'Ranges', reqd: 1 },
+        { fieldtype: 'HTML', fieldname: 'preview' }
+      ],
+      primary_action_label: 'Check the ranges',
+      primary_action: function (v) {
+        var parsed = parseRanges(v.spec);
+        var html = [], groups = [], total = 0;
+        if (parsed.bad.length) {
+          html.push('<div class="note">Could not read: <b>' +
+                    esc(parsed.bad.join(', ')) + '</b></div>');
+        }
+        parsed.lines.forEach(function (ln) {
+          var rows = matchRows(opts.blocks, ln);
+          total += rows.length;
+          if (rows.length) groups.push({ value: ln.value, rows: rows });
+          html.push('<div class="' + (rows.length ? 'quiet' : 'note') + '"><b>' +
+                    esc(ln.raw) + '</b> &rarr; ' + rows.length + ' block' +
+                    (rows.length === 1 ? '' : 's') +
+                    (rows.length ? '' : ' &mdash; nothing on this document matches') + '</div>');
+        });
+        d.fields_dict.preview.$wrapper.html('<div class="dsz">' + html.join('') + '</div>');
+        if (!total) { return; }
+        d.set_primary_action('Apply to ' + total + ' block(s)', function () {
+          d.hide();
+          opts.apply(groups);
+        });
+      }
+    });
+    d.show();
+  }
+
   /* ================================================================ SIZES */
   function sizesHtml(d) {
     var h = ['<div class="dsz">'];
@@ -193,6 +293,7 @@
              '<span class="b off" data-pick="size:all">All</span>' +
              '<span class="b off" data-pick="size:none">None</span>' +
              '<span class="b off" data-pick="size:marginal">Marginal (' + (d.marginal_count || 0) + ')</span>' +
+             '<span class="b gold" data-dsz="sizerange">By range&hellip;</span>' +
              '<span style="margin-left:6px">Set size to</span> ' +
              '<select data-dsz="szval">' +
              (d.bands || []).map(function (b) {
@@ -250,6 +351,7 @@
              '<span class="b off" data-pick="grade:none">None</span>' +
              '<span class="b off" data-pick="grade:ungraded">Only ungraded (' +
              ((g.total || 0) - (g.filled || 0)) + ')</span>' +
+             '<span class="b gold" data-dsz="graderange">By range&hellip;</span>' +
              '<span style="margin-left:6px">Set grade to</span> ' +
              '<select data-dsz="grval"><option value="">— (clear)</option>' +
              opts.map(function (o) { return '<option value="' + esc(o) + '">' + esc(o) + '</option>'; }).join('') +
@@ -429,6 +531,34 @@
         });
     });
 
+    $sec.find('[data-dsz="sizerange"]').on('click', function () {
+      rangeDialog({
+        title: 'Set sizes by block-number range',
+        what: 'size', blocks: d.blocks,
+        apply: function (groups) {
+          frappe.prompt([
+            { fieldname: 'agreed_by', fieldtype: 'Data', label: 'Who at the buyer agreed', reqd: 1 },
+            { fieldname: 'reason', fieldtype: 'Small Text', label: 'Note', reqd: 1 }
+          ], function (v) {
+            var chain = Promise.resolve(), done = 0;
+            groups.forEach(function (g) {
+              chain = chain.then(function () {
+                return call('set_sizes', { doctype: d.doctype, name: d.name,
+                                           rows: JSON.stringify(g.rows), to_size: g.value,
+                                           agreed_by: v.agreed_by, reason: v.reason,
+                                           person: frappe.session.user, dry_run: 0 })
+                  .then(function (r) { done += (r && r.count) || 0; });
+              });
+            });
+            chain.then(function () {
+              frappe.show_alert({ message: done + ' block(s) re-sized by range', indicator: 'green' });
+              frm.reload_doc();
+            });
+          }, 'Apply the ranges', 'Apply');
+        }
+      });
+    });
+
     $sec.find('[data-dsz="editlot"]').on('click', function () {
       openLotDialog(frm, d.lot);
     });
@@ -513,6 +643,28 @@
         this.checked = (what === 'all') ? true
                      : (what === 'none') ? false
                      : !!this.dataset.ungraded;
+      });
+    });
+
+    $sec.find('[data-dsz="graderange"]').on('click', function () {
+      rangeDialog({
+        title: 'Set grades by block-number range',
+        what: 'grade', blocks: (d.grade && d.grade.blocks) || [],
+        apply: function (groups) {
+          var chain = Promise.resolve(), done = 0;
+          groups.forEach(function (g) {
+            chain = chain.then(function () {
+              return call('set_grades', { doctype: target.doctype, name: target.name,
+                                          rows: JSON.stringify(g.rows), grade: g.value,
+                                          person: frappe.session.user, dry_run: 0 })
+                .then(function (r) { done += (r && r.count) || 0; });
+            });
+          });
+          chain.then(function () {
+            frappe.show_alert({ message: done + ' block(s) graded by range', indicator: 'green' });
+            frm.reload_doc();
+          });
+        }
       });
     });
 
