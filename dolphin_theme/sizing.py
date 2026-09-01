@@ -129,11 +129,97 @@ CUSTOM_FIELDS = [
     ("Shipping Block", {
         "fieldname": "size_consent_on", "label": "Consent recorded", "fieldtype": "Datetime",
         "insert_after": "size_consent_by", "read_only": 1}),
+
+    # =====================================================================
+    # 1 Sep 2026.  HE OVERRULED THE BUYER-LINKED MASTER, IN HIS OWN WORDS:
+    #
+    #   "can you restrict the defined sizes only for shipping documents? or
+    #    dont link sizes to any consignee in the invoices at all let it be
+    #    standard one set editable for every shipment? everything wil be on
+    #    record everything in shipping documents"
+    #
+    # So sizes belong to a SHIPMENT, not to a buyer. Every Shipping Document
+    # carries its own bands; editing one changes that one and nothing else.
+    # The Granite Size Category master keeps ONE standard set as the starting
+    # point and decides nothing on a document that already exists.
+    #
+    # Seeding is his option B: a new document is pre-filled from the last
+    # shipment to the same consignee, labelled with the document it came from,
+    # and freely overwritten. That reads the previous DOCUMENT - it does not
+    # consult, and does not write, any rule owned by a buyer.
+    # =====================================================================
+    ("Shipping Document", {
+        "fieldname": "size_bands", "label": "Sizes for this shipment", "fieldtype": "Table",
+        "options": "Shipping Size Band", "insert_after": "size_rule_display",
+        "description": "The size bands this shipment is sorted by. Set here, on this "
+                       "document, and nowhere else."}),
+    ("Shipping Document", {
+        "fieldname": "size_seeded_from", "label": "Sizes pre-filled from", "fieldtype": "Data",
+        "insert_after": "size_bands", "read_only": 1,
+        "description": "The document these bands were copied from when this one was "
+                       "created. A note about where they started, not a link that "
+                       "keeps them in step."}),
+    # -------------------------------------------------------------- grade
+    # 1 Sep 2026, his words: "grade is independednt of size so grade is
+    # independednt", and "give an option to select Grade for internal purpose
+    # only it shouldnt be reflecting on shipping documents.. give grade options
+    # as A,B,B1,B2,C with option of checkmark decision box if needed enabled
+    # else off default."
+    #
+    # Grade is a JUDGEMENT about the stone. No measurement produces it and no
+    # measurement can contradict it. Nothing here reads or writes a size, the
+    # size sort never reads or writes a grade, and no pairing is ever flagged
+    # as odd - A size / C grade raises nothing. Off by default, and never on a
+    # printout: the DI Commercial Invoice and the DI Packing List are untouched.
+    ("Shipping Document", {
+        "fieldname": "record_grade", "label": "Record grade on this shipment",
+        "fieldtype": "Check", "default": "0", "insert_after": "size_seeded_from",
+        "description": "Internal record only. Off by default. Never printed - neither "
+                       "the invoice nor the packing list shows grade, whatever this says."}),
 ]
+
+# The five he named. The Granite Grade master already holds all five (plus
+# D (Rejected) and Unshaped, deliberately left out of a shipment's picker).
+GRADES = ["A", "B", "B1", "B2", "C"]
+
+# The child table the bands live in. Site data, like every other doctype on
+# this system, so a deploy cannot revert it.
+BAND_DOCTYPE = "Shipping Size Band"
+BAND_FIELDS = [
+    {"fieldname": "size_category_name", "label": "Size", "fieldtype": "Data",
+     "in_list_view": 1, "columns": 2, "reqd": 1},
+    {"fieldname": "min_length", "label": "Min L (cm)", "fieldtype": "Int",
+     "in_list_view": 1, "columns": 2},
+    {"fieldname": "min_width", "label": "Min W (cm)", "fieldtype": "Int",
+     "in_list_view": 1, "columns": 2},
+    {"fieldname": "min_height", "label": "Min H (cm)", "fieldtype": "Int",
+     "in_list_view": 1, "columns": 2},
+    {"fieldname": "sort_order", "label": "Order", "fieldtype": "Int",
+     "in_list_view": 1, "columns": 1},
+]
+
+
+def ensure_band_doctype():
+    """Create the child table if it is not there. Idempotent."""
+    try:
+        if frappe.db.exists("DocType", BAND_DOCTYPE):
+            return False
+        d = frappe.get_doc({
+            "doctype": "DocType", "name": BAND_DOCTYPE, "module": "Custom",
+            "custom": 1, "istable": 1, "editable_grid": 1,
+            "fields": [dict(f) for f in BAND_FIELDS],
+        })
+        d.flags.ignore_mandatory = True
+        d.insert(ignore_permissions=True)
+        return True
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), "ensure_band_doctype")
+        return False
 
 
 def ensure_fields():
     """Idempotent. Runs from after_migrate."""
+    ensure_band_doctype()
     try:
         from frappe.custom.doctype.custom_field.custom_field import create_custom_field
     except Exception:
@@ -165,67 +251,165 @@ def setup_sizing():
 # The size axis
 # ---------------------------------------------------------------------------
 
-def _categories(consignee=None, variation=None):
-    """The bands in force — this buyer's own rule when they have one, else the house.
+def _standard_bands():
+    """The ONE standard set. Rows in the master that belong to nobody.
 
-    31 Aug 2026. This used to end with
-
-        rows = [r for r in rows if not cint(r.get("is_custom"))]
-
-    which threw away every buyer-specific row before anything read them. The
-    master has carried `buyer`, `export_consignee` and `variation_label` all
-    along; that one line switched the whole capability off, so every buyer was
-    judged by the house A/B/C whether it suited them or not.
-
-    A rule is (buyer, variation). Blank variation is the buyer's main rule;
-    "B grade" is their second one. Grade is never a column — it is part of the
-    rule's name, which is his decision and the simpler one."""
+    1 Sep 2026. This used to take a consignee and a variation and hand back that
+    buyer's own rule. He removed that: sizes are not owned by a buyer any more.
+    What is left is a single house set, and its only job is to SEED a new
+    shipment. It decides nothing on a document that already carries bands."""
     try:
         rows = frappe.get_all(
             "Granite Size Category",
             filters={"is_active": 1},
             fields=["name", "size_category_name", "min_length", "min_width",
                     "min_height", "min_volume", "max_volume", "sort_order",
-                    "is_custom", "buyer", "export_consignee", "variation_label"],
+                    "buyer", "export_consignee", "variation_label"],
             limit_page_length=0)
     except Exception:
         return []
-
-    want_var = _s(variation)
-    mine = []
-    if consignee:
-        key = _s(consignee)
-        for r in rows:
-            if _s(r.get("export_consignee")) != key and _s(r.get("buyer")) != key:
-                continue
-            if _s(r.get("variation_label")) != want_var:
-                continue
-            mine.append(r)
-    if not mine:
-        # the house rule: rows that belong to nobody in particular
-        mine = [r for r in rows
-                if not _s(r.get("export_consignee")) and not _s(r.get("buyer"))
-                and not _s(r.get("variation_label"))]
-    mine.sort(key=lambda r: (cint(r.get("sort_order")) or 99))
-    return mine
+    rows = [r for r in rows
+            if not _s(r.get("export_consignee")) and not _s(r.get("buyer"))
+            and not _s(r.get("variation_label"))]
+    rows.sort(key=lambda r: (cint(r.get("sort_order")) or 99))
+    return rows
 
 
-def rule_in_force(consignee=None, variation=None):
-    """One line of plain English naming the bands a document was sorted by."""
-    rows = _categories(consignee, variation)
-    if not rows:
-        return "no size rule found"
-    owned = any(_s(r.get("export_consignee")) or _s(r.get("buyer")) for r in rows)
-    if not owned:
-        return "house rule (A / B / C)"
-    name = ""
+def _categories(consignee=None, variation=None):
+    """Kept so nothing that still calls it breaks. The arguments are ignored on
+    purpose - there is no per-buyer rule any more."""
+    return _standard_bands()
+
+
+def _band_rows(doc):
+    """This document's own bands, as plain dicts, or [] when it has none."""
+    out = []
     try:
-        name = _s(frappe.db.get_value("Export Consignee", consignee, "company_name"))
+        if not doc or not doc.meta.has_field("size_bands"):
+            return []
+        for b in (doc.get("size_bands") or []):
+            name = _s(b.get("size_category_name"))
+            if not name:
+                continue
+            out.append({"name": name, "size_category_name": name,
+                        "min_length": cint(b.get("min_length")),
+                        "min_width": cint(b.get("min_width")),
+                        "min_height": cint(b.get("min_height")),
+                        "min_volume": 0.0, "max_volume": 0.0,
+                        "sort_order": cint(b.get("sort_order")) or 99})
     except Exception:
-        name = ""
-    name = name or _s(consignee)
-    var = _s(variation)
-    return name + (" · " + var if var else "") + " — own bands"
+        return []
+    out.sort(key=lambda r: (cint(r.get("sort_order")) or 99))
+    return out
+
+
+def bands_for(doc):
+    """The bands a document is sorted by: its own, else the standard.
+
+    Two layers, and only two. There is no buyer layer between them."""
+    own = _band_rows(doc)
+    return own if own else _standard_bands()
+
+
+def _bands_from_blocks(doc):
+    """Bands read off a document's own blocks - the smallest block it accepted
+    in each size. This is how his option B seeds a shipment from the previous
+    one when that previous one predates the size_bands field.
+
+    It reads ONE document. It is not a buyer rule and nothing is stored against
+    a buyer by it."""
+    acc = {}
+    try:
+        for b in (doc.get("blocks") or []):
+            l, w, h = flt(b.get("length")), flt(b.get("width")), flt(b.get("height"))
+            cat = _s(b.get(SIZE_FIELD))
+            if not (l and w and h and cat):
+                continue
+            k = acc.setdefault(cat, {"l": l, "w": w, "h": h})
+            k["l"] = min(k["l"], l); k["w"] = min(k["w"], w); k["h"] = min(k["h"], h)
+    except Exception:
+        return []
+    order = {"A": 1, "B": 2, "B1": 3, "B2": 4, "C": 5}
+    out = [{"size_category_name": c, "min_length": int(v["l"]),
+            "min_width": int(v["w"]), "min_height": int(v["h"]),
+            "sort_order": order.get(c, 9)} for c, v in acc.items()]
+    out.sort(key=lambda r: r["sort_order"])
+    return out
+
+
+def _standard_as_bands():
+    return [{"size_category_name": _s(c.get("size_category_name")) or _s(c["name"]),
+             "min_length": cint(c.get("min_length")),
+             "min_width": cint(c.get("min_width")),
+             "min_height": cint(c.get("min_height")),
+             "sort_order": cint(c.get("sort_order")) or 99}
+            for c in _standard_bands()]
+
+
+def seed_bands(doc, method=None):
+    """before_insert on Shipping Document. HIS OPTION B, chosen 1 Sep 2026:
+
+        "2nd option looks good"
+
+    A new shipment opens pre-filled from the LAST shipment to the same
+    consignee, labelled with the document it came from, and freely overwritten.
+    Where that document has no bands of its own the figures are read off its
+    blocks; where there is no previous document at all, the standard is used.
+
+    Nothing is stored against the buyer by any of this. It reads one previous
+    document once, at creation, and then the two never speak again."""
+    try:
+        if doc.doctype != "Shipping Document" or not doc.meta.has_field("size_bands"):
+            return
+        if doc.get("size_bands"):
+            return
+        consignee = _doc_consignee(doc)
+        seeded, src = [], ""
+        if consignee:
+            prev = frappe.get_all(
+                "Shipping Document",
+                filters={"export_consignee": consignee, "name": ("!=", _s(doc.name) or "x")},
+                fields=["name"], order_by="shipment_date desc, creation desc",
+                limit_page_length=5)
+            for row in prev:
+                try:
+                    pd = frappe.get_doc("Shipping Document", row["name"])
+                except Exception:
+                    continue
+                got = [{"size_category_name": b["size_category_name"],
+                        "min_length": b["min_length"], "min_width": b["min_width"],
+                        "min_height": b["min_height"], "sort_order": b["sort_order"]}
+                       for b in _band_rows(pd)] or _bands_from_blocks(pd)
+                if got:
+                    seeded, src = got, row["name"]
+                    break
+        if not seeded:
+            seeded, src = _standard_as_bands(), "the standard set"
+        for b in seeded:
+            doc.append("size_bands", b)
+        if doc.meta.has_field("size_seeded_from"):
+            doc.size_seeded_from = src
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), "Dolphin seed_bands")
+
+
+def rule_in_force(doc=None):
+    """One line of plain English naming the bands a document was sorted by.
+
+    1 Sep 2026: it used to name a buyer. It names a document now, because that
+    is what owns the bands."""
+    own = _band_rows(doc) if doc is not None else []
+    if own:
+        src = ""
+        try:
+            if doc.meta.has_field("size_seeded_from") and _s(doc.get("size_seeded_from")):
+                src = " (started from {0})".format(_s(doc.get("size_seeded_from")))
+        except Exception:
+            src = ""
+        return "set on this shipment" + src
+    if _standard_bands():
+        return "the standard set"
+    return "no size bands defined"
 
 
 def _profile(name=None):
@@ -241,7 +425,7 @@ def _profile(name=None):
 
 
 def size_category_for(length, width, height, volume=None, profile=None,
-                      consignee=None, variation=None):
+                      consignee=None, variation=None, bands=None):
     """The SIZE category (A size / B size), from the measurements.
 
     Never returns a quality grade. Returns None when there is nothing to judge —
@@ -260,10 +444,11 @@ def size_category_for(length, width, height, volume=None, profile=None,
             if ml or mw or mh:
                 bands.append((letter.upper(), ml, mw, mh, 0, 0))
     else:
-        bands = [(c.get("size_category_name") or c["name"],
+        src = bands if bands else _standard_bands()
+        bands = [(c.get("size_category_name") or c.get("name"),
                   flt(c.get("min_length")), flt(c.get("min_width")),
                   flt(c.get("min_height")), flt(c.get("min_volume")),
-                  flt(c.get("max_volume"))) for c in _categories(consignee, variation)]
+                  flt(c.get("max_volume"))) for c in src]
 
     vol = flt(volume) or round(l * w * h / 1e6, 3)
     for name, ml, mw, mh, mnv, mxv in bands:
@@ -345,7 +530,7 @@ def _doc_consignee(doc):
     return None
 
 
-def fill_row(row, doctype, force=False, consignee=None, variation=None):
+def fill_row(row, doctype, force=False, consignee=None, variation=None, bands=None):
     """Put measurements and the size category onto one child row. Returns True
     when something was written. Never overwrites a value unless force."""
     fields = DIMS.get(doctype)
@@ -359,7 +544,7 @@ def fill_row(row, doctype, force=False, consignee=None, variation=None):
         # dimensions are there; the size category may still be missing
         if meta.has_field(SIZE_FIELD) and not _s(row.get(SIZE_FIELD)):
             cat = size_category_for(row.get(fl), row.get(fw), row.get(fh), row.get(fv),
-                                    consignee=consignee, variation=variation)
+                                    bands=bands)
             if cat:
                 row.set(SIZE_FIELD, cat)
                 return True
@@ -390,6 +575,10 @@ def carry_sizes(doc, method=None):
     on, typed sizes are left exactly as typed and only recorded as overridden."""
     try:
         override = bool(doc.meta.has_field("allow_size_override") and cint(doc.get("allow_size_override")))
+        # 1 Sep 2026: the bands come from the document itself now, never from
+        # the buyer. A document with no bands of its own falls back to the
+        # standard set - the only two layers there are.
+        doc_bands = bands_for(doc)
         filled = 0
         for tf in doc.meta.get_table_fields():
             child_dt = tf.options
@@ -399,13 +588,11 @@ def carry_sizes(doc, method=None):
                 if override:
                     _note_override(row, child_dt)
                     continue
-                if fill_row(row, child_dt, consignee=_doc_consignee(doc),
-                            variation=_s(doc.get("size_variation"))):
+                if fill_row(row, child_dt, bands=doc_bands):
                     filled += 1
         try:
             if doc.meta.has_field("size_rule_display"):
-                doc.size_rule_display = rule_in_force(_doc_consignee(doc),
-                                                      _s(doc.get("size_variation")))
+                doc.size_rule_display = rule_in_force(doc)
         except Exception:
             pass
         if filled and doc.doctype == "Port Arrival":
@@ -793,68 +980,265 @@ def learned_size_rule(consignee=None):
                     "smallest ever accepted is a floor, not a promise."}
 
 
-@frappe.whitelist()
-def save_size_rule(consignee=None, variation=None, cushion=0, reason=None,
-                   person=None, dry_run=1):
-    """Write what the invoices say into the master as this buyer's own rule.
+# ===========================================================================
+# SIZES BELONG TO THE SHIPMENT.  1 Sep 2026
+#
+# [stated] "dont link sizes to any consignee in the invoices at all let it be
+#  standard one set editable for every shipment? everything wil be on record
+#  everything in shipping documents"
+#
+# `save_size_rule` used to write a rule OWNED BY A BUYER into the master. He
+# removed that idea, so it is gone: what replaces it writes bands onto ONE
+# document, re-sorts that document's blocks, and records what moved, who moved
+# it and why - inside the shipping document, where he asked for it.
+# ===========================================================================
 
-    cushion: centimetres to subtract from every learned minimum, so one unusually
-    small block that slipped through once does not become the rule. Nothing is
-    written unless dry_run is 0, and every row records where the numbers came
-    from."""
-    dry = _s(dry_run) not in ("0", "false", "False", "")
-    consignee = _s(consignee)
-    variation = _s(variation)
-    if not consignee:
-        frappe.throw("Which buyer?")
-    if not dry and len(_s(reason)) < 6:
-        frappe.throw("Say why this rule is being saved - it is written onto every row.")
-    learned = learned_size_rule(consignee)
-    cush = cint(cushion)
-    planned, done = [], []
-    for s in learned.get("sizes") or []:
-        l, w, h = s["smallest_accepted"]
-        band = {"size": s["size"], "min_length": max(0, l - cush),
-                "min_width": max(0, w - cush), "min_height": max(0, h - cush),
-                "learned_from": s["blocks"]}
-        planned.append(band)
-        if dry:
-            continue
-        row_name = "{0}-{1}-{2}".format(consignee, variation or "main", s["size"])
-        payload = {
-            "doctype": "Granite Size Category",
-            "size_category_name": s["size"],
-            "size_group": s["size"] if s["size"] in ("A", "B", "C") else "Custom",
-            "variation_label": variation,
-            "export_consignee": consignee,
-            "is_custom": 1, "is_active": 1,
-            "min_length": band["min_length"], "min_width": band["min_width"],
-            "min_height": band["min_height"],
-            "sort_order": {"A": 1, "B": 2, "C": 3}.get(s["size"], 5),
-            "description": ("Read from {0}'s own invoices - the smallest block they "
-                            "accepted as {1}, over {2} block(s){3}. {4}").format(
-                                _buyer_name(consignee), s["size"], s["blocks"],
-                                (", less a {0} cm cushion".format(cush) if cush else ""),
-                                _s(reason)),
-        }
+
+@frappe.whitelist()
+def save_size_rule(**kwargs):
+    frappe.throw("Sizes are not saved against a buyer any more - his instruction of "
+                 "1 Sep 2026. Set the bands on the shipping document itself "
+                 "(sizing.set_document_bands); they apply to that shipment alone.")
+
+
+def _parse_bands(bands):
+    """Accept a list of dicts or the JSON the panel posts."""
+    if isinstance(bands, str):
         try:
-            if frappe.db.exists("Granite Size Category", row_name):
-                d = frappe.get_doc("Granite Size Category", row_name)
-                d.update({k: v for k, v in payload.items() if k != "doctype"})
-                d.save(ignore_permissions=True)
-            else:
-                d = frappe.get_doc(payload)
-                d.flags.ignore_mandatory = True
-                d.insert(ignore_permissions=True, set_name=row_name)
-            done.append(d.name)
+            bands = json.loads(bands)
         except Exception:
-            frappe.log_error(frappe.get_traceback(), "save_size_rule")
-    if not dry:
-        frappe.db.commit()
-    return {"dry_run": bool(dry), "consignee": consignee,
-            "buyer_name": _buyer_name(consignee), "variation": variation,
-            "cushion_cm": cush, "bands": planned, "written": done,
-            "blocks_read": learned.get("blocks_read")}
+            frappe.throw("Could not read the bands that were sent.")
+    out = []
+    order = {"A": 1, "B": 2, "B1": 3, "B2": 4, "C": 5}
+    for b in (bands or []):
+        name = _s(b.get("size_category_name") or b.get("size"))
+        if not name:
+            continue
+        out.append({"size_category_name": name,
+                    "min_length": cint(b.get("min_length")),
+                    "min_width": cint(b.get("min_width")),
+                    "min_height": cint(b.get("min_height")),
+                    "sort_order": cint(b.get("sort_order")) or order.get(name, 9)})
+    out.sort(key=lambda r: r["sort_order"])
+    return out
+
+
+def _resort(doc, bands):
+    """Put every block in the band its measurements earn. Returns what moved.
+
+    Touches the SIZE field only. It does not read a grade and it does not write
+    one - 1 Sep 2026, [stated] "grade is independednt of size"."""
+    moved = []
+    for b in (doc.get("blocks") or []):
+        l, w, h = flt(b.get("length")), flt(b.get("width")), flt(b.get("height"))
+        if not (l and w and h):
+            continue
+        was = _s(b.get(SIZE_FIELD))
+        now = size_category_for(l, w, h, b.get("net_volume"), bands=bands)
+        if now and now != was:
+            moved.append({"block": _s(b.get("export_block_no")) or _s(b.get("block_no")),
+                          "row": _s(b.name), "from": was or "(none)", "to": now})
+            b.set(SIZE_FIELD, now)
+    return moved
+
+
+@frappe.whitelist()
+def document_sizes(shipping_document=None):
+    """Everything the panel draws, in one read. Changes nothing."""
+    name = _s(shipping_document)
+    if not name:
+        frappe.throw("Which shipping document?")
+    doc = frappe.get_doc("Shipping Document", name)
+    bands = _band_rows(doc)
+    own = bool(bands)
+    if not bands:
+        bands = _standard_bands()
+    std = {}
+    for c in _standard_bands():
+        std[_s(c.get("size_category_name")) or _s(c.get("name"))] = [
+            cint(c.get("min_length")), cint(c.get("min_width")), cint(c.get("min_height"))]
+
+    counts = {}
+    graded, filled = [], 0
+    for b in (doc.get("blocks") or []):
+        cat = _s(b.get(SIZE_FIELD))
+        if cat:
+            counts[cat] = counts.get(cat, 0) + 1
+        g = _s(b.get("grade"))
+        if g:
+            filled += 1
+        graded.append({"row": _s(b.name),
+                       "block": _s(b.get("export_block_no")) or _s(b.get("block_no")),
+                       "grade": g})
+
+    tally = {}
+    for r in graded:
+        if r["grade"]:
+            tally[r["grade"]] = tally.get(r["grade"], 0) + 1
+
+    return {
+        "document": name,
+        "submitted": cint(doc.docstatus) == 1,
+        "sizes_by": rule_in_force(doc),
+        "own_bands": own,
+        "seeded_from": _s(doc.get("size_seeded_from")),
+        "bands": [{"size": _s(b.get("size_category_name")) or _s(b.get("name")),
+                   "min_length": cint(b.get("min_length")),
+                   "min_width": cint(b.get("min_width")),
+                   "min_height": cint(b.get("min_height")),
+                   "standard": std.get(_s(b.get("size_category_name")) or _s(b.get("name"))),
+                   "blocks": counts.get(_s(b.get("size_category_name")) or _s(b.get("name")), 0)}
+                  for b in bands],
+        "standard": std,
+        # grade: a separate answer about a separate thing, on the same read
+        # only because one round trip is kinder than two.
+        "grade": {
+            "on": bool(cint(doc.get("record_grade"))),
+            "options": list(GRADES),
+            "blocks": graded,
+            "filled": filled,
+            "total": len(graded),
+            "tally": tally,
+        },
+        "note": "These bands belong to this shipment. No buyer owns them and no "
+                "other document changes.",
+    }
+
+
+@frappe.whitelist()
+def set_document_bands(shipping_document=None, bands=None, reason=None,
+                       person=None, dry_run=1):
+    """Write bands onto ONE shipment and re-sort its blocks. Reversible by
+    setting them back - nothing outside this document is touched."""
+    dry = _s(dry_run) not in ("0", "false", "False", "")
+    name = _s(shipping_document)
+    if not name:
+        frappe.throw("Which shipping document?")
+    doc = frappe.get_doc("Shipping Document", name)
+    if cint(doc.docstatus) == 1:
+        frappe.throw("{0} is submitted. A filed document is not re-sorted behind "
+                     "its own back.".format(name))
+    want = _parse_bands(bands)
+    if not want:
+        frappe.throw("No bands were given.")
+    if not dry and len(_s(reason)) < 6:
+        frappe.throw("Say why these sizes are being set - it is written onto the document.")
+
+    before = [{"size": b["size_category_name"],
+               "was": [b["min_length"], b["min_width"], b["min_height"]]}
+              for b in _band_rows(doc)]
+    moved = _resort(doc, want)
+    if dry:
+        return {"dry_run": True, "document": name, "bands": want,
+                "before": before, "would_move": moved, "count": len(moved)}
+
+    doc.set("size_bands", [])
+    for b in want:
+        doc.append("size_bands", b)
+    doc.flags.ignore_mandatory = True
+    doc.save(ignore_permissions=True)
+    try:
+        line = ", ".join("{0} {1} x {2} x {3}".format(
+            b["size_category_name"], b["min_length"], b["min_width"], b["min_height"])
+            for b in want)
+        who = _s(person) or frappe.session.user
+        moved_txt = ("; ".join("{0} {1} -> {2}".format(m["block"], m["from"], m["to"])
+                               for m in moved[:12]) or "no block changed size")
+        doc.add_comment("Comment",
+                        "Sizes for this shipment set to {0}. {1}{2}. Recorded by {3}. {4}".format(
+                            line, moved_txt,
+                            (" (+{0} more)".format(len(moved) - 12) if len(moved) > 12 else ""),
+                            who, _s(reason)))
+    except Exception:
+        pass
+    frappe.db.commit()
+    return {"ok": True, "document": name, "bands": want, "before": before,
+            "moved": moved, "count": len(moved)}
+
+
+@frappe.whitelist()
+def reset_document_bands(shipping_document=None, reason=None, person=None, dry_run=1):
+    """Put this shipment back on the standard set."""
+    return set_document_bands(shipping_document=shipping_document,
+                              bands=_standard_as_bands(),
+                              reason=reason or "Reset to the standard set.",
+                              person=person, dry_run=dry_run)
+
+
+# ===========================================================================
+# GRADE.  A SEPARATE THING, ON PURPOSE.  1 Sep 2026
+#
+# [stated] "no grade is independednt of size so grade is independednt"
+#
+# Nothing below reads a measurement or a size category, and nothing in the size
+# code above reads a grade. Setting a grade never re-sorts anything; re-sorting
+# never touches a grade. No pairing is checked, warned about or blocked -
+# A size / C grade is ordinary. Switching recording off hides the section and
+# erases nothing.
+#
+# [stated] "for internal purpose only it shouldnt be reflecting on shipping
+#  documents" - so it reaches no print format. The DI Commercial Invoice and
+# the DI Packing List are untouched by any of this.
+# ===========================================================================
+
+
+@frappe.whitelist()
+def set_grade_recording(shipping_document=None, on=None, person=None):
+    """The tick. Off by default; turning it off keeps whatever was recorded."""
+    name = _s(shipping_document)
+    if not name:
+        frappe.throw("Which shipping document?")
+    doc = frappe.get_doc("Shipping Document", name)
+    if cint(doc.docstatus) == 1:
+        frappe.throw("{0} is submitted.".format(name))
+    val = 1 if _s(on) not in ("0", "false", "False", "") else 0
+    doc.set("record_grade", val)
+    doc.flags.ignore_mandatory = True
+    doc.save(ignore_permissions=True)
+    try:
+        doc.add_comment("Comment", "Grade recording switched {0} for this shipment by {1}. "
+                                   "Internal only - not printed.".format(
+                                       "on" if val else "off",
+                                       _s(person) or frappe.session.user))
+    except Exception:
+        pass
+    frappe.db.commit()
+    return {"ok": True, "document": name, "on": bool(val)}
+
+
+@frappe.whitelist()
+def set_block_grade(shipping_document=None, row=None, grade=None, person=None):
+    """One block, one grade. Reads no measurement and writes no size."""
+    name, row, grade = _s(shipping_document), _s(row), _s(grade)
+    if not (name and row):
+        frappe.throw("Which document, and which row?")
+    if grade and grade not in GRADES:
+        frappe.throw("Grade must be one of {0}, or blank.".format(", ".join(GRADES)))
+    doc = frappe.get_doc("Shipping Document", name)
+    if cint(doc.docstatus) == 1:
+        frappe.throw("{0} is submitted.".format(name))
+    target = None
+    for b in (doc.get("blocks") or []):
+        if _s(b.name) == row:
+            target = b
+            break
+    if target is None:
+        frappe.throw("That row is not on {0}.".format(name))
+    was = _s(target.get("grade"))
+    target.set("grade", grade)
+    doc.flags.ignore_mandatory = True
+    doc.save(ignore_permissions=True)
+    try:
+        doc.add_comment("Comment", "Grade of block {0}: {1} -> {2}, by {3}. Internal "
+                                   "only - not printed.".format(
+                                       _s(target.get("export_block_no")) or _s(target.get("block_no")),
+                                       was or "(none)", grade or "(none)",
+                                       _s(person) or frappe.session.user))
+    except Exception:
+        pass
+    frappe.db.commit()
+    return {"ok": True, "document": name, "block": _s(target.get("export_block_no"))
+            or _s(target.get("block_no")), "from": was, "to": grade}
 
 
 # ===========================================================================
@@ -894,10 +1278,8 @@ def marginal_blocks(shipping_document=None, tolerance_cm=None):
         frappe.throw("Which shipping document?")
     tol = cint(tolerance_cm) if tolerance_cm not in (None, "") else MARGINAL_CM
     doc = frappe.get_doc("Shipping Document", name)
-    consignee = _doc_consignee(doc)
-    variation = _s(doc.get("size_variation"))
-    bands = _categories(consignee, variation)
-    order = {"A": 1, "B": 2, "C": 3}
+    bands = bands_for(doc)
+    order = {"A": 1, "B": 2, "B1": 3, "B2": 4, "C": 5}
 
     def rank(cat):
         return order.get(_s(cat), 9)
@@ -938,7 +1320,7 @@ def marginal_blocks(shipping_document=None, tolerance_cm=None):
             break
     out.sort(key=lambda x: x["worst_cm"])
     return {"document": name, "tolerance_cm": tol,
-            "sizes_by": rule_in_force(consignee, variation),
+            "sizes_by": rule_in_force(doc),
             "count": len(out), "blocks": out,
             "note": "These missed the higher band by {0} cm or less. Nothing moves "
                     "unless a person records that the buyer agreed.".format(tol)}

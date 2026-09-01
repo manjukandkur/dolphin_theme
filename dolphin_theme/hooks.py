@@ -39,7 +39,13 @@ doc_events = {
     # The export invoice / packing list. carry_sizes runs first (and honours the
     # size-override tick, B45), then the rate table is rebuilt from whatever
     # sizes and grades the document is actually carrying (B46).
+    #
+    # 1 Sep 2026. `seed_bands` runs BEFORE the document exists, once, and
+    # pre-fills its size bands from the last shipment to the same consignee -
+    # his option B. It reads that previous document; it consults no rule owned
+    # by a buyer, because there are none any more.
     "Shipping Document": {
+        "before_insert": "dolphin_theme.sizing.seed_bands",
         "validate": [
             "dolphin_theme.sizing.carry_sizes",
             "dolphin_theme.sizing.compute_size_rates",
