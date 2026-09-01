@@ -474,14 +474,17 @@ def _seed_for(doc):
         consignee = _doc_consignee(doc)
         seeded, src = [], ""
         if consignee:
+            # 1 Sep 2026: a lot looks at the last LOT; a shipping document working
+            # from its own copy looks at the last SHIPPING DOCUMENT. Either way it
+            # reads one previous document and stores nothing against the buyer.
             prev = frappe.get_all(
-                "Export Shipment Lot",
+                doc.doctype,
                 filters={"export_consignee": consignee, "name": ("!=", _s(doc.name) or "x")},
                 fields=["name"], order_by="creation desc",
                 limit_page_length=5)
             for row in prev:
                 try:
-                    pd = frappe.get_doc("Export Shipment Lot", row["name"])
+                    pd = frappe.get_doc(doc.doctype, row["name"])
                 except Exception:
                     continue
                 got = [{"size_category_name": b["size_category_name"],
