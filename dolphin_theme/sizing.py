@@ -1389,10 +1389,25 @@ def set_sizes(doctype=None, name=None, rows=None, to_size=None, agreed_by=None,
     rows = [_s(r) for r in (rows or []) if _s(r)]
     if not rows or not to_size:
         frappe.throw("Tick some blocks and choose a size.")
-    if not dry and len(_s(agreed_by)) < 2:
-        frappe.throw("Name the person at the buyer who agreed - that name is the whole "
-                     "point of a change rather than an edit.")
-    changed, same = [], 0
+
+    # 1 Sep 2026. His question: "what is who at the buyer agreed".
+    #
+    # It is his own rule of 31 Aug - the app never promotes, a person does, after
+    # the buyer consents - and the name is what makes a block priced as A that
+    # does not measure as A read as an agreement rather than a typing error.
+    #
+    # But I had it demanded for EVERY size change, which is too strict and was my
+    # mistake. Moving a block DOWN a band, or setting the size the thresholds
+    # already agree with, concedes nothing to anybody. So the name is required
+    # only when a block moves UP, and everything else just takes a reason.
+    order = {}
+    for i, c in enumerate(bands_for(doc)):
+        order[_s(c.get("size_category_name")) or _s(c.get("name"))] = i
+
+    def rank(cat):
+        return order.get(_s(cat), 99)
+
+    changed, same, promotions = [], 0, []
     for b in _blocks_of(doc):
         if _s(b.name) not in rows:
             continue
@@ -1400,26 +1415,39 @@ def set_sizes(doctype=None, name=None, rows=None, to_size=None, agreed_by=None,
         if was == to_size:
             same += 1
             continue
-        changed.append({"row": _s(b.name),
-                        "block": _s(b.get("export_block_no")) or _s(b.get("block_no")),
-                        "from": was or "(none)", "to": to_size})
+        up = rank(to_size) < rank(was)
+        rec = {"row": _s(b.name),
+               "block": _s(b.get("export_block_no")) or _s(b.get("block_no")),
+               "from": was or "(none)", "to": to_size, "up": up}
+        changed.append(rec)
+        if up:
+            promotions.append(rec["block"])
         if not dry:
-            if b.meta.has_field("size_promoted_from") and not _s(b.get("size_promoted_from")):
-                b.set("size_promoted_from", was)
-            if b.meta.has_field("size_consent_by"):
-                b.set("size_consent_by", _s(agreed_by))
-            if b.meta.has_field("size_consent_on"):
-                b.set("size_consent_on", frappe.utils.now())
+            # only a move UP is a promotion, and only a promotion carries a name
+            if up:
+                if b.meta.has_field("size_promoted_from") and not _s(b.get("size_promoted_from")):
+                    b.set("size_promoted_from", was)
+                if b.meta.has_field("size_consent_by"):
+                    b.set("size_consent_by", _s(agreed_by))
+                if b.meta.has_field("size_consent_on"):
+                    b.set("size_consent_on", frappe.utils.now())
             b.set(SIZE_FIELD, to_size)
     if dry:
         return {"dry_run": True, "changed": changed, "count": len(changed),
-                "already": same, "to": to_size}
+                "already": same, "to": to_size,
+                "promotions": promotions, "needs_consent": bool(promotions)}
+    if promotions and len(_s(agreed_by)) < 2:
+        frappe.throw("{0} block(s) move UP a band, so name the person at the buyer who "
+                     "agreed. A move down or a correction does not need one.".format(
+                         len(promotions)))
     doc.flags.ignore_mandatory = True
     doc.save(ignore_permissions=True)
     try:
-        doc.add_comment("Comment", "{0} block(s) set to size {1} ({2} already were), "
-                                   "agreed by {3}, recorded by {4}. {5} {6}".format(
-            len(changed), to_size, same, _s(agreed_by),
+        doc.add_comment("Comment", "{0} block(s) set to size {1} ({2} already were){3}, "
+                                   "recorded by {4}. {5} {6}".format(
+            len(changed), to_size, same,
+            (", {0} moved UP with the buyer's consent - agreed by {1}".format(
+                len(promotions), _s(agreed_by)) if promotions else ""),
             _s(person) or frappe.session.user,
             "; ".join("{0} {1}->{2}".format(c["block"], c["from"], c["to"])
                       for c in changed[:20]),
@@ -1427,7 +1455,8 @@ def set_sizes(doctype=None, name=None, rows=None, to_size=None, agreed_by=None,
     except Exception:
         pass
     frappe.db.commit()
-    return {"ok": True, "changed": changed, "count": len(changed), "already": same}
+    return {"ok": True, "changed": changed, "count": len(changed), "already": same,
+            "promotions": promotions}
 
 
 # ===========================================================================
