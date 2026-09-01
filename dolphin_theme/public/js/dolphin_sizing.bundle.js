@@ -92,22 +92,21 @@
     var edit = d.owner.editable && !d.frozen;
 
     if (!d.is_lot) {
+      /* 1 Sep 2026, his words: "either one should be active so give a check mark
+         for both". So the choice is shown as the two things it actually is, and
+         exactly one of them is ticked. They are bound to the same single value,
+         so a third state cannot exist and the two can never both be off. */
+      h.push(sourcePicker(d));
       if (d.override) {
-        h.push('<div class="note"><b>Final change is on.</b> This document carries its own ' +
-               'copy of the thresholds and no longer follows ' + esc(d.lot || 'its lot') +
-               '. Untick to go back to the lot and drop the copy.' +
-               '<div style="margin-top:7px"><span class="b off" data-dsz="unoverride">' +
-               'Follow the lot again</span></div></div>');
+        h.push('<div class="note"><b>This document has left ' + esc(d.lot || 'its lot') +
+               '.</b> It is working from its own copy of the thresholds, taken when you ' +
+               'ticked it. Correcting the lot no longer reaches this document.</div>');
       } else if (d.lot) {
-        h.push('<div class="ok"><b>Reading ' + esc(d.lot) + '.</b> The lot decides the thresholds ' +
-               'and this document stays in step with it. ' +
-               '<div style="margin-top:7px"><span class="b gold" data-dsz="editlot">' +
-               'Edit on the lot&hellip;</span>' +
-               '<span class="b off" data-dsz="override">Final change on this document&hellip;</span></div></div>');
+        h.push('<div class="ok"><b>Following ' + esc(d.lot) + '.</b> The lot decides, and this ' +
+               'document stays in step with it. ' +
+               '<span class="b gold" data-dsz="editlot">Edit on the lot&hellip;</span></div>');
       } else {
-        h.push('<div class="quiet">This document has no lot behind it, so the standard set applies.' +
-               '<div style="margin-top:7px"><span class="b off" data-dsz="override">' +
-               'Final change on this document&hellip;</span></div></div>');
+        h.push('<div class="quiet">This document has no lot behind it, so the standard set applies.</div>');
       }
     }
 
@@ -139,6 +138,26 @@
            'packing list.</div>');
     h.push('</div>');
     return h.join('');
+  }
+
+  /* Two ticks, one value. Whichever you tick, the other clears - there is no way
+     to have both on, and no way to have neither. */
+  function sourcePicker(d) {
+    var uid = (sourcePicker.n = (sourcePicker.n || 0) + 1);
+    function one(on, id, label, sub) {
+      id = id + '-' + uid;
+      return '<label style="display:flex;align-items:flex-start;gap:7px;margin:0 18px 0 0;' +
+             'cursor:pointer"><input type="checkbox" class="dsz-src" id="' + id + '" data-on="' +
+             (id.indexOf('own') >= 0 ? '1' : '0') + '"' + (on ? ' checked' : '') +
+             (d.frozen ? ' disabled' : '') + ' style="margin-top:2px">' +
+             '<span><b>' + label + '</b><br><span class="sm">' + sub + '</span></span></label>';
+    }
+    return '<div class="bar" style="align-items:flex-start">' +
+           one(!d.override, 'dsz-src-lot', 'Follow ' + esc(d.lot || 'the standard'),
+               'The lot decides. Changes there reach this document by themselves.') +
+           one(d.override, 'dsz-src-own', 'Set on this document',
+               'This document takes its own copy and stops following the lot.') +
+           '</div>';
   }
 
   function bandsTable(d, edit) {
@@ -204,6 +223,13 @@
     var where = d.is_lot ? 'this lot' : (d.override ? 'this document' : esc(d.lot || 'the lot'));
     var edit = !d.frozen && (d.is_lot || d.override);
     var h = ['<div class="dsz">'];
+
+    /* 1 Sep 2026: "either one should be active so give a check mark for both" /
+       "whichever is selected will be active". The same pair appears here so you
+       can switch from wherever you are - and it is bound to the SAME single
+       value as the one on the sizes section, so the two can never disagree.
+       One choice, shown twice; not two choices. */
+    if (!d.is_lot) h.push(sourcePicker(d));
 
     h.push('<div class="bar"><input type="checkbox" id="dsz-grade-on"' +
            (g.on ? ' checked' : '') + (edit ? '' : ' disabled') + '>' +
@@ -407,22 +433,26 @@
       openLotDialog(frm, d.lot);
     });
 
-    $sec.find('[data-dsz="override"]').on('click', function () {
-      frappe.prompt([{ fieldname: 'reason', fieldtype: 'Small Text', label:
-        'Why this document needs its own copy', reqd: 1 }],
-        function (v) {
-          call('set_override', { shipping_document: frm.doc.name, on: 1,
-                                 reason: v.reason, person: frappe.session.user })
-            .then(function () { frm.reload_doc(); });
-        }, 'Final change on this document', 'Turn it on');
-    });
-
-    $sec.find('[data-dsz="unoverride"]').on('click', function () {
-      call('set_override', { shipping_document: frm.doc.name, on: 0,
-                             person: frappe.session.user })
-        .then(function () { frm.reload_doc(); });
+    $sec.find('input.dsz-src').on('change', function () {
+      var wantOwn = this.dataset.on === '1' ? this.checked : !this.checked;
+      if (wantOwn === !!d.override) { render2(frm); return; }   /* nothing to do */
+      if (wantOwn) {
+        frappe.prompt([{ fieldname: 'reason', fieldtype: 'Small Text',
+                         label: 'Why this document needs its own copy', reqd: 1 }],
+          function (v) {
+            call('set_override', { shipping_document: frm.doc.name, on: 1,
+                                   reason: v.reason, person: frappe.session.user })
+              .then(function () { frm.reload_doc(); });
+          }, 'Set on this document', 'Turn it on');
+      } else {
+        call('set_override', { shipping_document: frm.doc.name, on: 0,
+                               person: frappe.session.user })
+          .then(function () { frm.reload_doc(); });
+      }
     });
   }
+
+  function render2(frm) { try { frm.reload_doc(); } catch (e) {} }
 
   /* The lot's own panel, opened from the shipping document. You never walk
      to the lot; the lot comes to you, and the writing still happens there. */
@@ -452,6 +482,24 @@
     var target = (d.is_lot || d.override)
       ? { doctype: d.doctype, name: d.name }
       : { doctype: 'Export Shipment Lot', name: d.lot };
+
+    $sec.find('input.dsz-src').on('change', function () {
+      var wantOwn = this.dataset.on === '1' ? this.checked : !this.checked;
+      if (wantOwn === !!d.override) { frm.reload_doc(); return; }
+      if (wantOwn) {
+        frappe.prompt([{ fieldname: 'reason', fieldtype: 'Small Text',
+                         label: 'Why this document needs its own copy', reqd: 1 }],
+          function (v) {
+            call('set_override', { shipping_document: frm.doc.name, on: 1,
+                                   reason: v.reason, person: frappe.session.user })
+              .then(function () { frm.reload_doc(); });
+          }, 'Set on this document', 'Turn it on');
+      } else {
+        call('set_override', { shipping_document: frm.doc.name, on: 0,
+                               person: frappe.session.user })
+          .then(function () { frm.reload_doc(); });
+      }
+    });
 
     $sec.find('#dsz-grade-on').on('change', function () {
       call('set_grade_recording', { doctype: target.doctype, name: target.name,
