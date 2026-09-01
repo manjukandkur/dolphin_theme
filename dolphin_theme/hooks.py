@@ -9,7 +9,12 @@ app_license = "MIT"
 app_include_css = "dolphin_theme.bundle.css"
 # dolphin_patch.js loads AFTER the bundle to enforce a single Trace-a-block box
 # and the menu changes. Remove the patch entry (and the file) to revert.
-app_include_js = ["dolphin_theme.bundle.js", "dolphin_patch.bundle.js"]
+# dolphin_sizing.bundle.js draws the size master ON the shipping document -
+# 1 Sep 2026, his words: "still the size category master is not showing here ??".
+# It was true: the 31 Aug sizing work shipped as API methods with no screen.
+# Remove this entry (and the file) to revert; nothing else depends on it.
+app_include_js = ["dolphin_theme.bundle.js", "dolphin_patch.bundle.js",
+                  "dolphin_sizing.bundle.js"]
 
 
 # Normalize Export Shipment Lot block rows on save so block_no always shows the
