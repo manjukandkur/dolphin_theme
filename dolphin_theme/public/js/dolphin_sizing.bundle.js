@@ -248,13 +248,19 @@
        while a NEW lot gets pre-filled from the last shipment to that consignee.
        This offers an existing lot the same start, on demand, without anyone
        retyping it. */
-    if (d.is_lot && edit && !d.own_bands) {
-      h.push('<div class="quiet"><b>This lot has no thresholds of its own</b>, so it is being ' +
-             'sorted by the standard set. A lot created from now on is pre-filled from the ' +
-             'last shipment to this consignee &mdash; this one can have the same start.' +
+    /* 1 Sep 2026, his words: "Rewriting Not a problem since now shipping documents
+       will be finalised so give same options to existing also." So the offer is not
+       limited to lots: a shipping document working from its own copy, and any
+       document that has no thresholds of its own yet, gets the same start rather
+       than being stuck on the house figures because it happens to predate this. */
+    if (edit && !d.own_bands) {
+      h.push('<div class="quiet"><b>' + (d.is_lot ? 'This lot' : 'This document') +
+             ' has no thresholds of its own</b>, so it is being sorted by the standard set. ' +
+             'Anything created from now on is pre-filled from the last shipment to this ' +
+             'consignee &mdash; this one can have the same start.' +
              '<div style="margin-top:7px"><span class="b gold" data-dsz="seed">' +
-             'Pre-fill from the last lot&hellip;</span></div></div>');
-    } else if (d.is_lot && d.seeded_from) {
+             'Pre-fill from the last shipment&hellip;</span></div></div>');
+    } else if (d.seeded_from) {
       h.push('<div class="sm">Started from ' + esc(d.seeded_from) + '.</div>');
     }
 
