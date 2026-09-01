@@ -25,6 +25,8 @@
 #pr .frow{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:8px 14px;background:#fff;border-bottom:.5px solid #e7ebf1}
 #pr .fl{font-size:13px;padding:6px 12px;border-radius:20px;background:#e7ecf3;color:#1f2a3a;font-weight:500;cursor:pointer}
 #pr .fl.on{background:#e6efe9;color:#0f6e56;font-weight:600}
+#pr .fl .flc{margin-left:6px;font-weight:700;font-variant-numeric:tabular-nums;opacity:.7}
+#pr .fl .flc:empty{margin-left:0}
 #pr .bulk{display:none;align-items:center;gap:9px;padding:9px 14px;background:#eaf0f7;border-bottom:.5px solid #cdd8e8}#pr .bulk.on{display:flex}
 #pr .bbtn{font-size:13px;padding:6px 12px;border-radius:8px;cursor:pointer;border:1px solid #cfd4dc;background:#fff}
 #pr .bbtn.pri{background:var(--navy);color:#fff;border-color:var(--navy)}#pr .bbtn.gold{background:var(--gold);color:#4a3208;border-color:var(--gold);font-weight:600}
@@ -176,13 +178,23 @@
       <span class="gh" id="addbtn" style="display:none">+ Add at port</span><span class="gh" id="openbtn" style="display:none">&#9638; Opening stock</span>
     </div>
     <!-- 22 Aug 2026, his words: "stock at port should simply give all the details and history of each
-         block after reconcilation and nothing else no strings attached." The filter chips, the two
-         add buttons and every row action are gone from this screen: it is a register now, and a
-         register does not make decisions. They are hidden rather than deleted so nothing that
-         references them can throw - the failure mode this system keeps producing. -->
-    <div class="frow" id="flrow" style="display:none">
-      <span class="fl" data-f="await">Awaiting arrival</span><span class="fl on" data-f="all">All</span><span class="fl" data-f="port">At port</span>
-      <span class="fl" data-f="lot">In lot</span><span class="fl" data-f="flag">Needs attention</span><span class="fl" data-f="excess">Excess</span><span class="fl" data-f="load">Loaded</span>
+         block after reconcilation and nothing else no strings attached." Every row ACTION and both
+         add buttons went from this screen then, and they stay gone: it is a register, and a register
+         does not make decisions. They are hidden rather than deleted so nothing that references them
+         can throw - the failure mode this file keeps producing.
+
+         1 Sep 2026, his words: "at port filter to segrgregate at port and in lot not added still?"
+         The chips came back. They are not an exception to the 22 Aug rule - a filter decides nothing
+         and writes nothing; it only chooses which of the settled blocks you are looking at. The
+         register defaults to ALL settled stone, exactly as before, so nothing changes until a chip
+         is pressed. The four off-register chips (awaiting / needs attention / excess / everything)
+         stay in the DOM and stay hidden: this screen shows stone that is at the port, and awaiting
+         arrival is Reconciliation's business, not this register's. -->
+    <div class="frow" id="flrow">
+      <span class="fl on" data-f="settled">All<b class="flc"></b></span><span class="fl" data-f="port">At port<b class="flc"></b></span>
+      <span class="fl" data-f="lot">In lot<b class="flc"></b></span><span class="fl" data-f="load">Loaded<b class="flc"></b></span>
+      <span class="fl" data-f="await" style="display:none">Awaiting arrival</span><span class="fl" data-f="all" style="display:none">Everything</span>
+      <span class="fl" data-f="flag" style="display:none">Needs attention</span><span class="fl" data-f="excess" style="display:none">Excess</span>
     </div>
     <!-- 24 Aug 2026, the At Port / Reconciliation split. At Port decides ONE thing:
          that a block should not be here. Everything else is decided on Reconcile.
@@ -1115,6 +1127,20 @@ function confirmTwice(title,body,cb){
   ov.querySelector('#__c2y').addEventListener('click',function(){ov.remove();cb();});
   ov.addEventListener('mousedown',function(e){if(e.target===ov)ov.remove();});
 }
+/* 1 Sep 2026. The chip row, and the count on each chip. Two jobs, deliberately in one
+   place: the row is only ever correct for the one-list view, and a chip that says how
+   many blocks it will show is the whole point of asking for it. Counts come from the
+   same LED array the balance strip counts, so the two can never disagree. */
+function __chips(c){
+  var row=$('flrow'); if(!row) return;
+  row.style.display=(VMODE==='dc')?'none':'';
+  if(!c){c={};LED.forEach(function(r){c[r.state]=(c[r.state]||0)+1;});}
+  var n={settled:(c.port||0)+(c.lot||0)+(c.load||0),port:(c.port||0),lot:(c.lot||0),load:(c.load||0)};
+  row.querySelectorAll('.fl').forEach(function(f){
+    var b=f.querySelector('.flc'); if(!b) return;
+    var v=n[f.dataset.f]; b.textContent=(v==null?'':String(v));
+  });
+}
 function renderBal(){
   var c={};LED.forEach(function(r){c[r.state]=(c[r.state]||0)+1;});
   var transported=LED.filter(function(r){return r.dc;}).length;
@@ -1123,6 +1149,7 @@ function renderBal(){
   var cells=[['v',transported,'Transported'],['v',atport,'At port'],['v',await,'Awaiting'],['v',inlot,'In lot'],['v',loaded,'Loaded'],['warn',excess,'Excess &#183; no DC']];
   $('bal').innerHTML=cells.map(function(x){return '<div class="c'+(x[0]==='warn'?' warn':'')+'"><div class="v">'+x[1]+'</div><div class="l">'+x[2]+'</div></div>';}).join('');
   $('c-a').textContent=LED.length+' blocks';$('c-f').textContent=flags+' to resolve';
+  __chips(c);
   if(await){$('arrb').style.display='';$('arrb').textContent=await;}
 }
 /* A block answers to three numbers - the quarry number, the export number and the
@@ -1746,18 +1773,20 @@ document.querySelectorAll('#pr .tab').forEach(function(x){x.addEventListener('cl
    is the only screen with work on it, so that is where the page opens. The pane is built
    on demand by renderRecon, so it has to be rendered before the switch. */
 try{ renderRecon(); tab('recon'); }catch(e){}
-(function(){var f0=document.querySelector('#flrow .fl[data-f="port"]')||document.querySelector('#flrow .fl[data-f="all"]');if(f0){document.querySelectorAll('#flrow .fl').forEach(function(x){x.classList.remove('on');});f0.classList.add('on');}})();
-document.querySelectorAll('#flrow .fl').forEach(function(f){f.addEventListener('click',function(){FILT=f.dataset.f;VMODE='blk';$('v-blk').classList.add('on');$('v-dc').classList.remove('on');$('flrow').style.display='none';document.querySelectorAll('#flrow .fl').forEach(function(x){x.classList.remove('on');});f.classList.add('on');closePanel();renderStock();});});
+(function(){var f0=document.querySelector('#flrow .fl[data-f="'+FILT+'"]')||document.querySelector('#flrow .fl[data-f="settled"]');if(f0){document.querySelectorAll('#flrow .fl').forEach(function(x){x.classList.remove('on');});f0.classList.add('on');}})();
+/* 1 Sep 2026: this handler used to hide the row it belongs to - left over from when
+   the chips were switched off. Pressing a chip now filters and leaves the row up. */
+document.querySelectorAll('#flrow .fl').forEach(function(f){f.addEventListener('click',function(){FILT=f.dataset.f;VMODE='blk';$('v-blk').classList.add('on');$('v-dc').classList.remove('on');var g=$('stgrp');if(g)g.value='blk';document.querySelectorAll('#flrow .fl').forEach(function(x){x.classList.remove('on');});f.classList.add('on');closePanel();renderStock();});});
 function __vtog(on){['v-blk','v-all','v-dc'].forEach(function(id){var e=$(id);if(e)e.classList.toggle('on',id===on);});}
-$('v-blk').addEventListener('click',function(){VMODE='blk';FILT='settled';__vtog('v-blk');$('flrow').style.display='none';closePanel();renderStock();});
-$('v-all').addEventListener('click',function(){VMODE='blk';FILT='all';__vtog('v-all');$('flrow').style.display='none';closePanel();renderStock();});
+$('v-blk').addEventListener('click',function(){VMODE='blk';FILT='settled';__vtog('v-blk');__chips();closePanel();renderStock();});
+$('v-all').addEventListener('click',function(){VMODE='blk';FILT='all';__vtog('v-all');__chips();closePanel();renderStock();});
 $('v-dc').addEventListener('click',function(){VMODE='dc';__vtog('v-dc');$('flrow').style.display='none';closePanel();renderDC();});
 /* One register, one control. The dropdown drives the SAME two renderers the old
    toggles did - it just stopped pretending they were different screens. */
 (function(){var g=$('stgrp');if(!g)return;
   g.addEventListener('change',function(){
     if(g.value==='dc'){VMODE='dc';__vtog('v-dc');$('flrow').style.display='none';closePanel();renderDC();}
-    else{VMODE='blk';FILT='settled';__vtog('v-blk');$('flrow').style.display='none';closePanel();renderStock();}
+    else{VMODE='blk';FILT='settled';__vtog('v-blk');__chips();closePanel();renderStock();}
   });
 })();
 $('q').addEventListener('input',function(){Q=this.value.trim().toLowerCase();renderStock();});
