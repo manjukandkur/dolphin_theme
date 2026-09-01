@@ -29,7 +29,11 @@ app_include_js = ["dolphin_theme.bundle.js", "dolphin_patch.bundle.js",
 # `dc_block_status_on_submit` moves block status on SUBMIT rather than on save.
 # A draft moving live stock is the root cause behind the 0070 incident (B36).
 doc_events = {
+    # 1 Sep 2026: seed_bands runs on the LOT, because the lot owns the
+    # thresholds. Its figures are pre-filled from the last lot to the same
+    # consignee - his option B - and freely overwritten there.
     "Export Shipment Lot": {
+        "before_insert": "dolphin_theme.sizing.seed_bands",
         "validate": [
             "dolphin_theme.shipment_hub.normalize_lot_rows",
             "dolphin_theme.guards.guard",
@@ -45,7 +49,6 @@ doc_events = {
     # his option B. It reads that previous document; it consults no rule owned
     # by a buyer, because there are none any more.
     "Shipping Document": {
-        "before_insert": "dolphin_theme.sizing.seed_bands",
         "validate": [
             "dolphin_theme.sizing.carry_sizes",
             "dolphin_theme.sizing.compute_size_rates",

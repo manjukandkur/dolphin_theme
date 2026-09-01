@@ -48,6 +48,9 @@ from dolphin_theme.block_resolve import _s, try_resolve, machine_of, log_event
 # guessed, because the two axes are one letter apart and a wrong guess here is
 # the exact confusion this module exists to end.
 SIZE_FIELD = "granite_size_category"
+
+# His figure, 2-3 cm. The default when a document carries none of its own.
+MARGINAL_CM = 3
 GRADE_FIELDS = ("granite_quality_grade", "grade")
 
 DIMS = {
@@ -148,11 +151,51 @@ CUSTOM_FIELDS = [
     # and freely overwritten. That reads the previous DOCUMENT - it does not
     # consult, and does not write, any rule owned by a buyer.
     # =====================================================================
+    # =====================================================================
+    # 1 Sep 2026, LATER.  ONE PLACE, AND THE PLACE IS THE LOT.
+    #
+    # [stated] "let us try out with any changes with the lot or the grades size
+    #  measurement etc let it be on export shipment lot one place" and
+    # [stated] "so no contradictions".
+    #
+    # A threshold on the shipping document AS WELL would be the same rule
+    # defined twice - the fault behind every failure this week. So the
+    # EXPORT SHIPMENT LOT owns the thresholds, the marginal figure and the
+    # grades. The shipping document reads them, and carries only a per-block
+    # final change, off by default.
+    #
+    # One line held on purpose: MEASUREMENTS are not decided here. The Buyer
+    # Inspection is final and the newest reading flows everywhere - his own
+    # standing rule of 23-08. The lot sorts ON measurements; it is not a place
+    # to type one.
+    # =====================================================================
+    ("Export Shipment Lot", {
+        "fieldname": "size_bands", "label": "Size thresholds", "fieldtype": "Table",
+        "options": "Shipping Size Band", "insert_after": "blocks",
+        "description": "Tried top to bottom; the first one a block meets on all three "
+                       "sides wins. A zero is no minimum on that side, so a row of "
+                       "0 x 0 x 0 is met by everything and becomes the catch-all."}),
+    ("Export Shipment Lot", {
+        "fieldname": "size_tolerance_cm", "label": "Marginal threshold (cm)",
+        "fieldtype": "Int", "default": "3", "insert_after": "size_bands",
+        "description": "A block that misses a higher threshold by this much or less is "
+                       "marked as marginal. Nothing moves on its own."}),
+    ("Export Shipment Lot", {
+        "fieldname": "record_grade", "label": "Record grade on this lot",
+        "fieldtype": "Check", "default": "0", "insert_after": "size_tolerance_cm",
+        "description": "Internal record only. Off by default. Never printed."}),
+    # The shipping document's OWN copy - written only when the override is on.
+    ("Shipping Document", {
+        "fieldname": "size_override", "label": "Final change on this document",
+        "fieldtype": "Check", "default": "0", "insert_after": "size_rule_display",
+        "description": "Off: this document shows what the lot decided and stays in step "
+                       "with it. On: it takes its own copy and the lot no longer reaches "
+                       "it. Untick to go back to the lot."}),
     ("Shipping Document", {
         "fieldname": "size_bands", "label": "Sizes for this shipment", "fieldtype": "Table",
-        "options": "Shipping Size Band", "insert_after": "size_rule_display",
-        "description": "The size bands this shipment is sorted by. Set here, on this "
-                       "document, and nowhere else."}),
+        "options": "Shipping Size Band", "insert_after": "size_override",
+        "description": "This document's own copy of the lot's thresholds, written only "
+                       "when the final-change tick is on."}),
     ("Shipping Document", {
         "fieldname": "size_seeded_from", "label": "Sizes pre-filled from", "fieldtype": "Data",
         "insert_after": "size_bands", "read_only": 1,
@@ -171,9 +214,19 @@ CUSTOM_FIELDS = [
     # size sort never reads or writes a grade, and no pairing is ever flagged
     # as odd - A size / C grade raises nothing. Off by default, and never on a
     # printout: the DI Commercial Invoice and the DI Packing List are untouched.
+    # 1 Sep 2026, his words: "threshold is missing". It was - I dropped the
+    # marginal check when I rewrote the panel. It lives on the document now, so
+    # the figure a shipment was judged by is on record with the bands it was
+    # judged against, instead of being a constant buried in the code.
+    ("Shipping Document", {
+        "fieldname": "size_tolerance_cm", "label": "Marginal threshold (cm)",
+        "fieldtype": "Int", "default": "3", "insert_after": "size_seeded_from",
+        "description": "A block that misses a higher band by this much or less is "
+                       "marked as marginal. His figure is 2-3 cm. Nothing moves on its "
+                       "own - a person moves it, after the buyer agrees."}),
     ("Shipping Document", {
         "fieldname": "record_grade", "label": "Record grade on this shipment",
-        "fieldtype": "Check", "default": "0", "insert_after": "size_seeded_from",
+        "fieldtype": "Check", "default": "0", "insert_after": "size_tolerance_cm",
         "description": "Internal record only. Off by default. Never printed - neither "
                        "the invoice nor the packing list shows grade, whatever this says."}),
 ]
@@ -303,12 +356,44 @@ def _band_rows(doc):
     return out
 
 
-def bands_for(doc):
-    """The bands a document is sorted by: its own, else the standard.
+def _lot_of(doc):
+    """The Export Shipment Lot a shipping document was built from."""
+    try:
+        if doc.doctype == "Shipping Document" and _s(doc.get("source_lot")):
+            return frappe.get_doc("Export Shipment Lot", _s(doc.get("source_lot")))
+    except Exception:
+        pass
+    return None
 
-    Two layers, and only two. There is no buyer layer between them."""
+
+def bands_for(doc):
+    """The thresholds a document is sorted by.
+
+    1 Sep 2026, his decision: THE LOT OWNS THEM. A shipping document reads its
+    lot's thresholds and stays in step with it, unless a person has ticked the
+    final-change box - and then it is working from its own copy and says so.
+    Anything with no lot behind it falls to the one standard set.
+
+    Three layers, in this order, and never two definitions of the same rule."""
+    if doc is None:
+        return _standard_bands()
+    if doc.doctype == "Shipping Document" and not cint(doc.get("size_override")):
+        lot = _lot_of(doc)
+        own = _band_rows(lot) if lot is not None else []
+        if own:
+            return own
+        return _standard_bands()
     own = _band_rows(doc)
     return own if own else _standard_bands()
+
+
+def tolerance_for(doc):
+    """The marginal figure, from wherever the thresholds came from."""
+    if doc is not None and doc.doctype == "Shipping Document" and not cint(doc.get("size_override")):
+        lot = _lot_of(doc)
+        if lot is not None and cint(lot.get("size_tolerance_cm")):
+            return cint(lot.get("size_tolerance_cm"))
+    return (cint(doc.get("size_tolerance_cm")) if doc is not None else 0) or MARGINAL_CM
 
 
 def _bands_from_blocks(doc):
@@ -359,7 +444,10 @@ def seed_bands(doc, method=None):
     Nothing is stored against the buyer by any of this. It reads one previous
     document once, at creation, and then the two never speak again."""
     try:
-        if doc.doctype != "Shipping Document" or not doc.meta.has_field("size_bands"):
+        # 1 Sep 2026: the LOT is seeded, not the shipping document. A document
+        # reads its lot and only ever takes a copy when a person ticks the
+        # final change - so seeding one would be a second definition again.
+        if doc.doctype != "Export Shipment Lot" or not doc.meta.has_field("size_bands"):
             return
         if doc.get("size_bands"):
             return
@@ -367,13 +455,13 @@ def seed_bands(doc, method=None):
         seeded, src = [], ""
         if consignee:
             prev = frappe.get_all(
-                "Shipping Document",
+                "Export Shipment Lot",
                 filters={"export_consignee": consignee, "name": ("!=", _s(doc.name) or "x")},
-                fields=["name"], order_by="shipment_date desc, creation desc",
+                fields=["name"], order_by="creation desc",
                 limit_page_length=5)
             for row in prev:
                 try:
-                    pd = frappe.get_doc("Shipping Document", row["name"])
+                    pd = frappe.get_doc("Export Shipment Lot", row["name"])
                 except Exception:
                     continue
                 got = [{"size_category_name": b["size_category_name"],
@@ -998,7 +1086,7 @@ def learned_size_rule(consignee=None):
 def save_size_rule(**kwargs):
     frappe.throw("Sizes are not saved against a buyer any more - his instruction of "
                  "1 Sep 2026. Set the bands on the shipping document itself "
-                 "(sizing.set_document_bands); they apply to that shipment alone.")
+                 "(sizing.set_bands) - and the lot owns them, his decision of 1 Sep 2026.")
 
 
 def _parse_bands(bands):
@@ -1042,34 +1130,118 @@ def _resort(doc, bands):
     return moved
 
 
-@frappe.whitelist()
-def document_sizes(shipping_document=None):
-    """Everything the panel draws, in one read. Changes nothing."""
-    name = _s(shipping_document)
+def _marginal_map(doc, bands, tol):
+    """Which blocks missed a higher band, and by how much. One definition, used
+    by the panel and by marginal_blocks alike."""
+    order = {"A": 1, "B": 2, "B1": 3, "B2": 4, "C": 5}
+
+    def rank(c):
+        return order.get(_s(c), 9)
+
+    out = {}
+    for b in (doc.get("blocks") or []):
+        l, w, h = flt(b.get("length")), flt(b.get("width")), flt(b.get("height"))
+        if not (l and w and h):
+            continue
+        now = _s(b.get(SIZE_FIELD))
+        for c in bands:
+            cat = _s(c.get("size_category_name")) or _s(c.get("name"))
+            if rank(cat) >= rank(now):
+                continue
+            ml, mw, mh = (cint(c.get("min_length")), cint(c.get("min_width")),
+                          cint(c.get("min_height")))
+            short = []
+            if l < ml:
+                short.append(("L", ml - l))
+            if w < mw:
+                short.append(("W", mw - w))
+            if h < mh:
+                short.append(("H", mh - h))
+            if not short or max(d for _, d in short) > tol:
+                continue
+            out[_s(b.name)] = {
+                "could_be": cat,
+                "worst_cm": int(round(max(d for _, d in short))),
+                "short_by": ", ".join("{0} {1} cm".format(k, int(round(d))) for k, d in short),
+            }
+            break
+    return out
+
+
+# ---------------------------------------------------------------------------
+# ONE PANEL, TWO DOCTYPES.  1 Sep 2026
+#
+# The Export Shipment Lot owns the thresholds and the grades. The Shipping
+# Document reads them. Both draw the same panel, so there is one screen to
+# understand and one set of rules behind it.
+# ---------------------------------------------------------------------------
+
+PANEL_DOCTYPES = ("Export Shipment Lot", "Shipping Document")
+
+
+def _doc_for_panel(doctype, name):
+    doctype, name = _s(doctype), _s(name)
+    if doctype not in PANEL_DOCTYPES:
+        frappe.throw("Sizes are set on the Export Shipment Lot, and read on the "
+                     "Shipping Document. Nothing else.")
     if not name:
-        frappe.throw("Which shipping document?")
-    doc = frappe.get_doc("Shipping Document", name)
-    bands = _band_rows(doc)
-    own = bool(bands)
-    if not bands:
-        bands = _standard_bands()
+        frappe.throw("Which document?")
+    return frappe.get_doc(doctype, name)
+
+
+def _blocks_of(doc):
+    return doc.get("blocks") or []
+
+
+@frappe.whitelist()
+def panel(doctype=None, name=None):
+    """Everything both screens draw, in one read. Changes nothing."""
+    doc = _doc_for_panel(doctype, name)
+    is_lot = doc.doctype == "Export Shipment Lot"
+    lot = None if is_lot else _lot_of(doc)
+    override = (not is_lot) and bool(cint(doc.get("size_override")))
+
+    bands = bands_for(doc)
+    tol = tolerance_for(doc)
+    marg = _marginal_map(doc, bands, tol)
+
+    # where the thresholds are being edited, in plain words
+    if is_lot:
+        owner = {"doctype": "Export Shipment Lot", "name": doc.name, "editable": True}
+    elif override:
+        owner = {"doctype": "Shipping Document", "name": doc.name, "editable": True}
+    elif lot is not None:
+        owner = {"doctype": "Export Shipment Lot", "name": lot.name, "editable": False}
+    else:
+        owner = {"doctype": None, "name": None, "editable": False}
+
     std = {}
     for c in _standard_bands():
         std[_s(c.get("size_category_name")) or _s(c.get("name"))] = [
             cint(c.get("min_length")), cint(c.get("min_width")), cint(c.get("min_height"))]
 
-    counts = {}
-    graded, filled = [], 0
-    for b in (doc.get("blocks") or []):
+    counts, blocks, graded, filled, unsized = {}, [], [], 0, []
+    grade_doc = lot if (lot is not None and not override) else doc
+    for b in _blocks_of(doc):
         cat = _s(b.get(SIZE_FIELD))
         if cat:
             counts[cat] = counts.get(cat, 0) + 1
+        no = _s(b.get("export_block_no")) or _s(b.get("block_no"))
+        l, w, h = flt(b.get("length")), flt(b.get("width")), flt(b.get("height"))
+        if l and w and h and not size_category_for(l, w, h, bands=bands):
+            unsized.append(no)
+        blocks.append({
+            "row": _s(b.name), "block": no,
+            "size": [int(l), int(w), int(h)],
+            "category": cat,
+            "marginal": marg.get(_s(b.name)),
+        })
+        # grade, gathered on the same pass and on nothing else. It is not read
+        # from a measurement and never written from one.
         g = _s(b.get("grade"))
         if g:
             filled += 1
-        graded.append({"row": _s(b.name),
-                       "block": _s(b.get("export_block_no")) or _s(b.get("block_no")),
-                       "grade": g})
+        graded.append({"row": _s(b.name), "block": no, "grade": g})
 
     tally = {}
     for r in graded:
@@ -1077,92 +1249,185 @@ def document_sizes(shipping_document=None):
             tally[r["grade"]] = tally.get(r["grade"], 0) + 1
 
     return {
-        "document": name,
-        "submitted": cint(doc.docstatus) == 1,
-        "sizes_by": rule_in_force(doc),
-        "own_bands": own,
-        "seeded_from": _s(doc.get("size_seeded_from")),
+        "doctype": doc.doctype, "name": doc.name,
+        "is_lot": is_lot,
+        "lot": (lot.name if lot is not None else None),
+        "override": override,
+        "owner": owner,
+        "frozen": _s(doc.get("export_status")) == "Exported" or cint(doc.docstatus) == 1,
         "bands": [{"size": _s(b.get("size_category_name")) or _s(b.get("name")),
                    "min_length": cint(b.get("min_length")),
                    "min_width": cint(b.get("min_width")),
                    "min_height": cint(b.get("min_height")),
-                   "standard": std.get(_s(b.get("size_category_name")) or _s(b.get("name"))),
                    "blocks": counts.get(_s(b.get("size_category_name")) or _s(b.get("name")), 0)}
                   for b in bands],
         "standard": std,
-        # grade: a separate answer about a separate thing, on the same read
-        # only because one round trip is kinder than two.
+        "tolerance_cm": tol,
+        "blocks": blocks,
+        "marginal_count": len(marg),
+        "unsized": unsized,
         "grade": {
-            "on": bool(cint(doc.get("record_grade"))),
+            "on": bool(cint((grade_doc or doc).get("record_grade"))),
             "options": list(GRADES),
-            "blocks": graded,
-            "filled": filled,
-            "total": len(graded),
-            "tally": tally,
+            "blocks": graded, "filled": filled, "total": len(graded), "tally": tally,
         },
-        "note": "These bands belong to this shipment. No buyer owns them and no "
-                "other document changes.",
+        "note": "The thresholds belong to the lot. This document reads them unless a "
+                "person has ticked the final change.",
     }
 
 
 @frappe.whitelist()
-def set_document_bands(shipping_document=None, bands=None, reason=None,
-                       person=None, dry_run=1):
-    """Write bands onto ONE shipment and re-sort its blocks. Reversible by
-    setting them back - nothing outside this document is touched."""
+def set_bands(doctype=None, name=None, bands=None, tolerance_cm=None,
+              reason=None, person=None, dry_run=1):
+    """Write the thresholds and re-sort. Refuses on a document that is only
+    reading the lot - there is one place to change them, and this says so."""
     dry = _s(dry_run) not in ("0", "false", "False", "")
-    name = _s(shipping_document)
-    if not name:
-        frappe.throw("Which shipping document?")
-    doc = frappe.get_doc("Shipping Document", name)
-    if cint(doc.docstatus) == 1:
-        frappe.throw("{0} is submitted. A filed document is not re-sorted behind "
-                     "its own back.".format(name))
+    doc = _doc_for_panel(doctype, name)
+    if doc.doctype == "Shipping Document" and not cint(doc.get("size_override")):
+        frappe.throw("This document is reading {0}. Change the thresholds on the lot, "
+                     "or tick the final change to give this document its own copy.".format(
+                         _s(doc.get("source_lot")) or "its lot"))
     want = _parse_bands(bands)
     if not want:
-        frappe.throw("No bands were given.")
+        frappe.throw("No thresholds were given.")
     if not dry and len(_s(reason)) < 6:
-        frappe.throw("Say why these sizes are being set - it is written onto the document.")
+        frappe.throw("Say why - it is written onto the document.")
 
     before = [{"size": b["size_category_name"],
                "was": [b["min_length"], b["min_width"], b["min_height"]]}
               for b in _band_rows(doc)]
     moved = _resort(doc, want)
+    nowhere = []
+    for b in _blocks_of(doc):
+        l, w, h = flt(b.get("length")), flt(b.get("width")), flt(b.get("height"))
+        if l and w and h and not size_category_for(l, w, h, bands=want):
+            nowhere.append(_s(b.get("export_block_no")) or _s(b.get("block_no")))
     if dry:
-        return {"dry_run": True, "document": name, "bands": want,
-                "before": before, "would_move": moved, "count": len(moved)}
+        return {"dry_run": True, "document": doc.name, "bands": want, "before": before,
+                "would_move": moved, "count": len(moved), "unsized": nowhere}
 
     doc.set("size_bands", [])
     for b in want:
         doc.append("size_bands", b)
+    if tolerance_cm not in (None, "") and doc.meta.has_field("size_tolerance_cm"):
+        doc.set("size_tolerance_cm", cint(tolerance_cm))
     doc.flags.ignore_mandatory = True
     doc.save(ignore_permissions=True)
     try:
-        line = ", ".join("{0} {1} x {2} x {3}".format(
+        line = ", ".join("{0} >= {1} x {2} x {3}".format(
             b["size_category_name"], b["min_length"], b["min_width"], b["min_height"])
             for b in want)
-        who = _s(person) or frappe.session.user
-        moved_txt = ("; ".join("{0} {1} -> {2}".format(m["block"], m["from"], m["to"])
-                               for m in moved[:12]) or "no block changed size")
-        doc.add_comment("Comment",
-                        "Sizes for this shipment set to {0}. {1}{2}. Recorded by {3}. {4}".format(
-                            line, moved_txt,
-                            (" (+{0} more)".format(len(moved) - 12) if len(moved) > 12 else ""),
-                            who, _s(reason)))
+        doc.add_comment("Comment", "Size thresholds set to {0}. {1}{2}. Recorded by {3}. {4}".format(
+            line,
+            ("; ".join("{0} {1} -> {2}".format(m["block"], m["from"], m["to"])
+                       for m in moved[:12]) or "no block changed size"),
+            (" (+{0} more)".format(len(moved) - 12) if len(moved) > 12 else ""),
+            _s(person) or frappe.session.user, _s(reason)))
     except Exception:
         pass
     frappe.db.commit()
-    return {"ok": True, "document": name, "bands": want, "before": before,
-            "moved": moved, "count": len(moved)}
+    return {"ok": True, "document": doc.name, "bands": want, "before": before,
+            "moved": moved, "count": len(moved), "unsized": nowhere}
 
 
 @frappe.whitelist()
-def reset_document_bands(shipping_document=None, reason=None, person=None, dry_run=1):
-    """Put this shipment back on the standard set."""
-    return set_document_bands(shipping_document=shipping_document,
-                              bands=_standard_as_bands(),
-                              reason=reason or "Reset to the standard set.",
-                              person=person, dry_run=dry_run)
+def reset_bands(doctype=None, name=None, reason=None, person=None, dry_run=1):
+    return set_bands(doctype=doctype, name=name, bands=_standard_as_bands(),
+                     reason=reason or "Reset to the standard set.",
+                     person=person, dry_run=dry_run)
+
+
+@frappe.whitelist()
+def set_override(shipping_document=None, on=None, reason=None, person=None):
+    """Tick: the document takes its own copy of the lot's thresholds and stops
+    following it. Untick: it goes back to the lot and the copy is dropped."""
+    doc = _doc_for_panel("Shipping Document", shipping_document)
+    val = 1 if _s(on) not in ("0", "false", "False", "") else 0
+    if val:
+        lot = _lot_of(doc)
+        src = _band_rows(lot) if lot is not None else []
+        doc.set("size_bands", [])
+        for b in (src or _standard_as_bands()):
+            doc.append("size_bands", {
+                "size_category_name": b.get("size_category_name") or b.get("name"),
+                "min_length": cint(b.get("min_length")),
+                "min_width": cint(b.get("min_width")),
+                "min_height": cint(b.get("min_height")),
+                "sort_order": cint(b.get("sort_order")) or 99})
+        if lot is not None and doc.meta.has_field("size_tolerance_cm"):
+            doc.set("size_tolerance_cm", cint(lot.get("size_tolerance_cm")) or MARGINAL_CM)
+    else:
+        doc.set("size_bands", [])
+    doc.set("size_override", val)
+    doc.flags.ignore_mandatory = True
+    doc.save(ignore_permissions=True)
+    try:
+        doc.add_comment("Comment", ("Final change switched {0} by {1}. {2} {3}").format(
+            "on" if val else "off", _s(person) or frappe.session.user,
+            ("This document now carries its own copy of the thresholds and no longer "
+             "follows the lot." if val else
+             "This document is following its lot again."), _s(reason)))
+    except Exception:
+        pass
+    frappe.db.commit()
+    return {"ok": True, "document": doc.name, "override": bool(val)}
+
+
+@frappe.whitelist()
+def set_sizes(doctype=None, name=None, rows=None, to_size=None, agreed_by=None,
+              reason=None, person=None, dry_run=1):
+    """Bulk. Tick blocks, choose one size, apply. A person decides this - the
+    app only ever sorts and highlights, his rule of 31 Aug."""
+    dry = _s(dry_run) not in ("0", "false", "False", "")
+    doc = _doc_for_panel(doctype, name)
+    to_size = _s(to_size)
+    if isinstance(rows, str):
+        try:
+            rows = json.loads(rows)
+        except Exception:
+            frappe.throw("Could not read the blocks that were ticked.")
+    rows = [_s(r) for r in (rows or []) if _s(r)]
+    if not rows or not to_size:
+        frappe.throw("Tick some blocks and choose a size.")
+    if not dry and len(_s(agreed_by)) < 2:
+        frappe.throw("Name the person at the buyer who agreed - that name is the whole "
+                     "point of a change rather than an edit.")
+    changed, same = [], 0
+    for b in _blocks_of(doc):
+        if _s(b.name) not in rows:
+            continue
+        was = _s(b.get(SIZE_FIELD))
+        if was == to_size:
+            same += 1
+            continue
+        changed.append({"row": _s(b.name),
+                        "block": _s(b.get("export_block_no")) or _s(b.get("block_no")),
+                        "from": was or "(none)", "to": to_size})
+        if not dry:
+            if b.meta.has_field("size_promoted_from") and not _s(b.get("size_promoted_from")):
+                b.set("size_promoted_from", was)
+            if b.meta.has_field("size_consent_by"):
+                b.set("size_consent_by", _s(agreed_by))
+            if b.meta.has_field("size_consent_on"):
+                b.set("size_consent_on", frappe.utils.now())
+            b.set(SIZE_FIELD, to_size)
+    if dry:
+        return {"dry_run": True, "changed": changed, "count": len(changed),
+                "already": same, "to": to_size}
+    doc.flags.ignore_mandatory = True
+    doc.save(ignore_permissions=True)
+    try:
+        doc.add_comment("Comment", "{0} block(s) set to size {1} ({2} already were), "
+                                   "agreed by {3}, recorded by {4}. {5} {6}".format(
+            len(changed), to_size, same, _s(agreed_by),
+            _s(person) or frappe.session.user,
+            "; ".join("{0} {1}->{2}".format(c["block"], c["from"], c["to"])
+                      for c in changed[:20]),
+            ("(+{0} more)".format(len(changed) - 20) if len(changed) > 20 else "")))
+    except Exception:
+        pass
+    frappe.db.commit()
+    return {"ok": True, "changed": changed, "count": len(changed), "already": same}
 
 
 # ===========================================================================
@@ -1170,75 +1435,84 @@ def reset_document_bands(shipping_document=None, reason=None, person=None, dry_r
 #
 # [stated] "no grade is independednt of size so grade is independednt"
 #
-# Nothing below reads a measurement or a size category, and nothing in the size
-# code above reads a grade. Setting a grade never re-sorts anything; re-sorting
-# never touches a grade. No pairing is checked, warned about or blocked -
-# A size / C grade is ordinary. Switching recording off hides the section and
-# erases nothing.
+# Nothing below reads a measurement or a size, and nothing in the size code
+# above reads a grade. Re-sorting the thresholds moves no grade; setting a
+# grade moves no size. No pairing is checked, warned about or blocked.
+#
+# [stated] "rather than selecting 100 times I will multi select the blocks and
+#  select Grade A etc" - so the bulk action IS the way to grade, not a
+# convenience beside a per-row box.
 #
 # [stated] "for internal purpose only it shouldnt be reflecting on shipping
-#  documents" - so it reaches no print format. The DI Commercial Invoice and
-# the DI Packing List are untouched by any of this.
+#  documents" - it reaches no print format, on the lot or on the document.
 # ===========================================================================
 
 
 @frappe.whitelist()
-def set_grade_recording(shipping_document=None, on=None, person=None):
+def set_grade_recording(doctype=None, name=None, on=None, person=None):
     """The tick. Off by default; turning it off keeps whatever was recorded."""
-    name = _s(shipping_document)
-    if not name:
-        frappe.throw("Which shipping document?")
-    doc = frappe.get_doc("Shipping Document", name)
-    if cint(doc.docstatus) == 1:
-        frappe.throw("{0} is submitted.".format(name))
+    doc = _doc_for_panel(doctype, name)
     val = 1 if _s(on) not in ("0", "false", "False", "") else 0
     doc.set("record_grade", val)
     doc.flags.ignore_mandatory = True
     doc.save(ignore_permissions=True)
     try:
-        doc.add_comment("Comment", "Grade recording switched {0} for this shipment by {1}. "
-                                   "Internal only - not printed.".format(
+        doc.add_comment("Comment", "Grade recording switched {0} by {1}. Internal only "
+                                   "- not printed.".format(
                                        "on" if val else "off",
                                        _s(person) or frappe.session.user))
     except Exception:
         pass
     frappe.db.commit()
-    return {"ok": True, "document": name, "on": bool(val)}
+    return {"ok": True, "document": doc.name, "on": bool(val)}
 
 
 @frappe.whitelist()
-def set_block_grade(shipping_document=None, row=None, grade=None, person=None):
-    """One block, one grade. Reads no measurement and writes no size."""
-    name, row, grade = _s(shipping_document), _s(row), _s(grade)
-    if not (name and row):
-        frappe.throw("Which document, and which row?")
+def set_grades(doctype=None, name=None, rows=None, grade=None, person=None, dry_run=1):
+    """Bulk. Tick blocks, choose one grade, apply. Blank clears."""
+    dry = _s(dry_run) not in ("0", "false", "False", "")
+    doc = _doc_for_panel(doctype, name)
+    grade = _s(grade)
     if grade and grade not in GRADES:
         frappe.throw("Grade must be one of {0}, or blank.".format(", ".join(GRADES)))
-    doc = frappe.get_doc("Shipping Document", name)
-    if cint(doc.docstatus) == 1:
-        frappe.throw("{0} is submitted.".format(name))
-    target = None
-    for b in (doc.get("blocks") or []):
-        if _s(b.name) == row:
-            target = b
-            break
-    if target is None:
-        frappe.throw("That row is not on {0}.".format(name))
-    was = _s(target.get("grade"))
-    target.set("grade", grade)
+    if isinstance(rows, str):
+        try:
+            rows = json.loads(rows)
+        except Exception:
+            frappe.throw("Could not read the blocks that were ticked.")
+    rows = [_s(r) for r in (rows or []) if _s(r)]
+    if not rows:
+        frappe.throw("Tick some blocks first.")
+    changed, same = [], 0
+    for b in _blocks_of(doc):
+        if _s(b.name) not in rows:
+            continue
+        was = _s(b.get("grade"))
+        if was == grade:
+            same += 1
+            continue
+        changed.append({"row": _s(b.name),
+                        "block": _s(b.get("export_block_no")) or _s(b.get("block_no")),
+                        "from": was or "(none)", "to": grade or "(none)"})
+        if not dry:
+            b.set("grade", grade)
+    if dry:
+        return {"dry_run": True, "changed": changed, "count": len(changed),
+                "already": same, "to": grade}
     doc.flags.ignore_mandatory = True
     doc.save(ignore_permissions=True)
     try:
-        doc.add_comment("Comment", "Grade of block {0}: {1} -> {2}, by {3}. Internal "
-                                   "only - not printed.".format(
-                                       _s(target.get("export_block_no")) or _s(target.get("block_no")),
-                                       was or "(none)", grade or "(none)",
-                                       _s(person) or frappe.session.user))
+        doc.add_comment("Comment", "{0} block(s) graded {1} ({2} already were), by {3}. "
+                                   "Internal only - not printed. {4}{5}".format(
+            len(changed), grade or "(cleared)", same,
+            _s(person) or frappe.session.user,
+            "; ".join("{0} {1}->{2}".format(c["block"], c["from"], c["to"])
+                      for c in changed[:20]),
+            ("(+{0} more)".format(len(changed) - 20) if len(changed) > 20 else "")))
     except Exception:
         pass
     frappe.db.commit()
-    return {"ok": True, "document": name, "block": _s(target.get("export_block_no"))
-            or _s(target.get("block_no")), "from": was, "to": grade}
+    return {"ok": True, "changed": changed, "count": len(changed), "already": same}
 
 
 # ===========================================================================
@@ -1267,8 +1541,6 @@ def set_block_grade(shipping_document=None, row=None, grade=None, person=None):
 # either print format.
 # ===========================================================================
 
-MARGINAL_CM = 3
-
 
 @frappe.whitelist()
 def marginal_blocks(shipping_document=None, tolerance_cm=None):
@@ -1276,8 +1548,9 @@ def marginal_blocks(shipping_document=None, tolerance_cm=None):
     name = _s(shipping_document)
     if not name:
         frappe.throw("Which shipping document?")
-    tol = cint(tolerance_cm) if tolerance_cm not in (None, "") else MARGINAL_CM
     doc = frappe.get_doc("Shipping Document", name)
+    tol = (cint(tolerance_cm) if tolerance_cm not in (None, "")
+           else (cint(doc.get("size_tolerance_cm")) or MARGINAL_CM))
     bands = bands_for(doc)
     order = {"A": 1, "B": 2, "B1": 3, "B2": 4, "C": 5}
 
