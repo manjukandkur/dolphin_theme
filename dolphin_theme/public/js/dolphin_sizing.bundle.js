@@ -241,6 +241,23 @@
       }
     }
 
+    /* 1 Sep 2026, his check: "size and grade should appear on exisiting lots and
+       new one to be created also". They do - a lot with no thresholds of its own
+       falls back to the standard set and the panel draws normally. But every lot
+       made before today has none, so it would sit on the house figures forever
+       while a NEW lot gets pre-filled from the last shipment to that consignee.
+       This offers an existing lot the same start, on demand, without anyone
+       retyping it. */
+    if (d.is_lot && edit && !d.own_bands) {
+      h.push('<div class="quiet"><b>This lot has no thresholds of its own</b>, so it is being ' +
+             'sorted by the standard set. A lot created from now on is pre-filled from the ' +
+             'last shipment to this consignee &mdash; this one can have the same start.' +
+             '<div style="margin-top:7px"><span class="b gold" data-dsz="seed">' +
+             'Pre-fill from the last lot&hellip;</span></div></div>');
+    } else if (d.is_lot && d.seeded_from) {
+      h.push('<div class="sm">Started from ' + esc(d.seeded_from) + '.</div>');
+    }
+
     h.push(bandsTable(d, edit && d.is_lot === false ? true : edit));
 
     if (edit) {
@@ -545,6 +562,41 @@
                   frappe.show_alert({ message: (r && r.count) + ' block(s) set to ' + to, indicator: 'green' });
                   frm.reload_doc();
                 });
+            }
+          });
+          dlg.show();
+        });
+    });
+
+    $sec.find('[data-dsz="seed"]').on('click', function () {
+      var target = d.owner;
+      call('seed_now', { doctype: target.doctype, name: target.name, dry_run: 1 })
+        .then(function (plan) {
+          if (!plan) return;
+          var moved = plan.would_move || [];
+          var dlg = new frappe.ui.Dialog({
+            title: 'Pre-fill the thresholds',
+            fields: [
+              { fieldtype: 'HTML', options: '<div class="dsz">' +
+                '<b>From ' + esc(plan.source) + '.</b><table style="margin-top:6px">' +
+                (plan.bands || []).map(function (b) {
+                  return '<tr><td style="padding-right:14px"><b>' + esc(b.size_category_name) +
+                         '</b></td><td>' + b.min_length + ' &times; ' + b.min_width +
+                         ' &times; ' + b.min_height + '</td></tr>';
+                }).join('') + '</table>' +
+                (moved.length
+                  ? '<div class="note">' + moved.length + ' block(s) would change size.</div>'
+                  : '<div class="sm">No block changes size on these figures.</div>') +
+                '<div class="sm" style="margin-top:6px">Set on this lot only. Nothing is stored ' +
+                'against the buyer &mdash; this read one previous document, once.</div></div>' },
+              { fieldname: 'reason', fieldtype: 'Small Text', label: 'Why', reqd: 1,
+                default: 'Pre-filled from ' + (plan.source || 'the last lot') + '.' }
+            ],
+            primary_action_label: 'Pre-fill & re-sort',
+            primary_action: function (v) {
+              call('seed_now', { doctype: target.doctype, name: target.name,
+                                 reason: v.reason, person: frappe.session.user, dry_run: 0 })
+                .then(function () { dlg.hide(); frm.reload_doc(); });
             }
           });
           dlg.show();
