@@ -1393,6 +1393,100 @@ def panel(doctype=None, name=None):
     }
 
 
+# ===========================================================================
+# SAVED SIZE SETS.  1 Sep 2026
+#
+# [stated] "User can go and add sizes frequently used for multiple consignees
+#  local and export easily once entered in size master" and "better in both the
+#  places but same master database?"
+#
+# So the master holds NAMED, REUSABLE SETS - "House A/C", "Bless 207", "Local
+# 150" - entered once and available to every consignee, local and export alike.
+# A set is a starting point and nothing more: picking one FILLS the boxes on the
+# screen and writes nothing. The document is still sorted by what a person then
+# saves on it. That is the whole reason this does not become a second place
+# where a size is decided.
+#
+# A set is simply rows in Granite Size Category sharing a `variation_label` and
+# belonging to no buyer - one master, exactly as he asked.
+# ===========================================================================
+
+
+@frappe.whitelist()
+def size_sets():
+    """Every saved set, with its bands. Reads only."""
+    try:
+        rows = frappe.get_all(
+            "Granite Size Category", filters={"is_active": 1},
+            fields=["name", "size_category_name", "variation_label", "export_consignee",
+                    "buyer", "min_length", "min_width", "min_height", "sort_order"],
+            limit_page_length=0)
+    except Exception:
+        return []
+    sets = {}
+    for r in rows:
+        label = _s(r.get("variation_label"))
+        if not label:
+            continue          # the unnamed rows are the standard set
+        sets.setdefault(label, []).append(r)
+    out = []
+    for label, rs in sets.items():
+        rs.sort(key=lambda x: (cint(x.get("sort_order")) or 99))
+        out.append({
+            "set": label,
+            "bands": [{"size": _s(x.get("size_category_name")) or _s(x.get("name")),
+                       "min_length": cint(x.get("min_length")),
+                       "min_width": cint(x.get("min_width")),
+                       "min_height": cint(x.get("min_height")),
+                       "sort_order": cint(x.get("sort_order")) or 99} for x in rs],
+        })
+    out.sort(key=lambda g: g["set"].lower())
+    return out
+
+
+@frappe.whitelist()
+def save_size_set(set_name=None, bands=None, reason=None, person=None):
+    """Store the thresholds on screen as a named set anyone can reuse.
+
+    Belongs to no consignee on purpose - the same set serves a local sale and an
+    export, which is the point of saving it."""
+    label = _s(set_name)
+    if len(label) < 2:
+        frappe.throw("Give the set a name you will recognise later.")
+    want = _parse_bands(bands)
+    if not want:
+        frappe.throw("There are no thresholds to save.")
+    written = []
+    for b in want:
+        row_name = "SET-{0}-{1}".format(label, b["size_category_name"])
+        payload = {
+            "doctype": "Granite Size Category",
+            "size_category_name": b["size_category_name"],
+            "size_group": (b["size_category_name"]
+                           if b["size_category_name"] in ("A", "B", "C") else "Custom"),
+            "variation_label": label,
+            "is_custom": 1, "is_active": 1,
+            "min_length": b["min_length"], "min_width": b["min_width"],
+            "min_height": b["min_height"], "sort_order": b["sort_order"],
+            "description": "Saved set '{0}'. Reusable by any consignee, local or "
+                           "export. {1}".format(label, _s(reason)),
+        }
+        try:
+            if frappe.db.exists("Granite Size Category", row_name):
+                d = frappe.get_doc("Granite Size Category", row_name)
+                d.update({k: v for k, v in payload.items() if k != "doctype"})
+                d.save(ignore_permissions=True)
+            else:
+                d = frappe.get_doc(payload)
+                d.flags.ignore_mandatory = True
+                d.insert(ignore_permissions=True, set_name=row_name)
+            written.append(d.name)
+        except Exception:
+            frappe.log_error(frappe.get_traceback(), "save_size_set")
+    frappe.db.commit()
+    return {"ok": True, "set": label, "written": written, "bands": want}
+
+
 @frappe.whitelist()
 def set_bands(doctype=None, name=None, bands=None, tolerance_cm=None,
               reason=None, person=None, dry_run=1):
