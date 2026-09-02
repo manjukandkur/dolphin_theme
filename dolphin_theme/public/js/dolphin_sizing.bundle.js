@@ -610,6 +610,190 @@
     $sec.on('input change', 'input.in[data-band]', refresh);
     try { refresh(); } catch (e) {}
 
+    /* --- the threshold actions.
+       These were lost TWICE to bulk region replacements in this file, and the
+       second time they reached the live site: the buttons drew and did nothing.
+       The check that catches it is mechanical, so it is written down here -
+       every data-dsz emitted in the markup must have a [data-dsz] handler bound,
+       and that is verified before every commit now. --- */
+
+    $sec.find('[data-dsz="addband"]').on('click', function () {
+      d.bands.push({ size: '', min_length: 0, min_width: 0, min_height: 0, blocks: 0 });
+      $sec.html(sizesHtml(d));
+      wireSizes(frm, $sec, d);
+    });
+
+    $sec.find('[data-dsz="savebands"]').on('click', function () {
+      var bands = readBands($sec, d);
+      var tol = parseInt(($sec.find('[data-dsz="tol"]').val() || 3), 10) || 3;
+      var target = d.owner;
+      call('set_bands', { doctype: target.doctype, name: target.name,
+                          bands: JSON.stringify(bands), tolerance_cm: tol, dry_run: 1 })
+        .then(function (plan) {
+          if (!plan) return;
+          var moved = plan.would_move || [];
+          var body = (moved.length
+            ? '<b>' + moved.length + ' block' + (moved.length === 1 ? '' : 's') +
+              ' change size.</b><div class="sm" style="margin-top:5px">' +
+              moved.slice(0, 15).map(function (m) {
+                return esc(m.block) + ' ' + esc(m.from) + ' &rarr; ' + esc(m.to);
+              }).join(' &middot; ') +
+              (moved.length > 15 ? ' &middot; +' + (moved.length - 15) + ' more' : '') + '</div>'
+            : 'No block changes size on these thresholds.');
+          var orphan = (plan.unsized || []).length;
+          if (orphan) {
+            body += '<div class="stopbox"><b>' + orphan +
+                    ' block(s) would be left with NO SIZE at all</b> — they meet none of ' +
+                    'the thresholds: ' + esc(plan.unsized.slice(0, 15).join(', ')) +
+                    '<div style="margin-top:5px">That usually means a size was switched off by ' +
+                    'mistake. Type its numbers back, or leave the last row at 0 × 0 × 0.' +
+                    '</div></div>';
+          }
+          var fields = [{ fieldtype: 'HTML', options: '<div class="dsz">' + body +
+            '<div class="sm" style="margin-top:8px">Saved on ' + esc(target.name) +
+            '. No grade moves.</div></div>' }];
+          if (orphan) {
+            fields.push({ fieldname: 'ack', fieldtype: 'Check',
+                          label: 'I know ' + orphan + ' block(s) will have no size' });
+          }
+          fields.push({ fieldname: 'reason', fieldtype: 'Small Text', label: 'Why', reqd: 1 });
+          var dlg = new frappe.ui.Dialog({
+            title: 'Size thresholds · ' + target.name,
+            fields: fields,
+            primary_action_label: 'Save & re-sort',
+            primary_action: function (v) {
+              if (orphan && !v.ack) {
+                frappe.msgprint('Tick the box to confirm you mean to leave ' + orphan +
+                                ' block(s) without a size — or cancel and put it back.');
+                return;
+              }
+              call('set_bands', { doctype: target.doctype, name: target.name,
+                                  bands: JSON.stringify(bands), tolerance_cm: tol,
+                                  reason: v.reason, person: frappe.session.user, dry_run: 0,
+                                  allow_unsized: orphan ? 1 : 0 })
+                .then(function (r) {
+                  dlg.hide();
+                  frappe.show_alert({ message: 'Thresholds saved' +
+                    (r && r.count ? ' — ' + r.count + ' re-sorted' : ''), indicator: 'green' });
+                  frm.reload_doc();
+                });
+            }
+          });
+          dlg.show();
+        });
+    });
+
+    $sec.find('[data-dsz="resetbands"]').on('click', function () {
+      var target = d.owner;
+      frappe.prompt([{ fieldname: 'reason', fieldtype: 'Small Text', label: 'Why', reqd: 1 }],
+        function (v) {
+          call('reset_bands', { doctype: target.doctype, name: target.name,
+                                reason: v.reason, person: frappe.session.user, dry_run: 0 })
+            .then(function () { frm.reload_doc(); });
+        }, 'Reset to the standard', 'Reset');
+    });
+
+    $sec.find('[data-dsz="undo"]').on('click', function () {
+      var target = d.owner;
+      frappe.confirm('Put back exactly what <b>' +
+        esc((d.undo && d.undo.label) || 'that change') + '</b> altered — the sizes, the ' +
+        'grades and the thresholds together?', function () {
+        call('undo_last', { doctype: target.doctype, name: target.name,
+                            person: frappe.session.user })
+          .then(function (r) {
+            frappe.show_alert({ message: ((r && r.restored) || 0) + ' put back',
+                                indicator: 'green' });
+            frm.reload_doc();
+          });
+      });
+    });
+
+    $sec.find('[data-dsz="seed"]').on('click', function () {
+      var target = d.owner;
+      call('seed_now', { doctype: target.doctype, name: target.name, dry_run: 1 })
+        .then(function (plan) {
+          if (!plan) return;
+          var moved = plan.would_move || [];
+          var dlg = new frappe.ui.Dialog({
+            title: 'Pre-fill the thresholds',
+            fields: [
+              { fieldtype: 'HTML', options: '<div class="dsz"><b>From ' + esc(plan.source) +
+                '.</b><table style="margin-top:6px">' +
+                (plan.bands || []).map(function (b) {
+                  return '<tr><td style="padding-right:14px"><b>' + esc(b.size_category_name) +
+                         '</b></td><td>' + b.min_length + ' &times; ' + b.min_width +
+                         ' &times; ' + b.min_height + '</td></tr>';
+                }).join('') + '</table>' +
+                (moved.length ? '<div class="note">' + moved.length +
+                                ' block(s) would change size.</div>'
+                              : '<div class="sm">No block changes size.</div>') + '</div>' },
+              { fieldname: 'reason', fieldtype: 'Small Text', label: 'Why', reqd: 1 }
+            ],
+            primary_action_label: 'Pre-fill & re-sort',
+            primary_action: function (v) {
+              call('seed_now', { doctype: target.doctype, name: target.name,
+                                 reason: v.reason, person: frappe.session.user, dry_run: 0 })
+                .then(function () { dlg.hide(); frm.reload_doc(); });
+            }
+          });
+          dlg.show();
+        });
+    });
+
+    $sec.find('[data-dsz="useset"]').on('click', function () {
+      call('size_sets').then(function (sets) {
+        if (!sets || !sets.length) {
+          frappe.msgprint('No sets saved yet. Type the thresholds you want, then ' +
+                          '<b>Save these as a set…</b> and it will be here next time.');
+          return;
+        }
+        var dlg = new frappe.ui.Dialog({ title: 'Use a saved set',
+                                         fields: [{ fieldname: 'body', fieldtype: 'HTML' }] });
+        var html = ['<div class="dsz">'];
+        sets.forEach(function (st, i) {
+          html.push('<div class="bar" style="justify-content:space-between">' +
+                    '<span><b>' + esc(st.set) + '</b> <span class="sm">' +
+                    st.bands.map(function (b) {
+                      return esc(b.size) + ' ' + b.min_length + '×' + b.min_width +
+                             '×' + b.min_height;
+                    }).join(' &middot; ') + '</span></span>' +
+                    '<span class="b pri" data-use="' + i + '">Use this</span></div>');
+        });
+        html.push('<div class="sm">Picking a set only fills the boxes. Nothing changes until ' +
+                  'you press <b>Save &amp; re-sort</b>.</div></div>');
+        dlg.fields_dict.body.$wrapper.html(html.join(''));
+        dlg.fields_dict.body.$wrapper.find('[data-use]').on('click', function () {
+          var st = sets[parseInt(this.dataset.use, 10)];
+          d.bands = st.bands.map(function (b) {
+            return { size: b.size, min_length: b.min_length, min_width: b.min_width,
+                     min_height: b.min_height, blocks: 0 };
+          });
+          dlg.hide();
+          $sec.html(sizesHtml(d));
+          wireSizes(frm, $sec, d);
+          frappe.show_alert({ message: 'Filled from “' + st.set +
+                                       '” — press Save & re-sort', indicator: 'blue' });
+        });
+        dlg.show();
+      });
+    });
+
+    $sec.find('[data-dsz="saveset"]').on('click', function () {
+      var bands = readBands($sec, d);
+      frappe.prompt([
+        { fieldname: 'set_name', fieldtype: 'Data', label: 'Name this set', reqd: 1,
+          description: 'Something you will recognise — “Bless 207”, “Local 150”.' },
+        { fieldname: 'reason', fieldtype: 'Small Text', label: 'Note' }
+      ], function (v) {
+        call('save_size_set', { set_name: v.set_name, bands: JSON.stringify(bands),
+                                reason: v.reason, person: frappe.session.user })
+          .then(function (r) {
+            frappe.show_alert({ message: 'Saved as “' + (r && r.set) + '”',
+                                indicator: 'green' });
+          });
+      }, 'Save these as a set', 'Save');
+    });
+
     var lastIdx = null;
     function boxes() { return $sec.find('input.bck'); }
     function count() {
