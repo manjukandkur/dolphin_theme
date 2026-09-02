@@ -185,6 +185,34 @@ CUSTOM_FIELDS = [
         "fieldtype": "Check", "default": "0", "insert_after": "size_tolerance_cm",
         "description": "Internal record only. Off by default. Never printed."}),
     # The shipping document's OWN copy - written only when the override is on.
+    # 1 Sep 2026: the same three on both inspections, so the judgement can be made
+    # where the stone is. [stated] "can you add grade and size option similar way
+    # on QI and BI without disturbing anything?" - nothing else on either doctype
+    # is touched, and both child tables already carried the size and grade fields.
+    ("Quarry Inspection", {
+        "fieldname": "size_bands", "label": "Size thresholds", "fieldtype": "Table",
+        "options": "Shipping Size Band", "insert_after": "block_rows",
+        "description": "Tried top to bottom; the first one a block meets on all three "
+                       "sides wins. A zero is no minimum on that side."}),
+    ("Quarry Inspection", {
+        "fieldname": "size_tolerance_cm", "label": "Marginal threshold (cm)",
+        "fieldtype": "Int", "default": "3", "insert_after": "size_bands"}),
+    ("Quarry Inspection", {
+        "fieldname": "record_grade", "label": "Record grade on this inspection",
+        "fieldtype": "Check", "default": "0", "insert_after": "size_tolerance_cm",
+        "description": "Internal record only. Never printed."}),
+    ("Buyer Inspection", {
+        "fieldname": "size_bands", "label": "Size thresholds", "fieldtype": "Table",
+        "options": "Shipping Size Band", "insert_after": "block_rows",
+        "description": "Tried top to bottom; the first one a block meets on all three "
+                       "sides wins. A zero is no minimum on that side."}),
+    ("Buyer Inspection", {
+        "fieldname": "size_tolerance_cm", "label": "Marginal threshold (cm)",
+        "fieldtype": "Int", "default": "3", "insert_after": "size_bands"}),
+    ("Buyer Inspection", {
+        "fieldname": "record_grade", "label": "Record grade on this inspection",
+        "fieldtype": "Check", "default": "0", "insert_after": "size_tolerance_cm",
+        "description": "Internal record only. Never printed."}),
     ("Shipping Document", {
         "fieldname": "size_override", "label": "Final change on this document",
         "fieldtype": "Check", "default": "0", "insert_after": "size_rule_display",
@@ -383,6 +411,7 @@ def bands_for(doc):
         if own:
             return own
         return _standard_bands()
+    # a Quarry or Buyer Inspection owns whatever it carries, like a lot does
     own = _band_rows(doc)
     return own if own else _standard_bands()
 
@@ -1162,12 +1191,12 @@ def _resort(doc, bands):
     Touches the SIZE field only. It does not read a grade and it does not write
     one - 1 Sep 2026, [stated] "grade is independednt of size"."""
     moved = []
-    for b in (doc.get("blocks") or []):
-        l, w, h = flt(b.get("length")), flt(b.get("width")), flt(b.get("height"))
+    for b in _blocks_of(doc):
+        l, w, h = _dims_of(doc, b)
         if not (l and w and h):
             continue
         was = _s(b.get(SIZE_FIELD))
-        now = size_category_for(l, w, h, b.get("net_volume"), bands=bands)
+        now = size_category_for(l, w, h, bands=bands)
         if now and now != was:
             moved.append({"block": _s(b.get("export_block_no")) or _s(b.get("block_no")),
                           "row": _s(b.name), "from": was or "(none)", "to": now})
@@ -1185,7 +1214,7 @@ def _marginal_map(doc, bands, tol):
 
     out = {}
     for b in (doc.get("blocks") or []):
-        l, w, h = flt(b.get("length")), flt(b.get("width")), flt(b.get("height"))
+        l, w, h = _dims_of(doc, b)
         if not (l and w and h):
             continue
         now = _s(b.get(SIZE_FIELD))
@@ -1221,13 +1250,36 @@ def _marginal_map(doc, bands, tol):
 # understand and one set of rules behind it.
 # ---------------------------------------------------------------------------
 
-PANEL_DOCTYPES = ("Export Shipment Lot", "Shipping Document")
+# 1 Sep 2026, his words: "can you add grade and size option similar way on QI
+# and BI without disturbing anything?" and "if the grading and size is done at the
+# quarry itself then there will be minor changes at export shipment lot and
+# shipping docs level" - which is the right way round: judge the stone where it is
+# in front of you, and the lot is left making small adjustments.
+#
+# Nothing had to be invented: Quarry Inspection Block and Buyer Inspection Block
+# ALREADY carry `granite_size_category` and `granite_quality_grade`. This only
+# points the same panel at them.
+PANEL_DOCTYPES = {
+    "Export Shipment Lot": ("blocks", "Shipment Lot Block"),
+    "Shipping Document": ("blocks", "Shipping Block"),
+    "Quarry Inspection": ("block_rows", "Quarry Inspection Block"),
+    "Buyer Inspection": ("block_rows", "Buyer Inspection Block"),
+}
+
+# where each child table keeps its grade, because they do not agree
+GRADE_FIELD = {
+    "Shipment Lot Block": "grade",
+    "Shipping Block": "grade",
+    "Quarry Inspection Block": "granite_quality_grade",
+    "Buyer Inspection Block": "granite_quality_grade",
+}
 
 
 def _doc_for_panel(doctype, name):
     doctype, name = _s(doctype), _s(name)
     if doctype not in PANEL_DOCTYPES:
-        frappe.throw("Sizes are set on the Export Shipment Lot, and read on the "
+        frappe.throw("Sizes and grades are set on the Quarry Inspection, the Buyer "
+                     "Inspection and the Export Shipment Lot, and read on the "
                      "Shipping Document. Nothing else.")
     if not name:
         frappe.throw("Which document?")
@@ -1235,7 +1287,22 @@ def _doc_for_panel(doctype, name):
 
 
 def _blocks_of(doc):
-    return doc.get("blocks") or []
+    fld = PANEL_DOCTYPES.get(doc.doctype, ("blocks",))[0]
+    return doc.get(fld) or []
+
+
+def _grade_field(doc):
+    child = PANEL_DOCTYPES.get(doc.doctype, (None, None))[1]
+    return GRADE_FIELD.get(child, "grade")
+
+
+def _dims_of(doc, b):
+    """L, W, H whatever the child table calls them."""
+    child = PANEL_DOCTYPES.get(doc.doctype, (None, None))[1]
+    f = DIMS.get(child)
+    if not f:
+        return 0.0, 0.0, 0.0
+    return flt(b.get(f[0])), flt(b.get(f[1])), flt(b.get(f[2]))
 
 
 @frappe.whitelist()
@@ -1243,16 +1310,19 @@ def panel(doctype=None, name=None):
     """Everything both screens draw, in one read. Changes nothing."""
     doc = _doc_for_panel(doctype, name)
     is_lot = doc.doctype == "Export Shipment Lot"
-    lot = None if is_lot else _lot_of(doc)
-    override = (not is_lot) and bool(cint(doc.get("size_override")))
+    is_sd = doc.doctype == "Shipping Document"
+    # An inspection owns what it decides, plainly. Only the shipping document
+    # follows something else, and only until a person ticks the final change.
+    lot = _lot_of(doc) if is_sd else None
+    override = is_sd and bool(cint(doc.get("size_override")))
 
     bands = bands_for(doc)
     tol = tolerance_for(doc)
     marg = _marginal_map(doc, bands, tol)
 
     # where the thresholds are being edited, in plain words
-    if is_lot:
-        owner = {"doctype": "Export Shipment Lot", "name": doc.name, "editable": True}
+    if not is_sd:
+        owner = {"doctype": doc.doctype, "name": doc.name, "editable": True}
     elif override:
         owner = {"doctype": "Shipping Document", "name": doc.name, "editable": True}
     elif lot is not None:
@@ -1266,13 +1336,13 @@ def panel(doctype=None, name=None):
             cint(c.get("min_length")), cint(c.get("min_width")), cint(c.get("min_height"))]
 
     counts, blocks, graded, filled, unsized = {}, [], [], 0, []
-    grade_doc = lot if (lot is not None and not override) else doc
+    grade_doc = lot if (is_sd and lot is not None and not override) else doc
     for b in _blocks_of(doc):
         cat = _s(b.get(SIZE_FIELD))
         if cat:
             counts[cat] = counts.get(cat, 0) + 1
         no = _s(b.get("export_block_no")) or _s(b.get("block_no"))
-        l, w, h = flt(b.get("length")), flt(b.get("width")), flt(b.get("height"))
+        l, w, h = _dims_of(doc, b)
         if l and w and h and not size_category_for(l, w, h, bands=bands):
             unsized.append(no)
         blocks.append({
@@ -1283,7 +1353,7 @@ def panel(doctype=None, name=None):
         })
         # grade, gathered on the same pass and on nothing else. It is not read
         # from a measurement and never written from one.
-        g = _s(b.get("grade"))
+        g = _s(b.get(_grade_field(doc)))
         if g:
             filled += 1
         graded.append({"row": _s(b.name), "block": no, "grade": g})
@@ -1346,7 +1416,7 @@ def set_bands(doctype=None, name=None, bands=None, tolerance_cm=None,
     moved = _resort(doc, want)
     nowhere = []
     for b in _blocks_of(doc):
-        l, w, h = flt(b.get("length")), flt(b.get("width")), flt(b.get("height"))
+        l, w, h = _dims_of(doc, b)
         if l and w and h and not size_category_for(l, w, h, bands=want):
             nowhere.append(_s(b.get("export_block_no")) or _s(b.get("block_no")))
     if dry:
@@ -1586,11 +1656,11 @@ def set_block_values(doctype=None, name=None, rows=None, to_size=None, grade=Non
                             b.set("size_consent_on", frappe.utils.now())
                     b.set(SIZE_FIELD, to_size)
         if set_grade:
-            wasg = _s(b.get("grade"))
+            wasg = _s(b.get(_grade_field(doc)))
             if wasg != grade:
                 graded.append({"block": no, "from": wasg or "(none)", "to": grade or "(none)"})
                 if not dry:
-                    b.set("grade", grade)
+                    b.set(_grade_field(doc), grade)
 
     if dry:
         return {"dry_run": True, "sized": sized, "graded": graded,
@@ -1661,7 +1731,7 @@ def set_grades(doctype=None, name=None, rows=None, grade=None, person=None, dry_
     for b in _blocks_of(doc):
         if _s(b.name) not in rows:
             continue
-        was = _s(b.get("grade"))
+        was = _s(b.get(_grade_field(doc)))
         if was == grade:
             same += 1
             continue
@@ -1669,7 +1739,7 @@ def set_grades(doctype=None, name=None, rows=None, grade=None, person=None, dry_
                         "block": _s(b.get("export_block_no")) or _s(b.get("block_no")),
                         "from": was or "(none)", "to": grade or "(none)"})
         if not dry:
-            b.set("grade", grade)
+            b.set(_grade_field(doc), grade)
     if dry:
         return {"dry_run": True, "changed": changed, "count": len(changed),
                 "already": same, "to": grade}
@@ -1733,7 +1803,7 @@ def marginal_blocks(shipping_document=None, tolerance_cm=None):
 
     out = []
     for b in (doc.get("blocks") or []):
-        l, w, h = flt(b.get("length")), flt(b.get("width")), flt(b.get("height"))
+        l, w, h = _dims_of(doc, b)
         if not (l and w and h):
             continue
         now = _s(b.get(SIZE_FIELD))
