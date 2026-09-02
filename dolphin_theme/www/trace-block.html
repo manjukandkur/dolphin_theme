@@ -284,7 +284,11 @@ window.__tbRender=render;
    Precedence unchanged: quarry block number, then export number, then record id. */
 (function () {
   var MAX = 500;
-  var FL = ['name','block_number','export_block_no','status','delivery_challan','buyer_inspection','source_quarry_inspection','granite_quality_grade','length_gross','width_gross','height_gross','gross_volume'];
+  /* 3 Sep 2026: this IIFE keeps its OWN FL, which shadows the one above. The
+     retirement fields were added to that one and not to this, so the search
+     that actually runs fetched 12 fields and every card read as still in
+     service. Both lists must carry the same fields. */
+  var FL = ['name','block_number','export_block_no','status','delivery_challan','buyer_inspection','source_quarry_inspection','granite_quality_grade','length_gross','width_gross','height_gross','gross_volume','retired_on','retired_because','retired_ref','date_produced'];
   function apiFind(filters) {
     var u = '/api/method/frappe.client.get_list?doctype=Quarry Block'
       + '&filters=' + encodeURIComponent(JSON.stringify(filters))
