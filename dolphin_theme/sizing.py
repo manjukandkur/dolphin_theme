@@ -277,11 +277,61 @@ CUSTOM_FIELDS = [
         "fieldtype": "Check", "default": "0", "insert_after": "size_tolerance_cm",
         "description": "Internal record only. Off by default. Never printed - neither "
                        "the invoice nor the packing list shows grade, whatever this says."}),
+    # ------------------------------------------------- the grade master itself
+    # 2 Sep 2026, his words, looking at the Size thresholds popup on Buyer
+    # Inspection: "Grade also can be added in this?" / "it is missing".
+    #
+    # It was missing because that popup edits Granite Size Category, and grade
+    # has never lived there. It must not start living there either: a grade
+    # column beside Min L / Min W / Min H would make grade a function of the
+    # measurements, which is the one thing he ruled out - "grade is
+    # independednt of size so grade is independednt".
+    #
+    # So the popup gains a SECOND section, over the Granite Grade master, with
+    # no dimensions on it at all. That master was bare - one Data field - so it
+    # gets the two columns that section needs and nothing more.
+    ("Granite Grade", {
+        "fieldname": "is_active", "label": "Active", "fieldtype": "Check",
+        "default": "1", "insert_after": "grade_name",
+        "description": "Untick to keep the grade on record but drop it from the "
+                       "pickers. Nothing already graded is changed."}),
+    ("Granite Grade", {
+        "fieldname": "sort_order", "label": "Order", "fieldtype": "Int",
+        "insert_after": "is_active",
+        "description": "The order the grades appear in. Ties fall back to the name."}),
 ]
 
-# The five he named. The Granite Grade master already holds all five (plus
-# D (Rejected) and Unshaped, deliberately left out of a shipment's picker).
+# The five he named, kept as the fallback only. The live list now comes from
+# the Granite Grade master through active_grades() below, so unticking a grade
+# in the popup actually removes it from the pickers.
 GRADES = ["A", "B", "B1", "B2", "C"]
+
+# Rows that existed before is_active did. Everything the master already held is
+# left switched ON, so adding the column changes nothing on its own; the two he
+# never wanted in a shipment's picker start where they have always been - out.
+GRADES_DEFAULT_OFF = ["D (Rejected)", "Unshaped"]
+
+
+def active_grades():
+    """The grades a person may choose right now, in the master's own order.
+
+    Falls back to the five he named if the master is missing or unreadable -
+    a picker must never come back empty.
+    """
+    try:
+        meta = frappe.get_meta("Granite Grade")
+        has_flag = meta.has_field("is_active")
+        has_ord = meta.has_field("sort_order")
+        fields = ["name"] + (["is_active"] if has_flag else []) + \
+                 (["sort_order"] if has_ord else [])
+        rows = frappe.get_all("Granite Grade", fields=fields, limit_page_length=0)
+        if has_flag:
+            rows = [r for r in rows if cint(r.get("is_active"))]
+        rows.sort(key=lambda r: (cint(r.get("sort_order")) or 9999, _s(r.get("name"))))
+        out = [_s(r.get("name")) for r in rows if _s(r.get("name"))]
+        return out or list(GRADES)
+    except Exception:
+        return list(GRADES)
 
 # The child table the bands live in. Site data, like every other doctype on
 # this system, so a deploy cannot revert it.
@@ -1469,7 +1519,7 @@ def panel(doctype=None, name=None):
         "unsized": unsized,
         "grade": {
             "on": bool(cint((grade_doc or doc).get("record_grade"))),
-            "options": list(GRADES),
+            "options": active_grades(),
             "blocks": graded, "filled": filled, "total": len(graded), "tally": tally,
         },
         "note": "The thresholds belong to the lot. This document reads them unless a "
@@ -1930,8 +1980,9 @@ def set_block_values(doctype=None, name=None, rows=None, to_size=None, grade=Non
     set_grade = grade != "__keep__"
     if not (set_size or set_grade):
         frappe.throw("Choose a size, a grade, or both.")
-    if set_grade and grade and grade not in GRADES:
-        frappe.throw("Grade must be one of {0}, or blank.".format(", ".join(GRADES)))
+    _ok = active_grades()
+    if set_grade and grade and grade not in _ok:
+        frappe.throw("Grade must be one of {0}, or blank.".format(", ".join(_ok)))
     if isinstance(rows, str):
         try:
             rows = json.loads(rows)
@@ -2042,8 +2093,9 @@ def set_grades(doctype=None, name=None, rows=None, grade=None, person=None, dry_
     dry = _s(dry_run) not in ("0", "false", "False", "")
     doc = _doc_for_panel(doctype, name)
     grade = _s(grade)
-    if grade and grade not in GRADES:
-        frappe.throw("Grade must be one of {0}, or blank.".format(", ".join(GRADES)))
+    _ok = active_grades()
+    if grade and grade not in _ok:
+        frappe.throw("Grade must be one of {0}, or blank.".format(", ".join(_ok)))
     if isinstance(rows, str):
         try:
             rows = json.loads(rows)
@@ -2217,3 +2269,80 @@ def promote_block_size(shipping_document=None, row=None, to_size=None,
     return {"ok": True, "document": name,
             "block": _s(target.get("export_block_no")) or _s(target.get("block_no")),
             "from": was, "to": to_size, "agreed_by": _s(agreed_by)}
+
+
+# ===========================================================================
+# THE GRADE MASTER, EDITED FROM THE SAME POPUP AS THE SIZES
+#
+# 2 Sep 2026. [stated] "Grade also can be added in this?" / "it is missing".
+#
+# Read and write the Granite Grade master, and nothing else. There is no
+# dimension anywhere in here on purpose: the sizes are decided by measurement,
+# the grades are decided by a person looking at the stone, and the two lists
+# sit in one popup only because that is where his hand already is.
+# ===========================================================================
+
+@frappe.whitelist()
+def grade_options():
+    """Every grade on record, active or not, in the order they are shown."""
+    try:
+        meta = frappe.get_meta("Granite Grade")
+    except Exception:
+        return {"ok": False, "rows": [], "reason": "no Granite Grade master"}
+    has_flag = meta.has_field("is_active")
+    has_ord = meta.has_field("sort_order")
+    fields = ["name", "grade_name"] + (["is_active"] if has_flag else []) + \
+             (["sort_order"] if has_ord else [])
+    rows = frappe.get_all("Granite Grade", fields=fields, limit_page_length=0)
+    out = []
+    for r in rows:
+        out.append({
+            "name": _s(r.get("name")),
+            "grade_name": _s(r.get("grade_name")) or _s(r.get("name")),
+            # Before the column exists every grade reads as on, which is what
+            # the system did yesterday. Adding the column changes nothing.
+            "is_active": cint(r.get("is_active")) if has_flag else 1,
+            "sort_order": cint(r.get("sort_order")) if has_ord else 0,
+        })
+    out.sort(key=lambda r: (r["sort_order"] or 9999, r["name"]))
+    return {"ok": True, "rows": out, "editable": bool(has_flag)}
+
+
+@frappe.whitelist()
+def save_grade_options(rows):
+    """Set the active tick and the order on the grade master.
+
+    Only those two columns are ever written. A grade is never renamed, never
+    created and never deleted from here - the master is reached from the menu
+    for that. Nothing already graded on a block is touched: switching a grade
+    off removes it from the pickers, it does not rewrite history.
+    """
+    if isinstance(rows, str):
+        rows = json.loads(rows or "[]")
+    rows = rows or []
+    meta = frappe.get_meta("Granite Grade")
+    if not meta.has_field("is_active"):
+        frappe.throw("The grade master has no Active column yet. Run setup once.")
+
+    live = [r for r in rows if cint(r.get("is_active"))]
+    if not live:
+        frappe.throw("At least one grade has to stay active, or nothing can be graded.")
+
+    changed = []
+    for r in rows:
+        nm = _s(r.get("name"))
+        if not nm or not frappe.db.exists("Granite Grade", nm):
+            continue
+        d = frappe.get_doc("Granite Grade", nm)
+        was_a, was_o = cint(d.get("is_active")), cint(d.get("sort_order"))
+        now_a, now_o = cint(r.get("is_active")), cint(r.get("sort_order"))
+        if was_a == now_a and was_o == now_o:
+            continue
+        d.set("is_active", now_a)
+        if meta.has_field("sort_order"):
+            d.set("sort_order", now_o)
+        d.flags.ignore_mandatory = True
+        d.save(ignore_permissions=True)
+        changed.append("{0}: {1}".format(nm, "on" if now_a else "off"))
+    frappe.db.commit()
+    return {"ok": True, "changed": changed, "active": active_grades()}
