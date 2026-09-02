@@ -279,6 +279,10 @@
       h.push('<div><span class="b gold" data-dsz="addband">+ Add a threshold</span>' +
              '<span class="b pri" data-dsz="savebands">Save &amp; re-sort&hellip;</span>' +
              '<span class="b off" data-dsz="resetbands">Reset to the standard</span></div>');
+      h.push('<div style="margin-top:4px"><span class="b off" data-dsz="useset">' +
+             'Use a saved set&hellip;</span>' +
+             '<span class="b off" data-dsz="saveset">Save these as a set&hellip;</span>' +
+             '<span class="sm">— sets are shared by every consignee, local and export</span></div>');
     } else {
       h.push('<div class="sm">Marginal threshold ' + (d.tolerance_cm || 3) + ' cm.</div>');
     }
@@ -490,6 +494,155 @@
       d.bands.push({ size: '', min_length: 0, min_width: 0, min_height: 0, blocks: 0 });
       $sec.html(sizesHtml(d));
       wireSizes(frm, $sec, d);
+    });
+
+    /* --- the threshold actions. These were lost in an earlier refactor of this
+       file and the panel could not save at all; found by grepping for the
+       handlers rather than by trusting that they were still there. --- */
+
+    $sec.find('[data-dsz="savebands"]').on('click', function () {
+      var bands = readBands($sec, d);
+      var tol = parseInt(($sec.find('[data-dsz="tol"]').val() || 3), 10) || 3;
+      var target = d.owner;
+      call('set_bands', { doctype: target.doctype, name: target.name,
+                          bands: JSON.stringify(bands), tolerance_cm: tol, dry_run: 1 })
+        .then(function (plan) {
+          if (!plan) return;
+          var moved = plan.would_move || [];
+          var body = (moved.length
+            ? '<b>' + moved.length + ' block' + (moved.length === 1 ? '' : 's') +
+              ' change size.</b><div class="sm" style="margin-top:5px">' +
+              moved.slice(0, 15).map(function (m) {
+                return esc(m.block) + ' ' + esc(m.from) + ' &rarr; ' + esc(m.to);
+              }).join(' &middot; ') +
+              (moved.length > 15 ? ' &middot; +' + (moved.length - 15) + ' more' : '') + '</div>'
+            : 'No block changes size on these thresholds.');
+          if (plan.unsized && plan.unsized.length) {
+            body += '<div class="note" style="margin-top:8px"><b>' + plan.unsized.length +
+                    ' would meet no threshold at all</b> and would be left without a size: ' +
+                    esc(plan.unsized.slice(0, 15).join(', ')) + '</div>';
+          }
+          var dlg = new frappe.ui.Dialog({
+            title: 'Size thresholds · ' + target.name,
+            fields: [
+              { fieldtype: 'HTML', options: '<div class="dsz">' + body +
+                '<div class="sm" style="margin-top:8px">Saved on ' + esc(target.name) +
+                '. No grade moves.</div></div>' },
+              { fieldname: 'reason', fieldtype: 'Small Text', label: 'Why', reqd: 1 }
+            ],
+            primary_action_label: 'Save & re-sort',
+            primary_action: function (v) {
+              call('set_bands', { doctype: target.doctype, name: target.name,
+                                  bands: JSON.stringify(bands), tolerance_cm: tol,
+                                  reason: v.reason, person: frappe.session.user, dry_run: 0 })
+                .then(function (r) {
+                  dlg.hide();
+                  frappe.show_alert({ message: 'Thresholds saved' +
+                    (r && r.count ? ' — ' + r.count + ' re-sorted' : ''), indicator: 'green' });
+                  frm.reload_doc();
+                });
+            }
+          });
+          dlg.show();
+        });
+    });
+
+    $sec.find('[data-dsz="resetbands"]').on('click', function () {
+      var target = d.owner;
+      frappe.prompt([{ fieldname: 'reason', fieldtype: 'Small Text', label: 'Why', reqd: 1 }],
+        function (v) {
+          call('reset_bands', { doctype: target.doctype, name: target.name,
+                                reason: v.reason, person: frappe.session.user, dry_run: 0 })
+            .then(function () { frm.reload_doc(); });
+        }, 'Reset to the standard', 'Reset');
+    });
+
+    $sec.find('[data-dsz="seed"]').on('click', function () {
+      var target = d.owner;
+      call('seed_now', { doctype: target.doctype, name: target.name, dry_run: 1 })
+        .then(function (plan) {
+          if (!plan) return;
+          var moved = plan.would_move || [];
+          var dlg = new frappe.ui.Dialog({
+            title: 'Pre-fill the thresholds',
+            fields: [
+              { fieldtype: 'HTML', options: '<div class="dsz"><b>From ' + esc(plan.source) +
+                '.</b><table style="margin-top:6px">' +
+                (plan.bands || []).map(function (b) {
+                  return '<tr><td style="padding-right:14px"><b>' + esc(b.size_category_name) +
+                         '</b></td><td>' + b.min_length + ' &times; ' + b.min_width +
+                         ' &times; ' + b.min_height + '</td></tr>';
+                }).join('') + '</table>' +
+                (moved.length ? '<div class="note">' + moved.length +
+                                ' block(s) would change size.</div>'
+                              : '<div class="sm">No block changes size.</div>') + '</div>' },
+              { fieldname: 'reason', fieldtype: 'Small Text', label: 'Why', reqd: 1 }
+            ],
+            primary_action_label: 'Pre-fill & re-sort',
+            primary_action: function (v) {
+              call('seed_now', { doctype: target.doctype, name: target.name,
+                                 reason: v.reason, person: frappe.session.user, dry_run: 0 })
+                .then(function () { dlg.hide(); frm.reload_doc(); });
+            }
+          });
+          dlg.show();
+        });
+    });
+
+    /* Saved sets: entered once in the master, reusable by any consignee, local
+       or export. Picking one only FILLS the boxes - nothing is written until
+       Save & re-sort, so a set can never change a document behind your back. */
+    $sec.find('[data-dsz="useset"]').on('click', function () {
+      call('size_sets').then(function (sets) {
+        if (!sets || !sets.length) {
+          frappe.msgprint('No sets saved yet. Type the thresholds you want, then ' +
+                          '<b>Save these as a set…</b> and it will be here next time.');
+          return;
+        }
+        var dlg = new frappe.ui.Dialog({ title: 'Use a saved set',
+                                         fields: [{ fieldname: 'body', fieldtype: 'HTML' }] });
+        var html = ['<div class="dsz">'];
+        sets.forEach(function (st, i) {
+          html.push('<div class="bar" style="justify-content:space-between">' +
+                    '<span><b>' + esc(st.set) + '</b> <span class="sm">' +
+                    st.bands.map(function (b) {
+                      return esc(b.size) + ' ' + b.min_length + '×' + b.min_width +
+                             '×' + b.min_height;
+                    }).join(' &middot; ') + '</span></span>' +
+                    '<span class="b pri" data-use="' + i + '">Use this</span></div>');
+        });
+        html.push('<div class="sm">Picking a set only fills the boxes. Nothing changes until ' +
+                  'you press <b>Save &amp; re-sort</b>.</div></div>');
+        dlg.fields_dict.body.$wrapper.html(html.join(''));
+        dlg.fields_dict.body.$wrapper.find('[data-use]').on('click', function () {
+          var st = sets[parseInt(this.dataset.use, 10)];
+          d.bands = st.bands.map(function (b) {
+            return { size: b.size, min_length: b.min_length, min_width: b.min_width,
+                     min_height: b.min_height, blocks: 0 };
+          });
+          dlg.hide();
+          $sec.html(sizesHtml(d));
+          wireSizes(frm, $sec, d);
+          frappe.show_alert({ message: 'Filled from “' + st.set + '” — press Save & re-sort',
+                              indicator: 'blue' });
+        });
+        dlg.show();
+      });
+    });
+
+    $sec.find('[data-dsz="saveset"]').on('click', function () {
+      var bands = readBands($sec, d);
+      frappe.prompt([
+        { fieldname: 'set_name', fieldtype: 'Data', label: 'Name this set', reqd: 1,
+          description: 'Something you will recognise — “Bless 207”, “Local 150”.' },
+        { fieldname: 'reason', fieldtype: 'Small Text', label: 'Note' }
+      ], function (v) {
+        call('save_size_set', { set_name: v.set_name, bands: JSON.stringify(bands),
+                                reason: v.reason, person: frappe.session.user })
+          .then(function (r) {
+            frappe.show_alert({ message: 'Saved as “' + (r && r.set) + '”', indicator: 'green' });
+          });
+      }, 'Save these as a set', 'Save');
     });
 
     var lastIdx = null;
