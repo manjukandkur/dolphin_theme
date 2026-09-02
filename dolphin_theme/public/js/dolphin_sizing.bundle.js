@@ -1024,6 +1024,131 @@
       });
   }
 
+
+  /* ====================================================== THE GRADE MASTER
+     2 Sep 2026. Looking at the Size thresholds popup on Buyer Inspection:
+     [stated] "Grade also can be added in this?" / "it is missing".
+
+     It was missing because that popup edits the SIZE master. Grade does not
+     belong in that table - a grade column beside Min L / Min W / Min H would
+     make grade a function of the measurements, and his rule is the opposite:
+     "grade is independednt of size so grade is independednt".
+
+     So the popup gets a SECOND list underneath, over the Granite Grade master.
+     No dimensions on it, no link to the rows above it. The two lists share a
+     popup because that is where his hand already is, and for no other reason.
+
+     This is additive on purpose. The Size thresholds popup is an older client
+     script held as site data; nothing in it is edited, moved or removed. This
+     watches for it to open and appends a section of its own.
+  */
+  var GRADE_MARK = 'dolphin-grade-options';
+
+  function gradeRowsHtml(rows) {
+    var h = ['<table><tr><th style="width:44%">Grade</th><th>Active</th>' +
+             '<th>Order</th></tr>'];
+    (rows || []).forEach(function (r) {
+      h.push('<tr data-dgo="row" data-name="' + esc(r.name) + '">' +
+             '<td style="font-weight:700">' + esc(r.grade_name || r.name) + '</td>' +
+             '<td><input type="checkbox" data-dgo="act"' +
+                 (r.is_active ? ' checked' : '') + '></td>' +
+             '<td><input class="in" type="number" data-dgo="ord" min="0" step="1" value="' +
+                 (parseInt(r.sort_order, 10) || 0) + '"></td></tr>');
+    });
+    h.push('</table>');
+    return h.join('');
+  }
+
+  function gradeSection(rows, editable) {
+    var w = document.createElement('div');
+    w.className = 'dsz';
+    w.setAttribute('data-' + GRADE_MARK, '1');
+    w.style.cssText = 'border-top:1px solid #e3e8ee;margin-top:14px;padding-top:12px';
+    w.innerHTML =
+      '<div style="font-size:10px;letter-spacing:.04em;text-transform:uppercase;' +
+      'color:#8a929c;font-weight:700;margin-bottom:2px">Grades</div>' +
+      '<div class="sm" style="margin-bottom:6px">Decided by eye, not by measurement — ' +
+      'nothing here reads the sizes above. Internal only; grade never reaches an ' +
+      'invoice or a packing list.</div>' +
+      gradeRowsHtml(rows) +
+      (editable
+        ? '<div class="bar"><span class="b pri" data-dgo="save">Save grades</span>' +
+          '<span class="sm" data-dgo="msg">Unticking hides a grade from the pickers. ' +
+          'Blocks already graded keep what they have.</span></div>'
+        : '<div class="quiet">The grade master has no Active column yet. Open any ' +
+          'Export Shipment Lot once to finish the setup, then come back.</div>');
+    return w;
+  }
+
+  function wireGradeSection(w) {
+    var saveBtn = w.querySelector('[data-dgo="save"]');
+    if (!saveBtn) return;                       /* nothing to wire when read-only */
+    saveBtn.addEventListener('click', function () {
+      if (saveBtn.hasAttribute('disabled')) return;
+      var out = [];
+      Array.prototype.forEach.call(w.querySelectorAll('[data-dgo="row"]'), function (tr) {
+        out.push({
+          name: tr.getAttribute('data-name'),
+          is_active: tr.querySelector('[data-dgo="act"]').checked ? 1 : 0,
+          sort_order: parseInt(tr.querySelector('[data-dgo="ord"]').value, 10) || 0
+        });
+      });
+      var msg = w.querySelector('[data-dgo="msg"]');
+      saveBtn.setAttribute('disabled', 'disabled');
+      call('save_grade_options', { rows: JSON.stringify(out) })
+        .then(function (r) {
+          saveBtn.removeAttribute('disabled');
+          var n = (r && r.changed && r.changed.length) || 0;
+          if (msg) {
+            msg.textContent = n
+              ? n + ' change(s) saved · now offered: ' + ((r && r.active) || []).join(', ')
+              : 'Nothing had changed.';
+          }
+          frappe.show_alert({ message: 'Grades saved', indicator: 'green' });
+        })
+        .catch(function () { saveBtn.removeAttribute('disabled'); });
+    });
+  }
+
+  /* The popup is somebody else's. Find it when it opens, append, never edit. */
+  function offerGrades(modal) {
+    if (!modal || modal.querySelector('[data-' + GRADE_MARK + ']')) return;
+    var t = modal.querySelector('.modal-title');
+    if (!t || !/^\s*Size thresholds/i.test(t.textContent || '')) return;
+    var body = modal.querySelector('.modal-body');
+    if (!body) return;
+    modal.setAttribute('data-' + GRADE_MARK + '-seen', '1');
+    css();
+    call('grade_options').then(function (r) {
+      if (!r || !r.ok || modal.querySelector('[data-' + GRADE_MARK + ']')) return;
+      var w = gradeSection(r.rows || [], !!r.editable);
+      body.appendChild(w);
+      wireGradeSection(w);
+    });
+  }
+
+  function watchForThresholdPopup() {
+    if (window.__dolphinGradeWatch) return;
+    window.__dolphinGradeWatch = true;
+    try {
+      new MutationObserver(function (muts) {
+        for (var i = 0; i < muts.length; i++) {
+          var added = muts[i].addedNodes || [];
+          for (var j = 0; j < added.length; j++) {
+            var n = added[j];
+            if (!n || n.nodeType !== 1) continue;
+            if (n.classList && n.classList.contains('modal')) { offerGrades(n); }
+            else if (n.querySelectorAll) {
+              Array.prototype.forEach.call(n.querySelectorAll('.modal'), offerGrades);
+            }
+          }
+        }
+      }).observe(document.body, { childList: true, subtree: true });
+      /* one sweep for a popup that is already open when this loads */
+      Array.prototype.forEach.call(document.querySelectorAll('.modal'), offerGrades);
+    } catch (e) { /* a master editor must never block a form */ }
+  }
+
   /* 1 Sep 2026: the same panel on the two inspections as well, because that is
      where the stone is actually in front of somebody. Nothing on QI or BI is
      disturbed - both child tables already carried granite_size_category and
@@ -1033,6 +1158,7 @@
     frappe.ui.form.on(dt, {
       refresh: function (frm) {
         try { render(frm); } catch (e) { /* a panel must never block the form */ }
+        try { watchForThresholdPopup(); } catch (e) { /* nor must the grade list */ }
       }
     });
   });
