@@ -66,6 +66,8 @@
       '.dsz .mg{color:#b5892f}',
       '.dsz .scr{overflow:auto;max-height:330px}',
       '.dsz .rm{color:#a3352b;cursor:pointer;font-size:11.5px}',
+      '.dsz .stopbox{background:#fbeeec;border-left:3px solid #a3352b;padding:10px 12px;',
+      '  border-radius:0 6px 6px 0;margin:8px 0}',
       '.dsz tr.pick{cursor:pointer}',
       '.dsz tr.pick:hover td{background:#f7f9fb}',
       '.dsz tr.on td{background:#e6efe9}',
@@ -227,6 +229,15 @@
     var h = ['<div class="dsz">'];
     var edit = d.owner.editable && !d.frozen;
 
+    /* 1 Sep 2026, his rule: "if exported edit option should not be visible or
+       else these edits must reflect on shipping docs". So when it is shut, the
+       screen says why and shows nothing to press. */
+    if (d.frozen) {
+      h.push('<div class="note"><b>Closed for editing</b> — ' +
+             esc(d.frozen_by || 'this document is final') + '. The thresholds and grades ' +
+             'below are what it went out with, and they stay that way.</div>');
+    }
+
     if (d.doctype === 'Shipping Document') {
       /* 1 Sep 2026, his words: "either one should be active so give a check mark
          for both". So the choice is shown as the two things it actually is, and
@@ -276,6 +287,10 @@
              (d.tolerance_cm || 3) + '" style="width:44px"> cm' +
              '<span class="sm">— a block that misses a higher threshold by this much or less is ' +
              'marked below. It moves nothing on its own.</span></div>');
+      h.push('<div class="sm" style="margin-top:2px">To stop using a size, set its three ' +
+             'numbers to <b>0</b> &mdash; it is skipped and stays on the list, and typing the ' +
+             'numbers back switches it on again. Nothing is written until <b>Save &amp; ' +
+             're-sort</b>.</div>');
       h.push('<div><span class="b gold" data-dsz="addband">+ Add a threshold</span>' +
              '<span class="b pri" data-dsz="savebands">Save &amp; re-sort&hellip;</span>' +
              '<span class="b off" data-dsz="resetbands">Reset to the standard</span></div>');
@@ -332,12 +347,69 @@
            '</div>';
   }
 
+  /* 1 Sep 2026, his ask: "add more like if you remove this Size all blocks will
+     move to C size or b size etc". So the screen works it out as you type, using
+     exactly the rule the server uses - top to bottom, first met on all three
+     sides, zeros switch a row off except on the last row where they catch the
+     rest. Nothing is written; this only says what Save would do. */
+  function usableBands(bands) {
+    var out = [], n = bands.length;
+    bands.forEach(function (b, i) {
+      var zero = !(b.min_length || b.min_width || b.min_height);
+      if (zero && i < n - 1) return;
+      out.push(b);
+    });
+    return out;
+  }
+
+  function sizeFor(bl, bands) {
+    var u = usableBands(bands);
+    for (var i = 0; i < u.length; i++) {
+      var b = u[i];
+      if (bl.size[0] >= (b.min_length || 0) && bl.size[1] >= (b.min_width || 0) &&
+          bl.size[2] >= (b.min_height || 0)) { return b.size; }
+    }
+    return null;
+  }
+
+  /* where every block would land, and where the ones in a switched-off band go */
+  function forecast(d, bands) {
+    var to = {}, from = {}, none = 0;
+    (d.blocks || []).forEach(function (bl) {
+      if (!(bl.size[0] && bl.size[1] && bl.size[2])) return;
+      var now = bl.category || '(none)';
+      var next = sizeFor(bl, bands);
+      if (!next) { none++; next = '(none)'; }
+      to[next] = (to[next] || 0) + 1;
+      if (next !== now) {
+        from[now] = from[now] || {};
+        from[now][next] = (from[now][next] || 0) + 1;
+      }
+    });
+    return { to: to, from: from, none: none };
+  }
+
+  function movesText(f, size) {
+    var m = f.from[size];
+    if (!m) return '';
+    return Object.keys(m).map(function (k) {
+      return m[k] + ' block' + (m[k] === 1 ? '' : 's') + ' \u2192 ' +
+             (k === '(none)' ? 'no size' : k);
+    }).join(', ');
+  }
+
   function bandsTable(d, edit) {
     var h = ['<div class="scr"><table><tr><th style="width:30px"></th><th>Size</th><th>Min L</th>' +
              '<th>Min W</th><th>Min H</th><th>Blocks</th><th></th></tr>'];
     var ord = ['1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th'];
     (d.bands || []).forEach(function (b, i) {
       var zero = !b.min_length && !b.min_width && !b.min_height;
+      /* 1 Sep 2026, his idea: "rather if the field reads zeros l=0 w=0 h=0 will
+         that work?" - only on the BOTTOM row. A zero is no minimum, so 0 x 0 x 0
+         is met by every block: at the bottom that is the catch-all and correct,
+         anywhere else it swallows the whole shipment into that size and every
+         row beneath it becomes unreachable. Flagged here and refused on save. */
+      var off = zero && i < (d.bands || []).length - 1;   /* switched off */
       function box(f, v, cls) {
         return '<input class="in ' + (cls || '') + '" data-band="' + i + '" data-f="' + f +
                '" value="' + esc(v) + '"' + (edit ? '' : ' readonly') + '>';
@@ -347,14 +419,27 @@
              '<td>' + box('min_length', b.min_length) + '</td>' +
              '<td>' + box('min_width', b.min_width) + '</td>' +
              '<td>' + box('min_height', b.min_height) + '</td>' +
-             '<td>' + b.blocks + (zero ? ' <span class="sm">· the rest</span>' : '') + '</td>' +
-             '<td>' + (edit ? '<span class="rm" data-rm="' + i + '">&times; remove</span>' : '') +
-             '</td></tr>');
+             '<td>' + (off ? '&mdash;' : b.blocks) +
+             (zero && !off ? ' <span class="sm">&middot; the rest</span>' : '') +
+             (off ? ' <span class="sm">&middot; not in use</span>' : '') + '</td>' +
+             /* 1 Sep 2026, his question: "I feel remove button can be avoided to
+                avoid the confusion or is it good ?" Keeping it, because without it
+                you cannot go from three thresholds back to two. But the confusion
+                was fair and it was the WORD: "remove" reads as though it deletes
+                the size from blocks or from the master, and it does neither. It
+                says what it means now - this shipment stops sorting into that
+                band - and it is not offered on the catch-all row at all, because
+                taking that away is what leaves blocks with no size. */
+             '<td class="sm" data-fx="' + i + '">' + (off ? 'type numbers to switch it back on'
+                                  : (zero ? 'catches the rest' : '')) + '</td></tr>');
     });
     h.push('</table></div>');
-    h.push('<div class="sm">Tried top to bottom; the first one a block meets on all three sides ' +
-           'wins. <b>A zero is no minimum on that side</b>, so a row of 0 × 0 × 0 is met by ' +
-           'everything and becomes the catch-all.</div>');
+    h.push('<div class="quiet" data-dsz="fx" style="margin:6px 0"></div>');
+    h.push('<div class="sm">Tried top to bottom; the first one a block meets on all three ' +
+           'sides wins. <b>Zeros switch a size off</b> &mdash; set a row to 0 × 0 × 0 and it is ' +
+           'skipped, and typing the numbers back switches it on again. The <b>last</b> row is ' +
+           'the exception: zeros there mean it catches everything else, which is what stops a ' +
+           'block ending up with no size.</div>');
     return h.join('');
   }
 
@@ -492,181 +577,38 @@
   function wireSizes(frm, $sec, d) {
     if (!$sec || !$sec.find) return;
 
-    $sec.find('[data-rm]').on('click', function () {
-      var i = parseInt(this.dataset.rm, 10);
-      d.bands.splice(i, 1);
-      $sec.html(sizesHtml(d));
-      wireSizes(frm, $sec, d);
-    });
-
-    $sec.find('[data-dsz="addband"]').on('click', function () {
-      d.bands.push({ size: '', min_length: 0, min_width: 0, min_height: 0, blocks: 0 });
-      $sec.html(sizesHtml(d));
-      wireSizes(frm, $sec, d);
-    });
-
-    /* --- the threshold actions. These were lost in an earlier refactor of this
-       file and the panel could not save at all; found by grepping for the
-       handlers rather than by trusting that they were still there. --- */
-
-    $sec.find('[data-dsz="savebands"]').on('click', function () {
-      var bands = readBands($sec, d);
-      var tol = parseInt(($sec.find('[data-dsz="tol"]').val() || 3), 10) || 3;
-      var target = d.owner;
-      call('set_bands', { doctype: target.doctype, name: target.name,
-                          bands: JSON.stringify(bands), tolerance_cm: tol, dry_run: 1 })
-        .then(function (plan) {
-          if (!plan) return;
-          var moved = plan.would_move || [];
-          var body = (moved.length
-            ? '<b>' + moved.length + ' block' + (moved.length === 1 ? '' : 's') +
-              ' change size.</b><div class="sm" style="margin-top:5px">' +
-              moved.slice(0, 15).map(function (m) {
-                return esc(m.block) + ' ' + esc(m.from) + ' &rarr; ' + esc(m.to);
-              }).join(' &middot; ') +
-              (moved.length > 15 ? ' &middot; +' + (moved.length - 15) + ' more' : '') + '</div>'
-            : 'No block changes size on these thresholds.');
-          if (plan.unsized && plan.unsized.length) {
-            body += '<div class="note" style="margin-top:8px"><b>' + plan.unsized.length +
-                    ' would meet no threshold at all</b> and would be left without a size: ' +
-                    esc(plan.unsized.slice(0, 15).join(', ')) + '</div>';
-          }
-          var dlg = new frappe.ui.Dialog({
-            title: 'Size thresholds · ' + target.name,
-            fields: [
-              { fieldtype: 'HTML', options: '<div class="dsz">' + body +
-                '<div class="sm" style="margin-top:8px">Saved on ' + esc(target.name) +
-                '. No grade moves.</div></div>' },
-              { fieldname: 'reason', fieldtype: 'Small Text', label: 'Why', reqd: 1 }
-            ],
-            primary_action_label: 'Save & re-sort',
-            primary_action: function (v) {
-              call('set_bands', { doctype: target.doctype, name: target.name,
-                                  bands: JSON.stringify(bands), tolerance_cm: tol,
-                                  reason: v.reason, person: frappe.session.user, dry_run: 0 })
-                .then(function (r) {
-                  dlg.hide();
-                  frappe.show_alert({ message: 'Thresholds saved' +
-                    (r && r.count ? ' — ' + r.count + ' re-sorted' : ''), indicator: 'green' });
-                  frm.reload_doc();
-                });
-            }
-          });
-          dlg.show();
-        });
-    });
-
-    $sec.find('[data-dsz="undo"]').on('click', function () {
-      var target = d.owner;
-      frappe.confirm('Put back exactly what <b>' + esc((d.undo && d.undo.label) || 'that change') +
-        '</b> altered — the sizes, the grades and the thresholds together?', function () {
-        call('undo_last', { doctype: target.doctype, name: target.name,
-                            person: frappe.session.user })
-          .then(function (r) {
-            frappe.show_alert({ message: ((r && r.restored) || 0) + ' put back',
-                                indicator: 'green' });
-            frm.reload_doc();
-          });
+    /* live forecast: as the numbers change, say where every block would land */
+    function refresh() {
+      var bands = readBands($sec, d).map(function (b) {
+        return { size: b.size_category_name, min_length: b.min_length,
+                 min_width: b.min_width, min_height: b.min_height };
       });
-    });
-
-    $sec.find('[data-dsz="resetbands"]').on('click', function () {
-      var target = d.owner;
-      frappe.prompt([{ fieldname: 'reason', fieldtype: 'Small Text', label: 'Why', reqd: 1 }],
-        function (v) {
-          call('reset_bands', { doctype: target.doctype, name: target.name,
-                                reason: v.reason, person: frappe.session.user, dry_run: 0 })
-            .then(function () { frm.reload_doc(); });
-        }, 'Reset to the standard', 'Reset');
-    });
-
-    $sec.find('[data-dsz="seed"]').on('click', function () {
-      var target = d.owner;
-      call('seed_now', { doctype: target.doctype, name: target.name, dry_run: 1 })
-        .then(function (plan) {
-          if (!plan) return;
-          var moved = plan.would_move || [];
-          var dlg = new frappe.ui.Dialog({
-            title: 'Pre-fill the thresholds',
-            fields: [
-              { fieldtype: 'HTML', options: '<div class="dsz"><b>From ' + esc(plan.source) +
-                '.</b><table style="margin-top:6px">' +
-                (plan.bands || []).map(function (b) {
-                  return '<tr><td style="padding-right:14px"><b>' + esc(b.size_category_name) +
-                         '</b></td><td>' + b.min_length + ' &times; ' + b.min_width +
-                         ' &times; ' + b.min_height + '</td></tr>';
-                }).join('') + '</table>' +
-                (moved.length ? '<div class="note">' + moved.length +
-                                ' block(s) would change size.</div>'
-                              : '<div class="sm">No block changes size.</div>') + '</div>' },
-              { fieldname: 'reason', fieldtype: 'Small Text', label: 'Why', reqd: 1 }
-            ],
-            primary_action_label: 'Pre-fill & re-sort',
-            primary_action: function (v) {
-              call('seed_now', { doctype: target.doctype, name: target.name,
-                                 reason: v.reason, person: frappe.session.user, dry_run: 0 })
-                .then(function () { dlg.hide(); frm.reload_doc(); });
-            }
-          });
-          dlg.show();
-        });
-    });
-
-    /* Saved sets: entered once in the master, reusable by any consignee, local
-       or export. Picking one only FILLS the boxes - nothing is written until
-       Save & re-sort, so a set can never change a document behind your back. */
-    $sec.find('[data-dsz="useset"]').on('click', function () {
-      call('size_sets').then(function (sets) {
-        if (!sets || !sets.length) {
-          frappe.msgprint('No sets saved yet. Type the thresholds you want, then ' +
-                          '<b>Save these as a set…</b> and it will be here next time.');
-          return;
+      var f = forecast(d, bands);
+      bands.forEach(function (b, i) {
+        var zero = !(b.min_length || b.min_width || b.min_height);
+        var off = zero && i < bands.length - 1;
+        var t = movesText(f, b.size);
+        var cell = $sec.find('[data-fx="' + i + '"]');
+        if (!cell.length) return;
+        if (off) {
+          cell.html(t ? '<b>' + esc(b.size) + ' is off</b> \u2014 ' + esc(t)
+                      : 'not in use \u2014 type numbers to switch it back on');
+        } else if (zero) {
+          cell.text('catches the rest');
+        } else {
+          cell.html(t ? esc(t) : '');
         }
-        var dlg = new frappe.ui.Dialog({ title: 'Use a saved set',
-                                         fields: [{ fieldname: 'body', fieldtype: 'HTML' }] });
-        var html = ['<div class="dsz">'];
-        sets.forEach(function (st, i) {
-          html.push('<div class="bar" style="justify-content:space-between">' +
-                    '<span><b>' + esc(st.set) + '</b> <span class="sm">' +
-                    st.bands.map(function (b) {
-                      return esc(b.size) + ' ' + b.min_length + '×' + b.min_width +
-                             '×' + b.min_height;
-                    }).join(' &middot; ') + '</span></span>' +
-                    '<span class="b pri" data-use="' + i + '">Use this</span></div>');
-        });
-        html.push('<div class="sm">Picking a set only fills the boxes. Nothing changes until ' +
-                  'you press <b>Save &amp; re-sort</b>.</div></div>');
-        dlg.fields_dict.body.$wrapper.html(html.join(''));
-        dlg.fields_dict.body.$wrapper.find('[data-use]').on('click', function () {
-          var st = sets[parseInt(this.dataset.use, 10)];
-          d.bands = st.bands.map(function (b) {
-            return { size: b.size, min_length: b.min_length, min_width: b.min_width,
-                     min_height: b.min_height, blocks: 0 };
-          });
-          dlg.hide();
-          $sec.html(sizesHtml(d));
-          wireSizes(frm, $sec, d);
-          frappe.show_alert({ message: 'Filled from “' + st.set + '” — press Save & re-sort',
-                              indicator: 'blue' });
-        });
-        dlg.show();
       });
-    });
-
-    $sec.find('[data-dsz="saveset"]').on('click', function () {
-      var bands = readBands($sec, d);
-      frappe.prompt([
-        { fieldname: 'set_name', fieldtype: 'Data', label: 'Name this set', reqd: 1,
-          description: 'Something you will recognise — “Bless 207”, “Local 150”.' },
-        { fieldname: 'reason', fieldtype: 'Small Text', label: 'Note' }
-      ], function (v) {
-        call('save_size_set', { set_name: v.set_name, bands: JSON.stringify(bands),
-                                reason: v.reason, person: frappe.session.user })
-          .then(function (r) {
-            frappe.show_alert({ message: 'Saved as “' + (r && r.set) + '”', indicator: 'green' });
-          });
-      }, 'Save these as a set', 'Save');
-    });
+      var line = Object.keys(f.to).sort().map(function (k) {
+        return '<b>' + esc(k === '(none)' ? 'no size' : k) + '</b> ' + f.to[k];
+      }).join(' &middot; ');
+      $sec.find('[data-dsz="fx"]').html(
+        'If you save this: ' + line +
+        (f.none ? ' &mdash; <span style="color:#a3352b"><b>' + f.none +
+                  ' would have no size at all</b></span>' : ''));
+    }
+    $sec.on('input change', 'input.in[data-band]', refresh);
+    try { refresh(); } catch (e) {}
 
     var lastIdx = null;
     function boxes() { return $sec.find('input.bck'); }
