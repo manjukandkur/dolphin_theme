@@ -72,7 +72,10 @@
       '.dsz tr.pick:hover td{background:#f7f9fb}',
       '.dsz tr.on td{background:#e6efe9}',
       '.dsz .cnt{font-size:13px;font-weight:700}',
-      '.dsz .b.pri[disabled]{background:#c9d2dc;border-color:#c9d2dc;cursor:default}'
+      '.dsz .b.pri[disabled]{background:#c9d2dc;border-color:#c9d2dc;cursor:default}',
+      '.dsz label.axis{display:flex;align-items:center;gap:8px;margin:0;cursor:pointer}',
+      '.dsz label.axis .ax{width:52px;font-weight:700}',
+      '.dsz label.axis select[disabled]{background:#f4f6f8;color:#a8b2be}'
     ].join('\n');
     document.head.appendChild(s);
   }
@@ -469,21 +472,34 @@
              '<span class="b gold" data-dsz="range">by block numbers&hellip;</span></div>');
       h.push('<div class="sm" style="margin:2px 0 4px">Click a row to select it. ' +
              'Shift-click a second row to take everything in between.</div>');
-      h.push('<div class="bar"><span class="cnt" data-dsz="count">Nothing selected</span>' +
-             '<span style="margin-left:6px">Size</span> <select data-dsz="szval">' +
-             '<option value="__keep__">— no change</option>' +
+      /* 2 Sep 2026, his words: "give check marks both next to each other may be
+         2 rows rather than down it is confusing". The "— no change" convention
+         was the confusing part: you had to know that leaving a dropdown alone
+         meant leaving that side alone. Now you TICK what you are changing, the
+         two sit one under the other with their boxes lined up, and Apply says
+         plainly what it is about to do. */
+      h.push('<div class="bar" style="flex-direction:column;align-items:stretch;gap:6px">' +
+             '<div class="cnt" data-dsz="count">Nothing selected</div>' +
+
+             '<label class="axis"><input type="checkbox" data-dsz="szon">' +
+             '<span class="ax">Size</span>' +
+             '<select data-dsz="szval" disabled>' +
              (d.bands || []).map(function (x) {
                return '<option value="' + esc(x.size) + '">' + esc(x.size) + '</option>';
-             }).join('') + '</select>' +
+             }).join('') + '</select></label>' +
+
              (g.on
-               ? '<span style="margin-left:6px">Grade</span> <select data-dsz="grval">' +
-                 '<option value="__keep__">— no change</option><option value="">— clear</option>' +
+               ? '<label class="axis"><input type="checkbox" data-dsz="gron">' +
+                 '<span class="ax">Grade</span>' +
+                 '<select data-dsz="grval" disabled><option value="">— clear it</option>' +
                  (g.options || []).map(function (o) {
                    return '<option value="' + esc(o) + '">' + esc(o) + '</option>';
-                 }).join('') + '</select>'
-               : '') +
-             '<span class="b pri" data-dsz="apply" disabled>Apply&hellip;</span>' +
-             '<span class="sm">— set either, or both, in one press</span></div>');
+                 }).join('') + '</select></label>'
+               : '<div class="sm">Tick <b>Record grade</b> below to set grades here too.</div>') +
+
+             '<div><span class="b pri" data-dsz="apply" disabled>Apply&hellip;</span>' +
+             '<span class="sm" data-dsz="what">Tick Size, Grade, or both</span></div>' +
+             '</div>');
     }
 
     h.push('<div class="scr"><table><tr>' + (edit ? '<th style="width:24px"></th>' : '') +
@@ -798,9 +814,18 @@
     function boxes() { return $sec.find('input.bck'); }
     function count() {
       var n = $sec.find('input.bck:checked').length;
+      var szOn = $sec.find('[data-dsz="szon"]').prop('checked');
+      var grOn = $sec.find('[data-dsz="gron"]').prop('checked');
+      $sec.find('[data-dsz="szval"]').prop('disabled', !szOn);
+      $sec.find('[data-dsz="grval"]').prop('disabled', !grOn);
       $sec.find('[data-dsz="count"]').text(
         n === 0 ? 'Nothing selected' : n + (n === 1 ? ' block selected' : ' blocks selected'));
-      $sec.find('[data-dsz="apply"]').attr('disabled', n ? null : 'disabled')
+      var what = !(szOn || grOn) ? 'Tick Size, Grade, or both'
+        : (szOn && grOn) ? 'sets the size AND the grade on the selected blocks'
+        : (szOn ? 'sets the size only \u2014 grades are left alone'
+                : 'sets the grade only \u2014 sizes are left alone');
+      $sec.find('[data-dsz="what"]').text(what);
+      $sec.find('[data-dsz="apply"]').attr('disabled', (n && (szOn || grOn)) ? null : 'disabled')
           .text(n ? 'Apply to ' + n + '\u2026' : 'Apply\u2026');
       boxes().each(function () {
         var $tr = $(this).closest('tr');
@@ -847,8 +872,9 @@
       var rows = [];
       $sec.find('input.bck:checked').each(function () { rows.push(this.dataset.row); });
       if (!rows.length) { return; }
-      var to = $sec.find('[data-dsz="szval"]').val() || '__keep__';
-      var gr = $sec.find('[data-dsz="grval"]').length
+      var to = $sec.find('[data-dsz="szon"]').prop('checked')
+             ? $sec.find('[data-dsz="szval"]').val() : '__keep__';
+      var gr = $sec.find('[data-dsz="gron"]').prop('checked')
              ? $sec.find('[data-dsz="grval"]').val() : '__keep__';
       applyBoth(frm, d, rows, to, gr);
     });
