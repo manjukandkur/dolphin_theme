@@ -65,7 +65,12 @@
       '.dsz .sm{font-size:11.5px;color:#8a929c}',
       '.dsz .mg{color:#b5892f}',
       '.dsz .scr{overflow:auto;max-height:330px}',
-      '.dsz .rm{color:#a3352b;cursor:pointer;font-size:11.5px}'
+      '.dsz .rm{color:#a3352b;cursor:pointer;font-size:11.5px}',
+      '.dsz tr.pick{cursor:pointer}',
+      '.dsz tr.pick:hover td{background:#f7f9fb}',
+      '.dsz tr.on td{background:#e6efe9}',
+      '.dsz .cnt{font-size:13px;font-weight:700}',
+      '.dsz .b.pri[disabled]{background:#c9d2dc;border-color:#c9d2dc;cursor:default}'
     ].join('\n');
     document.head.appendChild(s);
   }
@@ -222,7 +227,7 @@
     var h = ['<div class="dsz">'];
     var edit = d.owner.editable && !d.frozen;
 
-    if (!d.is_lot) {
+    if (d.doctype === 'Shipping Document') {
       /* 1 Sep 2026, his words: "either one should be active so give a check mark
          for both". So the choice is shown as the two things it actually is, and
          exactly one of them is ticked. They are bound to the same single value,
@@ -357,13 +362,16 @@
 
     if (edit) {
       h.push('<div class="bar">' +
-             '<span class="b off" data-pick="all">All ' + (d.blocks || []).length + '</span>' +
-             '<span class="b off" data-pick="none">None</span>' +
-             '<span class="b off" data-pick="marginal">Marginal (' + (d.marginal_count || 0) + ')</span>' +
-             (g.on ? '<span class="b off" data-pick="ungraded">Ungraded (' +
+             '<span class="sm" style="margin-right:2px">Select:</span>' +
+             '<span class="b off" data-pick="all">every block (' + (d.blocks || []).length + ')</span>' +
+             '<span class="b off" data-pick="none">clear</span>' +
+             '<span class="b off" data-pick="marginal">only marginal (' + (d.marginal_count || 0) + ')</span>' +
+             (g.on ? '<span class="b off" data-pick="ungraded">only ungraded (' +
                      ((g.total || 0) - (g.filled || 0)) + ')</span>' : '') +
-             '<span class="b gold" data-dsz="range">By range&hellip;</span></div>');
-      h.push('<div class="bar"><b data-dsz="count">0 ticked</b>' +
+             '<span class="b gold" data-dsz="range">by block numbers&hellip;</span></div>');
+      h.push('<div class="sm" style="margin:2px 0 4px">Click a row to select it. ' +
+             'Shift-click a second row to take everything in between.</div>');
+      h.push('<div class="bar"><span class="cnt" data-dsz="count">Nothing selected</span>' +
              '<span style="margin-left:6px">Size</span> <select data-dsz="szval">' +
              '<option value="__keep__">— no change</option>' +
              (d.bands || []).map(function (x) {
@@ -376,7 +384,7 @@
                    return '<option value="' + esc(o) + '">' + esc(o) + '</option>';
                  }).join('') + '</select>'
                : '') +
-             '<span class="b pri" data-dsz="apply">Apply to ticked&hellip;</span>' +
+             '<span class="b pri" data-dsz="apply" disabled>Apply&hellip;</span>' +
              '<span class="sm">— set either, or both, in one press</span></div>');
     }
 
@@ -384,7 +392,7 @@
            '<th>Block</th><th>L &times; W &times; H</th><th>Size</th>' +
            (g.on ? '<th>Grade</th>' : '') + '<th>Marginal</th></tr>');
     (d.blocks || []).forEach(function (bl) {
-      h.push('<tr>' +
+      h.push('<tr' + (edit ? ' class="pick"' : '') + '>' +
              (edit ? '<td><input type="checkbox" class="bck" data-row="' + esc(bl.row) + '"' +
                      (bl.marginal ? ' data-marginal="1"' : '') +
                      (gmap[bl.row] ? '' : ' data-ungraded="1"') + '></td>' : '') +
@@ -442,9 +450,11 @@
     call('panel', { doctype: frm.doc.doctype, name: frm.doc.name }).then(function (d) {
       if (!d) return;
       css();
-      var title = d.is_lot ? 'Sizes for this lot'
-                           : (d.override ? 'Sizes — final change on this document'
-                                         : 'Sizes — from ' + esc(d.lot || 'the standard'));
+      var title = (d.doctype === 'Quarry Inspection') ? 'Sizes &amp; grade — at the quarry'
+                : (d.doctype === 'Buyer Inspection') ? 'Sizes &amp; grade — at the inspection'
+                : d.is_lot ? 'Sizes for this lot'
+                : (d.override ? 'Sizes — final change on this document'
+                              : 'Sizes — from ' + esc(d.lot || 'the standard'));
       var $sz = frm.dashboard.add_section(sizesHtml(d), title);
       var $gr = frm.dashboard.add_section(gradeHtml(d), 'Grade — internal only');
       wireSizes(frm, $sz, d);
@@ -482,12 +492,41 @@
       wireSizes(frm, $sec, d);
     });
 
+    var lastIdx = null;
+    function boxes() { return $sec.find('input.bck'); }
     function count() {
       var n = $sec.find('input.bck:checked').length;
-      $sec.find('[data-dsz="count"]').text(n + ' ticked');
+      $sec.find('[data-dsz="count"]').text(
+        n === 0 ? 'Nothing selected' : n + (n === 1 ? ' block selected' : ' blocks selected'));
+      $sec.find('[data-dsz="apply"]').attr('disabled', n ? null : 'disabled')
+          .text(n ? 'Apply to ' + n + '\u2026' : 'Apply\u2026');
+      boxes().each(function () {
+        var $tr = $(this).closest('tr');
+        if (this.checked) { $tr.addClass('on'); } else { $tr.removeClass('on'); }
+      });
       return n;
     }
-    $sec.on('change', 'input.bck', count);
+
+    /* Clicking anywhere on the row selects it, and shift-click takes the run in
+       between. 1 Sep 2026, his words: "the method of selecting multiple blocks
+       for both sizes and grades is little complex ... it should be easy to
+       understand and use." Tiny check boxes were the complexity. */
+    $sec.on('click', 'tr.pick', function (e) {
+      var $box = $(this).find('input.bck');
+      if (!$box.length) return;
+      var all = boxes(), i = all.index($box);
+      if (e.target && e.target.tagName === 'INPUT') {
+        /* the box itself already toggled */
+      } else {
+        $box.prop('checked', !$box.prop('checked'));
+      }
+      if (e.shiftKey && lastIdx !== null) {
+        var a = Math.min(lastIdx, i), b = Math.max(lastIdx, i), on = $box.prop('checked');
+        for (var k = a; k <= b; k++) { all.eq(k).prop('checked', on); }
+      }
+      lastIdx = i;
+      count();
+    });
 
     $sec.find('[data-pick]').on('click', function () {
       var what = this.dataset.pick;
@@ -502,12 +541,10 @@
 
     /* ONE Apply for both axes. Either dropdown on "no change" leaves that side alone. */
     $sec.find('[data-dsz="apply"]').on('click', function () {
+      if (this.hasAttribute('disabled')) return;
       var rows = [];
       $sec.find('input.bck:checked').each(function () { rows.push(this.dataset.row); });
-      if (!rows.length) {
-        frappe.show_alert({ message: 'Tick some blocks first', indicator: 'orange' });
-        return;
-      }
+      if (!rows.length) { return; }
       var to = $sec.find('[data-dsz="szval"]').val() || '__keep__';
       var gr = $sec.find('[data-dsz="grval"]').length
              ? $sec.find('[data-dsz="grval"]').val() : '__keep__';
@@ -659,7 +696,12 @@
       });
   }
 
-  ['Export Shipment Lot', 'Shipping Document'].forEach(function (dt) {
+  /* 1 Sep 2026: the same panel on the two inspections as well, because that is
+     where the stone is actually in front of somebody. Nothing on QI or BI is
+     disturbed - both child tables already carried granite_size_category and
+     granite_quality_grade; this only gives them the tick-and-apply screen. */
+  ['Export Shipment Lot', 'Shipping Document',
+   'Quarry Inspection', 'Buyer Inspection'].forEach(function (dt) {
     frappe.ui.form.on(dt, {
       refresh: function (frm) {
         try { render(frm); } catch (e) { /* a panel must never block the form */ }
