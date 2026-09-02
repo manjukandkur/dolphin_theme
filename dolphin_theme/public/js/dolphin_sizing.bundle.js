@@ -279,6 +279,15 @@
       h.push('<div><span class="b gold" data-dsz="addband">+ Add a threshold</span>' +
              '<span class="b pri" data-dsz="savebands">Save &amp; re-sort&hellip;</span>' +
              '<span class="b off" data-dsz="resetbands">Reset to the standard</span></div>');
+      /* 1 Sep 2026: one-step Undo, offered only when there is something to undo. */
+      if (d.undo && d.undo.can_undo) {
+        h.push('<div class="quiet" style="margin-top:6px">Last change: <b>' +
+               esc(d.undo.label || 'a size/grade change') + '</b> on ' +
+               (d.undo.blocks || 0) + ' block(s)' +
+               (d.undo.who ? ' by ' + esc(d.undo.who) : '') +
+               '<span class="b off" data-dsz="undo" style="margin-left:8px">' +
+               'Undo it</span></div>');
+      }
       h.push('<div style="margin-top:4px"><span class="b off" data-dsz="useset">' +
              'Use a saved set&hellip;</span>' +
              '<span class="b off" data-dsz="saveset">Save these as a set&hellip;</span>' +
@@ -545,6 +554,20 @@
           });
           dlg.show();
         });
+    });
+
+    $sec.find('[data-dsz="undo"]').on('click', function () {
+      var target = d.owner;
+      frappe.confirm('Put back exactly what <b>' + esc((d.undo && d.undo.label) || 'that change') +
+        '</b> altered — the sizes, the grades and the thresholds together?', function () {
+        call('undo_last', { doctype: target.doctype, name: target.name,
+                            person: frappe.session.user })
+          .then(function (r) {
+            frappe.show_alert({ message: ((r && r.restored) || 0) + ' put back',
+                                indicator: 'green' });
+            frm.reload_doc();
+          });
+      });
     });
 
     $sec.find('[data-dsz="resetbands"]').on('click', function () {

@@ -390,6 +390,16 @@ frappe.provide("dolphin");
       ["Export Shipment Lot", "Export Shipment Lot", ROLE_ARRIVALS, null, "ship"] ] },
     { title: "Shipping", roles: ROLE_SHIPPING, shaded: true, items: [
       ["Shipping Document", "Shipping Document", ROLE_SHIPPING, null, "ship"] ] },
+    /* 1 Sep 2026, his question: "where are the grades stored in which master? is
+       there a separate master if not create it and create an Icon on the desktop".
+       There IS one - Granite Grade, holding A, B, B1, B2, C, D (Rejected) and
+       Unshaped - and Granite Size Category holds the saved size sets. Neither
+       needed creating; both were buried three levels down under Masters, which is
+       why they felt missing. They are one click away now, and still listed under
+       Masters as well so nothing anybody has bookmarked moves. */
+    { title: "Sizes & Grades", items: [
+      ["Grade master", "Granite Grade", null, null, "file"],
+      ["Size sets", "Granite Size Category", null, null, "file"] ] },
     { title: "Sales", items: [
       ["Sale Lot", "Sale Lot", ROLE_OWNER],
       ["Sales & Calculations", "/sales-calc", ROLE_OWNER, "url", "file"],
