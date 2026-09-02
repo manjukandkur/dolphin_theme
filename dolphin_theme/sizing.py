@@ -560,6 +560,9 @@ def seed_now(doctype=None, name=None, reason=None, person=None, dry_run=1):
     waiting for anyone to type the figures again."""
     dry = _s(dry_run) not in ("0", "false", "False", "")
     doc = _doc_for_panel(doctype, name)
+    _why = _frozen_by(doc)
+    if _why:
+        frappe.throw("{0} cannot be changed because {1}.".format(doc.name, _why))
     seeded, src = _seed_for(doc)
     if not seeded:
         frappe.throw("Nothing to pre-fill from.")
@@ -606,6 +609,28 @@ def _profile(name=None):
         return None
 
 
+def usable_bands(bands):
+    """Drop the bands that are switched OFF, keeping the catch-all.
+
+    1 Sep 2026, his design and it is better than either of ours: *"it is as good
+    as removing but user can see what is happening clearly rather than accident
+    and he can undo just by adding numbers to those wherever is zeros"*.
+
+    So zeros are the switch. A band with 0 x 0 x 0 is **not in use** and is
+    skipped - except on the LAST row, where zeros still mean the catch-all, which
+    is what stops a block ending up with no size at all. Nothing vanishes from the
+    screen, nothing has to be remembered and re-added, and switching a band back
+    on is typing its numbers in again."""
+    out, n = [], len(bands or [])
+    for i, c in enumerate(bands or []):
+        zero = not (cint(c.get("min_length")) or cint(c.get("min_width"))
+                    or cint(c.get("min_height")))
+        if zero and i < n - 1:
+            continue          # switched off
+        out.append(c)
+    return out
+
+
 def size_category_for(length, width, height, volume=None, profile=None,
                       consignee=None, variation=None, bands=None):
     """The SIZE category (A size / B size), from the measurements.
@@ -626,7 +651,7 @@ def size_category_for(length, width, height, volume=None, profile=None,
             if ml or mw or mh:
                 bands.append((letter.upper(), ml, mw, mh, 0, 0))
     else:
-        src = bands if bands else _standard_bands()
+        src = usable_bands(bands if bands else _standard_bands())
         bands = [(c.get("size_category_name") or c.get("name"),
                   flt(c.get("min_length")), flt(c.get("min_width")),
                   flt(c.get("min_height")), flt(c.get("min_volume")),
@@ -1233,7 +1258,8 @@ def _marginal_map(doc, bands, tol):
         return order.get(_s(c), 9)
 
     out = {}
-    for b in (doc.get("blocks") or []):
+    bands = usable_bands(bands)
+    for b in _blocks_of(doc):
         l, w, h = _dims_of(doc, b)
         if not (l and w and h):
             continue
@@ -1325,6 +1351,42 @@ def _dims_of(doc, b):
     return flt(b.get(f[0])), flt(b.get(f[1])), flt(b.get(f[2]))
 
 
+def _frozen_by(doc):
+    """What is holding this document shut, in words - or None."""
+    if cint(doc.docstatus) == 1:
+        return "it is submitted"
+    if _s(doc.get("export_status")) == "Exported":
+        return "it is marked exported"
+    # 1 Sep 2026, his catch: "why is this lot exported? if exported edit option
+    # should not be visible or else these edits must reflect on shipping docs".
+    #
+    # Exactly right, and the hole was real: a lot only ever checked ITSELF, so
+    # once its shipping document went out the lot still offered its Save button
+    # while the change could no longer reach the paperwork. A lot is shut the
+    # moment the document it feeds is exported.
+    if doc.doctype == "Export Shipment Lot":
+        try:
+            gone = frappe.get_all(
+                "Shipping Document",
+                filters={"source_lot": doc.name, "export_status": "Exported"},
+                fields=["name"], limit_page_length=1)
+            if gone:
+                return "{0} has been marked exported".format(gone[0]["name"])
+            sub = frappe.get_all(
+                "Shipping Document",
+                filters={"source_lot": doc.name, "docstatus": 1},
+                fields=["name"], limit_page_length=1)
+            if sub:
+                return "{0} is submitted".format(sub[0]["name"])
+        except Exception:
+            pass
+    return None
+
+
+def _frozen(doc):
+    return bool(_frozen_by(doc))
+
+
 @frappe.whitelist()
 def panel(doctype=None, name=None):
     """Everything both screens draw, in one read. Changes nothing."""
@@ -1389,7 +1451,8 @@ def panel(doctype=None, name=None):
         "lot": (lot.name if lot is not None else None),
         "override": override,
         "owner": owner,
-        "frozen": _s(doc.get("export_status")) == "Exported" or cint(doc.docstatus) == 1,
+        "frozen": _frozen(doc),
+        "frozen_by": _frozen_by(doc),
         "undo": undo_available(doc.doctype, doc.name),
         "own_bands": bool(_band_rows(doc)),
         "seeded_from": _s(doc.get("size_seeded_from")),
@@ -1610,11 +1673,14 @@ def save_size_set(set_name=None, bands=None, reason=None, person=None):
 
 @frappe.whitelist()
 def set_bands(doctype=None, name=None, bands=None, tolerance_cm=None,
-              reason=None, person=None, dry_run=1):
+              reason=None, person=None, dry_run=1, allow_unsized=0):
     """Write the thresholds and re-sort. Refuses on a document that is only
     reading the lot - there is one place to change them, and this says so."""
     dry = _s(dry_run) not in ("0", "false", "False", "")
     doc = _doc_for_panel(doctype, name)
+    _why = _frozen_by(doc)
+    if _why:
+        frappe.throw("{0} cannot be changed because {1}.".format(doc.name, _why))
     if doc.doctype == "Shipping Document" and not cint(doc.get("size_override")):
         frappe.throw("This document is reading {0}. Change the thresholds on the lot, "
                      "or tick the final change to give this document its own copy.".format(
@@ -1622,8 +1688,30 @@ def set_bands(doctype=None, name=None, bands=None, tolerance_cm=None,
     want = _parse_bands(bands)
     if not want:
         frappe.throw("No thresholds were given.")
+    # 1 Sep 2026, his idea: "rather if the field reads zeros l=0 w=0 h=0 will that
+    # work?" - as a way of switching a band OFF, no, and it is the more dangerous
+    # of the two. A zero is NO MINIMUM, so a row of 0 x 0 x 0 is met by every
+    # block. On the last row that is the catch-all and correct. On any earlier row
+    # it swallows the whole shipment into that size and every row under it becomes
+    # unreachable - exactly the blunder he was worried about. So it is refused.
+    # zeros are the OFF switch, not a catch-all, on any row but the last
     if not dry and len(_s(reason)) < 6:
         frappe.throw("Say why - it is written onto the document.")
+    # 1 Sep 2026, his warning: "if anyone by mistake removes it will lead to
+    # blunders in segregating it lands into all wrong size calculations." So the
+    # server refuses too, not just the screen - a stale tab cannot slip it past.
+    if not dry and not cint(allow_unsized):
+        orphan = []
+        for b in _blocks_of(doc):
+            l, w, h = _dims_of(doc, b)
+            if l and w and h and not size_category_for(l, w, h, bands=want):
+                orphan.append(_s(b.get("export_block_no")) or _s(b.get("block_no")))
+        if orphan:
+            frappe.throw(
+                "{0} block(s) would be left with NO SIZE on these thresholds - {1}. "
+                "That is usually a threshold dropped by mistake. Put it back, or leave "
+                "the catch-all row at 0 x 0 x 0.".format(
+                    len(orphan), ", ".join(orphan[:15]) + (" ..." if len(orphan) > 15 else "")))
 
     before = [{"size": b["size_category_name"],
                "was": [b["min_length"], b["min_width"], b["min_height"]]}
@@ -1679,6 +1767,9 @@ def set_override(shipping_document=None, on=None, reason=None, person=None):
     """Tick: the document takes its own copy of the lot's thresholds and stops
     following it. Untick: it goes back to the lot and the copy is dropped."""
     doc = _doc_for_panel("Shipping Document", shipping_document)
+    _why = _frozen_by(doc)
+    if _why:
+        frappe.throw("{0} cannot be changed because {1}.".format(doc.name, _why))
     val = 1 if _s(on) not in ("0", "false", "False", "") else 0
     if val:
         lot = _lot_of(doc)
@@ -1831,6 +1922,9 @@ def set_block_values(doctype=None, name=None, rows=None, to_size=None, grade=Non
     person; they remain two separate judgements about the stone."""
     dry = _s(dry_run) not in ("0", "false", "False", "")
     doc = _doc_for_panel(doctype, name)
+    _why = _frozen_by(doc)
+    if _why:
+        frappe.throw("{0} cannot be changed because {1}.".format(doc.name, _why))
     to_size, grade = _s(to_size), _s(grade)
     set_size = to_size not in ("", "__keep__")
     set_grade = grade != "__keep__"
@@ -1924,6 +2018,9 @@ def set_block_values(doctype=None, name=None, rows=None, to_size=None, grade=Non
 def set_grade_recording(doctype=None, name=None, on=None, person=None):
     """The tick. Off by default; turning it off keeps whatever was recorded."""
     doc = _doc_for_panel(doctype, name)
+    _why = _frozen_by(doc)
+    if _why:
+        frappe.throw("{0} cannot be changed because {1}.".format(doc.name, _why))
     val = 1 if _s(on) not in ("0", "false", "False", "") else 0
     doc.set("record_grade", val)
     doc.flags.ignore_mandatory = True
