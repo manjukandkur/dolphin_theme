@@ -19,6 +19,9 @@
 #tbapp .szdiff{color:#5b3fa8;font-weight:700}
 .hint{font-size:11px;color:#8a929c;margin:-6px 2px 10px}
 #tbapp .card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:18px;margin-top:8px}
+#tbapp .card.retired{background:#f7f8fa;border-style:dashed}
+#tbapp .card.retired .bno{color:#9aa3ad;text-decoration:line-through;text-decoration-thickness:1px}
+#tbapp .genline{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#8a929c;margin-bottom:8px}
 #tbapp .bhead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px}
 #tbapp .bno{font-size:22px;font-weight:800;letter-spacing:.01em}
 #tbapp .bhead{gap:26px}
@@ -54,7 +57,7 @@
 <div id="tbapp">
 <div class="hd"><div class="ic">&#9678;</div><div><h1>Trace a block</h1><div class="sub">Dolphin International &middot; type any quarry block number or export number to see its full journey</div></div></div>
 <div class="sbx"><input id="q" placeholder="Block number, range, list &mdash; or DC 0133, BI 112&hellip;" autofocus></div>
-<div class="hint">Type a <b>block number</b> &mdash; quarry or export, either one finds it &middot; a <b>range</b> 1332-1356 &middot; a <b>list</b> 1332,1340 &middot; or a <b>document</b>: <b>DC 0133</b>, <b>BI 112</b>, <b>QI 017</b>, <b>ARR 27Jul</b>, <b>LOT 26</b>, <b>INV 0050</b> &mdash; or paste the full id, DC-GCHG-061.</div>
+<div class="hint">Type a <b>block number</b> &mdash; quarry or export, either one finds it &middot; a <b>range</b> 1332-1356 &middot; a <b>list</b> 1332,1340 &middot; or a <b>document</b>: <b>DC 0133</b>, <b>BI 112</b>, <b>QI 017</b>, <b>ARR 27Jul</b>, <b>LOT 26</b>, <b>INV 0050</b> &mdash; or paste the full id, DC-GCHG-061. A number that has been used twice shows both stones; the <b>internal id</b> (1001332) always finds exactly one.</div>
 <div id="result"><div class="empty">Enter a block number above.</div></div>
 </div>
 <script>
@@ -62,8 +65,8 @@
 var SC={'In Stock':['#eaf3de','#3b6d11'],'Buyer Marked':['#faeeda','#854f0b'],'In Delivery Challan':['#e6f1fb','#0c447c'],'Dispatched/Transported':['#e6f1fb','#0c447c'],'At Port':['#eeedfe','#3c3489'],'At Bannikoppa Station yard':['#eeedfe','#3c3489'],'Shipped':['#e1f5ee','#0f6e56'],'Sold':['#f1efe8','#444441']};
 // lifecycle rank for stage completion
 var RANK={'In Stock':0,'Buyer Marked':1,'In Delivery Challan':2,'Dispatched/Transported':3,'At Port':4,'At Bannikoppa Station yard':4,'Shipped':5,'Sold':6};
-var FL=['name','block_number','export_block_no','status','delivery_challan','buyer_inspection','source_quarry_inspection','granite_quality_grade','length_gross','width_gross','height_gross','gross_volume'];
-function api(filters){var u='/api/method/frappe.client.get_list?doctype=Quarry Block&filters='+encodeURIComponent(JSON.stringify(filters))+'&fields='+encodeURIComponent(JSON.stringify(FL))+'&limit_page_length=5';return fetch(u,{credentials:'include'}).then(function(r){return r.json();}).then(function(j){return j.message||[];});}
+var FL=['name','block_number','export_block_no','status','delivery_challan','buyer_inspection','source_quarry_inspection','granite_quality_grade','length_gross','width_gross','height_gross','gross_volume','retired_on','retired_because','retired_ref','date_produced'];
+function api(filters){var u='/api/method/frappe.client.get_list?doctype=Quarry Block&filters='+encodeURIComponent(JSON.stringify(filters))+'&fields='+encodeURIComponent(JSON.stringify(FL))+'&limit_page_length=20';return fetch(u,{credentials:'include'}).then(function(r){return r.json();}).then(function(j){return j.message||[];});}
 // A range search can ask for hundreds of blocks at once, and the whole list goes
 // into the query string. Fetch in batches so the URL can never get too long, and
 // report whether every batch actually came back - a silent failure here would
@@ -129,6 +132,15 @@ return '<div class="stg '+cls+'"><div class="bar"></div><div class="node">'+icon
 +'<div class="lbl">'+label+'</div>'
 +'<div class="val'+(pend?' pend':'')+'">'+val+'</div>'+(extra||'')+'</div>';
 }
+/* The retired stage points at the document that ended it - a challan today,
+   an invoice or a lot when those carry the reference. Nothing to open is not an
+   error: some blocks simply finished without one. */
+function eyeRetired(b){
+var ref=b.retired_ref?String(b.retired_ref):'';
+if(!ref){return false;}
+if(/^DC-/i.test(ref)){return eye('Delivery Challan',ref,'Dolphin Delivery Challan');}
+return eye('Delivery Challan',ref,'Dolphin Delivery Challan');
+}
 function journey(b){
 var rank=(b.status in RANK)?RANK[b.status]:0;
 var qno=esc(b.block_number||b.name);           // quarry block number (up to DC)
@@ -145,6 +157,11 @@ s.push(stage(dc(2,b.delivery_challan),'DC','Delivery Challan',b.delivery_challan
 s.push(stage(st(3),'&#128667;','Transported',(rank>=3?xno:'not yet'),rank<3,false));
 s.push(stage(st(4),'&#9875;','At Port',(rank>=4?xno:'not yet'),rank<4,false));
 s.push(stage(rank>=5?'done':'','&#128674;','Shipped',(rank>=5?xno:'not yet'),rank<5,false));
+/* 2 Sep 2026. [stated] "how to see the history of a retired block?" - the journey
+   stopped at Shipped, so the day the stone finished and its number came free was
+   nowhere on the card. It is the last stage now, and it carries the document that
+   took the stone away. A block that has not finished shows nothing extra. */
+if(b.retired_on){s.push(stage('done','&#10003;','Retired',esc(b.retired_on),false,eyeRetired(b)));}
 return '<div class="journey">'+s.join('')+'</div>';
 }
 function render(q,bl,other){
@@ -181,11 +198,27 @@ warn='<div class="card" style="border-left:4px solid #a15c00">'
 +'<div class="meta">Both are real, separate blocks. <b>Neither is a duplicate and neither should be removed.</b> '
 +'Search the other number to see the other one.</div></div>';
 }
-R.innerHTML=warn+bl.map(function(b){
+/* 2 Sep 2026. [stated] "how to see the history of a retired block?" - the page
+   already rendered one card per stone, so a number used twice always showed both.
+   What it did not do was say WHICH IS WHICH: the retired stone and the standing
+   one looked equally current. Newest first, and the finished one is named as
+   finished. Quarry Block ids are autoincrement, so a higher id is the later stone. */
+var sameNo=bl.length>1&&bl.every(function(x){return String(x.block_number||'')===String(bl[0].block_number||'');});
+if(sameNo){bl=bl.slice().sort(function(a,c){return (+c.name||0)-(+a.name||0);});}
+R.innerHTML=warn+bl.map(function(b,gi){
+var gen='';
+if(sameNo){
+var use=bl.length-gi;
+gen='<div class="genline">Use '+use+' of '+bl.length+' &middot; '
+ +(b.retired_on?('retired '+esc(b.retired_on)+(b.retired_because?' &middot; '+esc(b.retired_because):''))
+              :'still in service')
+ +'</div>';
+}
 var sc=SC[b.status]||['#f1efe8','#444441'];
 var dim=(b.length_gross||'')+'&times;'+(b.width_gross||'')+'&times;'+(b.height_gross||'');
 var cbm=b.gross_volume?(' &middot; '+(+b.gross_volume).toFixed(2)+' cbm'):'';
-return '<div class="card">'
+return '<div class="card'+(b.retired_on?' retired':'')+'">'
++gen
 +'<div class="bhead">'
 +'<span class="nwrap"><span class="nlab">Quarry no</span><span class="bno">'+esc(b.block_number||b.name)+'</span></span>'
 +'<span class="nwrap"><span class="nlab">Export no</span>'
