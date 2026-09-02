@@ -213,6 +213,26 @@ CUSTOM_FIELDS = [
         "fieldname": "record_grade", "label": "Record grade on this inspection",
         "fieldtype": "Check", "default": "0", "insert_after": "size_tolerance_cm",
         "description": "Internal record only. Never printed."}),
+    # 1 Sep 2026, his question: "reset of sizes and grades to what it was
+    # originally was possible? Undo?" - Reset only went back to the standard set,
+    # which is not the same thing. This holds the exact before-state of the last
+    # thing the panel did, so it can be put back precisely.
+    ("Export Shipment Lot", {
+        "fieldname": "size_grade_undo", "label": "Last size/grade change",
+        "fieldtype": "Long Text", "insert_after": "record_grade", "read_only": 1,
+        "hidden": 1}),
+    ("Quarry Inspection", {
+        "fieldname": "size_grade_undo", "label": "Last size/grade change",
+        "fieldtype": "Long Text", "insert_after": "record_grade", "read_only": 1,
+        "hidden": 1}),
+    ("Buyer Inspection", {
+        "fieldname": "size_grade_undo", "label": "Last size/grade change",
+        "fieldtype": "Long Text", "insert_after": "record_grade", "read_only": 1,
+        "hidden": 1}),
+    ("Shipping Document", {
+        "fieldname": "size_grade_undo", "label": "Last size/grade change",
+        "fieldtype": "Long Text", "insert_after": "record_grade", "read_only": 1,
+        "hidden": 1}),
     ("Shipping Document", {
         "fieldname": "size_override", "label": "Final change on this document",
         "fieldtype": "Check", "default": "0", "insert_after": "size_rule_display",
@@ -1370,6 +1390,7 @@ def panel(doctype=None, name=None):
         "override": override,
         "owner": owner,
         "frozen": _s(doc.get("export_status")) == "Exported" or cint(doc.docstatus) == 1,
+        "undo": undo_available(doc.doctype, doc.name),
         "own_bands": bool(_band_rows(doc)),
         "seeded_from": _s(doc.get("size_seeded_from")),
         "bands": [{"size": _s(b.get("size_category_name")) or _s(b.get("name")),
@@ -1410,6 +1431,106 @@ def panel(doctype=None, name=None):
 # A set is simply rows in Granite Size Category sharing a `variation_label` and
 # belonging to no buyer - one master, exactly as he asked.
 # ===========================================================================
+
+
+# ---------------------------------------------------------------------------
+# UNDO.  1 Sep 2026
+#
+# [stated] "reset of sizes and grades to what it was originally was possible?
+#  Undo?"
+#
+# "Reset to the standard" only ever went back to the house figures, which is not
+# the same as putting back what was there a minute ago. So every action the panel
+# takes now writes down the exact before-state of every row it touched, and Undo
+# puts precisely that back - the sizes, the grades and the thresholds together.
+#
+# One level, deliberately. A stack of undos on a live customs document invites
+# somebody to walk backwards past a decision they meant to keep; one step covers
+# the mistake you have just noticed, and the document's own timeline holds the
+# rest of the history in words.
+# ---------------------------------------------------------------------------
+
+
+def _remember(doc, label, rows, bands_before=None):
+    """Store what the rows looked like BEFORE the change about to be saved."""
+    try:
+        if not doc.meta.has_field("size_grade_undo"):
+            return
+        doc.set("size_grade_undo", json.dumps({
+            "label": label,
+            "when": frappe.utils.now(),
+            "who": frappe.session.user,
+            "rows": rows,
+            "bands": bands_before,
+        }))
+    except Exception:
+        pass
+
+
+@frappe.whitelist()
+def undo_available(doctype=None, name=None):
+    """What Undo would put back, in words. Reads only."""
+    doc = _doc_for_panel(doctype, name)
+    raw = _s(doc.get("size_grade_undo"))
+    if not raw:
+        return {"can_undo": False}
+    try:
+        d = json.loads(raw)
+    except Exception:
+        return {"can_undo": False}
+    return {"can_undo": True, "label": d.get("label"), "when": d.get("when"),
+            "who": d.get("who"), "blocks": len(d.get("rows") or []),
+            "bands": bool(d.get("bands"))}
+
+
+@frappe.whitelist()
+def undo_last(doctype=None, name=None, person=None):
+    """Put back exactly what the last panel action changed."""
+    doc = _doc_for_panel(doctype, name)
+    raw = _s(doc.get("size_grade_undo"))
+    if not raw:
+        frappe.throw("There is nothing to undo on this document.")
+    try:
+        d = json.loads(raw)
+    except Exception:
+        frappe.throw("The undo record could not be read.")
+    if cint(doc.docstatus) == 1:
+        frappe.throw("{0} is submitted.".format(doc.name))
+
+    want = {r["row"]: r for r in (d.get("rows") or [])}
+    gf = _grade_field(doc)
+    back = []
+    for b in _blocks_of(doc):
+        r = want.get(_s(b.name))
+        if not r:
+            continue
+        no = _s(b.get("export_block_no")) or _s(b.get("block_no"))
+        if "size" in r and _s(b.get(SIZE_FIELD)) != _s(r.get("size")):
+            back.append("{0} size {1}->{2}".format(no, _s(b.get(SIZE_FIELD)) or "(none)",
+                                                   _s(r.get("size")) or "(none)"))
+            b.set(SIZE_FIELD, r.get("size") or "")
+        if "grade" in r and _s(b.get(gf)) != _s(r.get("grade")):
+            back.append("{0} grade {1}->{2}".format(no, _s(b.get(gf)) or "(none)",
+                                                    _s(r.get("grade")) or "(none)"))
+            b.set(gf, r.get("grade") or "")
+
+    if d.get("bands") is not None and doc.meta.has_field("size_bands"):
+        doc.set("size_bands", [])
+        for x in (d.get("bands") or []):
+            doc.append("size_bands", x)
+        back.append("thresholds put back")
+
+    doc.set("size_grade_undo", "")
+    doc.flags.ignore_mandatory = True
+    doc.save(ignore_permissions=True)
+    try:
+        doc.add_comment("Comment", "UNDO of \"{0}\" by {1}. {2}".format(
+            _s(d.get("label")), _s(person) or frappe.session.user,
+            "; ".join(back[:25]) or "nothing needed putting back"))
+    except Exception:
+        pass
+    frappe.db.commit()
+    return {"ok": True, "restored": len(back), "detail": back[:25]}
 
 
 @frappe.whitelist()
@@ -1517,6 +1638,11 @@ def set_bands(doctype=None, name=None, bands=None, tolerance_cm=None,
         return {"dry_run": True, "document": doc.name, "bands": want, "before": before,
                 "would_move": moved, "count": len(moved), "unsized": nowhere}
 
+    _remember(doc, "size thresholds",
+              [{"row": _s(b.name), "size": _s(b.get(SIZE_FIELD))} for b in _blocks_of(doc)],
+              [{"size_category_name": x["size_category_name"], "min_length": x["min_length"],
+                "min_width": x["min_width"], "min_height": x["min_height"],
+                "sort_order": x["sort_order"]} for x in _band_rows(doc)])
     doc.set("size_bands", [])
     for b in want:
         doc.append("size_bands", b)
@@ -1729,9 +1855,13 @@ def set_block_values(doctype=None, name=None, rows=None, to_size=None, grade=Non
         return order.get(_s(cat), 99)
 
     sized, graded, promotions = [], [], []
+    before = []
+    gf = _grade_field(doc)
     for b in _blocks_of(doc):
         if _s(b.name) not in rows:
             continue
+        before.append({"row": _s(b.name), "size": _s(b.get(SIZE_FIELD)),
+                       "grade": _s(b.get(gf))})
         no = _s(b.get("export_block_no")) or _s(b.get("block_no"))
         if set_size:
             was = _s(b.get(SIZE_FIELD))
@@ -1764,6 +1894,10 @@ def set_block_values(doctype=None, name=None, rows=None, to_size=None, grade=Non
         frappe.throw("{0} block(s) move UP a band, so name the person at the buyer who "
                      "agreed. A move down or a correction does not need one.".format(
                          len(promotions)))
+    _remember(doc, "{0}{1}{2}".format(
+        ("size " + to_size) if set_size else "",
+        " and " if (set_size and set_grade) else "",
+        ("grade " + (grade or "cleared")) if set_grade else ""), before)
     doc.flags.ignore_mandatory = True
     doc.save(ignore_permissions=True)
     try:
