@@ -379,20 +379,34 @@
     var edit = !d.frozen && (d.is_lot || d.override);
     var h = ['<div class="dsz">'];
 
-    /* 1 Sep 2026: "either one should be active so give a check mark for both" /
-       "whichever is selected will be active". The same pair appears here so you
-       can switch from wherever you are - and it is bound to the SAME single
-       value as the one on the sizes section, so the two can never disagree.
-       One choice, shown twice; not two choices. */
-    if (!d.is_lot) h.push(sourcePicker(d));
+    /* 1 Sep 2026, his words: "Grade here is confusing how to add grade ?"
+       He was right, and it was my doing. I had put the Follow / Set-on-this-document
+       pair here as well as on sizes - the same one choice drawn twice - and on his
+       screen the two ticks disagreed with each other, which is exactly the thing
+       this design exists to prevent. So the pair is GONE from here. There is one
+       place to choose it, on sizes, and this section says which way it is set and
+       gets on with the job it is actually for. */
+    if (!d.is_lot) {
+      h.push('<div class="sm">Follows the same choice as Sizes above &mdash; currently <b>' +
+             (d.override ? 'set on this document' : esc(d.lot || 'the standard')) + '</b>.</div>');
+    }
 
     h.push('<div class="bar"><input type="checkbox" id="dsz-grade-on"' +
            (g.on ? ' checked' : '') + (edit ? '' : ' disabled') + '>' +
-           '<label for="dsz-grade-on" style="margin:0"><b>Record grade on ' + where + '</b></label>' +
+           '<label for="dsz-grade-on" style="margin:0"><b>Record grade</b> on ' + where + '</label>' +
            '<span class="sm">— internal record only, never printed</span></div>');
 
     if (!g.on) {
-      h.push('<div class="sm">Off. Nothing is asked of anyone and no grade is stored.</div></div>');
+      h.push('<div class="quiet"><b>No grade is being recorded on ' + where + '.</b>' +
+             '<div style="margin-top:6px">To add grades:</div>' +
+             '<ol style="margin:4px 0 0;padding-left:18px">' +
+             '<li>Tick <b>Record grade</b> above &mdash; a list of every block appears.</li>' +
+             '<li>Tick the blocks you want (or press <b>All</b>, <b>Only ungraded</b>, ' +
+             'or <b>By range&hellip;</b> for 800-1000 style ranges).</li>' +
+             '<li>Choose one grade &mdash; A, B, B1, B2 or C &mdash; and press <b>Apply</b>.</li>' +
+             '</ol><div class="sm" style="margin-top:6px">It shows what will change before it ' +
+             'writes anything, and it is internal only &mdash; never printed.</div></div>');
+      h.push('</div>');
       return h.join('');
     }
 
@@ -709,24 +723,6 @@
     var target = (d.is_lot || d.override)
       ? { doctype: d.doctype, name: d.name }
       : { doctype: 'Export Shipment Lot', name: d.lot };
-
-    $sec.find('input.dsz-src').on('change', function () {
-      var wantOwn = this.dataset.on === '1' ? this.checked : !this.checked;
-      if (wantOwn === !!d.override) { frm.reload_doc(); return; }
-      if (wantOwn) {
-        frappe.prompt([{ fieldname: 'reason', fieldtype: 'Small Text',
-                         label: 'Why this document needs its own copy', reqd: 1 }],
-          function (v) {
-            call('set_override', { shipping_document: frm.doc.name, on: 1,
-                                   reason: v.reason, person: frappe.session.user })
-              .then(function () { frm.reload_doc(); });
-          }, 'Set on this document', 'Turn it on');
-      } else {
-        call('set_override', { shipping_document: frm.doc.name, on: 0,
-                               person: frappe.session.user })
-          .then(function () { frm.reload_doc(); });
-      }
-    });
 
     $sec.find('#dsz-grade-on').on('change', function () {
       call('set_grade_recording', { doctype: target.doctype, name: target.name,
