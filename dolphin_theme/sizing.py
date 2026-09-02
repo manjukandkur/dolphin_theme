@@ -1525,6 +1525,104 @@ def set_sizes(doctype=None, name=None, rows=None, to_size=None, agreed_by=None,
 
 
 @frappe.whitelist()
+def set_block_values(doctype=None, name=None, rows=None, to_size=None, grade=None,
+                     agreed_by=None, reason=None, person=None, dry_run=1):
+    """ONE action for both. 1 Sep 2026, his words: "simplify and make grade and
+    size change simultaneous or individual?"
+
+    Both, and the same control does it: tick the blocks once, then set the size,
+    or the grade, or both. Leaving either as "no change" leaves that side alone -
+    so simultaneous when you want it, individual when you do not.
+
+    Independence is untouched by this. Nothing here derives one from the other:
+    the size is whatever you chose, the grade is whatever you chose, neither is
+    read to decide the other, and a re-sort of the thresholds still moves no
+    grade. They travel together on one screen because that is easier for a
+    person; they remain two separate judgements about the stone."""
+    dry = _s(dry_run) not in ("0", "false", "False", "")
+    doc = _doc_for_panel(doctype, name)
+    to_size, grade = _s(to_size), _s(grade)
+    set_size = to_size not in ("", "__keep__")
+    set_grade = grade != "__keep__"
+    if not (set_size or set_grade):
+        frappe.throw("Choose a size, a grade, or both.")
+    if set_grade and grade and grade not in GRADES:
+        frappe.throw("Grade must be one of {0}, or blank.".format(", ".join(GRADES)))
+    if isinstance(rows, str):
+        try:
+            rows = json.loads(rows)
+        except Exception:
+            frappe.throw("Could not read the blocks that were ticked.")
+    rows = [_s(r) for r in (rows or []) if _s(r)]
+    if not rows:
+        frappe.throw("Tick some blocks first.")
+
+    order = {}
+    for i, c in enumerate(bands_for(doc)):
+        order[_s(c.get("size_category_name")) or _s(c.get("name"))] = i
+
+    def rank(cat):
+        return order.get(_s(cat), 99)
+
+    sized, graded, promotions = [], [], []
+    for b in _blocks_of(doc):
+        if _s(b.name) not in rows:
+            continue
+        no = _s(b.get("export_block_no")) or _s(b.get("block_no"))
+        if set_size:
+            was = _s(b.get(SIZE_FIELD))
+            if was != to_size:
+                up = rank(to_size) < rank(was)
+                sized.append({"block": no, "from": was or "(none)", "to": to_size, "up": up})
+                if up:
+                    promotions.append(no)
+                if not dry:
+                    if up:
+                        if b.meta.has_field("size_promoted_from") and not _s(b.get("size_promoted_from")):
+                            b.set("size_promoted_from", was)
+                        if b.meta.has_field("size_consent_by"):
+                            b.set("size_consent_by", _s(agreed_by))
+                        if b.meta.has_field("size_consent_on"):
+                            b.set("size_consent_on", frappe.utils.now())
+                    b.set(SIZE_FIELD, to_size)
+        if set_grade:
+            wasg = _s(b.get("grade"))
+            if wasg != grade:
+                graded.append({"block": no, "from": wasg or "(none)", "to": grade or "(none)"})
+                if not dry:
+                    b.set("grade", grade)
+
+    if dry:
+        return {"dry_run": True, "sized": sized, "graded": graded,
+                "n_size": len(sized), "n_grade": len(graded),
+                "promotions": promotions, "needs_consent": bool(promotions)}
+    if promotions and len(_s(agreed_by)) < 2:
+        frappe.throw("{0} block(s) move UP a band, so name the person at the buyer who "
+                     "agreed. A move down or a correction does not need one.".format(
+                         len(promotions)))
+    doc.flags.ignore_mandatory = True
+    doc.save(ignore_permissions=True)
+    try:
+        bits = []
+        if sized:
+            bits.append("{0} block(s) set to size {1}{2}".format(
+                len(sized), to_size,
+                (", {0} moved UP with the buyer's consent - agreed by {1}".format(
+                    len(promotions), _s(agreed_by)) if promotions else "")))
+        if graded:
+            bits.append("{0} block(s) graded {1} (internal only, not printed)".format(
+                len(graded), grade or "(cleared)"))
+        doc.add_comment("Comment", "{0}. Recorded by {1}. {2}".format(
+            "; ".join(bits) or "nothing changed",
+            _s(person) or frappe.session.user, _s(reason)))
+    except Exception:
+        pass
+    frappe.db.commit()
+    return {"ok": True, "sized": sized, "graded": graded,
+            "n_size": len(sized), "n_grade": len(graded), "promotions": promotions}
+
+
+@frappe.whitelist()
 def set_grade_recording(doctype=None, name=None, on=None, person=None):
     """The tick. Off by default; turning it off keeps whatever was recorded."""
     doc = _doc_for_panel(doctype, name)
