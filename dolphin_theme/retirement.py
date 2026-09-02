@@ -448,3 +448,87 @@ def number_check(numbers=None):
 def setup_retirement():
     """One call to install the fields. Safe to run again."""
     return ensure_fields()
+
+
+# ---------------------------------------------------------------------------
+# THE PRODUCTION DATE FOLLOWS THE INSPECTION — 3 Sep 2026.
+#
+# His instruction, and it is the better design:
+#
+#     "so on QI rather than entering it must take automatically whatever date is
+#      entered.. that way delayed entries get right production dates"
+#
+# Nobody types a production date on a block. The Quarry Inspection's report date
+# IS the production date of every block that came in on it, because every one of
+# those stones arrived together on that day. A sheet entered a week late carries
+# the real date the moment a person corrects the report date on the inspection -
+# one field, and every block on it follows.
+#
+# That is why this SYNCS rather than seeds. A seeded value would be right only
+# until the report date was fixed, and then silently wrong forever after.
+# ---------------------------------------------------------------------------
+
+def sync_production_dates(doc, method=None):
+    """Every block on this inspection takes its report date. Runs on save.
+
+    Writes only the date, only where it differs, and never touches a block that
+    is not on this inspection. Costs one query and one write per changed block.
+    """
+    try:
+        if not frappe.get_meta("Quarry Block").has_field("date_produced"):
+            return
+        d = doc.get("report_date")
+        if not d:
+            return
+        rows = frappe.get_all(
+            "Quarry Block",
+            filters={"source_quarry_inspection": doc.name},
+            fields=["name", "date_produced"], limit_page_length=0)
+        for r in rows:
+            if str(r.get("date_produced") or "") == str(d):
+                continue
+            frappe.db.set_value("Quarry Block", r["name"], "date_produced", d,
+                                update_modified=False)
+    except Exception:
+        # A production date must never be the reason an inspection will not save.
+        frappe.log_error(frappe.get_traceback(), "Dolphin sync_production_dates")
+
+
+@frappe.whitelist()
+def resync_production_dates(commit=0):
+    """Bring every block back in step with its inspection's report date.
+
+    Use after correcting report dates in bulk. Dry run by default. Unlike the
+    first backfill this DOES overwrite, because the inspection is the authority
+    on when its own stones were produced.
+    """
+    if not frappe.get_meta("Quarry Block").has_field("date_produced"):
+        return {"ok": False, "reason": "no date_produced field"}
+    qi_date = {}
+    for q in frappe.get_all("Quarry Inspection", fields=["name", "report_date"],
+                            limit_page_length=0):
+        qi_date[_s(q.get("name"))] = q.get("report_date")
+    rows = frappe.get_all("Quarry Block",
+                          fields=["name", "block_number", "date_produced",
+                                  "source_quarry_inspection"],
+                          limit_page_length=0)
+    todo = []
+    for r in rows:
+        d = qi_date.get(_s(r.get("source_quarry_inspection")))
+        if d and str(r.get("date_produced") or "") != str(d):
+            todo.append((r["name"], d, _s(r.get("block_number")),
+                         str(r.get("date_produced") or "")))
+    if not cint(commit):
+        return {"ok": True, "dry_run": True, "out_of_step": len(todo),
+                "sample": [{"block": t[0], "number": t[2], "was": t[3],
+                            "becomes": str(t[1])} for t in todo[:10]]}
+    n = 0
+    for name, d, _num, _was in todo:
+        try:
+            frappe.db.set_value("Quarry Block", name, "date_produced", d,
+                                update_modified=False)
+            n += 1
+        except Exception:
+            frappe.log_error(frappe.get_traceback(), "Dolphin resync_production_dates")
+    frappe.db.commit()
+    return {"ok": True, "dry_run": False, "updated": n}

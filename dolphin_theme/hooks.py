@@ -89,6 +89,15 @@ doc_events = {
         "validate": "dolphin_theme.guards.guard",
         "on_submit": "dolphin_theme.guards.dc_block_status_on_submit",
     },
+    # 3 Sep 2026, his instruction: "so on QI rather than entering it must take
+    # automatically whatever date is entered.. that way delayed entries get right
+    # production dates". Nobody types a production date on a block. The report
+    # date on the inspection IS the production date of every stone that came in
+    # on it, and correcting a late sheet's date fixes every block on it at once.
+    "Quarry Inspection": {
+        "on_update": "dolphin_theme.retirement.sync_production_dates",
+        "on_submit": "dolphin_theme.retirement.sync_production_dates",
+    },
 }
 
 # Make the new lifecycle stages selectable after every deploy. Idempotent: it
