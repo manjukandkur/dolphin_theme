@@ -340,35 +340,73 @@
     return h.join('');
   }
 
+  /* ONE LIST, ONE TICK, BOTH JUDGEMENTS.  1 Sep 2026
+     [stated] "simplify and make grade and size change simultaneous or individual?"
+     Both, from the same control: tick blocks once, then set the size, or the
+     grade, or both. Either dropdown left on "no change" leaves that side alone.
+
+     This does NOT make grade depend on size. Nothing is derived either way, a
+     re-sort of the thresholds still moves no grade, and setting a grade still
+     moves no size. They sit on one row because a person works block by block,
+     not axis by axis. */
   function blockTable(d, edit) {
+    var g = d.grade || {};
+    var gmap = {};
+    (g.blocks || []).forEach(function (b) { gmap[b.row] = b.grade || ''; });
     var h = [];
+
     if (edit) {
-      h.push('<div class="bar"><span data-dsz="szpick"></span>' +
-             '<span class="b off" data-pick="size:all">All</span>' +
-             '<span class="b off" data-pick="size:none">None</span>' +
-             '<span class="b off" data-pick="size:marginal">Marginal (' + (d.marginal_count || 0) + ')</span>' +
-             '<span class="b gold" data-dsz="sizerange">By range&hellip;</span>' +
-             '<span style="margin-left:6px">Set size to</span> ' +
-             '<select data-dsz="szval">' +
-             (d.bands || []).map(function (b) {
-               return '<option value="' + esc(b.size) + '">' + esc(b.size) + '</option>';
+      h.push('<div class="bar">' +
+             '<span class="b off" data-pick="all">All ' + (d.blocks || []).length + '</span>' +
+             '<span class="b off" data-pick="none">None</span>' +
+             '<span class="b off" data-pick="marginal">Marginal (' + (d.marginal_count || 0) + ')</span>' +
+             (g.on ? '<span class="b off" data-pick="ungraded">Ungraded (' +
+                     ((g.total || 0) - (g.filled || 0)) + ')</span>' : '') +
+             '<span class="b gold" data-dsz="range">By range&hellip;</span></div>');
+      h.push('<div class="bar"><b data-dsz="count">0 ticked</b>' +
+             '<span style="margin-left:6px">Size</span> <select data-dsz="szval">' +
+             '<option value="__keep__">— no change</option>' +
+             (d.bands || []).map(function (x) {
+               return '<option value="' + esc(x.size) + '">' + esc(x.size) + '</option>';
              }).join('') + '</select>' +
-             '<span class="b pri" data-dsz="applysize">Apply to ticked&hellip;</span></div>');
+             (g.on
+               ? '<span style="margin-left:6px">Grade</span> <select data-dsz="grval">' +
+                 '<option value="__keep__">— no change</option><option value="">— clear</option>' +
+                 (g.options || []).map(function (o) {
+                   return '<option value="' + esc(o) + '">' + esc(o) + '</option>';
+                 }).join('') + '</select>'
+               : '') +
+             '<span class="b pri" data-dsz="apply">Apply to ticked&hellip;</span>' +
+             '<span class="sm">— set either, or both, in one press</span></div>');
     }
+
     h.push('<div class="scr"><table><tr>' + (edit ? '<th style="width:24px"></th>' : '') +
-           '<th>Block</th><th>L × W × H</th><th>Size</th><th>Marginal</th></tr>');
-    (d.blocks || []).forEach(function (b) {
+           '<th>Block</th><th>L &times; W &times; H</th><th>Size</th>' +
+           (g.on ? '<th>Grade</th>' : '') + '<th>Marginal</th></tr>');
+    (d.blocks || []).forEach(function (bl) {
       h.push('<tr>' +
-             (edit ? '<td><input type="checkbox" class="szck" data-row="' + esc(b.row) + '"' +
-                     (b.marginal ? ' data-marginal="1"' : '') + '></td>' : '') +
-             '<td><b>' + esc(b.block) + '</b></td>' +
-             '<td>' + b.size.join(' &times; ') + '</td>' +
-             '<td>' + esc(b.category || '—') + '</td>' +
-             '<td class="sm' + (b.marginal ? ' mg' : '') + '">' +
-             (b.marginal ? 'misses ' + esc(b.marginal.could_be) + ' by ' + esc(b.marginal.short_by) : '—') +
-             '</td></tr>');
+             (edit ? '<td><input type="checkbox" class="bck" data-row="' + esc(bl.row) + '"' +
+                     (bl.marginal ? ' data-marginal="1"' : '') +
+                     (gmap[bl.row] ? '' : ' data-ungraded="1"') + '></td>' : '') +
+             '<td><b>' + esc(bl.block) + '</b></td>' +
+             '<td>' + bl.size.join(' &times; ') + '</td>' +
+             '<td>' + esc(bl.category || '—') + '</td>' +
+             (g.on ? '<td>' + esc(gmap[bl.row] || '—') + '</td>' : '') +
+             '<td class="sm' + (bl.marginal ? ' mg' : '') + '">' +
+             (bl.marginal ? 'misses ' + esc(bl.marginal.could_be) + ' by ' +
+              esc(bl.marginal.short_by) : '—') + '</td></tr>');
     });
     h.push('</table></div>');
+
+    if (g.on) {
+      var tally = g.tally || {};
+      h.push('<div class="quiet"><b>Grade: ' + (g.filled || 0) + ' of ' + (g.total || 0) +
+             ' recorded.</b> ' + (g.options || []).map(function (o) {
+               return o + ' ' + (tally[o] || 0);
+             }).join(' &middot; ') + ' &middot; not graded ' +
+             ((g.total || 0) - (g.filled || 0)) +
+             '. Internal only &mdash; never printed.</div>');
+    }
     return h.join('');
   }
 
@@ -379,71 +417,21 @@
     var edit = !d.frozen && (d.is_lot || d.override);
     var h = ['<div class="dsz">'];
 
-    /* 1 Sep 2026, his words: "Grade here is confusing how to add grade ?"
-       He was right, and it was my doing. I had put the Follow / Set-on-this-document
-       pair here as well as on sizes - the same one choice drawn twice - and on his
-       screen the two ticks disagreed with each other, which is exactly the thing
-       this design exists to prevent. So the pair is GONE from here. There is one
-       place to choose it, on sizes, and this section says which way it is set and
-       gets on with the job it is actually for. */
-    if (!d.is_lot) {
-      h.push('<div class="sm">Follows the same choice as Sizes above &mdash; currently <b>' +
-             (d.override ? 'set on this document' : esc(d.lot || 'the standard')) + '</b>.</div>');
-    }
-
     h.push('<div class="bar"><input type="checkbox" id="dsz-grade-on"' +
            (g.on ? ' checked' : '') + (edit ? '' : ' disabled') + '>' +
            '<label for="dsz-grade-on" style="margin:0"><b>Record grade</b> on ' + where + '</label>' +
            '<span class="sm">— internal record only, never printed</span></div>');
 
     if (!g.on) {
-      h.push('<div class="quiet"><b>No grade is being recorded on ' + where + '.</b>' +
-             '<div style="margin-top:6px">To add grades:</div>' +
-             '<ol style="margin:4px 0 0;padding-left:18px">' +
-             '<li>Tick <b>Record grade</b> above &mdash; a list of every block appears.</li>' +
-             '<li>Tick the blocks you want (or press <b>All</b>, <b>Only ungraded</b>, ' +
-             'or <b>By range&hellip;</b> for 800-1000 style ranges).</li>' +
-             '<li>Choose one grade &mdash; A, B, B1, B2 or C &mdash; and press <b>Apply</b>.</li>' +
-             '</ol><div class="sm" style="margin-top:6px">It shows what will change before it ' +
-             'writes anything, and it is internal only &mdash; never printed.</div></div>');
-      h.push('</div>');
-      return h.join('');
+      h.push('<div class="quiet"><b>No grade is being recorded.</b> Tick the box above and a ' +
+             '<b>Grade</b> column and a Grade dropdown appear on the block list, beside the size. ' +
+             'Then it is: tick blocks &rarr; choose a grade &rarr; <b>Apply</b>.' +
+             '<div class="sm" style="margin-top:6px">A · B · B1 · B2 · C, blank allowed. It shows ' +
+             'what will change before writing, and reaches no printout.</div></div>');
+    } else {
+      h.push('<div class="sm">The <b>Grade</b> column and dropdown are on the block list above. ' +
+             'Setting a grade moves no size, and re-sorting the thresholds moves no grade.</div>');
     }
-
-    var opts = g.options || [];
-    if (edit) {
-      h.push('<div class="ok" style="margin-top:2px"><b>Tick blocks, choose one grade, press Apply.</b> ' +
-             '40 blocks is three clicks, not 40.</div>');
-      h.push('<div class="bar">' +
-             '<span class="b off" data-pick="grade:all">All ' + (g.total || 0) + '</span>' +
-             '<span class="b off" data-pick="grade:none">None</span>' +
-             '<span class="b off" data-pick="grade:ungraded">Only ungraded (' +
-             ((g.total || 0) - (g.filled || 0)) + ')</span>' +
-             '<span class="b gold" data-dsz="graderange">By range&hellip;</span>' +
-             '<span style="margin-left:6px">Set grade to</span> ' +
-             '<select data-dsz="grval"><option value="">— (clear)</option>' +
-             opts.map(function (o) { return '<option value="' + esc(o) + '">' + esc(o) + '</option>'; }).join('') +
-             '</select>' +
-             '<span class="b pri" data-dsz="applygrade">Apply to ticked</span></div>');
-    }
-
-    h.push('<div class="scr"><table><tr>' + (edit ? '<th style="width:24px"></th>' : '') +
-           '<th>Block</th><th>Grade</th></tr>');
-    (g.blocks || []).forEach(function (b) {
-      h.push('<tr>' +
-             (edit ? '<td><input type="checkbox" class="grck" data-row="' + esc(b.row) + '"' +
-                     (b.grade ? '' : ' data-ungraded="1"') + '></td>' : '') +
-             '<td><b>' + esc(b.block) + '</b></td>' +
-             '<td>' + esc(b.grade || '—') + '</td></tr>');
-    });
-    h.push('</table></div>');
-
-    var tally = g.tally || {};
-    h.push('<div class="quiet"><b>' + (g.filled || 0) + ' of ' + (g.total || 0) + ' graded.</b> ' +
-           opts.map(function (o) { return o + ' ' + (tally[o] || 0); }).join(' &middot; ') +
-           ' &middot; not graded ' + ((g.total || 0) - (g.filled || 0)) + '.</div>');
-    h.push('<div class="sm">No size column, no size figure, and no way to pick blocks by their ' +
-           'size. The thresholds have nothing to do with this list and never touch it.</div>');
     h.push('</div>');
     return h.join('');
   }
@@ -494,178 +482,63 @@
       wireSizes(frm, $sec, d);
     });
 
+    function count() {
+      var n = $sec.find('input.bck:checked').length;
+      $sec.find('[data-dsz="count"]').text(n + ' ticked');
+      return n;
+    }
+    $sec.on('change', 'input.bck', count);
+
     $sec.find('[data-pick]').on('click', function () {
-      var what = this.dataset.pick.split(':')[1];
-      $sec.find('input.szck').each(function () {
+      var what = this.dataset.pick;
+      $sec.find('input.bck').each(function () {
         this.checked = (what === 'all') ? true
                      : (what === 'none') ? false
-                     : !!this.dataset.marginal;
+                     : (what === 'marginal') ? !!this.dataset.marginal
+                     : !!this.dataset.ungraded;
       });
+      count();
     });
 
-    $sec.find('[data-dsz="savebands"]').on('click', function () {
-      var bands = readBands($sec, d);
-      var tol = parseInt(($sec.find('[data-dsz="tol"]').val() || 3), 10) || 3;
-      var target = d.owner;
-      call('set_bands', { doctype: target.doctype, name: target.name,
-                          bands: JSON.stringify(bands), tolerance_cm: tol, dry_run: 1 })
-        .then(function (plan) {
-          if (!plan) return;
-          var moved = plan.would_move || [];
-          var body = (moved.length
-              ? '<b>' + moved.length + ' block' + (moved.length === 1 ? '' : 's') +
-                ' change size.</b><div class="sm" style="margin-top:5px">' +
-                moved.slice(0, 15).map(function (m) {
-                  return esc(m.block) + ' ' + esc(m.from) + ' &rarr; ' + esc(m.to);
-                }).join(' &middot; ') +
-                (moved.length > 15 ? ' &middot; +' + (moved.length - 15) + ' more' : '') + '</div>'
-              : 'No block changes size on these thresholds.');
-          if (plan.unsized && plan.unsized.length) {
-            body += '<div class="note" style="margin-top:8px"><b>' + plan.unsized.length +
-                    ' would meet no threshold at all</b> and would be left without a size: ' +
-                    esc(plan.unsized.slice(0, 15).join(', ')) + '</div>';
-          }
-          var dlg = new frappe.ui.Dialog({
-            title: 'Size thresholds · ' + target.name,
-            fields: [
-              { fieldtype: 'HTML', options: '<div class="dsz">' + body +
-                '<div class="sm" style="margin-top:8px">Saved on ' + esc(target.name) +
-                '. No grade moves.</div></div>' },
-              { fieldname: 'reason', fieldtype: 'Small Text', label: 'Why', reqd: 1 }
-            ],
-            primary_action_label: 'Save & re-sort',
-            primary_action: function (v) {
-              call('set_bands', { doctype: target.doctype, name: target.name,
-                                  bands: JSON.stringify(bands), tolerance_cm: tol,
-                                  reason: v.reason, person: frappe.session.user, dry_run: 0 })
-                .then(function (r) {
-                  dlg.hide();
-                  frappe.show_alert({ message: 'Thresholds saved' +
-                    (r && r.count ? ' — ' + r.count + ' re-sorted' : ''), indicator: 'green' });
-                  frm.reload_doc();
-                });
-            }
-          });
-          dlg.show();
-        });
-    });
-
-    $sec.find('[data-dsz="resetbands"]').on('click', function () {
-      var target = d.owner;
-      frappe.prompt([{ fieldname: 'reason', fieldtype: 'Small Text', label: 'Why', reqd: 1 }],
-        function (v) {
-          call('reset_bands', { doctype: target.doctype, name: target.name,
-                                reason: v.reason, person: frappe.session.user, dry_run: 0 })
-            .then(function () { frm.reload_doc(); });
-        }, 'Reset to the standard', 'Reset');
-    });
-
-    $sec.find('[data-dsz="applysize"]').on('click', function () {
+    /* ONE Apply for both axes. Either dropdown on "no change" leaves that side alone. */
+    $sec.find('[data-dsz="apply"]').on('click', function () {
       var rows = [];
-      $sec.find('input.szck:checked').each(function () { rows.push(this.dataset.row); });
-      if (!rows.length) { frappe.show_alert({ message: 'Tick some blocks first', indicator: 'orange' }); return; }
-      var to = $sec.find('[data-dsz="szval"]').val();
-      call('set_sizes', { doctype: d.doctype, name: d.name, rows: JSON.stringify(rows),
-                          to_size: to, dry_run: 1 })
-        .then(function (plan) {
-          if (!plan) return;
-          var dlg = new frappe.ui.Dialog({
-            title: rows.length + ' block(s) → size ' + to,
-            fields: sizeFields(plan, to),
-            primary_action_label: 'Apply',
-            primary_action: function (v) {
-              call('set_sizes', { doctype: d.doctype, name: d.name, rows: JSON.stringify(rows),
-                                  to_size: to, agreed_by: v.agreed_by, reason: v.reason,
-                                  person: frappe.session.user, dry_run: 0 })
-                .then(function (r) {
-                  dlg.hide();
-                  frappe.show_alert({ message: (r && r.count) + ' block(s) set to ' + to, indicator: 'green' });
-                  frm.reload_doc();
-                });
-            }
-          });
-          dlg.show();
-        });
+      $sec.find('input.bck:checked').each(function () { rows.push(this.dataset.row); });
+      if (!rows.length) {
+        frappe.show_alert({ message: 'Tick some blocks first', indicator: 'orange' });
+        return;
+      }
+      var to = $sec.find('[data-dsz="szval"]').val() || '__keep__';
+      var gr = $sec.find('[data-dsz="grval"]').length
+             ? $sec.find('[data-dsz="grval"]').val() : '__keep__';
+      applyBoth(frm, d, rows, to, gr);
     });
 
-    $sec.find('[data-dsz="seed"]').on('click', function () {
-      var target = d.owner;
-      call('seed_now', { doctype: target.doctype, name: target.name, dry_run: 1 })
-        .then(function (plan) {
-          if (!plan) return;
-          var moved = plan.would_move || [];
-          var dlg = new frappe.ui.Dialog({
-            title: 'Pre-fill the thresholds',
-            fields: [
-              { fieldtype: 'HTML', options: '<div class="dsz">' +
-                '<b>From ' + esc(plan.source) + '.</b><table style="margin-top:6px">' +
-                (plan.bands || []).map(function (b) {
-                  return '<tr><td style="padding-right:14px"><b>' + esc(b.size_category_name) +
-                         '</b></td><td>' + b.min_length + ' &times; ' + b.min_width +
-                         ' &times; ' + b.min_height + '</td></tr>';
-                }).join('') + '</table>' +
-                (moved.length
-                  ? '<div class="note">' + moved.length + ' block(s) would change size.</div>'
-                  : '<div class="sm">No block changes size on these figures.</div>') +
-                '<div class="sm" style="margin-top:6px">Set on this lot only. Nothing is stored ' +
-                'against the buyer &mdash; this read one previous document, once.</div></div>' },
-              { fieldname: 'reason', fieldtype: 'Small Text', label: 'Why', reqd: 1,
-                default: 'Pre-filled from ' + (plan.source || 'the last lot') + '.' }
-            ],
-            primary_action_label: 'Pre-fill & re-sort',
-            primary_action: function (v) {
-              call('seed_now', { doctype: target.doctype, name: target.name,
-                                 reason: v.reason, person: frappe.session.user, dry_run: 0 })
-                .then(function () { dlg.hide(); frm.reload_doc(); });
-            }
-          });
-          dlg.show();
-        });
-    });
-
-    $sec.find('[data-dsz="sizerange"]').on('click', function () {
+    $sec.find('[data-dsz="range"]').on('click', function () {
       rangeDialog({
-        title: 'Set sizes by block-number range',
-        what: 'size', blocks: d.blocks,
+        title: 'Set by block-number range',
+        what: 'size or grade', blocks: d.blocks,
         apply: function (groups) {
-          /* find out first whether anything moves UP; only then ask for a name */
-          var probes = groups.map(function (g) {
-            return call('set_sizes', { doctype: d.doctype, name: d.name,
-                                       rows: JSON.stringify(g.rows), to_size: g.value,
-                                       dry_run: 1 });
-          });
-          Promise.all(probes).then(function (plans) {
-            var ups = 0;
-            plans.forEach(function (p) { ups += ((p && p.promotions) || []).length; });
-            var fields = [];
-            if (ups) {
-              fields.push({ fieldtype: 'HTML', options:
-                '<div class="dsz note"><b>' + ups + ' block(s) move UP a band.</b> That is the ' +
-                'buyer taking stone as better than it measures, so it needs the name of who agreed.</div>' });
-              fields.push({ fieldname: 'agreed_by', fieldtype: 'Data',
-                            label: 'Who at the buyer agreed', reqd: 1 });
-            } else {
-              fields.push({ fieldtype: 'HTML', options:
-                '<div class="dsz sm">Nothing moves up a band, so no buyer consent is involved.</div>' });
-            }
-            fields.push({ fieldname: 'reason', fieldtype: 'Small Text', label: 'Note', reqd: 1 });
-            frappe.prompt(fields, function (v) {
-            var chain = Promise.resolve(), done = 0;
-            groups.forEach(function (g) {
-              chain = chain.then(function () {
-                return call('set_sizes', { doctype: d.doctype, name: d.name,
-                                           rows: JSON.stringify(g.rows), to_size: g.value,
-                                           agreed_by: v.agreed_by, reason: v.reason,
-                                           person: frappe.session.user, dry_run: 0 })
-                  .then(function (r) { done += (r && r.count) || 0; });
-              });
+          /* a range line names one value; decide per line whether it is a size
+             this document knows, otherwise treat it as a grade. */
+          var sizes = (d.bands || []).map(function (x) { return String(x.size).toUpperCase(); });
+          var chain = Promise.resolve(), nS = 0, nG = 0;
+          groups.forEach(function (grp) {
+            var isSize = sizes.indexOf(String(grp.value).toUpperCase()) >= 0;
+            chain = chain.then(function () {
+              return call('set_block_values', {
+                doctype: d.doctype, name: d.name, rows: JSON.stringify(grp.rows),
+                to_size: isSize ? grp.value : '__keep__',
+                grade: isSize ? '__keep__' : grp.value,
+                reason: 'Set by block-number range.', person: frappe.session.user, dry_run: 0
+              }).then(function (r) { nS += (r && r.n_size) || 0; nG += (r && r.n_grade) || 0; });
             });
-            chain.then(function () {
-              frappe.show_alert({ message: done + ' block(s) re-sized by range', indicator: 'green' });
-              frm.reload_doc();
-            });
-            }, 'Apply the ranges', 'Apply');
           });
+          chain.then(function () {
+            frappe.show_alert({ message: nS + ' size(s), ' + nG + ' grade(s) set by range',
+                                indicator: 'green' });
+            frm.reload_doc();
+          }).catch(function () { frm.reload_doc(); });
         }
       });
     });
@@ -729,69 +602,61 @@
                                     on: this.checked ? 1 : 0, person: frappe.session.user })
         .then(function () { frm.reload_doc(); });
     });
+  }
 
-    $sec.find('[data-pick]').on('click', function () {
-      var what = this.dataset.pick.split(':')[1];
-      $sec.find('input.grck').each(function () {
-        this.checked = (what === 'all') ? true
-                     : (what === 'none') ? false
-                     : !!this.dataset.ungraded;
-      });
-    });
-
-    $sec.find('[data-dsz="graderange"]').on('click', function () {
-      rangeDialog({
-        title: 'Set grades by block-number range',
-        what: 'grade', blocks: (d.grade && d.grade.blocks) || [],
-        apply: function (groups) {
-          var chain = Promise.resolve(), done = 0;
-          groups.forEach(function (g) {
-            chain = chain.then(function () {
-              return call('set_grades', { doctype: target.doctype, name: target.name,
-                                          rows: JSON.stringify(g.rows), grade: g.value,
-                                          person: frappe.session.user, dry_run: 0 })
-                .then(function (r) { done += (r && r.count) || 0; });
-            });
-          });
-          chain.then(function () {
-            frappe.show_alert({ message: done + ' block(s) graded by range', indicator: 'green' });
-            frm.reload_doc();
-          });
+  /* The one confirmation, for whichever of the two you actually changed. */
+  function applyBoth(frm, d, rows, to, gr) {
+    call('set_block_values', { doctype: d.doctype, name: d.name, rows: JSON.stringify(rows),
+                               to_size: to, grade: gr, dry_run: 1 })
+      .then(function (plan) {
+        if (!plan) return;
+        var up = (plan.promotions || []).length;
+        var body = '<div class="dsz">';
+        if (plan.n_size) {
+          body += '<b>' + plan.n_size + ' block(s) change size to ' + esc(to) + '.</b>' +
+                  '<div class="sm" style="margin-top:4px">' +
+                  (plan.sized || []).slice(0, 12).map(function (c) {
+                    return esc(c.block) + ' ' + esc(c.from) + ' &rarr; ' + esc(c.to) +
+                           (c.up ? ' <b>&uarr;</b>' : '');
+                  }).join(' &middot; ') + '</div>';
         }
-      });
-    });
+        if (plan.n_grade) {
+          body += '<div style="margin-top:8px"><b>' + plan.n_grade + ' block(s) change grade to ' +
+                  esc(gr || '(cleared)') + '.</b> <span class="sm">Internal only — never printed.</span></div>';
+        }
+        if (!plan.n_size && !plan.n_grade) { body += 'Nothing changes on the ticked blocks.'; }
+        body += (up
+          ? '<div class="note" style="margin-top:8px"><b>' + up + ' move UP a band.</b> ' +
+            'The thresholds did not put them there, so this records that the buyer agreed.</div>'
+          : '<div class="sm" style="margin-top:8px">Nothing moves up a band, so no buyer consent ' +
+            'is involved.</div>') + '</div>';
 
-    $sec.find('[data-dsz="applygrade"]').on('click', function () {
-      var rows = [];
-      $sec.find('input.grck:checked').each(function () { rows.push(this.dataset.row); });
-      if (!rows.length) { frappe.show_alert({ message: 'Tick some blocks first', indicator: 'orange' }); return; }
-      var g = $sec.find('[data-dsz="grval"]').val();
-      call('set_grades', { doctype: target.doctype, name: target.name,
-                           rows: JSON.stringify(rows), grade: g, dry_run: 1 })
-        .then(function (plan) {
-          if (!plan) return;
-          frappe.confirm(
-            '<div style="font-size:13px;line-height:1.55"><b>' + plan.count +
-            ' block(s) change, ' + plan.already + ' already ' + (g || 'blank') + '.</b>' +
-            '<div style="font-size:11.5px;color:#8a929c;margin-top:5px">' +
-            (plan.changed || []).slice(0, 15).map(function (c) {
-              return esc(c.block) + ' ' + esc(c.from) + ' &rarr; ' + esc(c.to);
-            }).join(' &middot; ') +
-            ((plan.changed || []).length > 15 ? ' &middot; +' + (plan.changed.length - 15) + ' more' : '') +
-            '</div><div style="font-size:11.5px;color:#8a929c;margin-top:8px">Internal only — ' +
-            'not printed.</div></div>',
-            function () {
-              call('set_grades', { doctype: target.doctype, name: target.name,
-                                   rows: JSON.stringify(rows), grade: g,
-                                   person: frappe.session.user, dry_run: 0 })
-                .then(function (r) {
-                  frappe.show_alert({ message: (r && r.count) + ' block(s) graded ' +
-                    (g || 'cleared'), indicator: 'green' });
-                  frm.reload_doc();
-                });
+        var fields = [{ fieldtype: 'HTML', options: body }];
+        if (up) {
+          fields.push({ fieldname: 'agreed_by', fieldtype: 'Data',
+                        label: 'Who at the buyer agreed', reqd: 1 });
+        }
+        fields.push({ fieldname: 'reason', fieldtype: 'Small Text', label: 'Note', reqd: 1 });
+
+        var dlg = new frappe.ui.Dialog({
+          title: rows.length + ' block(s)',
+          fields: fields,
+          primary_action_label: 'Apply',
+          primary_action: function (v) {
+            call('set_block_values', {
+              doctype: d.doctype, name: d.name, rows: JSON.stringify(rows),
+              to_size: to, grade: gr, agreed_by: v.agreed_by, reason: v.reason,
+              person: frappe.session.user, dry_run: 0
+            }).then(function (r) {
+              dlg.hide();
+              frappe.show_alert({ message: ((r && r.n_size) || 0) + ' size(s), ' +
+                ((r && r.n_grade) || 0) + ' grade(s) set', indicator: 'green' });
+              frm.reload_doc();
             });
+          }
         });
-    });
+        dlg.show();
+      });
   }
 
   ['Export Shipment Lot', 'Shipping Document'].forEach(function (dt) {
