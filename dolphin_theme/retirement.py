@@ -532,3 +532,92 @@ def resync_production_dates(commit=0):
             frappe.log_error(frappe.get_traceback(), "Dolphin resync_production_dates")
     frappe.db.commit()
     return {"ok": True, "dry_run": False, "updated": n}
+
+
+# ---------------------------------------------------------------------------
+# THE HANDWRITTEN SHEET, BESIDE THE DATE — 3 Sep 2026.
+#
+#     "There will be a pdf or jpeg attached at the bottom handwritten QI which
+#      can be checked or viewed so along with every block production date attach
+#      if any pdfs or jpegs simple and sorted."
+#
+# A production date is only worth as much as the paper behind it. Every block
+# already knows which inspection it came in on, and roughly half of those
+# inspections carry a photograph or scan of the sheet the quarry actually wrote.
+# So the block shows its date AND the sheet, and a person can settle any argument
+# by looking rather than by trusting the field.
+#
+# Measured before building: 17 files on 13 of 27 inspections - 7 jpg, 5 pdf,
+# 3 png, 2 jpeg. All private, so the links only open for a signed-in person.
+# Two of those 17 are the same file attached twice, which is why this dedupes.
+# ---------------------------------------------------------------------------
+
+SHEET_EXT = ("pdf", "jpg", "jpeg", "png", "webp", "heic", "heif", "gif", "tif", "tiff")
+
+
+def _kind(file_name):
+    ext = (_s(file_name).rsplit(".", 1) + [""])[1].lower()
+    if ext == "pdf":
+        return "pdf"
+    return "image" if ext in SHEET_EXT else ""
+
+
+@frappe.whitelist()
+def sheets_for(inspections=None):
+    """The scans and photographs attached to these inspections. Read-only.
+
+    Returns {inspection: [{file_name, url, kind}]}, deduplicated by url and
+    sorted by name, so the same sheet attached twice appears once and the order
+    does not wander between two people looking at the same block.
+    """
+    if isinstance(inspections, str):
+        try:
+            inspections = json.loads(inspections)
+        except Exception:
+            inspections = [n.strip() for n in inspections.split(",")]
+    names = [_s(n) for n in (inspections or []) if _s(n)]
+    if not names:
+        return {}
+    try:
+        rows = frappe.get_all(
+            "File",
+            filters=[["attached_to_doctype", "=", "Quarry Inspection"],
+                     ["attached_to_name", "in", names]],
+            fields=["file_name", "file_url", "attached_to_name"],
+            limit_page_length=0)
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), "Dolphin sheets_for")
+        return {}
+    out = {}
+    for r in rows:
+        kind = _kind(r.get("file_name"))
+        if not kind:
+            continue                      # a spreadsheet is not the sheet
+        qi = _s(r.get("attached_to_name"))
+        url = _s(r.get("file_url"))
+        if not url:
+            continue
+        bucket = out.setdefault(qi, {})
+        bucket.setdefault(url, {"file_name": _s(r.get("file_name")) or url,
+                                "url": url, "kind": kind})
+    return {qi: sorted(v.values(), key=lambda f: (f["kind"] != "pdf", f["file_name"]))
+            for qi, v in out.items()}
+
+
+@frappe.whitelist()
+def sheet_coverage():
+    """How many blocks can show their sheet, and how many cannot. Read-only."""
+    blocks = frappe.get_all("Quarry Block",
+                            fields=["name", "source_quarry_inspection", "date_produced"],
+                            limit_page_length=0)
+    qis = sorted({_s(b.get("source_quarry_inspection")) for b in blocks if
+                  _s(b.get("source_quarry_inspection"))})
+    have = sheets_for(json.dumps(qis))
+    with_sheet = len([b for b in blocks
+                      if have.get(_s(b.get("source_quarry_inspection")))])
+    return {"ok": True, "blocks": len(blocks),
+            "blocks_with_a_sheet": with_sheet,
+            "blocks_without": len(blocks) - with_sheet,
+            "inspections": len(qis),
+            "inspections_with_a_sheet": len(have),
+            "dated": len([b for b in blocks if b.get("date_produced")])}
