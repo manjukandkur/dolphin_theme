@@ -174,12 +174,17 @@ function fillSheets(bl){
 var qis=[];
 (bl||[]).forEach(function(b){var q=b.source_quarry_inspection; if(q&&qis.indexOf(q)<0){qis.push(q);}});
 if(!qis.length){return;}
-fetch('/api/method/dolphin_theme.retirement.sheets_for',{method:'POST',
-  headers:{'Content-Type':'application/json','X-Frappe-CSRF-Token':(window.frappe&&frappe.csrf_token)||''},
-  credentials:'include', body:JSON.stringify({inspections:JSON.stringify(qis)})})
- .then(function(r){return r.json();})
+/* GET, not POST. This page is a website page with no window.frappe, so it has
+   no CSRF token and every POST comes back 400 CSRFTokenError - which parsed as
+   JSON with no .message and quietly rendered "no sheet attached" on inspections
+   that plainly had one. The rest of the page has always used GET for the same
+   reason. A missing sheet and an unreachable server must never look alike. */
+fetch('/api/method/dolphin_theme.retirement.sheets_for?inspections='
+      +encodeURIComponent(JSON.stringify(qis)), {credentials:'include'})
+ .then(function(r){ if(!r.ok){throw new Error('HTTP '+r.status);} return r.json(); })
  .then(function(j){
-   var map=(j&&j.message)||{};
+   if(!j || !j.message){ throw new Error('no payload'); }
+   var map=j.message;
    document.querySelectorAll('#result .sheets').forEach(function(el){
      var list=map[el.getAttribute('data-qi')]||[];
      el.innerHTML=list.length
@@ -187,7 +192,10 @@ fetch('/api/method/dolphin_theme.retirement.sheets_for',{method:'POST',
        : ' <span class="nosheet">no sheet attached</span>';
    });
  })
- .catch(function(){ /* the sheet is a convenience; never break the card for it */ });
+ .catch(function(){
+   /* Say nothing rather than say something false. */
+   document.querySelectorAll('#result .sheets').forEach(function(el){ el.innerHTML=''; });
+ });
 }
 function journey(b){
 var rank=(b.status in RANK)?RANK[b.status]:0;
