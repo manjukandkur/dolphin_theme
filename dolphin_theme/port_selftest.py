@@ -989,6 +989,80 @@ def _entry_points():
     )]
 
 
+# --------------------------------------------------------------------------
+# THE SAME BLOCK MUST READ THE SAME ON EVERY SCREEN — 3 Sep 2026.
+#
+# Three times in one day a finished feature failed to appear, and every time the
+# cause was the same shape: the code was right and the DATA never reached it,
+# because this app keeps MORE THAN ONE COPY of the block field list.
+#
+#     trace-block.html  - a global FL, and a SECOND FL inside the IIFE that holds
+#                         the search which actually runs
+#     overview.html     - a third FL, in its own copy of the journey
+#
+# Adding a field to one and not the others is silent: the card renders, the new
+# line is simply blank, and nobody can tell the difference between "this block
+# has no production date" and "this page never asked for it".
+#
+# So the app checks itself. Until those lists become one file, this fails loudly
+# the moment they drift.
+# --------------------------------------------------------------------------
+
+# Every field a block card is expected to be able to show, on any screen.
+BLOCK_CARD_FIELDS = [
+    "name", "block_number", "export_block_no", "status", "delivery_challan",
+    "buyer_inspection", "source_quarry_inspection", "granite_quality_grade",
+    "length_gross", "width_gross", "height_gross", "gross_volume",
+    "retired_on", "retired_because", "retired_ref", "date_produced",
+]
+
+_FL_PAGES = ["trace-block.html", "overview.html"]
+
+
+def _field_lists():
+    """Every `var FL = [...]` in the block pages, as sets of field names."""
+    import os
+    import re
+    here = os.path.dirname(os.path.abspath(__file__))
+    found = []
+    for page in _FL_PAGES:
+        path = os.path.join(here, "www", page)
+        try:
+            with open(path, "r", encoding="utf-8") as fh:
+                text = fh.read()
+        except Exception:
+            continue
+        for m in re.finditer(r"var\s+FL\s*=\s*\[(.*?)\]", text, re.S):
+            names = re.findall(r"['\"]([a-z_0-9]+)['\"]", m.group(1))
+            if names:
+                found.append((page, set(names)))
+    return found
+
+
+def _field_list_checks():
+    lists = _field_lists()
+    want = set(BLOCK_CARD_FIELDS)
+    missing = []
+    for page, names in lists:
+        gap = sorted(want - names)
+        if gap:
+            missing.append("{0}: missing {1}".format(page, ", ".join(gap)))
+    return [
+        _check("app.block_field_lists_found",
+               "Every block page's field list was readable",
+               len(lists) >= 3, "{0} list(s): {1}".format(
+                   len(lists), ", ".join(p for p, _ in lists)),
+               "One of the block pages could not be read, so its field list "
+               "cannot be checked for drift."),
+        _check("app.block_field_lists_agree",
+               "Every block field list carries every field a card can show",
+               not missing, missing,
+               "A page whose list is short renders the card but leaves the new "
+               "lines blank, which looks exactly like a block that has no such "
+               "fact. Add the missing fields to that list."),
+    ]
+
+
 @frappe.whitelist()
 def report():
     """Run every check. Reads only - changes nothing at all."""
@@ -1000,6 +1074,7 @@ def report():
         ("Stock at Port", _at_port_checks),
         ("Shipment Lots", _lot_checks),
         ("The app itself", _duplicate_defs),
+        ("One block, one story", _field_list_checks),
         ("The app's doors", _entry_points),
     ]
     out, failed, ran = [], 0, 0
