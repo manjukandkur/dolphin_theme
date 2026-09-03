@@ -107,6 +107,7 @@ after_migrate = [
     "dolphin_theme.lifecycle.ensure_resolution_types",
     "dolphin_theme.sizing.ensure_fields",
     "dolphin_theme.retirement.ensure_fields",
+    "dolphin_theme.block_links.ensure_fields",
 ]
 
 # Auto-import arrival emails: every 15 min, parse any arrival that came in via
