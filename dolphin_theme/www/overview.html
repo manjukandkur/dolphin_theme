@@ -48,6 +48,16 @@ body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Hel
 .bcard{background:#fbfcfe;border:1px solid var(--line);border-radius:12px;padding:16px;margin-top:8px;}
 .bhead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px;}
 .bno{font-size:20px;font-weight:800;} .meta{font-size:12px;color:var(--muted);}
+.bcard.retired{background:#f6f7f9;border-style:dashed;}
+.bcard.retired .bno{color:#9aa3ad;text-decoration:line-through;text-decoration-thickness:1px;}
+.prod{font-size:12px;color:var(--muted);margin:6px 0 2px;display:flex;flex-wrap:wrap;align-items:center;gap:2px;}
+.plab{font-size:10px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);margin-right:4px;}
+.psep{color:#c9d2dc;margin:0 4px;}
+.sheets{display:inline-flex;flex-wrap:wrap;gap:6px;margin-left:6px;}
+.chip{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;padding:2px 9px;border:1px solid #d7c8a4;background:#fdf8ec;color:#7a5c14;border-radius:999px;text-decoration:none;}
+.chip:hover{background:#f7edd6;}
+.nosheet{font-size:11.5px;color:#b3bac4;}
+.retnote{color:#8a929c;}
 .badge{font-size:12px;padding:3px 12px;border-radius:12px;font-weight:700;margin-left:auto;}
 .empty{padding:22px;text-align:center;color:#9aa3ad;}
 .note{background:#fffdf6;border:1px solid #f1d99a;border-left:4px solid var(--gold);border-radius:10px;padding:11px 14px;font-size:12.6px;color:#6b5320;margin:0 0 14px;}
@@ -125,7 +135,13 @@ document.getElementById("gmix").innerHTML='<div style="font-size:11px;font-weigh
 /* ---- journey (from trace-block) ---- */
 var SC={'In Stock':['#eaf3de','#3b6d11'],'Buyer Marked':['#faeeda','#854f0b'],'In Delivery Challan':['#e6f1fb','#0c447c'],'Dispatched/Transported':['#e6f1fb','#0c447c'],'At Port':['#eeedfe','#3c3489'],'At Bannikoppa Station yard':['#eeedfe','#3c3489'],'Shipped':['#e1f5ee','#0f6e56'],'Sold':['#f1efe8','#444441']};
 var RANK={'In Stock':0,'Buyer Marked':1,'In Delivery Challan':2,'Dispatched/Transported':3,'At Port':4,'At Bannikoppa Station yard':4,'Shipped':5,'Sold':6};
-var FL=['name','block_number','export_block_no','status','delivery_challan','buyer_inspection','source_quarry_inspection','granite_quality_grade','length_gross','width_gross','height_gross','gross_volume'];
+/* 3 Sep 2026. THIS PAGE KEEPS ITS OWN COPY of the trace journey - see the
+   comment above - and therefore its own field list. It is the THIRD such list
+   in this app (trace-block.html has two). Retirement, the production date and
+   the inspection sheet were added to the other two and not to this one, so the
+   Overview page showed none of them. Any field added to one list must be added
+   to all three, until they are one file. */
+var FL=['name','block_number','export_block_no','status','delivery_challan','buyer_inspection','source_quarry_inspection','granite_quality_grade','length_gross','width_gross','height_gross','gross_volume','retired_on','retired_because','retired_ref','date_produced'];
 function apiFind(filters){return apiList(FL,filters);}
 function pdf(dt,nm,fmt){return '/api/method/frappe.utils.print_format.download_pdf?doctype='+encodeURIComponent(dt)+'&name='+encodeURIComponent(nm)+'&format='+encodeURIComponent(fmt)+'&no_letterhead=0';}
 function eye(dt,nm,fmt){return nm?'<span class="eye docprev" data-dt="'+esc(dt)+'" data-nm="'+esc(nm)+'" data-fmt="'+esc(fmt)+'" style="cursor:pointer">👁 view</span>':'';}
@@ -137,6 +153,42 @@ document.addEventListener('click',function(e){var t=e.target&&e.target.closest?e
 function eslFor(b){var p=new URLSearchParams({doctype:'Shipment Lot Block',parent:'Export Shipment Lot',or_filters:JSON.stringify([['block_no','=',b.block_number],['block','=',b.name]]),fields:JSON.stringify(['parent']),limit_page_length:1});return fetch('/api/method/frappe.client.get_list?'+p.toString(),{credentials:'include',headers:{Accept:'application/json'}}).then(function(r){return r.json();}).then(function(j){return (j.message&&j.message[0]&&j.message[0].parent)||null;}).catch(function(){return null;});}
 function shipDocFor(esl){if(!esl)return Promise.resolve(null);var p=new URLSearchParams({doctype:'Export Shipment Lot',filters:JSON.stringify({name:esl}),fieldname:'shipping_document'});return fetch('/api/method/frappe.client.get_value?'+p.toString(),{credentials:'include',headers:{Accept:'application/json'}}).then(function(r){return r.json();}).then(function(j){return (j.message&&j.message.shipping_document)||null;}).catch(function(){return null;});}
 function stage(cls,icon,label,val,pend,extra){return '<div class="stg '+cls+'"><div class="bar"></div><div class="node">'+icon+'</div><div class="lbl">'+label+'</div><div class="val'+(pend?' pend':'')+'">'+val+'</div>'+(extra||'')+'</div>';}
+/* 3 Sep 2026, his words: "along with every block production date attach if any
+   pdfs or jpegs simple and sorted", and on the date: "in the sense the date of
+   the inspection report it belongs to". Same line as the trace page, because a
+   block must read the same on every screen that shows it. */
+function prodLine(b){
+if(!b.date_produced && !b.source_quarry_inspection){return '';}
+var h='<div class="prod"><span class="plab">Produced</span> <b>'+esc(b.date_produced||'not set')+'</b>';
+if(b.source_quarry_inspection){h+=' <span class="psep">·</span> '+esc(b.source_quarry_inspection);}
+h+='<span class="sheets" data-qi="'+esc(b.source_quarry_inspection||'')+'"></span>';
+if(b.retired_on){h+=' <span class="psep">·</span> <span class="retnote">retired '+esc(b.retired_on)+(b.retired_because?' · '+esc(b.retired_because):'')+'</span>';}
+return h+'</div>';
+}
+function sheetChip(f){
+var icon=(f.kind==='pdf')?'📄':'📷';
+return '<a class="chip" href="'+esc(f.url)+'" target="_blank" rel="noopener" title="'+esc(f.file_name)+'">'
+ +icon+' '+esc(f.file_name.length>26?f.file_name.slice(0,24)+'…':f.file_name)+'</a>';
+}
+/* GET, never POST: this is a website page with no window.frappe and so no CSRF
+   token. A POST returns 400 and parses as clean JSON, which is how "no sheet
+   attached" once appeared on inspections that plainly had one. */
+function fillSheets(bl){
+var qis=[];
+(bl||[]).forEach(function(b){var q=b.source_quarry_inspection; if(q&&qis.indexOf(q)<0){qis.push(q);}});
+if(!qis.length){return;}
+fetch('/api/method/dolphin_theme.retirement.sheets_for?inspections='+encodeURIComponent(JSON.stringify(qis)),{credentials:'include'})
+ .then(function(r){ if(!r.ok){throw new Error('HTTP '+r.status);} return r.json(); })
+ .then(function(j){
+   if(!j || !j.message){ throw new Error('no payload'); }
+   var map=j.message;
+   document.querySelectorAll('#result .sheets').forEach(function(el){
+     var list=map[el.getAttribute('data-qi')]||[];
+     el.innerHTML=list.length ? ' '+list.map(sheetChip).join('') : ' <span class="nosheet">no sheet attached</span>';
+   });
+ })
+ .catch(function(){ document.querySelectorAll('#result .sheets').forEach(function(el){ el.innerHTML=''; }); });
+}
 function journey(b){
 var rank=(b.status in RANK)?RANK[b.status]:0;
 var qno=esc(b.block_number||b.name), xno=b.export_block_no?esc(b.export_block_no):'not yet';
@@ -150,6 +202,7 @@ s.push(stage(dc(2,b.delivery_challan),'DC','Delivery Challan',b.delivery_challan
 s.push(stage(st(3),'🚛','Transported',(rank>=3?xno:'not yet'),rank<3,false));
 s.push(stage(st(4),'⚓','At Port',(rank>=4?xno:'not yet'),rank<4,false));
 s.push(stage(rank>=5?'done':'','🚢','Shipped',(rank>=5?xno:'not yet'),rank<5,(rank>=5?'<span class="pk" data-b="'+esc(b.name)+'"></span>':false)));
+if(b.retired_on){s.push(stage('done','✓','Retired',esc(b.retired_on),false,false));}
 return '<div class="journey">'+s.join('')+'</div>';
 }
 function render(q,bl){
@@ -159,8 +212,9 @@ R.innerHTML=bl.map(function(b){
 var sc=SC[b.status]||['#f1efe8','#444441'];
 var dim=(b.length_gross||'')+'×'+(b.width_gross||'')+'×'+(b.height_gross||'');
 var cbm=b.gross_volume?(' · '+(+b.gross_volume).toFixed(2)+' CBM'):'';
-return '<div class="bcard"><div class="bhead"><span class="bno">Block '+esc(b.block_number||b.name)+'</span>'+(b.export_block_no?'<span class="meta">export '+esc(b.export_block_no)+'</span>':'')+'<span class="badge" style="background:'+sc[0]+';color:'+sc[1]+'">📍 '+esc(b.status||'')+'</span></div><div class="meta">'+esc(b.granite_quality_grade||'')+(dim!=='××'?(' · '+dim+cbm):'')+'</div>'+journey(b)+'</div>';
+return '<div class="bcard'+(b.retired_on?' retired':'')+'"><div class="bhead"><span class="bno">Block '+esc(b.block_number||b.name)+'</span>'+(b.export_block_no?'<span class="meta">export '+esc(b.export_block_no)+'</span>':'')+'<span class="badge" style="background:'+sc[0]+';color:'+sc[1]+'">📍 '+esc(b.status||'')+'</span></div><div class="meta">'+esc(b.granite_quality_grade||'')+(dim!=='××'?(' · '+dim+cbm):'')+'</div>'+prodLine(b)+journey(b)+'</div>';
 }).join('');
+try{ fillSheets(bl); }catch(e){}
 // 3e — resolve DI Packing List PDF link for shipped blocks (packing only; Ilkal-safe)
 Array.prototype.forEach.call(R.querySelectorAll('span.pk'),function(sp){
 var nm=sp.getAttribute('data-b');
