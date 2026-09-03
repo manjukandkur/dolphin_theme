@@ -21,6 +21,13 @@
 #tbapp .card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:18px;margin-top:8px}
 #tbapp .card.retired{background:#f7f8fa;border-style:dashed}
 #tbapp .card.retired .bno{color:#9aa3ad;text-decoration:line-through;text-decoration-thickness:1px}
+#tbapp .prod{font-size:12.5px;color:#6b7280;margin:6px 0 2px;display:flex;flex-wrap:wrap;align-items:center;gap:2px}
+#tbapp .plab{font-size:10px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:#8a929c;margin-right:4px}
+#tbapp .psep{color:#c9d2dc;margin:0 4px}
+#tbapp .sheets{display:inline-flex;flex-wrap:wrap;gap:6px;margin-left:6px}
+#tbapp .chip{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;padding:2px 9px;border:1px solid #d7c8a4;background:#fdf8ec;color:#7a5c14;border-radius:999px;text-decoration:none}
+#tbapp .chip:hover{background:#f7edd6}
+#tbapp .nosheet{font-size:11.5px;color:#b3bac4}
 #tbapp .genline{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#8a929c;margin-bottom:8px}
 #tbapp .bhead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px}
 #tbapp .bno{font-size:22px;font-weight:800;letter-spacing:.01em}
@@ -141,6 +148,47 @@ if(!ref){return false;}
 if(/^DC-/i.test(ref)){return eye('Delivery Challan',ref,'Dolphin Delivery Challan');}
 return eye('Delivery Challan',ref,'Dolphin Delivery Challan');
 }
+/* 3 Sep 2026. [stated] "There will be a pdf or jpeg attached at the bottom
+   handwritten QI which can be checked or viewed so along with every block
+   production date attach if any pdfs or jpegs simple and sorted." And, on what
+   the date means: "in the sense the date of the inspection report it belongs to".
+   So the block shows ITS OWN production date, the inspection it belongs to, and
+   the sheet the quarry actually wrote - openable, so an argument about a date is
+   settled by looking instead of by trusting the field. */
+function prodLine(b){
+if(!b.date_produced && !b.source_quarry_inspection){return '';}
+var h='<span class="plab">Produced</span> <b>'+esc(b.date_produced||'not set')+'</b>';
+if(b.source_quarry_inspection){
+h+=' <span class="psep">&middot;</span> '+esc(b.source_quarry_inspection);
+}
+h+='<span class="sheets" data-qi="'+esc(b.source_quarry_inspection||'')+'"></span>';
+return h;
+}
+function sheetChip(f){
+var icon=(f.kind==='pdf')?'&#128196;':'&#128247;';
+return '<a class="chip" href="'+esc(f.url)+'" target="_blank" rel="noopener" title="'+esc(f.file_name)+'">'
+ +icon+' '+esc(f.file_name.length>26?f.file_name.slice(0,24)+'\u2026':f.file_name)+'</a>';
+}
+/* One call for the whole result, not one per card. */
+function fillSheets(bl){
+var qis=[];
+(bl||[]).forEach(function(b){var q=b.source_quarry_inspection; if(q&&qis.indexOf(q)<0){qis.push(q);}});
+if(!qis.length){return;}
+fetch('/api/method/dolphin_theme.retirement.sheets_for',{method:'POST',
+  headers:{'Content-Type':'application/json','X-Frappe-CSRF-Token':(window.frappe&&frappe.csrf_token)||''},
+  credentials:'include', body:JSON.stringify({inspections:JSON.stringify(qis)})})
+ .then(function(r){return r.json();})
+ .then(function(j){
+   var map=(j&&j.message)||{};
+   document.querySelectorAll('#result .sheets').forEach(function(el){
+     var list=map[el.getAttribute('data-qi')]||[];
+     el.innerHTML=list.length
+       ? ' '+list.map(sheetChip).join('')
+       : ' <span class="nosheet">no sheet attached</span>';
+   });
+ })
+ .catch(function(){ /* the sheet is a convenience; never break the card for it */ });
+}
 function journey(b){
 var rank=(b.status in RANK)?RANK[b.status]:0;
 var qno=esc(b.block_number||b.name);           // quarry block number (up to DC)
@@ -229,9 +277,11 @@ return '<div class="card'+(b.retired_on?' retired':'')+'">'
 +'<div class="idrule">Quarry block number up to Delivery Challan &middot; export number from Transport onward</div>'
 +'<div class="idrule">This is one block, and the badge above is where it is now. '
 +'Arrival sheets can list it many times &mdash; those are sheet <b>rows</b>, not blocks, and a question about them never means there are two stones.</div>'
++'<div class="prod" id="prod-'+esc(b.name)+'">'+prodLine(b)+'</div>'
 +journey(b)
 +'</div>';
 }).join('')+'<div class="foot">Dolphin International &middot; Trace a block</div>';
+try{ fillSheets(bl); }catch(e){}
 bidims(bl.map(function(b){return b.name;})).then(function(res){
 bl.forEach(function(b){var el=document.getElementById('mline-'+b.name);
 if(el){el.innerHTML=mline(b,res.map[String(b.name)]||null,res.ok);}});
