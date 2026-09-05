@@ -64,7 +64,7 @@
 <div id="tbapp">
 <div class="hd"><div class="ic">&#9678;</div><div><h1>Trace a block</h1><div class="sub">Dolphin International &middot; type any quarry block number or export number to see its full journey</div></div></div>
 <div class="sbx"><input id="q" placeholder="Block number, range, list &mdash; or DC 0133, BI 112&hellip;" autofocus></div>
-<div class="hint">Type a <b>block number</b> &mdash; quarry or export, either one finds it &middot; a <b>range</b> 1332-1356 &middot; a <b>list</b> 1332,1340 &middot; or a <b>document</b>: <b>DC 0133</b>, <b>BI 112</b>, <b>QI 017</b>, <b>ARR 27Jul</b>, <b>LOT 26</b>, <b>INV 0050</b> &mdash; or paste the full id, DC-GCHG-061. A number that has been used twice shows both stones; the <b>internal id</b> (1001332) always finds exactly one.</div>
+<div class="hint">Type a <b>block number</b> &mdash; quarry or export, either one finds it &middot; a <b>range</b> 1332-1356 (a letter in a number is ignored, so <b>B1189</b> answers to 1189) &middot; a <b>list</b> 1332,1340 &middot; or a <b>document</b>: <b>DC 0133</b>, <b>BI 112</b>, <b>QI 017</b>, <b>ARR 27Jul</b>, <b>LOT 26</b>, <b>INV 0050</b> &mdash; or paste the full id, DC-GCHG-061. A number that has been used twice shows both stones; the <b>internal id</b> (1001332) always finds exactly one.</div>
 <div id="result"><div class="empty">Enter a block number above.</div></div>
 </div>
 <script>
@@ -360,12 +360,18 @@ window.__tbRender=render;
   function parseQuery(raw) {
     var s = String(raw || "").trim();
     if (!s) { return null; }
-    var m = s.match(/^(\d+)\s*(?:-|to|\.\.)\s*(\d+)$/i);
+    /* 5 Sep 2026: a letter on either end is accepted and ignored, so B1180-1190
+       and 1180-1190 are the same range. The digits are what count. */
+    var m = s.match(/^[A-Za-z]*(\d+)[A-Za-z]*\s*(?:-|to|\.\.)\s*[A-Za-z]*(\d+)[A-Za-z]*$/i);
     if (m) {
       var a = parseInt(m[1], 10), b = parseInt(m[2], 10);
       if (a > b) { var t = a; a = b; b = t; }
       if (b - a + 1 > MAX) { return { error: "That range is " + (b - a + 1) + " blocks. Please keep it to " + MAX + " or fewer." }; }
-      return { list: expand(a, b), label: a + "-" + b, many: true };
+      /* 5 Sep 2026, his catch: "I cannot always remember which number is alpha
+         numeric right?" - so the range is answered on the SERVER, which reads the
+         digits inside each number and ignores any letter. 1180-1190 finds B1189.
+         The expanded list is kept only as the fallback if that call fails. */
+      return { list: expand(a, b), label: a + "-" + b, many: true, lo: a, hi: b };
     }
     if (s.indexOf(",") !== -1) {
       var many = s.split(",").map(function (x) { return x.trim(); }).filter(Boolean);
@@ -409,6 +415,12 @@ window.__tbRender=render;
     } catch (e) { /* no URLSearchParams, no handover */ }
   })();
 
+  function rangeFallback(q, R) {
+    apiFind([["block_number", "in", q.list]])
+      .then(function (bl) { return (bl && bl.length) ? bl : apiFind([["export_block_no", "in", q.list]]); })
+      .then(function (bl) { window.__tbRender(q.label, sortBlocks(bl)); })
+      .catch(function (e) { R.innerHTML = '<div class="empty">Error: ' + ((e && e.message) || e) + '</div>'; });
+  }
   function run() {
     var R = document.getElementById("result");
     if (!R || !window.__tbRender) { return; }
@@ -424,6 +436,25 @@ window.__tbRender=render;
     var raw = box ? String(box.value || "").trim() : "";
     if (window.__dipIsDoc && window.__dipIsDoc(raw)) {
       R.innerHTML = '<div class="empty">Looking up <b>' + raw.replace(/[&<>"]/g, "") + '</b>&hellip;</div>';
+      return;
+    }
+    if (q.lo !== undefined) {
+      var ru = '/api/method/dolphin_theme.blocks_api.numbers_in_range?low=' + q.lo + '&high=' + q.hi;
+      fetch(ru, { credentials: 'include', headers: { Accept: 'application/json' } })
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          var m = j && j.message;
+          if (!m || !m.blocks) { throw new Error('no answer'); }
+          window.__tbRender(m.label, m.blocks);
+          var head = '<div class="empty" style="text-align:left">Showing <b>' + m.found +
+            '</b> block' + (m.found === 1 ? '' : 's') + ' in ' + m.label +
+            '. <span style="color:#6b7280">A letter in a number is ignored when matching, so ' +
+            'B1189 answers to 1189.</span>' +
+            (m.missing && m.missing.length
+              ? ' Not found: <b>' + m.missing.join(", ") + '</b>' : '') + '</div>';
+          R.innerHTML = head + R.innerHTML;
+        })
+        .catch(function () { rangeFallback(q, R); });
       return;
     }
     apiFind([["block_number", "in", q.list]])
