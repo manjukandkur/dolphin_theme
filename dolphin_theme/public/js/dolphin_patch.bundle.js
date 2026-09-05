@@ -934,9 +934,24 @@ frappe.provide("dolphin");
       return { query: 'dolphin_theme.blocks_api.inspections_with_free_blocks' };
     };
     if (picked.df) { picked.df.get_query = picked.get_query; }
+
+    /* 5 Sep 2026, found by opening the dialog and looking at it rather than
+       trusting the deploy: the query was right, the server answered with the
+       right 13 sheets, and the dropdown still showed all 29. Frappe's Link
+       control CACHES its results on $input.cache the first time the field is
+       searched - and the field is searched the instant the dialog opens, which
+       is before this override lands. So the stale unfiltered list was being
+       replayed forever. Clear it, and the next search fetches properly. */
+    try {
+      if (picked.$input && picked.$input.cache) { picked.$input.cache = {}; }
+      if (picked.awesomplete) { picked.awesomplete._list = []; picked.awesomplete.list = []; }
+    } catch (e) {}
     try {
       if (picked.$input) {
         picked.$input.attr('placeholder', 'Only sheets with blocks still free');
+        picked.$input.on('focus', function () {
+          try { if (picked.$input.cache) { picked.$input.cache = {}; } } catch (e2) {}
+        });
       }
     } catch (e) {}
   }
@@ -952,12 +967,14 @@ frappe.provide("dolphin");
             var n = added[j];
             if (!n || n.nodeType !== 1) { continue; }
             if (n.classList && n.classList.contains('modal')) {
-              setTimeout(function () { narrowPicker(n); }, 250);
+              setTimeout(function () { narrowPicker(n); }, 60);
+              setTimeout(function () { narrowPicker(n); }, 600);
               setTimeout(function () { decorate(n); }, 700);
             }
             else if (n.querySelectorAll) {
               [].forEach.call(n.querySelectorAll('.modal'), function (m) {
-                setTimeout(function () { narrowPicker(m); }, 250);
+                setTimeout(function () { narrowPicker(m); }, 60);
+                setTimeout(function () { narrowPicker(m); }, 600);
                 setTimeout(function () { decorate(m); }, 700);
               });
               /* the table often arrives after the modal does */
