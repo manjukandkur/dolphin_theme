@@ -728,6 +728,35 @@ frappe.provide("dolphin");
     frappe.ui.form.on(child, h);
   });
 
+  /* Quarry Block itself. Its own old guard was switched off with the other two,
+     and the block's number field is a PARENT field, not a child row - so it needs
+     its own handler or the doctype is left with no rule at all. Blocks are made
+     by Push to Stock rather than typed, but "rarely typed" is not "never". */
+  frappe.ui.form.on('Quarry Block', {
+    block_number: function (frm) {
+      var v = frm.doc.block_number;
+      if (v === undefined || v === null || v === '') { return; }
+      var t = String(v).trim();
+      if (t !== String(v)) { frm.set_value('block_number', t); return; }
+      if (!OK.test(t)) { complain(t); }
+    },
+    validate: function (frm) {
+      var v = frm.doc.block_number;
+      if (v === undefined || v === null || v === '') { return; }
+      if (!OK.test(String(v).trim())) {
+        frappe.validated = false;
+        frappe.msgprint({
+          title: 'Not saved',
+          indicator: 'red',
+          message: 'The block number <b>' + frappe.utils.escape_html(String(v)) +
+                   '</b> is not in a shape this app can follow. Up to two letters ' +
+                   'either side of one to six digits: <b>1182</b>, <b>M1182</b>, ' +
+                   '<b>1182A</b>.'
+        });
+      }
+    }
+  });
+
   /* the real stop: a sheet does not save while a number is malformed */
   ['Quarry Inspection', 'Buyer Inspection'].forEach(function (parent) {
     frappe.ui.form.on(parent, {
