@@ -499,3 +499,81 @@ frappe.provide("dolphin");
   setInterval(addPendingIcon, 1300);
   setTimeout(addPendingIcon, 900); setTimeout(addPendingIcon, 2300);
 })();
+
+/* ===========================================================================
+   ATTACH ON A NEW SHEET: SAVE THE DRAFT FIRST.  5 Sep 2026
+
+   [stated] "one more thing on QI it is not taking the attachments now
+    previously it was."
+   [stated] "auto save draft but submit will be done by user"
+
+   Nothing had been taken away. Frappe gives a document that has never been
+   saved no Attachments section at all - there is no record for a file to belong
+   to yet - and his screenshot was a "New Quarry Inspection, Not Saved". On a
+   saved inspection the section, the + button and the Report Photo field are all
+   there, and 18 files are attached across the inspections.
+
+   So the fix is not to the attachment code, it is to the moment: the sheet
+   saves itself as a DRAFT the instant somebody wants to attach, and the file
+   dialog opens on the saved record. SUBMIT IS NEVER TOUCHED - his words - and
+   no inspection on the site has ever been submitted anyway.
+
+   If the sheet cannot save because a required field is empty, Frappe says which
+   one in its own words and nothing is attached. A save that fails and a file
+   that vanishes must never look the same.
+   =========================================================================== */
+(function () {
+  if (!(window.frappe && frappe.ui && frappe.ui.form)) { return; }
+  var MARK = 'dolphin-attach-first';
+
+  function openAttach(frm) {
+    try {
+      if (frm.attachments && frm.attachments.new_attachment) {
+        frm.attachments.new_attachment();
+        return true;
+      }
+      var btn = document.querySelector('.add-attachment-btn');
+      if (btn) { btn.click(); return true; }
+    } catch (e) { /* fall through to the message below */ }
+    frappe.show_alert({ message: 'Saved. The Attachments panel is on the right.',
+                        indicator: 'green' });
+    return false;
+  }
+
+  function offer(frm) {
+    if (!frm.is_new()) { return; }
+    if (frm.__dolphinAttachOffered) { return; }
+    frm.__dolphinAttachOffered = true;
+    frm.add_custom_button('Attach a sheet or photo', function () {
+      frappe.show_alert({ message: 'Saving this sheet as a draft first…',
+                          indicator: 'blue' });
+      frm.save()
+        .then(function () { openAttach(frm); })
+        .catch(function () {
+          /* Frappe has already named the empty required field. Say what it
+             means for the attachment, and do not pretend anything was kept. */
+          frappe.msgprint({
+            title: 'Nothing attached yet',
+            indicator: 'orange',
+            message: 'A file needs a saved sheet to belong to, and this one ' +
+                     'could not be saved yet — fill the fields marked above ' +
+                     'and press <b>Attach a sheet or photo</b> again. ' +
+                     'It saves as a <b>draft</b> only; submitting stays with you.'
+          });
+        });
+    });
+    try { frm.dashboard.add_comment(
+      'This sheet has not been saved yet, so there is nowhere for a file to live. ' +
+      'Press <b>Attach a sheet or photo</b> and it saves as a draft first — ' +
+      'submitting is still yours to do.', 'blue', true); } catch (e) {}
+  }
+
+  ['Quarry Inspection', 'Buyer Inspection'].forEach(function (dt) {
+    frappe.ui.form.on(dt, {
+      refresh: function (frm) {
+        try { offer(frm); } catch (e) { /* never block a form */ }
+      }
+    });
+  });
+  window[MARK] = true;
+})();

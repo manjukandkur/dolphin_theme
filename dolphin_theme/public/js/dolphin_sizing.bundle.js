@@ -1158,8 +1158,13 @@
      where the stone is actually in front of somebody. Nothing on QI or BI is
      disturbed - both child tables already carried granite_size_category and
      granite_quality_grade; this only gives them the tick-and-apply screen. */
+  /* 5 Sep 2026: the Quarry Inspection is OFF this list on his instruction -
+     "Whatever you have given now in QI remove it and add it in BI" and "Qi will
+     be just whatever was earlier to the present". The sheet keeps its plain
+     Size and Grade columns, filled by the house rule and typed over when wrong;
+     every deliberate size or grade decision is made at the inspection. */
   ['Export Shipment Lot', 'Shipping Document',
-   'Quarry Inspection', 'Buyer Inspection'].forEach(function (dt) {
+   'Buyer Inspection'].forEach(function (dt) {
     frappe.ui.form.on(dt, {
       refresh: function (frm) {
         try { render(frm); } catch (e) { /* a panel must never block the form */ }
