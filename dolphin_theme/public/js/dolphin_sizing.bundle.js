@@ -148,7 +148,10 @@
         var lo = Math.min(r[0], r[1]), hi = Math.max(r[0], r[1]);
         return n >= lo && n <= hi;
       });
-      if (hit && !seen[b.row]) { seen[b.row] = 1; rows.push(b.row); }
+      /* 5 Sep 2026: the row we send is the row on the document the write
+         lands on, which for a shipping document is its lot. */
+      var rid = b.owner_row || b.row;
+      if (hit && !seen[rid]) { seen[rid] = 1; rows.push(rid); }
     });
     return rows;
   }
@@ -230,7 +233,10 @@
   /* ================================================================ SIZES */
   function sizesHtml(d) {
     var h = ['<div class="dsz">'];
-    var edit = d.owner.editable && !d.frozen;
+    /* 5 Sep 2026: editable wherever it is not shut. The old gate made the
+       whole panel read-only on a shipping document that follows its lot, so
+       there was nothing on the screen to press - the DI user's report. */
+    var edit = !!(d.owner && d.owner.editable) && !d.frozen;
 
     /* 1 Sep 2026, his rule: "if exported edit option should not be visible or
        else these edits must reflect on shipping docs". So when it is shut, the
@@ -242,21 +248,21 @@
     }
 
     if (d.doctype === 'Shipping Document') {
-      /* 1 Sep 2026, his words: "either one should be active so give a check mark
-         for both". So the choice is shown as the two things it actually is, and
-         exactly one of them is ticked. They are bound to the same single value,
-         so a third state cannot exist and the two can never both be off. */
-      h.push(sourcePicker(d));
+      /* 5 Sep 2026, his words: "I did not understand on the lot and on this
+         document only" and then "remove the question". Gone - both tick boxes and
+         the dialog behind them. One document per lot, every time, in his data, so
+         the two were the same 56 blocks under two names. Edit here; it is saved on
+         the lot and comes straight back, and they can never disagree. */
       if (d.override) {
-        h.push('<div class="note"><b>This document has left ' + esc(d.lot || 'its lot') +
-               '.</b> It is working from its own copy of the thresholds, taken when you ' +
-               'ticked it. Correcting the lot no longer reaches this document.</div>');
+        h.push('<div class="note"><b>Set on this document.</b> An older document that was ' +
+               'deliberately held apart from ' + esc(d.lot || 'its lot') +
+               '. Changes here stay here.</div>');
       } else if (d.lot) {
-        h.push('<div class="ok"><b>Following ' + esc(d.lot) + '.</b> The lot decides, and this ' +
-               'document stays in step with it. ' +
-               '<span class="b gold" data-dsz="editlot">Edit on the lot&hellip;</span></div>');
+        h.push('<div class="ok"><b>Sizes for ' + esc(d.lot) + '.</b> Edit them here \u2014 ' +
+               'they are saved on the lot, so the lot and this document always agree.</div>');
       } else {
-        h.push('<div class="quiet">This document has no lot behind it, so the standard set applies.</div>');
+        h.push('<div class="quiet">This document has no lot behind it, so it is sorted by the ' +
+               'standard set and edited here.</div>');
       }
     }
 
@@ -330,8 +336,11 @@
     return h.join('');
   }
 
-  /* Two ticks, one value. Whichever you tick, the other clears - there is no way
-     to have both on, and no way to have neither. */
+  /* REMOVED 5 Sep 2026 - "remove the question". Kept only as this note so the
+     next reader does not reinvent it: two tick boxes bound to one value, where
+     ticking one opened a mandatory-reason prompt BEFORE anything was saved. Cancel
+     the prompt and the tick stayed on while nothing had happened, so the panel read
+     "Set on this document" and "Following the lot" at the same time.
   function sourcePicker(d) {
     var uid = (sourcePicker.n = (sourcePicker.n || 0) + 1);
     function one(on, id, label, sub) {
@@ -349,6 +358,7 @@
                'This document takes its own copy and stops following the lot.') +
            '</div>';
   }
+  */
 
   /* 1 Sep 2026, his ask: "add more like if you remove this Size all blocks will
      move to C size or b size etc". So the screen works it out as you type, using
@@ -508,6 +518,8 @@
     (d.blocks || []).forEach(function (bl) {
       h.push('<tr' + (edit ? ' class="pick"' : '') + '>' +
              (edit ? '<td><input type="checkbox" class="bck" data-row="' + esc(bl.row) + '"' +
+                     ' data-owner-row="' + esc(bl.owner_row || bl.row) + '"' +
+                     ' data-block="' + esc(bl.block) + '"' +
                      (bl.marginal ? ' data-marginal="1"' : '') +
                      (gmap[bl.row] ? '' : ' data-ungraded="1"') + '></td>' : '') +
              '<td><b>' + esc(bl.block) + '</b></td>' +
@@ -535,8 +547,9 @@
   /* ================================================================ GRADE */
   function gradeHtml(d) {
     var g = d.grade || {};
-    var where = d.is_lot ? 'this lot' : (d.override ? 'this document' : esc(d.lot || 'the lot'));
-    var edit = !d.frozen && (d.is_lot || d.override);
+    var where = (d.owner && d.owner.name) ? esc(d.owner.name)
+              : (d.is_lot ? 'this lot' : 'this document');
+    var edit = !d.frozen && !!(d.owner && d.owner.editable);
     var h = ['<div class="dsz">'];
 
     h.push('<div class="bar"><input type="checkbox" id="dsz-grade-on"' +
@@ -869,8 +882,17 @@
     /* ONE Apply for both axes. Either dropdown on "no change" leaves that side alone. */
     $sec.find('[data-dsz="apply"]').on('click', function () {
       if (this.hasAttribute('disabled')) return;
-      var rows = [];
-      $sec.find('input.bck:checked').each(function () { rows.push(this.dataset.row); });
+      var rows = [], lost = [];
+      $sec.find('input.bck:checked').each(function () {
+        if (this.dataset.ownerRow) { rows.push(this.dataset.ownerRow); }
+        else { lost.push(this.dataset.block || '?'); }
+      });
+      if (lost.length) {
+        frappe.msgprint('These blocks are on this document but not on ' +
+                        esc(d.owner.name) + ', so they cannot be set from here: ' +
+                        esc(lost.join(', ')) + '.');
+        return;
+      }
       if (!rows.length) { return; }
       var to = $sec.find('[data-dsz="szon"]').prop('checked')
              ? $sec.find('[data-dsz="szval"]').val() : '__keep__';
@@ -911,24 +933,6 @@
     $sec.find('[data-dsz="editlot"]').on('click', function () {
       openLotDialog(frm, d.lot);
     });
-
-    $sec.find('input.dsz-src').on('change', function () {
-      var wantOwn = this.dataset.on === '1' ? this.checked : !this.checked;
-      if (wantOwn === !!d.override) { render2(frm); return; }   /* nothing to do */
-      if (wantOwn) {
-        frappe.prompt([{ fieldname: 'reason', fieldtype: 'Small Text',
-                         label: 'Why this document needs its own copy', reqd: 1 }],
-          function (v) {
-            call('set_override', { shipping_document: frm.doc.name, on: 1,
-                                   reason: v.reason, person: frappe.session.user })
-              .then(function () { frm.reload_doc(); });
-          }, 'Set on this document', 'Turn it on');
-      } else {
-        call('set_override', { shipping_document: frm.doc.name, on: 0,
-                               person: frappe.session.user })
-          .then(function () { frm.reload_doc(); });
-      }
-    });
   }
 
   function render2(frm) { try { frm.reload_doc(); } catch (e) {} }
@@ -958,9 +962,10 @@
 
   function wireGrade(frm, $sec, d) {
     if (!$sec || !$sec.find) return;
-    var target = (d.is_lot || d.override)
-      ? { doctype: d.doctype, name: d.name }
-      : { doctype: 'Export Shipment Lot', name: d.lot };
+    /* 5 Sep 2026: one place, worked out server-side. */
+    var target = (d.owner && d.owner.name)
+      ? { doctype: d.owner.doctype, name: d.owner.name }
+      : { doctype: d.doctype, name: d.name };
 
     $sec.find('#dsz-grade-on').on('change', function () {
       call('set_grade_recording', { doctype: target.doctype, name: target.name,
