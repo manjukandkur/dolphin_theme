@@ -50,9 +50,10 @@ doc_events = {
     # by a buyer, because there are none any more.
     # 5 Sep 2026: the Buyer Inspection opens holding what the quarry recorded,
     # and is then the document that decides. See sizing.seed_from_quarry.
-    "Buyer Inspection": {
-        "validate": ["dolphin_theme.sizing.seed_from_quarry"],
-    },
+    # (The Buyer Inspection entry lives further down, with the 31 Aug note. It
+    #  was written twice in this dict on 5 Sep and Python keeps only the LAST
+    #  one, so seed_from_quarry was silently never registered. Both are merged
+    #  there now. Never add a second entry for a doctype here.)
     "Shipping Document": {
         "validate": [
             "dolphin_theme.sizing.carry_sizes",
@@ -76,9 +77,14 @@ doc_events = {
     # 31 Aug 2026. The size is decided where the buyer's own measurement is
     # taken, using THAT buyer's bands - read from what they accepted on their
     # last invoice. A size already chosen by hand is never overwritten.
+    # 5 Sep 2026: the Buyer Inspection opens holding what the quarry recorded,
+    # and is then the document that decides. seed_from_quarry fills only what is
+    # BLANK and runs before carry_sizes, so a size chosen by hand here always
+    # wins over the quarry's. THE ONLY Buyer Inspection entry in this dict.
     "Buyer Inspection": {
         "validate": [
             "dolphin_theme.guards.guard",
+            "dolphin_theme.sizing.seed_from_quarry",
             "dolphin_theme.sizing.carry_sizes",
         ],
     },
@@ -93,6 +99,12 @@ doc_events = {
     "Delivery Challan": {
         "validate": "dolphin_theme.guards.guard",
         "on_submit": "dolphin_theme.guards.dc_block_status_on_submit",
+    },
+    # 5 Sep 2026. The block's own size band, written at save from the house
+    # measurements. It used to be done by a site Client Script on every form
+    # REFRESH, which left every block he opened showing "Not Saved".
+    "Quarry Block": {
+        "validate": "dolphin_theme.sizing.fill_block_size",
     },
     # 3 Sep 2026, his instruction: "so on QI rather than entering it must take
     # automatically whatever date is entered.. that way delayed entries get right
