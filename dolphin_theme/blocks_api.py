@@ -407,3 +407,83 @@ def collisions(limit=500):
             out.append({"number": k, "blocks": group, "count": len(names)})
     out.sort(key=lambda x: (-x["count"], x["number"]))
     return out[:int(limit or 500)]
+
+
+# ---------------------------------------------------------------------------
+# A RANGE READS THE DIGITS, NOT THE STRING.  5 Sep 2026
+#
+# [stated] "suppose only one block in the range is alpha numeric eg 1189 is
+#  B1189 but my range will 1180-1190 then what? I cannot always remember which
+#  number is alpha numeric right?"
+#
+# Exactly right, and it kills the idea I had offered him an hour earlier - a
+# prefix-aware range like M152-M170 would have made him remember which numbers
+# carry a letter, which is the one thing he said he cannot do.
+#
+# So the range reads the DIGITS INSIDE a number and ignores whatever letters sit
+# around them. He types 1180-1190 exactly as he always has - no new grammar, and
+# nothing to remember - and B1189 is found because its digits are 1189. If both
+# 1189 and B1189 exist they BOTH come back, which is the point of a range and is
+# what the repeated-number design of 3 Sep asks for.
+#
+# It also closes a second hole that was already there: the page tried
+# block_number first and only fell back to export_block_no if that found
+# NOTHING, so a range spanning both kinds returned half its blocks. This asks
+# both number spaces at once and returns the union.
+# ---------------------------------------------------------------------------
+
+_RANGE_FIELDS = ["name", "block_number", "export_block_no", "status",
+                 "delivery_challan", "buyer_inspection", "source_quarry_inspection",
+                 "granite_quality_grade", "length_gross", "width_gross",
+                 "height_gross", "gross_volume", "retired_on", "retired_because",
+                 "retired_ref", "date_produced"]
+
+
+def _digits(v):
+    """The number inside a block number. 'B1189' -> 1189, '1189A' -> 1189.
+
+    Returns None when there is no digit at all, so a purely alphabetic entry
+    never silently becomes zero - the 4 Jun failure, where "3300A".toLong()
+    returned 0 and blocks were created numbered 0."""
+    s = "".join(ch for ch in str(v or "") if ch.isdigit())
+    if not s:
+        return None
+    try:
+        return int(s)
+    except Exception:
+        return None
+
+
+@frappe.whitelist()
+def numbers_in_range(low=None, high=None, limit=500):
+    """Every block whose quarry OR export number falls in a numeric range.
+
+    Letters are ignored when deciding whether a number is in range, and kept
+    exactly as they are in what comes back. Reads only; writes nothing."""
+    lo, hi = _digits(low), _digits(high)
+    if lo is None or hi is None:
+        frappe.throw("Give the range as two numbers, for example 1180-1190.")
+    if lo > hi:
+        lo, hi = hi, lo
+    cap = frappe.utils.cint(limit) or 500
+    if hi - lo + 1 > cap:
+        frappe.throw("That range is {0} numbers. Please keep it to {1} or fewer.".format(
+            hi - lo + 1, cap))
+
+    out, seen, matched = [], set(), set()
+    for b in frappe.get_all("Quarry Block", fields=_RANGE_FIELDS, limit_page_length=0):
+        for f in ("block_number", "export_block_no"):
+            d = _digits(b.get(f))
+            if d is not None and lo <= d <= hi:
+                if b["name"] not in seen:
+                    seen.add(b["name"])
+                    out.append(b)
+                matched.add(d)
+                break
+
+    out.sort(key=lambda r: (_digits(r.get("block_number")) or 0,
+                            str(r.get("block_number") or "")))
+    asked = hi - lo + 1
+    return {"blocks": out, "asked": asked, "found": len(out),
+            "missing": sorted(n for n in range(lo, hi + 1) if n not in matched),
+            "label": "{0}-{1}".format(lo, hi)}
