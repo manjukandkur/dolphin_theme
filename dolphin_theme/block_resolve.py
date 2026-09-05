@@ -126,12 +126,40 @@ def resolve_one(key, allow_record_name=False):
     return c[0]
 
 
+def _letters_are_in_use():
+    """Is there ANY block whose number carries a letter? One query per request.
+
+    5 Sep 2026. This is what keeps the sibling check below free: today not one
+    of the 617 blocks has a letter, so the check costs nothing and changes
+    nothing. The day the quarry starts writing M1182, it switches itself on."""
+    flag = getattr(frappe.local, "_dolphin_letters_in_use", None)
+    if flag is None:
+        try:
+            flag = bool(frappe.db.sql("""
+                select 1 from `tabQuarry Block`
+                where block_number regexp '[A-Za-z]'
+                   or export_block_no regexp '[A-Za-z]'
+                limit 1"""))
+        except Exception:
+            flag = False
+        frappe.local._dolphin_letters_in_use = flag
+    return flag
+
+
 def try_resolve(key, allow_record_name=False):
     """Non-throwing form. Returns (hit_or_None, reason).
 
     reason is one of: "ok", "empty", "not-found", "ambiguous".
     Use this on any path that processes many rows — one bad number must not
-    abort the whole sheet."""
+    abort the whole sheet.
+
+    5 Sep 2026, and this is the plug that was missing. `who_is_this` knew about
+    letter siblings; NOTHING CALLED IT. Every arrival row, every import, every
+    lookup came through here, and here matched the string exactly - so an agency
+    row saying "1189" would match the old plain 1189 with full confidence while
+    M1189 sat beside it. His words: "so arrivals doesnt assume it as older block
+    number". This is the one chokepoint that had to know, so it knows here, and
+    all forty-odd callers get it at once rather than one at a time."""
     key = _s(key)
     if not key:
         return None, "empty"
@@ -139,6 +167,14 @@ def try_resolve(key, allow_record_name=False):
         hit = resolve_one(key, allow_record_name=allow_record_name)
     except AmbiguousBlock:
         return None, "ambiguous"
+    if hit and _letters_are_in_use():
+        try:
+            if letter_siblings(key):
+                # the number alone cannot tell these apart - say so rather than
+                # hand back the first one and let it look certain
+                return None, "ambiguous"
+        except Exception:
+            pass
     return (hit, "ok") if hit else (None, "not-found")
 
 
