@@ -589,3 +589,99 @@ def taken_status(numbers=None, exclude=None):
     return {"ok": True, "blocks": out,
             "free": sum(1 for v in out.values() if not v["taken"]),
             "taken": sum(1 for v in out.values() if v["taken"])}
+
+
+# ---------------------------------------------------------------------------
+# ONLY THE INSPECTIONS THAT STILL HAVE SOMETHING.  5 Sep 2026
+#
+# [stated] "only the active ones either with all the blocks or partly available
+#  in QI should be displayed under BI.. what is the point in showging QI wherein
+#  all blocks are taken?"
+#
+# None at all. The picker listed every quarry inspection ever made, including
+# the ones whose stone has already gone, so a person scrolls past sheets that
+# can give them nothing. This lists an inspection only while it still has a free
+# block, and says how many - "14 of 40 free" - so the choice is made before the
+# dialog is even opened.
+# ---------------------------------------------------------------------------
+
+def _free_counts(names=None):
+    """Per quarry inspection: how many of its blocks are still free.
+
+    Free means the block exists, is In Stock, is not retired, is on no challan,
+    no lot, no shipping document and no other buyer inspection."""
+    out = {}
+    try:
+        rows = frappe.get_all(
+            "Quarry Inspection Block",
+            filters=({"parenttype": "Quarry Inspection", "parent": ["in", names]}
+                     if names else {"parenttype": "Quarry Inspection"}),
+            fields=["parent", "quarry_block_no", "block"], limit_page_length=0) or []
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), "Dolphin _free_counts rows")
+        return out
+    if not rows:
+        return out
+
+    numbers = sorted({_s(r.get("quarry_block_no")) for r in rows if _s(r.get("quarry_block_no"))})
+    status = taken_status(numbers=numbers).get("blocks", {}) if numbers else {}
+
+    for r in rows:
+        p = _s(r.get("parent"))
+        if not p:
+            continue
+        d = out.setdefault(p, {"total": 0, "free": 0})
+        d["total"] += 1
+        info = status.get(_s(r.get("quarry_block_no")))
+        # a row whose block was never created is still something to inspect
+        if not info or not info.get("taken"):
+            d["free"] += 1
+    return out
+
+
+@frappe.whitelist()
+def inspections_with_free_blocks(doctype=None, txt=None, searchfield=None,
+                                 start=0, page_len=50, filters=None):
+    """Link-field query: quarry inspections that still have a free block.
+
+    Returns [name, "<report no> · N of M free"] so the count is visible in the
+    dropdown itself. An inspection with nothing left is not listed at all."""
+    txt = _s(txt)
+    try:
+        qis = frappe.get_all("Quarry Inspection",
+                             fields=["name", "report_no", "report_date"],
+                             order_by="report_date desc, creation desc",
+                             limit_page_length=0) or []
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), "Dolphin inspections_with_free_blocks")
+        return []
+
+    if txt:
+        low = txt.lower()
+        qis = [q for q in qis
+               if low in _s(q.get("name")).lower() or low in _s(q.get("report_no")).lower()]
+
+    counts = _free_counts([q["name"] for q in qis])
+    out = []
+    for q in qis:
+        c = counts.get(_s(q["name"]))
+        if not c or c["free"] <= 0:
+            continue            # everything on this sheet has already gone
+        out.append([q["name"], "{0} of {1} free".format(c["free"], c["total"])])
+    try:
+        start, page_len = int(start or 0), int(page_len or 50)
+    except Exception:
+        start, page_len = 0, 50
+    return out[start:start + page_len]
+
+
+@frappe.whitelist()
+def inspection_free_summary():
+    """Plain numbers, for a check or a screen: which sheets are still worth opening."""
+    counts = _free_counts()
+    live = {k: v for k, v in counts.items() if v["free"] > 0}
+    return {"ok": True, "inspections": len(counts), "with_free": len(live),
+            "fully_taken": len(counts) - len(live),
+            "detail": sorted([{"inspection": k, "free": v["free"], "total": v["total"]}
+                              for k, v in counts.items()],
+                             key=lambda r: -r["free"])}
