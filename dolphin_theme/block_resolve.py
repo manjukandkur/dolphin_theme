@@ -307,3 +307,205 @@ def machine_of(machine=None):
     ever applied. Now there is always a value, and it says so when unknown."""
     m = _s(machine)
     return m or "un-named device"
+
+
+# ---------------------------------------------------------------------------
+# A LETTER IS NOT A DIFFERENT BLOCK UNTIL SOMETHING PROVES IT IS.  5 Sep 2026
+#
+# [stated] "I meant only when a alpha numberic number appears and if at all
+#  there is any confusion you set 2 or 3 additional parameters to compare so
+#  arrivals doesnt assume it as older block number"
+#
+# The danger he named, exactly: the agency types 1189 having dropped the B, and
+# it matches the OLDER plain block 1189 in silence. `candidates()` above matches
+# the string, so B1189 is not even a candidate for 1189 - the wrong block is
+# found confidently, which is worse than not finding one.
+#
+# So a bare number now also looks for its LETTER SIBLINGS - blocks whose digits
+# are the same and whose string is not - and when one exists the number is
+# ambiguous until other evidence settles it.
+#
+# THE EVIDENCE IS NOT A MEASUREMENT DISPUTE. His rule of 25 Aug still stands and
+# is not touched: [stated] "our measurement is the only measurement final so
+# ignore measurement", [stated] "dont dispute measurement and weights at all".
+# Disputing a figure and telling two stones apart are different jobs. Nothing
+# below refuses a row, contradicts a figure, or writes a measurement. It only
+# says WHICH of two blocks an agency row is about, and only when the number
+# alone cannot.
+# ---------------------------------------------------------------------------
+
+def digits_of(v):
+    """The number inside a block number. 'B1189' -> '1189', '1189A' -> '1189'.
+
+    Empty string when there is no digit at all, never '0' - the 4 Jun failure was
+    "3300A".toLong() quietly returning 0."""
+    return "".join(ch for ch in _s(v) if ch.isdigit())
+
+
+def letter_siblings(key):
+    """Blocks whose number has the SAME DIGITS as key but a different string.
+
+    '1189' finds 'B1189'; 'B1189' finds '1189'. Returns [] when key carries no
+    digits, and never returns a block that already matches key exactly."""
+    d = digits_of(key)
+    k = _s(key)
+    if not d:
+        return []
+    out, seen = [], set()
+    try:
+        for field in _SPACES:
+            for row in frappe.get_all("Quarry Block",
+                                      filters={field: ["like", "%{0}%".format(d)]},
+                                      fields=_FIELDS, limit_page_length=0) or []:
+                val = _s(row.get(field))
+                if digits_of(val) != d or val == k:
+                    continue
+                nm = str(row.get("name"))
+                if nm in seen:
+                    continue
+                seen.add(nm)
+                row = dict(row)
+                row["via"] = "export" if field == "export_block_no" else "quarry"
+                row["matched_on"] = val
+                out.append(row)
+    except Exception:
+        return []
+    return out
+
+
+def _cbm_of(l, w, h):
+    try:
+        l, w, h = float(l or 0), float(w or 0), float(h or 0)
+    except Exception:
+        return 0.0
+    return round(l * w * h / 1e6, 3) if (l and w and h) else 0.0
+
+
+def _on_challan(block_name, dc):
+    """Is this block on that delivery challan? Paperwork, not judgement."""
+    if not dc:
+        return False
+    try:
+        return bool(frappe.get_all("DC Block Row",
+                                   filters={"parenttype": "Delivery Challan",
+                                            "parent": _s(dc), "block": block_name},
+                                   fields=["name"], limit_page_length=1))
+    except Exception:
+        return False
+
+
+def disambiguate(cands, evidence=None):
+    """Which of these blocks is the agency row about? One, or an honest 'cannot tell'.
+
+    Evidence is whatever the arrival row already carries - no new fields:
+      dc, mark, length/width/height or cbm, net_wt, vehicle_no.
+    Tried strongest first and it STOPS at the first test that separates them, so
+    a challan match is never overruled by a measurement.
+    """
+    ev = evidence or {}
+    rows = [dict(c) for c in (cands or [])]
+    if len(rows) < 2:
+        return {"pick": rows[0] if rows else None,
+                "reason": "one candidate" if rows else "no candidate", "by": None}
+
+    # 1. THE CHALLAN. A block is on exactly one submitted challan.
+    dc = _s(ev.get("dc"))
+    if dc:
+        on = [r for r in rows if _on_challan(r.get("name"), dc)]
+        if len(on) == 1:
+            return {"pick": on[0], "reason": "decided", "by": "challan {0}".format(dc)}
+
+    # 2. THE SHIPPING MARK, as recorded on the block's own lot.
+    mark = _s(ev.get("mark"))
+    if mark:
+        hit = []
+        for r in rows:
+            try:
+                if frappe.get_all("Shipment Lot Block",
+                                  filters={"parenttype": "Export Shipment Lot",
+                                           "block": r.get("name")},
+                                  fields=["parent"], limit_page_length=0):
+                    for p in frappe.get_all("Shipment Lot Block",
+                                            filters={"parenttype": "Export Shipment Lot",
+                                                     "block": r.get("name")},
+                                            fields=["parent"], limit_page_length=0):
+                        if _s(frappe.db.get_value("Export Shipment Lot",
+                                                  p["parent"], "mark")) == mark:
+                            hit.append(r)
+                            break
+            except Exception:
+                pass
+        if len(hit) == 1:
+            return {"pick": hit[0], "reason": "decided", "by": "shipping mark {0}".format(mark)}
+
+    # 3. THE SIZE. Nearest CBM, and only when one is clearly nearest.
+    theirs = float(ev.get("cbm") or 0) or _cbm_of(ev.get("length"), ev.get("width"),
+                                                  ev.get("height"))
+    if theirs:
+        scored = []
+        for r in rows:
+            ours = 0.0
+            try:
+                d = frappe.db.get_value("Quarry Block", r.get("name"),
+                                        ["gross_volume", "length_gross", "width_gross",
+                                         "height_gross"], as_dict=True) or {}
+                ours = float(d.get("gross_volume") or 0) or _cbm_of(
+                    d.get("length_gross"), d.get("width_gross"), d.get("height_gross"))
+            except Exception:
+                ours = 0.0
+            if ours:
+                scored.append((abs(ours - theirs) / theirs, r, ours))
+        scored.sort(key=lambda x: x[0])
+        # clearly nearest: within 10%, and the runner-up at least twice as far
+        if len(scored) >= 2 and scored[0][0] <= 0.10 and scored[1][0] >= 2 * max(scored[0][0], 0.02):
+            return {"pick": scored[0][1], "reason": "decided",
+                    "by": "size {0} cbm against {1}".format(round(scored[0][2], 3), theirs)}
+        if len(scored) == 1 and scored[0][0] <= 0.10:
+            return {"pick": scored[0][1], "reason": "decided",
+                    "by": "size {0} cbm against {1}".format(round(scored[0][2], 3), theirs)}
+
+    return {"pick": None, "reason": "still ambiguous", "by": None,
+            "candidates": [{"name": r.get("name"),
+                            "quarry_no": r.get("block_number"),
+                            "export_no": r.get("export_block_no"),
+                            "status": r.get("status")} for r in rows]}
+
+
+@frappe.whitelist()
+def who_is_this(key=None, dc=None, mark=None, length=None, width=None, height=None,
+                cbm=None, net_wt=None, vehicle_no=None):
+    """Which block does this agency row mean? Reads only; writes nothing.
+
+    Answers the question the arrival import has to ask before it believes a
+    number, and is the one place the letter-sibling rule lives."""
+    k = _s(key)
+    if not k:
+        frappe.throw("Give a block number.")
+    cands = candidates(k, allow_record_name=False)
+    sibs = letter_siblings(k)
+    pool = cands + [s for s in sibs
+                    if str(s.get("name")) not in {str(c.get("name")) for c in cands}]
+
+    if not pool:
+        return {"ok": 0, "verdict": "not_found", "asked": k,
+                "message": "Nothing answers to {0}.".format(k)}
+
+    if len(pool) == 1:
+        return {"ok": 1, "verdict": "one_block", "asked": k, "block": pool[0],
+                "letter_siblings": [], "message": "{0} means exactly one block.".format(k)}
+
+    ev = {"dc": dc, "mark": mark, "length": length, "width": width, "height": height,
+          "cbm": cbm, "net_wt": net_wt, "vehicle_no": vehicle_no}
+    d = disambiguate(pool, ev)
+    if d.get("pick"):
+        return {"ok": 1, "verdict": "decided", "asked": k, "block": d["pick"],
+                "decided_by": d.get("by"),
+                "letter_siblings": [s.get("matched_on") for s in sibs],
+                "message": "{0} could mean {1} blocks; settled by {2}.".format(
+                    k, len(pool), d.get("by"))}
+
+    return {"ok": 0, "verdict": "ambiguous", "asked": k,
+            "candidates": d.get("candidates"),
+            "letter_siblings": [s.get("matched_on") for s in sibs],
+            "message": ("{0} could mean {1} different blocks and nothing on the row "
+                        "separates them. Left for a person.").format(k, len(pool))}
