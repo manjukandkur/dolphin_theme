@@ -870,6 +870,64 @@ def fill_row(row, doctype, force=False, consignee=None, variation=None, bands=No
     return True
 
 
+def fill_block_size(doc, method=None):
+    """Quarry Block: the size band is written ON THE BLOCK, at save.
+
+    5 Sep 2026. Two things forced this. A site Client Script was filling this
+    field on every form REFRESH, with set_value - so merely opening a block put
+    it in "Not Saved", the browser asked "Leave site?" on the way out, and a
+    stray Ctrl-S wrote a size nobody chose. And because the fill only ever
+    happened in a browser, blocks made by Push to Stock or by import carried NO
+    size at all - which is why seed_from_quarry had nothing to hand the Buyer
+    Inspection.
+
+    So the rule moves to the server, where it belongs: the house band from the
+    gross measurements, written only when the field is BLANK, only at save.
+    Opening a block now changes nothing on it."""
+    try:
+        if _s(doc.get(SIZE_FIELD)):
+            return                      # a size already chosen is never touched
+        cat = size_category_for(doc.get("length_gross"), doc.get("width_gross"),
+                                doc.get("height_gross"), doc.get("gross_volume"))
+        if cat:
+            doc.set(SIZE_FIELD, cat)
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), "Dolphin fill_block_size")
+
+
+@frappe.whitelist()
+def backfill_block_sizes(limit=2000, dry_run=1):
+    """Give the house band to every Quarry Block whose size field is empty.
+
+    Blank sizes are the reason a Buyer Inspection opened with nothing seeded.
+    Measurements decide; a block already carrying a size is never touched; a
+    block with no measurement is left alone rather than guessed at."""
+    dry = cint(dry_run)
+    rows = frappe.get_all(
+        "Quarry Block",
+        filters=[[SIZE_FIELD, "in", ["", None]]],
+        fields=["name", "block_number", "length_gross", "width_gross",
+                "height_gross", "gross_volume"],
+        limit_page_length=cint(limit) or 2000)
+    done, skipped = [], 0
+    for r in rows:
+        cat = size_category_for(r.get("length_gross"), r.get("width_gross"),
+                                r.get("height_gross"), r.get("gross_volume"))
+        if not cat:
+            skipped += 1               # no measurement: nothing to judge
+            continue
+        if not dry:
+            frappe.db.set_value("Quarry Block", r["name"], SIZE_FIELD, cat,
+                                update_modified=False)
+        done.append({"name": r["name"], "block": _s(r.get("block_number")),
+                     "size": cat})
+    if not dry:
+        frappe.db.commit()
+    return {"dry_run": bool(dry), "empty_found": len(rows),
+            "filled": len(done), "no_measurement": skipped,
+            "sample": done[:15]}
+
+
 def seed_from_quarry(doc, method=None):
     """Buyer Inspection: start from what the quarry recorded.
 
