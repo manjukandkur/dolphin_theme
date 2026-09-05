@@ -320,7 +320,7 @@ frappe.provide("dolphin");
     var t=String(v||'').trim(); if(!t) return null;
     if(/^(dc|bi|qi|arr|lot|inv)\s*[-_: ]?\s*\S+/i.test(t)) return 'document';
     if(/^(DC|LBI|BI|QI|ARR|SL|DI)-/i.test(t)) return 'document';
-    if(/^\d+\s*(?:-|to|\.\.)\s*\d+$/i.test(t)) return 'range';
+    if(/^[A-Za-z]*\d+[A-Za-z]*\s*(?:-|to|\.\.)\s*[A-Za-z]*\d+[A-Za-z]*$/i.test(t)) return 'range';
     if(t.indexOf(',')!==-1) return 'list';
     var parts=t.split(/[\s\-\/;|]+/).filter(Boolean);
     if(parts.length>2){ for(var i=0;i<parts.length;i++){ if(!/^[A-Za-z0-9]+$/.test(parts[i])) return null; } return 'list'; }
