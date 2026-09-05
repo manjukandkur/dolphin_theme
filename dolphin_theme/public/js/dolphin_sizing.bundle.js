@@ -505,7 +505,15 @@
                  (g.options || []).map(function (o) {
                    return '<option value="' + esc(o) + '">' + esc(o) + '</option>';
                  }).join('') + '</select></label>'
-               : '<div class="sm">Tick <b>Record grade</b> below to set grades here too.</div>') +
+               /* 5 Sep 2026: "give grade next to size else it is confusing". The
+                  tick that turns grade on was in its own section further down the
+                  page, so the screen said "tick Record grade below" and he had to
+                  go looking for it. It sits HERE now, in the same stack as Size,
+                  and turning it on puts the Grade dropdown in this exact spot. */
+               : '<label class="axis"><input type="checkbox" data-dsz="graderec">' +
+                 '<span class="ax">Grade</span>' +
+                 '<span class="sm">not recorded yet &mdash; tick to set grades here too, ' +
+                 'beside the size. Internal only, never printed.</span></label>') +
 
              '<div><span class="b pri" data-dsz="apply" disabled>Apply&hellip;</span>' +
              '<span class="sm" data-dsz="what">Tick Size, Grade, or both</span></div>' +
@@ -868,6 +876,19 @@
       count();
     });
 
+    /* 5 Sep 2026. His screenshot: one block selected, the Size box TICKED, and
+       both the dropdown and "Apply to 1..." still grey. "why isnt it working?"
+       Because nothing ever told the screen the box had been ticked - count() was
+       wired to a row click and to the Select buttons, and to nothing else. So
+       ticking Size did nothing until you happened to click a row again, and the
+       control he was told to use sat there disabled.
+
+       The tick is half of the instruction; it has to count. Bound here, and run
+       once on wiring so the screen is right the moment it draws. */
+    $sec.find('[data-dsz="szon"], [data-dsz="gron"]').on('change', function () { count(); });
+    $sec.find('[data-dsz="szval"], [data-dsz="grval"]').on('change', function () { count(); });
+    try { count(); } catch (e) {}
+
     $sec.find('[data-pick]').on('click', function () {
       var what = this.dataset.pick;
       $sec.find('input.bck').each(function () {
@@ -932,6 +953,14 @@
 
     $sec.find('[data-dsz="editlot"]').on('click', function () {
       openLotDialog(frm, d.lot);
+    });
+
+    /* the Record-grade tick, now beside Size rather than in its own section */
+    $sec.find('[data-dsz="graderec"]').on('change', function () {
+      var target = (d.owner && d.owner.name) ? d.owner : { doctype: d.doctype, name: d.name };
+      call('set_grade_recording', { doctype: target.doctype, name: target.name,
+                                    on: this.checked ? 1 : 0, person: frappe.session.user })
+        .then(function () { frm.reload_doc(); });
     });
   }
 
