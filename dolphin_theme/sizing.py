@@ -847,6 +847,12 @@ def carry_sizes(doc, method=None):
                     continue
                 if fill_row(row, child_dt, bands=doc_bands):
                     filled += 1
+        # 5 Sep 2026: a following shipping document re-takes the lot's per-block
+        # letters on every save. fill_row above only ever fills a BLANK, so
+        # without this a letter set on the lot could never reach a row that
+        # already had one - which is exactly how block 822 stood at A on the lot
+        # and C on the document.
+        _sync_from_lot(doc)
         try:
             if doc.meta.has_field("size_rule_display"):
                 doc.size_rule_display = rule_in_force(doc)
@@ -887,6 +893,152 @@ def _note_override(row, child_dt):
             row.set("size_overridden", 0)
     except Exception:
         pass
+
+
+# ---------------------------------------------------------------------------
+# FOLLOWING HAS TO MEAN FOLLOWING.  5 Sep 2026
+#
+# [stated] "di user tried to change sizes and grades it didnt happen ... 2 times
+#  tried changing size of 1 blcok to size A it didnt happen."
+#
+# It didn't happen, and the data said exactly why. On 5 Sep, SHP-EXP-00005 was
+# following lot XIAMENBLESS-BL-260727-02 and block 822 read **A on the lot and C
+# on the document**. The change was made - on the lot, through the "Edit on the
+# lot..." dialog, which is the only door the screen offered - and it never
+# arrived, because "following" only ever meant the THRESHOLDS. Every document
+# kept its own copy of each block's letter, and nothing carried a letter across.
+#
+# So the word was a promise the code did not keep. This keeps it: while a
+# shipping document is following its lot, the lot's per-block SIZE and GRADE are
+# what it shows, re-taken on every save, and a change on the lot is pushed to
+# every draft document following it the moment it is made.
+#
+# Frozen documents are never touched - submitted or exported paperwork keeps
+# what it went out with, which is _frozen_by's whole job.
+# ---------------------------------------------------------------------------
+
+def _row_index(doc):
+    """Every key a row can be found by -> the row. Link first, because the link
+    is identity and the number is only a label (3 Sep design)."""
+    idx = {}
+    for b in _blocks_of(doc):
+        for k in ("block", "export_block_no", "block_no"):
+            v = _s(b.get(k))
+            if v:
+                idx.setdefault((k, v), b)
+    return idx
+
+
+def _sync_from_lot(doc):
+    """Take the lot's per-block size and grade onto a following document.
+
+    Returns what moved. Writes nothing anywhere but on `doc`'s own rows, and
+    never a measurement - measurements are the Buyer Inspection's, not the
+    lot's."""
+    moved = []
+    try:
+        if doc.doctype != "Shipping Document" or cint(doc.get("size_override")):
+            return moved
+        lot = _lot_of(doc)
+        if lot is None:
+            return moved
+        idx = _row_index(lot)
+        lot_g = GRADE_FIELD.get("Shipment Lot Block", "grade")
+        my_g = _grade_field(doc)
+        for b in _blocks_of(doc):
+            src = None
+            for k in ("block", "export_block_no", "block_no"):
+                v = _s(b.get(k))
+                if v and (k, v) in idx:
+                    src = idx[(k, v)]
+                    break
+            if src is None:
+                continue
+            no = _s(b.get("export_block_no")) or _s(b.get("block_no"))
+            want = _s(src.get(SIZE_FIELD))
+            if want and want != _s(b.get(SIZE_FIELD)):
+                moved.append({"block": no, "axis": "size",
+                              "from": _s(b.get(SIZE_FIELD)) or "(none)", "to": want})
+                b.set(SIZE_FIELD, want)
+                # the consent trail travels with the letter, or the promotion
+                # arrives on the paperwork with nobody's name against it
+                for f_src, f_dst in (("size_promoted_from", "size_promoted_from"),
+                                     ("size_consent_by", "size_consent_by"),
+                                     ("size_consent_on", "size_consent_on")):
+                    if b.meta.has_field(f_dst) and src.meta.has_field(f_src):
+                        b.set(f_dst, src.get(f_src))
+            wantg = _s(src.get(lot_g))
+            if wantg != _s(b.get(my_g)):
+                moved.append({"block": no, "axis": "grade",
+                              "from": _s(b.get(my_g)) or "(none)", "to": wantg or "(none)"})
+                b.set(my_g, wantg)
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), "Dolphin _sync_from_lot")
+    return moved
+
+
+def _following_documents(lot_name):
+    """Draft shipping documents built from this lot that are still following it
+    and are not frozen. The ones a lot change is supposed to reach."""
+    out = []
+    try:
+        for r in frappe.get_all("Shipping Document",
+                                filters={"source_lot": _s(lot_name), "docstatus": 0},
+                                fields=["name", "size_override", "export_status"]):
+            if cint(r.get("size_override")):
+                continue
+            if _s(r.get("export_status")) == "Exported":
+                continue
+            out.append(r["name"])
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), "Dolphin _following_documents")
+    return out
+
+
+@frappe.whitelist()
+def cascade_from_lot(lot=None, person=None, dry_run=1):
+    """Push a lot's per-block sizes and grades onto every document following it.
+
+    Called by itself after any size/grade write on a lot, and callable on its own
+    to repair a document that drifted before this existed."""
+    dry = _s(dry_run) not in ("0", "false", "False", "")
+    lot_name = _s(lot)
+    if not lot_name:
+        frappe.throw("Name the lot.")
+    report = []
+    for nm in _following_documents(lot_name):
+        sd = frappe.get_doc("Shipping Document", nm)
+        moved = _sync_from_lot(sd)
+        report.append({"document": nm, "moved": moved, "count": len(moved)})
+        if moved and not dry:
+            sd.flags.ignore_mandatory = True
+            sd.save(ignore_permissions=True)
+            try:
+                sd.add_comment("Comment", (
+                    "{0} change(s) taken from {1}, which this document follows: {2}{3}. "
+                    "By {4}.").format(
+                        len(moved), lot_name,
+                        "; ".join("{0} {1} {2} -> {3}".format(
+                            m["block"], m["axis"], m["from"], m["to"]) for m in moved[:15]),
+                        (" (+{0} more)".format(len(moved) - 15) if len(moved) > 15 else ""),
+                        _s(person) or frappe.session.user))
+            except Exception:
+                pass
+    if not dry:
+        frappe.db.commit()
+    return {"ok": True, "dry_run": dry, "lot": lot_name,
+            "documents": report,
+            "count": sum(r["count"] for r in report)}
+
+
+def _cascade_after(doc, person=None):
+    """Every write on a lot ends here. Silent on anything that is not a lot."""
+    try:
+        if doc is not None and doc.doctype == "Export Shipment Lot":
+            return cascade_from_lot(lot=doc.name, person=person, dry_run=0)
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), "Dolphin _cascade_after")
+    return None
 
 
 @frappe.whitelist()
@@ -1437,6 +1589,47 @@ def _frozen(doc):
     return bool(_frozen_by(doc))
 
 
+# ---------------------------------------------------------------------------
+# ONE PLACE TO WRITE, AND NO QUESTION ASKED.  5 Sep 2026
+#
+# [stated] "I did not understand on the lot and on this document only", then
+# [stated] "remove the question".
+#
+# He was right that it made no sense to him, because in his data it makes no
+# sense at all: 3 lots, 3 shipping documents, ONE document per lot every time.
+# "The lot" and "this document" are the same 56 blocks under two names, so
+# asking which he meant was the app's own plumbing leaking onto his screen.
+#
+# So there is no question and no tick box. A size or grade changed on a shipping
+# document is written on its LOT and pushed straight back down to the document -
+# they can never disagree, which is the only state he ever wanted. A document
+# with no lot behind it is written on itself.
+#
+# `size_override` stays in the database because nothing of his is deleted under
+# him, but nothing sets it any more; every shipping document on the site reads 0.
+# ---------------------------------------------------------------------------
+
+def _write_target(doc):
+    """Where a change made on this screen is actually saved."""
+    if doc.doctype == "Shipping Document" and not cint(doc.get("size_override")):
+        lot = _lot_of(doc)
+        if lot is not None:
+            return lot
+    return doc
+
+
+def _redirect(doctype, name, kwargs, fn):
+    """If this document writes somewhere else, send the call there instead."""
+    doc = _doc_for_panel(doctype, name)
+    tgt = _write_target(doc)
+    if tgt.doctype == doc.doctype and tgt.name == doc.name:
+        return None
+    kwargs = dict(kwargs)
+    kwargs["doctype"] = tgt.doctype
+    kwargs["name"] = tgt.name
+    return fn(**kwargs)
+
+
 @frappe.whitelist()
 def panel(doctype=None, name=None):
     """Everything both screens draw, in one read. Changes nothing."""
@@ -1453,14 +1646,13 @@ def panel(doctype=None, name=None):
     marg = _marginal_map(doc, bands, tol)
 
     # where the thresholds are being edited, in plain words
-    if not is_sd:
-        owner = {"doctype": doc.doctype, "name": doc.name, "editable": True}
-    elif override:
-        owner = {"doctype": "Shipping Document", "name": doc.name, "editable": True}
-    elif lot is not None:
-        owner = {"doctype": "Export Shipment Lot", "name": lot.name, "editable": False}
-    else:
-        owner = {"doctype": None, "name": None, "editable": False}
+    # 5 Sep 2026: the screen is editable wherever it is not shut, and the owner
+    # is simply where the writing lands. A read-only panel with nothing to press
+    # is what left the DI user unable to change block 822 at all.
+    tgt = _write_target(doc)
+    owner = {"doctype": tgt.doctype, "name": tgt.name,
+             "editable": not _frozen(tgt),
+             "elsewhere": bool(tgt.doctype != doc.doctype or tgt.name != doc.name)}
 
     std = {}
     for c in _standard_bands():
@@ -1469,6 +1661,16 @@ def panel(doctype=None, name=None):
 
     counts, blocks, graded, filled, unsized = {}, [], [], 0, []
     grade_doc = lot if (is_sd and lot is not None and not override) else doc
+    # the row each block is ticked as, on the document the write lands on
+    owner_rows = {}
+    if owner.get("elsewhere"):
+        oidx = _row_index(tgt)
+        for b in _blocks_of(doc):
+            for k in ("block", "export_block_no", "block_no"):
+                v = _s(b.get(k))
+                if v and (k, v) in oidx:
+                    owner_rows[_s(b.name)] = _s(oidx[(k, v)].name)
+                    break
     for b in _blocks_of(doc):
         cat = _s(b.get(SIZE_FIELD))
         if cat:
@@ -1479,6 +1681,8 @@ def panel(doctype=None, name=None):
             unsized.append(no)
         blocks.append({
             "row": _s(b.name), "block": no,
+            "owner_row": (owner_rows.get(_s(b.name)) if owner.get("elsewhere")
+                          else _s(b.name)),
             "size": [int(l), int(w), int(h)],
             "category": cat,
             "marginal": marg.get(_s(b.name)),
@@ -1724,17 +1928,21 @@ def save_size_set(set_name=None, bands=None, reason=None, person=None):
 @frappe.whitelist()
 def set_bands(doctype=None, name=None, bands=None, tolerance_cm=None,
               reason=None, person=None, dry_run=1, allow_unsized=0):
-    """Write the thresholds and re-sort. Refuses on a document that is only
-    reading the lot - there is one place to change them, and this says so."""
+    """Write the thresholds and re-sort.
+
+    5 Sep 2026: it used to REFUSE on a shipping document that reads its lot, and
+    tell the person to go and tick a box. It now simply writes on the lot, which
+    is what they meant, and the change comes back down to the document."""
+    _r = _redirect(doctype, name, dict(
+        bands=bands, tolerance_cm=tolerance_cm, reason=reason, person=person,
+        dry_run=dry_run, allow_unsized=allow_unsized), set_bands)
+    if _r is not None:
+        return _r
     dry = _s(dry_run) not in ("0", "false", "False", "")
     doc = _doc_for_panel(doctype, name)
     _why = _frozen_by(doc)
     if _why:
         frappe.throw("{0} cannot be changed because {1}.".format(doc.name, _why))
-    if doc.doctype == "Shipping Document" and not cint(doc.get("size_override")):
-        frappe.throw("This document is reading {0}. Change the thresholds on the lot, "
-                     "or tick the final change to give this document its own copy.".format(
-                         _s(doc.get("source_lot")) or "its lot"))
     want = _parse_bands(bands)
     if not want:
         frappe.throw("No thresholds were given.")
@@ -1800,9 +2008,11 @@ def set_bands(doctype=None, name=None, bands=None, tolerance_cm=None,
             _s(person) or frappe.session.user, _s(reason)))
     except Exception:
         pass
+    casc = _cascade_after(doc, person)
     frappe.db.commit()
     return {"ok": True, "document": doc.name, "bands": want, "before": before,
-            "moved": moved, "count": len(moved), "unsized": nowhere}
+            "moved": moved, "count": len(moved), "unsized": nowhere,
+            "cascade": casc}
 
 
 @frappe.whitelist()
@@ -1856,6 +2066,11 @@ def set_sizes(doctype=None, name=None, rows=None, to_size=None, agreed_by=None,
               reason=None, person=None, dry_run=1):
     """Bulk. Tick blocks, choose one size, apply. A person decides this - the
     app only ever sorts and highlights, his rule of 31 Aug."""
+    _r = _redirect(doctype, name, dict(
+        rows=rows, to_size=to_size, agreed_by=agreed_by, reason=reason,
+        person=person, dry_run=dry_run), set_sizes)
+    if _r is not None:
+        return _r
     dry = _s(dry_run) not in ("0", "false", "False", "")
     doc = _doc_for_panel(doctype, name)
     to_size = _s(to_size)
@@ -1932,9 +2147,10 @@ def set_sizes(doctype=None, name=None, rows=None, to_size=None, agreed_by=None,
             ("(+{0} more)".format(len(changed) - 20) if len(changed) > 20 else "")))
     except Exception:
         pass
+    casc = _cascade_after(doc, person)
     frappe.db.commit()
     return {"ok": True, "changed": changed, "count": len(changed), "already": same,
-            "promotions": promotions}
+            "promotions": promotions, "cascade": casc}
 
 
 # ===========================================================================
@@ -1970,6 +2186,11 @@ def set_block_values(doctype=None, name=None, rows=None, to_size=None, grade=Non
     read to decide the other, and a re-sort of the thresholds still moves no
     grade. They travel together on one screen because that is easier for a
     person; they remain two separate judgements about the stone."""
+    _r = _redirect(doctype, name, dict(
+        rows=rows, to_size=to_size, grade=grade, agreed_by=agreed_by,
+        reason=reason, person=person, dry_run=dry_run), set_block_values)
+    if _r is not None:
+        return _r
     dry = _s(dry_run) not in ("0", "false", "False", "")
     doc = _doc_for_panel(doctype, name)
     _why = _frozen_by(doc)
@@ -2060,9 +2281,11 @@ def set_block_values(doctype=None, name=None, rows=None, to_size=None, grade=Non
             _s(person) or frappe.session.user, _s(reason)))
     except Exception:
         pass
+    casc = _cascade_after(doc, person)
     frappe.db.commit()
     return {"ok": True, "sized": sized, "graded": graded,
-            "n_size": len(sized), "n_grade": len(graded), "promotions": promotions}
+            "n_size": len(sized), "n_grade": len(graded), "promotions": promotions,
+            "cascade": casc}
 
 
 @frappe.whitelist()
