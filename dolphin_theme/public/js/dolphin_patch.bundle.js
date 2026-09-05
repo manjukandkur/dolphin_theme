@@ -908,6 +908,39 @@ frappe.provide("dolphin");
     });
   }
 
+  /* 5 Sep 2026: "only the active ones either with all the blocks or partly
+     available in QI should be displayed under BI.. what is the point in
+     showging QI wherein all blocks are taken?"
+
+     None. The picker listed every inspection ever made. This points its Link
+     field at a query that returns only the sheets with a free block left, and
+     shows the count in the dropdown - "14 of 40 free" - so the choice is made
+     before the dialog is even opened. */
+  function narrowPicker(modal) {
+    if (!modal || modal.getAttribute('data-' + MARK + '-qi')) { return; }
+    var t = modal.querySelector('.modal-title');
+    if (!t || !/Add Blocks from/i.test(t.textContent || '')) { return; }
+    var d = window.cur_dialog;
+    if (!d || !d.fields_dict) { return; }
+    var picked = null;
+    Object.keys(d.fields_dict).forEach(function (k) {
+      var f = d.fields_dict[k];
+      if (!f || !f.df) { return; }
+      if (f.df.fieldtype === 'Link' && /Quarry Inspection/i.test(f.df.options || '')) { picked = f; }
+    });
+    if (!picked) { return; }
+    modal.setAttribute('data-' + MARK + '-qi', '1');
+    picked.get_query = function () {
+      return { query: 'dolphin_theme.blocks_api.inspections_with_free_blocks' };
+    };
+    if (picked.df) { picked.df.get_query = picked.get_query; }
+    try {
+      if (picked.$input) {
+        picked.$input.attr('placeholder', 'Only sheets with blocks still free');
+      }
+    } catch (e) {}
+  }
+
   function watch() {
     if (window['__' + MARK]) { return; }
     window['__' + MARK] = true;
@@ -918,9 +951,13 @@ frappe.provide("dolphin");
           for (var j = 0; j < added.length; j++) {
             var n = added[j];
             if (!n || n.nodeType !== 1) { continue; }
-            if (n.classList && n.classList.contains('modal')) { setTimeout(function () { decorate(n); }, 700); }
+            if (n.classList && n.classList.contains('modal')) {
+              setTimeout(function () { narrowPicker(n); }, 250);
+              setTimeout(function () { decorate(n); }, 700);
+            }
             else if (n.querySelectorAll) {
               [].forEach.call(n.querySelectorAll('.modal'), function (m) {
+                setTimeout(function () { narrowPicker(m); }, 250);
                 setTimeout(function () { decorate(m); }, 700);
               });
               /* the table often arrives after the modal does */
@@ -930,7 +967,9 @@ frappe.provide("dolphin");
           }
         }
       }).observe(document.body, { childList: true, subtree: true });
-      [].forEach.call(document.querySelectorAll('.modal'), decorate);
+      [].forEach.call(document.querySelectorAll('.modal'), function (m) {
+        narrowPicker(m); decorate(m);
+      });
     } catch (e) { /* a dialog must never be blocked by this */ }
   }
 
