@@ -784,3 +784,157 @@ frappe.provide("dolphin");
     });
   });
 })();
+
+/* ===========================================================================
+   ADD BLOCKS: SHOW WHAT IS ALREADY GONE.  5 Sep 2026
+
+   [stated] "Bi does it show the status in add blocks what I asked for"
+
+   It did not. His screenshot: "Add Blocks from Quarry Inspection", 110 blocks,
+   EVERY ONE PRE-TICKED, no status column - so Add Selected pulls in stone that
+   has already gone to a challan, a lot, or another inspection, and the screen
+   says nothing. He asked for this and I logged it instead of building it.
+
+   The dialog belongs to a site Client Script. This does not edit it: it waits
+   for the dialog to open, asks the server what is already taken, adds a Status
+   column, dims the taken rows and UNTICKS them - header box included, so
+   "select all" no longer means "select the ones you cannot have".
+
+   Nothing is blocked. A person can still tick a dimmed row deliberately; it
+   just can no longer happen by accident.
+   =========================================================================== */
+(function () {
+  if (!(window.frappe && frappe.call)) { return; }
+  var MARK = 'dolphin-addblocks-status';
+
+  function esc(s) { return frappe.utils.escape_html(String(s == null ? '' : s)); }
+
+  function decorate(modal) {
+    if (!modal || modal.getAttribute('data-' + MARK)) { return; }
+    var t = modal.querySelector('.modal-title');
+    if (!t || !/Add Blocks from/i.test(t.textContent || '')) { return; }
+    var table = modal.querySelector('table');
+    if (!table) { return; }
+    modal.setAttribute('data-' + MARK, '1');
+
+    var head = table.querySelector('tr');
+    var bodyRows = [].slice.call(table.querySelectorAll('tr')).filter(function (r) {
+      return r !== head && r.querySelector('input[type=checkbox]');
+    });
+    if (!bodyRows.length) { modal.removeAttribute('data-' + MARK); return; }
+
+    /* the block number is the first cell that is a bare number */
+    function numberOf(row) {
+      var tds = row.querySelectorAll('td');
+      for (var i = 0; i < tds.length; i++) {
+        var v = (tds[i].textContent || '').trim();
+        if (v && /^[A-Za-z]{0,2}\d{1,6}[A-Za-z]{0,2}$/.test(v)) { return v; }
+      }
+      return null;
+    }
+
+    var nums = [], map = [];
+    bodyRows.forEach(function (r) {
+      var n = numberOf(r);
+      if (n) { nums.push(n); map.push({ row: r, no: n }); }
+    });
+    if (!nums.length) { modal.removeAttribute('data-' + MARK); return; }
+
+    var bi = (window.cur_frm && cur_frm.doctype === 'Buyer Inspection' && !cur_frm.is_new())
+      ? cur_frm.docname : '';
+
+    frappe.call({
+      method: 'dolphin_theme.blocks_api.taken_status',
+      args: { numbers: JSON.stringify(nums), exclude: bi },
+      callback: function (r) {
+        var info = (r && r.message && r.message.blocks) || {};
+        if (head && !head.querySelector('[data-' + MARK + '-h]')) {
+          var th = document.createElement('th');
+          th.setAttribute('data-' + MARK + '-h', '1');
+          th.textContent = 'Status';
+          th.style.cssText = 'font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:#8a929c';
+          head.appendChild(th);
+        }
+        var freed = 0, held = 0;
+        map.forEach(function (m) {
+          var d = info[m.no] || { status: '', taken: false, where: '' };
+          var td = document.createElement('td');
+          td.style.cssText = 'font-size:12px;white-space:nowrap';
+          if (d.taken) {
+            td.innerHTML = '<span style="display:inline-block;padding:1px 7px;border-radius:4px;' +
+              'background:#fdf0ee;color:#a3352b;font-weight:600">' + esc(d.status) + '</span>' +
+              (d.where ? '<div style="color:#8a929c;font-size:11px">' + esc(d.where) + '</div>' : '');
+            m.row.style.opacity = '0.5';
+            m.row.style.background = '#fbfbfc';
+            var b = m.row.querySelector('input[type=checkbox]');
+            if (b && b.checked) { b.checked = false; b.dispatchEvent(new Event('change', { bubbles: true })); }
+            held++;
+          } else {
+            td.innerHTML = '<span style="display:inline-block;padding:1px 7px;border-radius:4px;' +
+              'background:#e9f3ef;color:#0f6e56;font-weight:600">' + esc(d.status || 'free') + '</span>';
+            freed++;
+          }
+          m.row.appendChild(td);
+        });
+
+        /* the header tick must not re-select what was just taken away */
+        var master = head && head.querySelector('input[type=checkbox]');
+        if (master) {
+          master.checked = false;
+          master.addEventListener('change', function () {
+            var on = master.checked;
+            map.forEach(function (m) {
+              var d = info[m.no] || {};
+              var b = m.row.querySelector('input[type=checkbox]');
+              if (!b) { return; }
+              b.checked = on && !d.taken;
+              b.dispatchEvent(new Event('change', { bubbles: true }));
+            });
+          }, true);
+        }
+
+        var note = modal.querySelector('[data-' + MARK + '-note]');
+        if (!note) {
+          note = document.createElement('div');
+          note.setAttribute('data-' + MARK + '-note', '1');
+          note.style.cssText = 'font-size:12.5px;margin:8px 0 0;color:#5f6b7a';
+          var anchor = table.parentNode;
+          anchor.parentNode.insertBefore(note, anchor.nextSibling);
+        }
+        note.innerHTML = '<b>' + freed + '</b> still free and ticked · <b>' + held +
+          '</b> already gone, dimmed and left unticked. ' +
+          '<span style="color:#8a929c">Tick a dimmed one only if you mean it.</span>';
+      }
+    });
+  }
+
+  function watch() {
+    if (window['__' + MARK]) { return; }
+    window['__' + MARK] = true;
+    try {
+      new MutationObserver(function (muts) {
+        for (var i = 0; i < muts.length; i++) {
+          var added = muts[i].addedNodes || [];
+          for (var j = 0; j < added.length; j++) {
+            var n = added[j];
+            if (!n || n.nodeType !== 1) { continue; }
+            if (n.classList && n.classList.contains('modal')) { setTimeout(function () { decorate(n); }, 700); }
+            else if (n.querySelectorAll) {
+              [].forEach.call(n.querySelectorAll('.modal'), function (m) {
+                setTimeout(function () { decorate(m); }, 700);
+              });
+              /* the table often arrives after the modal does */
+              var m2 = n.closest && n.closest('.modal');
+              if (m2) { setTimeout(function () { decorate(m2); }, 300); }
+            }
+          }
+        }
+      }).observe(document.body, { childList: true, subtree: true });
+      [].forEach.call(document.querySelectorAll('.modal'), decorate);
+    } catch (e) { /* a dialog must never be blocked by this */ }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', watch);
+  } else { watch(); }
+})();
