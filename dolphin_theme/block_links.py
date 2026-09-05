@@ -175,10 +175,14 @@ def link_scan(table=None, commit=0, limit=0):
                                           "once".format(spec["link"])}
             continue
 
+        # NOTE: frappe.get_all takes no `parent` argument server-side - that is
+        # REST-API only, and passing it raises
+        # "DatabaseQuery.execute() got an unexpected keyword argument 'parent'".
+        # A child table is queried directly and scoped by parenttype instead.
         rows = frappe.get_all(
-            dt, parent=spec["parent"],
+            dt, filters={"parenttype": spec["parent"]},
             fields=["name", "parent", spec["field"], spec["link"]],
-            limit_page_length=0)
+            limit_page_length=0, ignore_permissions=True)
         todo, cannot, already = [], [], 0
         for r in rows:
             if _s(r.get(spec["link"])):
@@ -226,9 +230,9 @@ def link_health():
     for dt, spec in TABLES.items():
         meta = frappe.get_meta(dt)
         has = meta.has_field(spec["link"])
-        rows = frappe.get_all(dt, parent=spec["parent"],
+        rows = frappe.get_all(dt, filters={"parenttype": spec["parent"]},
                               fields=["name"] + ([spec["link"]] if has else []),
-                              limit_page_length=0)
+                              limit_page_length=0, ignore_permissions=True)
         linked = len([r for r in rows if has and _s(r.get(spec["link"]))])
         out["tables"][dt] = {"rows": len(rows), "linked": linked,
                              "by_number_only": len(rows) - linked,
@@ -238,8 +242,9 @@ def link_health():
                              ("Shipment Lot Block", "Export Shipment Lot", "block"),
                              ("Shipping Block", "Shipping Document", "block")):
         try:
-            rows = frappe.get_all(dt, parent=parent, fields=["name", link],
-                                  limit_page_length=0)
+            rows = frappe.get_all(dt, filters={"parenttype": parent},
+                                  fields=["name", link],
+                                  limit_page_length=0, ignore_permissions=True)
             out["tables"][dt] = {"rows": len(rows),
                                  "linked": len([r for r in rows if _s(r.get(link))]),
                                  "by_number_only": len([r for r in rows
