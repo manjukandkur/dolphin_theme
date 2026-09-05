@@ -368,6 +368,50 @@ def ensure_band_doctype():
         return False
 
 
+# 5 Sep 2026, his decision after talking to his team:
+#   [stated] "we dont want size cumpolsory on QI"
+#   [stated] "Whatever you have given now in QI remove it and add it in BI"
+#   [stated] "Qi will be just whatever was earlier to the present"
+#   [stated] "in QI allow override for size"
+#
+# So the quarry sheet goes back to what it was before 1 Sep: the house rule
+# A >= 190x80x50 / rest C fills the Size column, Size and Grade are both plain
+# editable columns, and neither is ever compulsory. The panel, the thresholds
+# table, the marginal figure and the grade tick all belong to the Buyer
+# Inspection now, which is where the stone is in front of somebody.
+#
+# They are HIDDEN, not dropped. One inspection carries three threshold rows and
+# one has grade recording on; dropping the fields would delete what they hold,
+# and nothing of his is deleted under him. Hidden is permanent and reversible;
+# deleted is permanent and is not.
+RETIRED_FIELDS = [
+    ("Quarry Inspection", "size_bands"),
+    ("Quarry Inspection", "size_tolerance_cm"),
+    ("Quarry Inspection", "record_grade"),
+]
+
+
+def retire_fields():
+    """Take the size apparatus off the quarry sheet. Idempotent, and it runs on
+    every migrate so a deploy can never put it back."""
+    hidden = []
+    for doctype, fieldname in RETIRED_FIELDS:
+        try:
+            nm = frappe.db.get_value("Custom Field",
+                                     {"dt": doctype, "fieldname": fieldname}, "name")
+            if not nm:
+                continue
+            if cint(frappe.db.get_value("Custom Field", nm, "hidden")):
+                continue
+            frappe.db.set_value("Custom Field", nm, "hidden", 1)
+            hidden.append(doctype + "." + fieldname)
+        except Exception:
+            frappe.log_error(frappe.get_traceback(), "Dolphin retire_fields")
+    if hidden:
+        frappe.clear_cache()
+    return hidden
+
+
 def ensure_fields():
     """Idempotent. Runs from after_migrate."""
     ensure_band_doctype()
@@ -386,9 +430,10 @@ def ensure_fields():
             added.append(doctype + "." + spec["fieldname"])
         except Exception:
             frappe.log_error(frappe.get_traceback(), "Dolphin ensure_fields")
+    retired = retire_fields()
     if added:
         frappe.clear_cache()
-    return {"ok": True, "added": added}
+    return {"ok": True, "added": added, "retired": retired}
 
 
 @frappe.whitelist()
@@ -823,6 +868,47 @@ def fill_row(row, doctype, force=False, consignee=None, variation=None, bands=No
     if meta.has_field(SIZE_FIELD) and not _s(row.get(SIZE_FIELD)) and src["size_category"]:
         row.set(SIZE_FIELD, src["size_category"])
     return True
+
+
+def seed_from_quarry(doc, method=None):
+    """Buyer Inspection: start from what the quarry recorded.
+
+    5 Sep 2026, his rule: [stated] "let whatever is in QI be the sizes and grade
+    initially if there is change we will edit accordingly".
+
+    So a BI row opens holding the block's own size and grade - which Push to
+    Stock put there from the quarry inspection - and only when the row has none
+    of its own. It NEVER overwrites a letter somebody typed here, because this
+    document is the one that decides. Measurements are untouched: the buyer's
+    measurement is final and is not seeded from anywhere."""
+    try:
+        if doc.doctype != "Buyer Inspection":
+            return
+        gf = _grade_field(doc)
+        for row in (doc.get("block_rows") or []):
+            have_size = _s(row.get(SIZE_FIELD))
+            have_grade = _s(row.get(gf))
+            if have_size and have_grade:
+                continue
+            key = (_s(row.get("block")) or _s(row.get("quarry_block"))
+                   or _s(row.get("block_no")))
+            if not key:
+                continue
+            try:
+                src = frappe.db.get_value(
+                    "Quarry Block",
+                    key if frappe.db.exists("Quarry Block", key) else {"block_number": key},
+                    [SIZE_FIELD, "granite_quality_grade"], as_dict=True)
+            except Exception:
+                src = None
+            if not src:
+                continue
+            if not have_size and _s(src.get(SIZE_FIELD)):
+                row.set(SIZE_FIELD, _s(src.get(SIZE_FIELD)))
+            if not have_grade and _s(src.get("granite_quality_grade")):
+                row.set(gf, _s(src.get("granite_quality_grade")))
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), "Dolphin seed_from_quarry")
 
 
 def carry_sizes(doc, method=None):

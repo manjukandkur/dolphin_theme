@@ -48,6 +48,11 @@ doc_events = {
     # pre-fills its size bands from the last shipment to the same consignee -
     # his option B. It reads that previous document; it consults no rule owned
     # by a buyer, because there are none any more.
+    # 5 Sep 2026: the Buyer Inspection opens holding what the quarry recorded,
+    # and is then the document that decides. See sizing.seed_from_quarry.
+    "Buyer Inspection": {
+        "validate": ["dolphin_theme.sizing.seed_from_quarry"],
+    },
     "Shipping Document": {
         "validate": [
             "dolphin_theme.sizing.carry_sizes",
