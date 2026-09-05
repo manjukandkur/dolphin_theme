@@ -487,3 +487,105 @@ def numbers_in_range(low=None, high=None, limit=500):
     return {"blocks": out, "asked": asked, "found": len(out),
             "missing": sorted(n for n in range(lo, hi + 1) if n not in matched),
             "label": "{0}-{1}".format(lo, hi)}
+
+
+# ---------------------------------------------------------------------------
+# WHAT IS ALREADY TAKEN.  5 Sep 2026
+#
+# His screenshot of "Add Blocks from Quarry Inspection": 110 blocks, every one
+# pre-ticked, no status anywhere - so pressing Add Selected pulls in stone that
+# has already gone to a challan, a lot, or another inspection, and nothing on
+# the screen warns anybody. He asked for status shown, the taken ones dimmed,
+# and none of them pre-ticked.
+#
+# Read-only. It answers one question per number: can this block still be taken,
+# and if not, where has it gone.
+# ---------------------------------------------------------------------------
+
+@frappe.whitelist()
+def taken_status(numbers=None, exclude=None):
+    """For each block number: its status, where it sits, and whether it is free.
+
+    `exclude` is the Buyer Inspection being added to, so its own rows do not
+    count as "already on an inspection"."""
+    if isinstance(numbers, str):
+        try:
+            numbers = frappe.parse_json(numbers)
+        except Exception:
+            numbers = [n.strip() for n in numbers.split(",") if n.strip()]
+    keys = [str(n).strip() for n in (numbers or []) if str(n).strip()]
+    if not keys:
+        return {"ok": True, "blocks": {}}
+
+    out = {}
+    rows = []
+    try:
+        rows = frappe.get_all(
+            "Quarry Block",
+            filters={"block_number": ["in", keys]},
+            fields=["name", "block_number", "export_block_no", "status",
+                    "delivery_challan", "retired_on"],
+            limit_page_length=0) or []
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), "Dolphin taken_status")
+
+    by_name = {}
+    for r in rows:
+        by_name[str(r["name"])] = r
+
+    # where each one already appears
+    def _members(child, parent_dt, field="block"):
+        seen = {}
+        try:
+            for r in frappe.get_all(child,
+                                    filters={"parenttype": parent_dt,
+                                             field: ["in", list(by_name.keys())]},
+                                    fields=[field, "parent"],
+                                    limit_page_length=0) or []:
+                seen.setdefault(str(r.get(field)), []).append(r["parent"])
+        except Exception:
+            pass
+        return seen
+
+    on_bi = _members("Buyer Inspection Block", "Buyer Inspection")
+    on_lot = _members("Shipment Lot Block", "Export Shipment Lot")
+    on_ship = _members("Shipping Block", "Shipping Document")
+    skip = str(exclude or "")
+
+    for r in rows:
+        nm, no = str(r["name"]), _s(r.get("block_number"))
+        status = _s(r.get("status")) or "(none)"
+        where, taken = [], False
+
+        if _s(r.get("retired_on")):
+            where.append("retired")
+            taken = True
+        if status and status != "In Stock":
+            taken = True
+        if _s(r.get("delivery_challan")):
+            where.append("challan " + _s(r.get("delivery_challan")))
+            taken = True
+        for p in on_lot.get(nm, []):
+            where.append("lot " + str(p))
+            taken = True
+        for p in on_ship.get(nm, []):
+            where.append("shipping " + str(p))
+            taken = True
+        for p in on_bi.get(nm, []):
+            if str(p) == skip:
+                continue
+            where.append("inspection " + str(p))
+            taken = True
+
+        out[no] = {"record": nm, "quarry_no": no,
+                   "export_no": _s(r.get("export_block_no")),
+                   "status": status, "taken": bool(taken),
+                   "where": ", ".join(where[:3])}
+
+    for k in keys:
+        if k not in out:
+            out[k] = {"record": None, "quarry_no": k, "export_no": "",
+                      "status": "not found", "taken": False, "where": ""}
+    return {"ok": True, "blocks": out,
+            "free": sum(1 for v in out.values() if not v["taken"]),
+            "taken": sum(1 for v in out.values() if v["taken"])}
