@@ -568,6 +568,74 @@ frappe.provide("dolphin");
       'submitting is still yours to do.', 'blue', true); } catch (e) {}
   }
 
+  /* 5 Sep 2026, second pass. He sent a screenshot of the OTHER door: the
+     "Report Files (images & PDFs)" gallery's own "+ Add photos / PDFs" button,
+     which answers "Save the inspection first, then add photos or PDFs." and
+     stops there. That gallery is a site Client Script, not app code, so this
+     does not edit it - it gets in front of the click, saves the draft, and then
+     presses the same button again on the saved sheet.
+
+     One rule, wherever the person happens to press: nothing on this form should
+     ever tell him to go and save first. It saves for him. Submitting is still
+     his. */
+  var NEEDS_SAVED = [
+    function (el) { return /^\+?\s*add\s+photos\s*\/\s*pdfs$/i.test((el.textContent || '').trim()); },
+    function (el) { return el.classList && el.classList.contains('add-attachment-btn'); },
+    function (el) { return /^attach$/i.test((el.textContent || '').trim()) &&
+                           !!el.closest('[data-fieldtype="Attach"], [data-fieldtype="Attach Image"]'); }
+  ];
+
+  function wanted(el) {
+    for (var i = 0; i < NEEDS_SAVED.length; i++) {
+      try { if (NEEDS_SAVED[i](el)) { return i; } } catch (e) {}
+    }
+    return -1;
+  }
+
+  function findAgain(kind) {
+    var all = document.querySelectorAll('button, a, .btn');
+    for (var i = 0; i < all.length; i++) {
+      try { if (NEEDS_SAVED[kind](all[i])) { return all[i]; } } catch (e) {}
+    }
+    return null;
+  }
+
+  document.addEventListener('click', function (e) {
+    var frm = window.cur_frm;
+    if (!frm || !frm.doctype) { return; }
+    if (['Quarry Inspection', 'Buyer Inspection'].indexOf(frm.doctype) < 0) { return; }
+    if (!frm.is_new()) { return; }
+    var el = e.target && e.target.closest ? e.target.closest('button, a, .btn') : null;
+    if (!el) { return; }
+    var kind = wanted(el);
+    if (kind < 0) { return; }
+
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.stopImmediatePropagation) { e.stopImmediatePropagation(); }
+
+    frappe.show_alert({ message: 'Saving this sheet as a draft first…', indicator: 'blue' });
+    frm.save()
+      .then(function () {
+        /* the form re-renders on save, so the node that was clicked is gone -
+           find its replacement rather than holding a stale reference */
+        setTimeout(function () {
+          var again = findAgain(kind);
+          if (again) { again.click(); }
+          else { openAttach(frm); }
+        }, 400);
+      })
+      .catch(function () {
+        frappe.msgprint({
+          title: 'Nothing attached yet',
+          indicator: 'orange',
+          message: 'A file needs a saved sheet to belong to, and this one could ' +
+                   'not be saved yet — fill the fields marked above and press it ' +
+                   'again. It saves as a <b>draft</b> only; submitting stays with you.'
+        });
+      });
+  }, true);   /* capture, so this runs before the gallery's own handler */
+
   ['Quarry Inspection', 'Buyer Inspection'].forEach(function (dt) {
     frappe.ui.form.on(dt, {
       refresh: function (frm) {
