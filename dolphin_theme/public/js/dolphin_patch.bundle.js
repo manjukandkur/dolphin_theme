@@ -645,3 +645,113 @@ frappe.provide("dolphin");
   });
   window[MARK] = true;
 })();
+
+/* ===========================================================================
+   A LETTER IS ALLOWED IN A QUARRY NUMBER.  5 Sep 2026
+
+   [stated] "our team says there are quite number of situations where the numbers
+    are repeated so if we can make the export block number alpha numeric?"
+   then, corrected: [stated] "this alphabet adding is for quarry block number at
+    times. Export block number will be repeated several times"
+   and on the two options put to him: [stated] "a) ok" - the number carries the
+   letter; the June suffix-field split is NOT revived.
+
+   I told him alphanumeric already worked because block_number is a Data field.
+   Wrong at the level that matters: the FIELD accepts it, but three Client
+   Scripts refused the ENTRY and wiped the cell - "M321 is not allowed. Block
+   Number must be digits only, maximum 6 digits." So his team could not type it.
+   Read what a screen DOES, not what the field allows.
+
+   The rule now lives here, in app code, in ONE place, instead of in three
+   hand-edited site scripts that could drift apart - his own "nothing temporary"
+   rule applied to a validation. The three site scripts are switched off.
+
+   What is allowed: up to two letters either side of one to six digits.
+     1182  M1182  1182A  MB1182A     rejected: no digits at all, or seven digits.
+   The six-digit cap is KEPT deliberately: it is what stops somebody typing a
+   seven-digit internal record id into the number field, which is the collision
+   the 23 Aug rename existed to end.
+
+   THE EXPORT NUMBER IS NOT TOUCHED. It repeats freely by design (3 Sep), and it
+   already accepts letters - which is how "M351" saved on a Buyer Inspection
+   while "M321" was refused on a quarry sheet. The letter was allowed exactly
+   where he did not want it and blocked exactly where he did.
+
+   And it does NOT wipe what he typed. The old scripts reverted the cell to the
+   last good value, so a typo ate the entry. This keeps the text, says what is
+   wrong, and refuses the SAVE until it is fixed - a warning he can act on
+   beats a field that empties itself.
+   =========================================================================== */
+(function () {
+  if (!(window.frappe && frappe.ui && frappe.ui.form)) { return; }
+
+  var OK = /^[A-Za-z]{0,2}[0-9]{1,6}[A-Za-z]{0,2}$/;
+
+  /* child doctype -> the QUARRY-number field on it. The export number is
+     deliberately absent from this list. */
+  var GUARDED = {
+    'Quarry Inspection Block': 'quarry_block_no',
+    'Buyer Inspection Block': 'block_number_input'
+  };
+
+  function why(s) {
+    if (!/[0-9]/.test(s)) { return 'it has no digits in it'; }
+    if ((s.match(/[0-9]/g) || []).length > 6) { return 'it has more than six digits'; }
+    return 'letters are allowed only at the start or the end, up to two';
+  }
+
+  function complain(s) {
+    frappe.msgprint({
+      title: 'Check this block number',
+      indicator: 'orange',
+      message: '<b>' + frappe.utils.escape_html(s) + '</b> does not look right &mdash; ' +
+               why(s) + '.<div style="margin-top:6px">A quarry number may carry a ' +
+               'letter: <b>1182</b>, <b>M1182</b>, <b>1182A</b>. Up to six digits, so a ' +
+               'seven-digit internal id can never be typed in here by mistake.</div>' +
+               '<div style="margin-top:6px">What you typed has been left as it is &mdash; ' +
+               'correct it and save again.</div>'
+    });
+  }
+
+  Object.keys(GUARDED).forEach(function (child) {
+    var fld = GUARDED[child];
+    var h = {};
+    h[fld] = function (frm, cdt, cdn) {
+      var row = locals[cdt][cdn];
+      var v = row && row[fld];
+      if (v === undefined || v === null || v === '') { return; }
+      var s = String(v).trim();
+      if (s !== String(v)) { frappe.model.set_value(cdt, cdn, fld, s); return; }
+      if (OK.test(s)) { return; }
+      complain(s);          /* say it, and LEAVE what he typed */
+    };
+    frappe.ui.form.on(child, h);
+  });
+
+  /* the real stop: a sheet does not save while a number is malformed */
+  ['Quarry Inspection', 'Buyer Inspection'].forEach(function (parent) {
+    frappe.ui.form.on(parent, {
+      validate: function (frm) {
+        var fld = (parent === 'Quarry Inspection') ? 'quarry_block_no' : 'block_number_input';
+        var bad = [];
+        (frm.doc.block_rows || []).forEach(function (r, i) {
+          var v = r[fld];
+          if (v === undefined || v === null || v === '') { return; }
+          if (!OK.test(String(v).trim())) { bad.push('row ' + (i + 1) + ': ' + v); }
+        });
+        if (bad.length) {
+          frappe.validated = false;
+          frappe.msgprint({
+            title: 'Not saved',
+            indicator: 'red',
+            message: bad.length + ' block number(s) are not in a shape this app can ' +
+                     'follow &mdash; ' + frappe.utils.escape_html(bad.slice(0, 8).join(' &middot; ')) +
+                     (bad.length > 8 ? ' …' : '') +
+                     '.<div style="margin-top:6px">Up to two letters either side of one ' +
+                     'to six digits: <b>1182</b>, <b>M1182</b>, <b>1182A</b>.</div>'
+          });
+        }
+      }
+    });
+  });
+})();
