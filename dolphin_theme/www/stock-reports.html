@@ -125,8 +125,8 @@
 <script>
 var $=function(id){return document.getElementById(id);};
 var GRADES=['A','B','B1','B2','C','D','D (Rejected)','Unshaped','-'], PITS=['1','2','3','4','5','6','7','8','9','10','99','-'];
-var STAGES=[['stock','In stock','QI'],['bi','Buyer inspection','BI'],['disp','Dispatched','DC'],['port','At port','PA'],['lot','Export lot','ESL'],['sold','Sold','SOLD'],['other','Other','?']];
-var STLABEL={stock:'In stock',bi:'Buyer insp',port:'At port',lot:'Export lot',disp:'Dispatched',sold:'Sold',other:'Other'};
+var STAGES=[['stock','In stock','QI'],['bi','Buyer inspection','BI'],['disp','Dispatched','DC'],['port','At port','PA'],['lot','Export lot','ESL'],['local','Local sale','LOCAL'],['sold','Sold (export)','SOLD'],['other','Other','?']];
+var STLABEL={stock:'In stock',bi:'Buyer insp',port:'At port',lot:'Export lot',disp:'Dispatched',local:'Local sale',sold:'Sold (export)',other:'Other'};
 var BUY=['Xiamen','EC12','Fujian'], PORT=['Krishnapatnam','Chennai','Kakinada'], LOT=['ESL-020','ESL-021','ESL-022'];
 var BASE=['#378ADD','#EF9F27','#1D9E75','#7F77DD','#D4537E','#639922','#3FA9A0','#E07B39','#6E8CA0'];
 var DATA=[];
@@ -141,9 +141,11 @@ function apiGet(method,params){ var q=Object.keys(params||{}).map(function(k){re
    against the workspace card's 124. Both are now mapped where they belong, and
    the catch-all is an 'Other' column rather than a quiet addition to stock, so
    a status nobody has taught this function can never again inflate In stock. */
-function stageFromStatus(st){ if(st==='In Stock')return 'stock'; if(st==='Buyer Marked')return 'bi'; if(st==='In Delivery Challan'||st==='Dispatched/Transported')return 'disp'; if(st==='At Port'||st==='At Bannikoppa Station yard')return 'port'; if(st==='In Export Shipment Lot'||st==='Shipped')return 'lot'; if(st==='Sold')return 'sold'; return 'other'; }
+function stageFromStatus(st,ch){ if(st==='Sold') return (ch==='Local')?'local':'sold'; if(st==='In Stock')return 'stock'; if(st==='Buyer Marked')return 'bi'; if(st==='In Delivery Challan'||st==='Dispatched/Transported')return 'disp'; if(st==='At Port'||st==='At Bannikoppa Station yard')return 'port'; if(st==='In Export Shipment Lot'||st==='Shipped')return 'lot'; return 'other'; }
 function loadData(){
-  var flds=JSON.stringify(['name','block_number','granite_quality_grade','granite_size_category','pit','length_gross','width_gross','height_gross','gross_volume','date_produced','status','export_block_no','buyer_marker','consignee']);
+  /* 6 Sep 2026: sale_channel and the local buyer's number come along, so a
+     local sale is counted as a local sale and never as export stock. */
+  var flds=JSON.stringify(['name','block_number','granite_quality_grade','granite_size_category','pit','length_gross','width_gross','height_gross','gross_volume','date_produced','status','export_block_no','buyer_marker','consignee','sale_channel','local_buyer_block_no','sold_to','sold_on']);
   apiGet('frappe.client.get_list',{doctype:'Quarry Block',fields:flds,limit_page_length:0}).then(function(rows){
     rows=rows||[];
     // grade is stored on the Quarry Inspection child rows, not on Quarry Block -> build a block-no -> grade map
@@ -152,7 +154,7 @@ function loadData(){
     return apiGet('frappe.client.get_list',{doctype:'Shipment Lot Block',parent:'Export Shipment Lot',fields:JSON.stringify(['parent','block']),limit_page_length:0}).catch(function(){return [];}).then(function(lr){
       var lotmap={}; (lr||[]).forEach(function(x){lotmap[x.block]=x.parent;});
       DATA=rows.map(function(b){ var L=b.length_gross||0,W=b.width_gross||0,H=b.height_gross||0; var vol=b.gross_volume||Math.round(L*W*H/1e6*100)/100; var no=b.block_number||b.name; var gr=gradeMap[String(no)]||gradeMap[String(b.name)]||b.granite_quality_grade||'-';
-        return {_name:b.name,no:no,L:L,W:W,H:H,nL:L,nW:W,nH:H,vol:vol,netvol:vol,grade:gr,size:b.granite_size_category||'-',pit:(b.pit!=null&&b.pit!==''?String(b.pit):'-'),date:b.date_produced||'',exp:b.export_block_no||'',buyer:b.buyer_marker||'',port:b.consignee||'',lot:lotmap[b.name]||'',consignee:b.consignee||'',stage:stageFromStatus(b.status)}; });
+        return {_name:b.name,no:no,L:L,W:W,H:H,nL:L,nW:W,nH:H,vol:vol,netvol:vol,grade:gr,size:b.granite_size_category||'-',pit:(b.pit!=null&&b.pit!==''?String(b.pit):'-'),date:b.date_produced||'',exp:b.export_block_no||'',buyer:b.buyer_marker||'',port:b.consignee||'',lot:lotmap[b.name]||'',consignee:b.consignee||'',stage:stageFromStatus(b.status,b.sale_channel),channel:(b.sale_channel||''),localno:(b.local_buyer_block_no||''),soldto:(b.sold_to||''),soldon:(b.sold_on||'')}; });
       var pset={}; DATA.forEach(function(b){pset[b.pit]=1;}); PITS=Object.keys(pset).sort(function(a,b){var na=+a,nb=+b; if(isNaN(na)||isNaN(nb))return String(a).localeCompare(String(b)); return na-nb;});
       render();
     });
