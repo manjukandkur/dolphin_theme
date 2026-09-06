@@ -155,6 +155,7 @@ function loadData(){
       var lotmap={}; (lr||[]).forEach(function(x){lotmap[x.block]=x.parent;});
       DATA=rows.map(function(b){ var L=b.length_gross||0,W=b.width_gross||0,H=b.height_gross||0; var vol=b.gross_volume||Math.round(L*W*H/1e6*100)/100; var no=b.block_number||b.name; var gr=gradeMap[String(no)]||gradeMap[String(b.name)]||b.granite_quality_grade||'-';
         return {_name:b.name,no:no,L:L,W:W,H:H,nL:L,nW:W,nH:H,vol:vol,netvol:vol,grade:gr,size:b.granite_size_category||'-',pit:(b.pit!=null&&b.pit!==''?String(b.pit):'-'),date:b.date_produced||'',exp:b.export_block_no||'',buyer:b.buyer_marker||'',port:b.consignee||'',lot:lotmap[b.name]||'',consignee:b.consignee||'',stage:stageFromStatus(b.status,b.sale_channel),channel:(b.sale_channel||''),localno:(b.local_buyer_block_no||''),soldto:(b.sold_to||''),soldon:(b.sold_on||''),retired:(b.retired_on||''),gone:!!(b.retired_on||b.status==='Sold'||b.status==='Shipped')}; });
+      buildDup(DATA);
       var pset={}; DATA.forEach(function(b){pset[b.pit]=1;}); PITS=Object.keys(pset).sort(function(a,b){var na=+a,nb=+b; if(isNaN(na)||isNaN(nb))return String(a).localeCompare(String(b)); return na-nb;});
       render();
     });
@@ -256,10 +257,38 @@ function renderSummary(rows,s,vf){
    free to be painted on a new stone. Cosmetic only - the row stays
    clickable and the journey opens in full, undimmed. */
 function goneRow(b){ return b.gone ? ' style="opacity:.5"' : ''; }
-function bno(b){ if(!b.gone) return b.no;
+/* 6 Sep 2026, his "yes perfect! agreed do it": a number carried by more than one
+   live block is flagged wherever it is listed, not only when you open it. DUP is
+   built once per load from the data already on the page - a number counts as
+   shared when two different blocks answer to it, whether as a quarry number or
+   as an export number, which is exactly how 501 ended up on two stones. */
+var DUP={};
+function buildDup(rows){
+  var seen={}; DUP={};
+  (rows||[]).forEach(function(b){
+    [b.no, b.exp].forEach(function(v){
+      if(v===undefined||v===null||v==='') return;
+      var k=String(v);
+      (seen[k]=seen[k]||{})[b._name]=1;
+    });
+  });
+  Object.keys(seen).forEach(function(k){
+    var owners=Object.keys(seen[k]);
+    if(owners.length>1) DUP[k]=owners.length;
+  });
+}
+function dupFlag(b){
+  var k=String(b.no);
+  if(!DUP[k]) return '';
+  return ' <span title="'+DUP[k]+' blocks carry '+k+' — click the number to see which"'
+       + ' style="display:inline-block;background:#fbeeec;color:#a3352b;border:1px solid #f0d8d4;'
+       + 'border-radius:5px;font-size:10px;font-weight:700;padding:0 5px;margin-left:5px;cursor:help">'
+       + DUP[k]+' \u00d7</span>';
+}
+function bno(b){ if(!b.gone) return b.no+dupFlag(b);
   var why = b.retired ? 'Number retired on '+b.retired+' - free to use again'
                       : 'This block has gone - its number is free to use again';
-  return '<span title="'+why+'" style="text-decoration:line-through">'+b.no+'</span>'; }
+  return '<span title="'+why+'" style="text-decoration:line-through">'+b.no+'</span>'+dupFlag(b); }
 function detailRows(rows,s,stg){ stg=stg||state.stage; var head,cells;
   if(stg==='bi'){ head=['Block','Export','Net L×W×H','Net vol','Net ton','Size','Grade','Buyer','BI']; cells=function(b){return [bno(b),b.exp,b.nL+'×'+b.nW+'×'+b.nH,b.netvol.toFixed(2),(b.netvol*s).toFixed(1),b.size,b.grade,b.buyer,'BI-GCCG-10'+(b.no%3)];}; }
   else if(stg==='port'){ head=['Block','Export','Arr.mark','Port','Size','Grade','Vol','Ton','PA']; cells=function(b){return [bno(b),b.exp,'AM-'+(b.no%50),b.port,b.size,b.grade,b.vol.toFixed(2),(b.vol*s).toFixed(1),'PA-'+(2600+b.no%40)];}; }
