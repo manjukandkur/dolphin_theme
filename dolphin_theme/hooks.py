@@ -71,8 +71,13 @@ doc_events = {
     # Selling an invoice is business-critical and duplicate protection on it is not
     # worth breaking it for. If it is wanted here later it must be warn-only, cheap,
     # and tested against a real invoice first.
+    # 6 Sep 2026. A submitted local invoice is what MAKES a sale local: it marks
+    # the block's channel, moves the buyer's number out of the export field (the
+    # root cause of local stone reading as export), and retires the number the
+    # day the stone leaves - his rule, the same as export.
     "Local Tax Invoice": {
         "validate": "dolphin_theme.local_tax_invoice.compute_totals",
+        "on_submit": "dolphin_theme.local_sales.stamp_from_invoice",
     },
     # 31 Aug 2026. The size is decided where the buyer's own measurement is
     # taken, using THAT buyer's bands - read from what they accepted on their
@@ -125,6 +130,7 @@ after_migrate = [
     "dolphin_theme.sizing.ensure_fields",
     "dolphin_theme.retirement.ensure_fields",
     "dolphin_theme.block_links.ensure_fields",
+    "dolphin_theme.local_sales.ensure_fields",
 ]
 
 # Auto-import arrival emails: every 15 min, parse any arrival that came in via
