@@ -1390,7 +1390,16 @@ frappe.provide("dolphin");
   var EPS = 0.005;                     /* half a paisa */
   var HEAD = ['invoice_value','invoice_total','invoice_value_inr','tax_amount',
               'total_net_tonnage','total_cbm','total_net_kgs'];
-  var ROWNUM = ['rate_per_mt','amount','mt','cbm','quantity_mt','block_value'];
+  /* 7 Sep 2026 - THESE NAMES WERE WRONG, AND A WRONG NAME HERE IS WORSE THAN NO
+     CHECK AT ALL. size_rates rows are block_count / net_mt / amount_usd /
+     rate_per_mt, keyed by size_category + grade. The first version compared
+     'amount', 'mt', 'quantity_mt' - fields that do not exist on the row - so the
+     row loop compared NOTHING, found no real difference, and cleared the unsaved
+     flag on SHP-EXP-00005 while the form's rate table said $405,239.10 against
+     the server's $202,855.80. The whole point of this block is that a real
+     difference must survive; only float noise may be swallowed. */
+  var ROWNUM = ['rate_per_mt','net_mt','amount_usd','block_count'];
+  var ROWTXT = ['size_category','grade'];
 
   function noise(a, b){
     var x = parseFloat(a), y = parseFloat(b);
@@ -1413,8 +1422,15 @@ frappe.provide("dolphin");
           if (noise(frm.doc[f], srv[f])) { frm.doc[f] = srv[f]; fixed++; }
           else if (String(srv[f] == null ? '' : srv[f]) !== String(frm.doc[f] == null ? '' : frm.doc[f])) { real++; }
         });
+        /* a row count that does not match is itself a real difference - the
+           table has been rebuilt differently, not merely rounded */
+        if ((srv.size_rates || []).length !== (frm.doc.size_rates || []).length) { real++; }
         (srv.size_rates || []).forEach(function (row, i) {
           var mine = (frm.doc.size_rates || [])[i]; if (!mine) return;
+          ROWTXT.forEach(function (f) {
+            if (!(f in row)) return;
+            if (String(row[f] == null ? '' : row[f]) !== String(mine[f] == null ? '' : mine[f])) { real++; }
+          });
           ROWNUM.forEach(function (f) {
             if (!(f in row)) return;
             if (noise(mine[f], row[f])) { mine[f] = row[f]; fixed++; }
