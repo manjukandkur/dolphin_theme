@@ -1235,34 +1235,61 @@ def _grade_of(row):
     return ""
 
 
-def resolve_rate(rules, size_category, grade, header_rate=0.0):
-    """The rate for one block, in his order of precedence:
+def resolve_rate(rules, size_category, grade=None, header_rate=0.0):
+    """The rate for one SIZE on this shipping document.
 
-        1. an exact (size x grade) rule            — "price varies for each size and grade"
-        2. a grade rule marked as priced across sizes — "sometimes price only on grade"
-        3. a size rule with no grade                — the flat size rate
-        4. the header unit_rate                     — what the invoice used before any of this
+    7 Sep 2026, his words, and they replace the grade-priced precedence that
+    used to live here:
 
-    Returns (rate, how) so the invoice can say which rule paid."""
-    size_category, grade = _s(size_category), _s(grade)
+        "whatever the rates and sizes and grades are entered on shipping
+         documents the calculations should be accordingly eg whatever the rate
+         per ton, forex dollar rate entered accordingly it should calculate"
+        "the size is decided with consent of buyer and ilkal team segregate on
+         export lot and from there to shipping documents where bangalore office
+         will enter the rate per ton for each size"
+        "grade is immaterial since only price differs and grade doesnt reflect
+         on shipping documents but I am asking to capture the grades to analyse
+         the total sale of respective grades"
 
-    for r in rules:
-        if _s(r.get("size_category")) == size_category and _s(r.get("grade")) == grade \
-                and size_category and grade:
-            return flt(r.get("rate_per_mt")), "size+grade"
-    for r in rules:
-        if grade and _s(r.get("grade")) == grade and cint(r.get("applies_across_sizes")):
-            return flt(r.get("rate_per_mt")), "grade across sizes"
+    So: ONE rate per size, typed by the Bangalore office. Grade never sets a
+    price and never appears on the document; it is captured on the block for
+    analysis only, never for pricing. The `grade` argument is kept so older
+    callers do not break, and is deliberately ignored for pricing.
+
+    Order:
+        1. the row for this size that carries no grade — the size rate proper
+        2. any row for this size (an older document may have its rate sitting
+           on a size+grade row; that money must not be lost on the first save
+           after this change)
+        3. the header unit_rate
+
+    Returns (rate, how) so a screen can say which rule paid."""
+    size_category = _s(size_category)
+
     for r in rules:
         if size_category and _s(r.get("size_category")) == size_category and not _s(r.get("grade")):
             return flt(r.get("rate_per_mt")), "size"
+    for r in rules:
+        if size_category and _s(r.get("size_category")) == size_category and flt(r.get("rate_per_mt")):
+            return flt(r.get("rate_per_mt")), "size (carried off an older grade row)"
     return flt(header_rate), "header rate"
 
 
 def compute_size_rates(doc, method=None):
-    """Rebuild `size_rates` on a Shipping Document: one row per (size, grade)
-    combination actually present, with its own tonnage, rate and amount, and a
-    grand total that is the sum of them.
+    """Rebuild `size_rates` on a Shipping Document: ONE ROW PER SIZE actually
+    present, with its own tonnage, the rate the Bangalore office typed for that
+    size, and the amount — and a grand total that is the sum of them.
+
+    7 Sep 2026. It used to be one row per (size, grade), and that was wrong on
+    his rule: grade never sets a price. On SHP-EXP-00005 it split 55 A-blocks
+    into an A/blank row of 54 and an A/B2 row of 1, so size A wanted its rate
+    typed twice; and the site script that recounts each row by SIZE then filled
+    BOTH rows with all 55 blocks, showing $405,239.10 against a true
+    $202,855.80. One row per size removes the split, and with it the doubling
+    and the false "Not Saved" that came from the same disagreement.
+
+    Grade is still read off every block and still stored on the block — it is
+    simply not a pricing axis, and is analysed on its own.
 
     Runs on validate, after carry_sizes, so it always rates the sizes the
     document is actually carrying — overridden or not."""
@@ -1280,29 +1307,32 @@ def compute_size_rates(doc, method=None):
         for b in blocks:
             size = _s(b.get(SIZE_FIELD)) or size_category_for(
                 b.get("length"), b.get("width"), b.get("height"), b.get("net_volume"))
-            grade = _grade_of(b)
             ton = flt(b.get("net_tonnage"))
             if not ton:
                 vol = flt(b.get("net_volume")) or round(
                     flt(b.get("length")) * flt(b.get("width")) * flt(b.get("height")) / 1e6, 3)
                 ton = round(vol * 2.6, 3)
-            k = (size or "(no size)", grade or "")
-            g = groups.setdefault(k, {"blocks": 0, "mt": 0.0, "cbm": 0.0})
+            k = size or "(no size)"          # SIZE ONLY. Grade never prices.
+            g = groups.setdefault(k, {"blocks": 0, "mt": 0.0, "cbm": 0.0,
+                                      "grades": {}})
             g["blocks"] += 1
             g["mt"] += ton
             g["cbm"] += flt(b.get("net_volume"))
+            gr = _grade_of(b)
+            if gr:
+                g["grades"][gr] = g["grades"].get(gr, 0) + 1
 
         doc.set("size_rates", [])
         total = 0.0
-        for (size, grade), g in sorted(groups.items()):
-            rate, how = resolve_rate(existing, size, grade, header_rate)
+        for size, g in sorted(groups.items()):
+            rate, how = resolve_rate(existing, size, None, header_rate)
             mt = round(g["mt"], 3)
             amount = round(mt * flt(rate), 2)
             total += amount
             r = doc.append("size_rates", {})
             r.size_category = None if size == "(no size)" else size
             if r.meta.has_field("grade"):
-                r.grade = grade
+                r.grade = ""            # a rate line is priced by size alone
             r.block_count = g["blocks"]
             r.net_mt = mt
             r.rate_per_mt = flt(rate)
@@ -1330,12 +1360,11 @@ def compute_size_rates(doc, method=None):
         if doc.meta.has_field("invoice_value_inr") and flt(doc.get("exchange_rate")):
             doc.invoice_value_inr = round(total * flt(doc.get("exchange_rate")), 2)
 
-        missing = [k for k in groups if k[0] == "(no size)"]
-        if missing:
+        if "(no size)" in groups:
             frappe.msgprint(
                 "{0} block(s) have no size category, so they are rated at the header rate. "
                 "Their measurements are present — the category can be filled from them."
-                .format(sum(groups[k]["blocks"] for k in missing)),
+                .format(groups["(no size)"]["blocks"]),
                 alert=True, indicator="orange")
     except Exception:
         frappe.log_error(frappe.get_traceback(), "Dolphin compute_size_rates")
