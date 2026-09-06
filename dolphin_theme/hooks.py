@@ -93,14 +93,6 @@ doc_events = {
             "dolphin_theme.sizing.carry_sizes",
         ],
     },
-    "Port Arrival": {
-        "validate": [
-            "dolphin_theme.guards.guard",
-            # B44: 0 of 849 arrival rows carried a measurement, which is why
-            # nothing at the port could be reconciled. Carry them from the BI.
-            "dolphin_theme.sizing.carry_sizes",
-        ],
-    },
     "Delivery Challan": {
         "validate": "dolphin_theme.guards.guard",
         "on_submit": "dolphin_theme.guards.dc_block_status_on_submit",
@@ -116,7 +108,17 @@ doc_events = {
     # production dates". Nobody types a production date on a block. The report
     # date on the inspection IS the production date of every stone that came in
     # on it, and correcting a late sheet's date fixes every block on it at once.
+    # 6 Sep 2026: a new row anchors itself to its block on the way in, so the
+    # link scan never has to be re-run by hand after a load of new stock.
+    "Port Arrival": {
+        "validate": [
+            "dolphin_theme.guards.guard",
+            "dolphin_theme.sizing.carry_sizes",
+            "dolphin_theme.block_links.anchor_rows",
+        ],
+    },
     "Quarry Inspection": {
+        "validate": "dolphin_theme.block_links.anchor_rows",
         "on_update": "dolphin_theme.retirement.sync_production_dates",
         "on_submit": "dolphin_theme.retirement.sync_production_dates",
     },
