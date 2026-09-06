@@ -309,29 +309,44 @@ frappe.provide("dolphin");
                + 'block. That is still the right stone today, but it is the weaker '
                + 'kind of evidence.</div>' : '');
   }
+  /* A block wears up to three numbers and where_is() is asked by NUMBER, so the
+     one to ask with is whichever of them names THIS stone and no other. Block
+     1001334 proved why: its quarry number 1038 is worn by two blocks, so asking
+     with it gets an honest refusal, while its export number 831 resolves
+     cleanly. So try each number the block carries and keep the first answer
+     that comes back pointing at this very record. If none does, nothing is
+     drawn - never another stone's papers. */
   function addPapers($w, b){
-    var num = b.block_number || b.export_block_no || b.local_buyer_block_no;
-    if(!num) return;
+    var nums = [b.block_number, b.export_block_no, b.local_buyer_block_no]
+                 .filter(function(n){ return n !== undefined && n !== null && n !== ''; });
+    if(!nums.length) return;
     $w.append('<div class="dip-papers" style="margin-top:14px;border-top:1px solid #e3e8ee;'
             + 'padding-top:10px"><div style="font-size:11px;text-transform:uppercase;'
             + 'letter-spacing:.05em;color:#6b7280;font-weight:700;margin-bottom:6px">'
             + 'Papers this block is on</div>'
             + '<div class="dip-papers-body" style="font-size:12px;color:#6b7280">'
             + 'looking\u2026</div></div>');
-    frappe.call({ method:'dolphin_theme.block_where.where_is', args:{ key:String(num) } })
-      .then(function(r){
-        var res = r && r.message, $b = $w.find('.dip-papers-body');
-        if(!$b.length) return;
-        if(!res || !res.ok || !res.numbers || res.numbers.record_id !== b.name){
-          $w.find('.dip-papers').remove();      /* not this stone - say nothing */
-          return;
-        }
-        $b.html(papersHTML(res));
-        $b.find('.dip-paper').on('click', function(e){
-          e.preventDefault(); openDocument(this.getAttribute('data-dn'));
-        });
-      })
-      .catch(function(){ $w.find('.dip-papers').remove(); });
+    function drop(){ $w.find('.dip-papers').remove(); }
+    function mine(res){
+      return !!(res && res.ok && res.numbers
+                && String(res.numbers.record_id) === String(b.name));
+    }
+    function tryNum(i){
+      if(i >= nums.length){ drop(); return; }
+      frappe.call({ method:'dolphin_theme.block_where.where_is',
+                    args:{ key:String(nums[i]) } })
+        .then(function(r){
+          var res = r && r.message, $b = $w.find('.dip-papers-body');
+          if(!$b.length) return;                 /* dialog already closed */
+          if(!mine(res)){ tryNum(i + 1); return; }
+          $b.html(papersHTML(res));
+          $b.find('.dip-paper').on('click', function(e){
+            e.preventDefault(); openDocument(this.getAttribute('data-dn'));
+          });
+        })
+        .catch(function(){ drop(); });
+    }
+    tryNum(0);
   }
 
   function showJourneyFor(b){
