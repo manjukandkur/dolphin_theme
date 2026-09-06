@@ -125,15 +125,23 @@
 <script>
 var $=function(id){return document.getElementById(id);};
 var GRADES=['A','B','B1','B2','C','D','D (Rejected)','Unshaped','-'], PITS=['1','2','3','4','5','6','7','8','9','10','99','-'];
-var STAGES=[['stock','In stock','QI'],['bi','Buyer inspection','BI'],['disp','Dispatched','DC'],['port','At port','PA'],['lot','Export lot','ESL']];
-var STLABEL={stock:'In stock',bi:'Buyer insp',port:'At port',lot:'Export lot',disp:'Dispatched'};
+var STAGES=[['stock','In stock','QI'],['bi','Buyer inspection','BI'],['disp','Dispatched','DC'],['port','At port','PA'],['lot','Export lot','ESL'],['sold','Sold','SOLD'],['other','Other','?']];
+var STLABEL={stock:'In stock',bi:'Buyer insp',port:'At port',lot:'Export lot',disp:'Dispatched',sold:'Sold',other:'Other'};
 var BUY=['Xiamen','EC12','Fujian'], PORT=['Krishnapatnam','Chennai','Kakinada'], LOT=['ESL-020','ESL-021','ESL-022'];
 var BASE=['#378ADD','#EF9F27','#1D9E75','#7F77DD','#D4537E','#639922','#3FA9A0','#E07B39','#6E8CA0'];
 var DATA=[];
 // live data loaded by loadData()
 var state={stage:'stock',group:'stage',view:'sum',mode:'at',grades:new Set(),pits:new Set(),sizes:new Set(),extra:new Set(),drill:null};
 function apiGet(method,params){ var q=Object.keys(params||{}).map(function(k){return k+'='+encodeURIComponent(params[k]);}).join('&'); return fetch('/api/method/'+method+(q?'?'+q:''),{headers:{Accept:'application/json'},credentials:'same-origin'}).then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); }).then(function(j){return j.message;}); }
-function stageFromStatus(st){ if(st==='In Stock')return 'stock'; if(st==='Buyer Marked')return 'bi'; if(st==='In Delivery Challan'||st==='Dispatched/Transported')return 'disp'; if(st==='At Port'||st==='At Bannikoppa Station yard')return 'port'; if(st==='Shipped')return 'lot'; return 'stock'; }
+/* 6 Sep 2026, his question: "stocks both the places are not tallying??? 124 is
+   the correct one right". Yes - 124 was right and this line was wrong.
+   It knew five statuses and sent EVERYTHING ELSE to 'stock' with a silent
+   catch-all, so 14 Sold blocks and 56 sitting in an Export Shipment Lot were
+   counted as still in stock: 124 + 14 + 56 = the 194 the dashboard showed
+   against the workspace card's 124. Both are now mapped where they belong, and
+   the catch-all is an 'Other' column rather than a quiet addition to stock, so
+   a status nobody has taught this function can never again inflate In stock. */
+function stageFromStatus(st){ if(st==='In Stock')return 'stock'; if(st==='Buyer Marked')return 'bi'; if(st==='In Delivery Challan'||st==='Dispatched/Transported')return 'disp'; if(st==='At Port'||st==='At Bannikoppa Station yard')return 'port'; if(st==='In Export Shipment Lot'||st==='Shipped')return 'lot'; if(st==='Sold')return 'sold'; return 'other'; }
 function loadData(){
   var flds=JSON.stringify(['name','block_number','granite_quality_grade','granite_size_category','pit','length_gross','width_gross','height_gross','gross_volume','date_produced','status','export_block_no','buyer_marker','consignee']);
   apiGet('frappe.client.get_list',{doctype:'Quarry Block',fields:flds,limit_page_length:0}).then(function(rows){
