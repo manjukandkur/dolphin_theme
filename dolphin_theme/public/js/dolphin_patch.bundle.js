@@ -277,18 +277,40 @@ frappe.provide("dolphin");
   var PKIND = { quarry_inspection:'Quarry inspection', buyer_inspection:'Buyer inspection',
                 delivery_challan:'Delivery challan', port_arrival:'Port arrival',
                 export_shipment_lot:'Shipment lot', shipping_document:'Shipping document' };
-  function papersHTML(res){
+  /* Three strengths of evidence, never flattened into one:
+       linked          - the row points at this record. Certain.
+       by number       - the number is this block's and only this block's.
+       shared number   - the number is worn by more than one stone, so the paper
+                         may belong to the twin. Block 831/1038 has five arrival
+                         sheets found this way and they cannot all be his.
+     SHAKY holds the block's own numbers that came back ambiguous, so the third
+     case can be named on the row rather than hidden inside "by number". */
+  function papersHTML(res, shaky){
     var places = (res && res.places) || [];
     if(!places.length){
       return '<div style="font-size:12px;color:#6b7280">No document carries this block yet.</div>';
     }
+    function grade(p){
+      if((p.found_by||'').indexOf('link') > -1) return 'linked';
+      if(shaky && shaky[String(p.number_used||'')]) return 'shared';
+      return 'number';
+    }
     var rows = places.map(function(p){
       var state = p.cancelled ? 'cancelled' : (p.draft ? 'draft' : 'submitted');
       var col   = p.cancelled ? '#a3352b' : (p.draft ? '#8a6d1f' : '#0f6e56');
-      var byLink = (p.found_by||'').indexOf('link') > -1;
+      var g     = grade(p);
       var num   = p.challan_no || p.doc;
+      var word  = g === 'linked' ? 'linked'
+                : g === 'shared' ? 'shared number' : 'by number only';
+      var wcol  = g === 'linked' ? '#6b7280'
+                : g === 'shared' ? '#a3352b' : '#8a6d1f';
+      var tip   = g === 'shared'
+                ? (p.number_used + ' is worn by more than one block, so this paper '
+                   + 'may belong to the other one')
+                : (p.found_by||'');
       return '<div style="display:flex;gap:10px;align-items:baseline;padding:5px 0;'
-           + 'border-bottom:1px solid #f2f5f8">'
+           + 'border-bottom:1px solid #f2f5f8'
+           + (g === 'shared' ? ';opacity:.75' : '') + '">'
            + '<div style="min-width:132px;font-size:12px;font-weight:600">'
            + esc(PKIND[p.kind]||p.doctype||p.kind) + '</div>'
            + '<div style="flex:1;font-size:12px">'
@@ -297,28 +319,41 @@ frappe.provide("dolphin");
            + (p.date ? ' <span style="color:#6b7280">' + esc(p.date) + '</span>' : '')
            + '</div>'
            + '<div style="font-size:11px;color:' + col + '">' + state + '</div>'
-           + '<div style="font-size:11px;color:#6b7280;min-width:104px;text-align:right" '
-           + 'title="' + esc(p.found_by||'') + '">'
-           + (byLink ? 'linked' : 'by number only') + '</div>'
+           + '<div style="font-size:11px;color:' + wcol + ';min-width:110px;'
+           + 'text-align:right" title="' + esc(tip) + '">' + word + '</div>'
            + '</div>';
     }).join('');
-    var loose = places.filter(function(p){ return (p.found_by||'').indexOf('link') === -1; }).length;
-    return rows
-      + (loose ? '<div style="font-size:11px;color:#8a6d1f;margin-top:7px">'
-               + loose + ' of these was found by its NUMBER, not by a link to this '
-               + 'block. That is still the right stone today, but it is the weaker '
-               + 'kind of evidence.</div>' : '');
+    var shared = places.filter(function(p){ return grade(p) === 'shared'; }).length;
+    var loose  = places.filter(function(p){ return grade(p) === 'number'; }).length;
+    var foot = '';
+    if(shared){
+      foot += '<div style="font-size:11px;color:#a3352b;margin-top:7px">'
+            + shared + ' of these was found by a number that MORE THAN ONE block '
+            + 'carries, so it may be the other stone\'s paper. Give this block its '
+            + 'own number, or check those documents by hand before trusting them.'
+            + '</div>';
+    }
+    if(loose){
+      foot += '<div style="font-size:11px;color:#8a6d1f;margin-top:5px">'
+            + loose + ' was found by its number rather than by a link to this block. '
+            + 'The number means one stone today, so it is right - just weaker.'
+            + '</div>';
+    }
+    return rows + foot;
   }
   /* A block wears up to three numbers and where_is() is asked by NUMBER, so the
      one to ask with is whichever of them names THIS stone and no other. Block
      1001334 proved why: its quarry number 1038 is worn by two blocks, so asking
      with it gets an honest refusal, while its export number 831 resolves
-     cleanly. So try each number the block carries and keep the first answer
-     that comes back pointing at this very record. If none does, nothing is
-     drawn - never another stone's papers. */
+     cleanly. All of the block's numbers are asked at once - the first answer
+     that points at this very record draws the list, and EVERY number that came
+     back ambiguous is remembered, because a paper found through one of those
+     may belong to the twin and the row has to say so. If no number resolves,
+     nothing is drawn - never another stone's papers. */
   function addPapers($w, b){
     var nums = [b.block_number, b.export_block_no, b.local_buyer_block_no]
-                 .filter(function(n){ return n !== undefined && n !== null && n !== ''; });
+                 .filter(function(n){ return n !== undefined && n !== null && n !== ''; })
+                 .map(String);
     if(!nums.length) return;
     $w.append('<div class="dip-papers" style="margin-top:14px;border-top:1px solid #e3e8ee;'
             + 'padding-top:10px"><div style="font-size:11px;text-transform:uppercase;'
@@ -327,26 +362,27 @@ frappe.provide("dolphin");
             + '<div class="dip-papers-body" style="font-size:12px;color:#6b7280">'
             + 'looking\u2026</div></div>');
     function drop(){ $w.find('.dip-papers').remove(); }
-    function mine(res){
-      return !!(res && res.ok && res.numbers
-                && String(res.numbers.record_id) === String(b.name));
+    function ask(n){
+      return frappe.call({ method:'dolphin_theme.block_where.where_is',
+                           args:{ key:n } })
+               .then(function(r){ return r && r.message; })
+               .catch(function(){ return null; });
     }
-    function tryNum(i){
-      if(i >= nums.length){ drop(); return; }
-      frappe.call({ method:'dolphin_theme.block_where.where_is',
-                    args:{ key:String(nums[i]) } })
-        .then(function(r){
-          var res = r && r.message, $b = $w.find('.dip-papers-body');
-          if(!$b.length) return;                 /* dialog already closed */
-          if(!mine(res)){ tryNum(i + 1); return; }
-          $b.html(papersHTML(res));
-          $b.find('.dip-paper').on('click', function(e){
-            e.preventDefault(); openDocument(this.getAttribute('data-dn'));
-          });
-        })
-        .catch(function(){ drop(); });
-    }
-    tryNum(0);
+    Promise.all(nums.map(ask)).then(function(answers){
+      var $b = $w.find('.dip-papers-body');
+      if(!$b.length) return;                     /* dialog already closed */
+      var shaky = {}, mine = null;
+      answers.forEach(function(res, i){
+        if(res && res.ambiguous){ shaky[nums[i]] = 1; }
+        if(!mine && res && res.ok && res.numbers
+           && String(res.numbers.record_id) === String(b.name)){ mine = res; }
+      });
+      if(!mine){ drop(); return; }
+      $b.html(papersHTML(mine, shaky));
+      $b.find('.dip-paper').on('click', function(e){
+        e.preventDefault(); openDocument(this.getAttribute('data-dn'));
+      });
+    }).catch(function(){ drop(); });
   }
 
   function showJourneyFor(b){
