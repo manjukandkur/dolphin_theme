@@ -1022,12 +1022,18 @@ frappe.provide("dolphin");
     availability(num, function (res) {
       if (!res) { return; }
       var bad = (res.refuse || [])[0], askk = (res.ask || [])[0];
+      /* number_check returns the offending stones under .blocks, not on the
+         entry itself - reading bad.status printed nothing at all. */
+      function firstStatus(e){
+        var b = e && (e.blocks || [])[0];
+        return (b && b.status) || e.status || '';
+      }
       if (bad) {
         frappe.msgprint({
           title: 'That number is in use', indicator: 'red',
           message: '<b>' + frappe.utils.escape_html(String(num)) + '</b> is worn by a '
                  + 'block that is still here'
-                 + (bad.status ? ' (' + frappe.utils.escape_html(String(bad.status)) + ')' : '')
+                 + (firstStatus(bad) ? ' (' + frappe.utils.escape_html(String(firstStatus(bad))) + ')' : '')
                  + '.<div style="margin-top:6px">Two stones on one number is the thing '
                  + 'this app spends most of its effort undoing. Use another number, or '
                  + 'retire that block first if it has actually gone.</div>' });
@@ -1036,7 +1042,7 @@ frappe.provide("dolphin");
           title: 'That number is committed', indicator: 'orange',
           message: '<b>' + frappe.utils.escape_html(String(num)) + '</b> belongs to a block '
                  + 'that is on its way out but has not gone yet'
-                 + (askk.status ? ' (' + frappe.utils.escape_html(String(askk.status)) + ')' : '')
+                 + (firstStatus(askk) ? ' (' + frappe.utils.escape_html(String(firstStatus(askk))) + ')' : '')
                  + '. You may still use it, but check that is what you mean.' });
       }
     });
