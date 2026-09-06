@@ -1,0 +1,262 @@
+<!-- ==========================================================================
+     LOCAL SALES — who bought how much, of what, in tonnes.   6 Sep 2026
+
+     [stated] "who has bought how much ? what kind of blocks either dimensional,
+      unshaped etc how many tons should be visible too"
+     [stated] "however you feel is best suitable to understand same way currently
+      existing on stock dashboard similar graph and separate coloumuns for local
+      sale you know better"
+
+     So it reads like the stock dashboard: a bar per month, split by whoever
+     bought, with the tables underneath answering the three questions in order -
+     who, what kind, how much.
+
+     THE TRAP, and why the numbers here are trustworthy: 31 of the 36 submitted
+     local invoices are CRUDE, and a crude invoice carries no block rows at all -
+     it is sold by the tonne, not block by block. Counting block rows would have
+     reported five invoices out of thirty-six. Tonnage therefore comes from the
+     invoice's own quantity; blocks and volume are counted only where blocks
+     exist, and the tables say plainly when a kind has none.
+     ========================================================================== -->
+{% raw %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Dolphin — Local sales</title>
+<style>
+  :root{--navy:#0F2540;--gold:#B5892F;--ink:#1f2a3a;--muted:#6b7280;--line:#e3e8ee;
+        --bg:#f4f6f8;--ok:#0f6e56;--bad:#a3352b;--local:#5b3d8a}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:14px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+  .top{background:var(--navy);color:#fff;padding:12px 18px;display:flex;
+       align-items:center;gap:12px;flex-wrap:wrap}
+  .top .dot{background:var(--gold);color:var(--navy);font-weight:800;border-radius:7px;
+            padding:2px 8px;font-size:12px;letter-spacing:.04em}
+  .top h1{font-size:15px;margin:0;font-weight:700;letter-spacing:.02em}
+  .top .sp{flex:1}
+  .wrap{max-width:1180px;margin:0 auto;padding:18px}
+  .kpis{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px}
+  .kpi{flex:1 1 150px;background:#fff;border:1px solid var(--line);border-radius:10px;padding:11px 14px}
+  .kpi .k{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:700}
+  .kpi .v{font-size:22px;font-weight:700;color:var(--navy);font-variant-numeric:tabular-nums;line-height:1.25}
+  .kpi .s{font-size:11px;color:var(--muted)}
+  .card{background:#fff;border:1px solid var(--line);border-radius:10px;margin-bottom:16px}
+  .card .hd{padding:12px 16px;border-bottom:1px solid var(--line);display:flex;
+            align-items:center;gap:10px;flex-wrap:wrap}
+  .card .hd b{font-size:13.5px;color:var(--navy)}
+  .card .hd .sm{font-size:11.5px;color:var(--muted)}
+  .card .bd{padding:14px 16px}
+  .seg{margin-left:auto;display:flex;gap:0;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  .seg button{border:0;background:#fff;font:inherit;font-size:12px;padding:4px 12px;cursor:pointer;color:var(--muted)}
+  .seg button.on{background:var(--navy);color:#fff;font-weight:700}
+  .chart{display:flex;align-items:flex-end;gap:18px;height:210px;padding:8px 4px 0;
+         border-bottom:1px solid var(--line);overflow-x:auto}
+  .mon{min-width:56px;flex:1;display:flex;flex-direction:column;align-items:center;
+       justify-content:flex-end;height:100%;gap:5px}
+  .mon .tot{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
+  .stack{width:78%;min-width:34px;display:flex;flex-direction:column-reverse;
+         border-radius:5px 5px 0 0;overflow:hidden;box-shadow:0 1px 2px rgba(15,37,64,.12)}
+  .stack i{display:block;min-height:2px}
+  .mlab{font-size:11px;color:var(--muted);white-space:nowrap}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:12px;font-size:12px}
+  .legend span{display:flex;align-items:center;gap:6px}
+  .sw{width:11px;height:11px;border-radius:3px;display:inline-block}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);
+     font-weight:700;padding:8px 10px 7px 0;border-bottom:1px solid var(--line);white-space:nowrap}
+  td{padding:7px 10px 7px 0;border-bottom:1px solid #f2f5f8;font-variant-numeric:tabular-nums}
+  tr:last-child td{border-bottom:0}
+  th.r,td.r{text-align:right}
+  .chip{display:inline-block;font-size:10px;font-weight:700;padding:1px 8px;border-radius:20px}
+  .chip.crude{background:#f4efe6;color:#7a5a1e}
+  .chip.dim{background:#e6f1fb;color:#0c447c}
+  .bar{height:8px;border-radius:4px;background:#eef2f6;overflow:hidden;min-width:60px}
+  .bar i{display:block;height:100%;background:var(--local)}
+  .muted{color:var(--muted)}
+  .err{background:#fbeeec;border:1px solid #f0d8d4;color:var(--bad);padding:14px;border-radius:10px}
+  .foot{font-size:11.5px;color:var(--muted);padding:0 18px 30px;max-width:1180px;margin:0 auto}
+  @media print{.top,.seg{display:none}body{background:#fff}}
+</style>
+</head>
+<body>
+<div class="top">
+  <span class="dot">DI</span>
+  <h1>Local sales</h1>
+  <span class="sp"></span>
+  <span id="asof" style="font-size:11.5px;color:#9fb8d4"></span>
+</div>
+
+<div class="wrap">
+  <div id="kpis" class="kpis"></div>
+
+  <div class="card">
+    <div class="hd"><b>By month</b>
+      <span class="sm" id="chartsub">tonnes, split by buyer</span>
+      <span class="seg">
+        <button id="byBuyer" class="on">By buyer</button>
+        <button id="byKind">By kind</button>
+      </span>
+    </div>
+    <div class="bd">
+      <div class="chart" id="chart"></div>
+      <div class="legend" id="legend"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="hd"><b>Who bought how much</b>
+      <span class="sm">tonnage is the invoice quantity — the figure the sale was made on</span></div>
+    <div class="bd" style="overflow:auto"><table id="buyers"></table></div>
+  </div>
+
+  <div class="card">
+    <div class="hd"><b>What kind of stone</b>
+      <span class="sm">crude is sold by the tonne and carries no block rows — that is why its block count is nil</span></div>
+    <div class="bd" style="overflow:auto"><table id="kinds"></table></div>
+  </div>
+
+  <div class="card">
+    <div class="hd"><b>Every local invoice</b><span class="sm" id="invcount"></span></div>
+    <div class="bd" style="overflow:auto;max-height:460px"><table id="invoices"></table></div>
+  </div>
+</div>
+<div class="foot" id="foot"></div>
+
+<script>
+var PALETTE=['#378ADD','#1D9E75','#B5892F','#7F77DD','#D4537E','#639922','#3FA9A0','#E07B39','#6E8CA0','#a3352b'];
+var D=null, mode='buyer';
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+function n(v,d){ if(v==null||v==='') return '—'; var x=+v; return x.toFixed(d===undefined?1:d).replace(/\B(?=(\d{3})+(?!\d))/g,','); }
+function money(v){ if(!v) return '—'; return '₹ '+Math.round(v).toLocaleString('en-IN'); }
+function $(id){return document.getElementById(id);}
+function monLabel(m){ if(!/^\d{4}-\d{2}$/.test(m)) return m;
+  var M=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return M[+m.slice(5,7)-1]+' '+m.slice(2,4); }
+
+fetch('/api/method/dolphin_theme.local_sales.monthly',{credentials:'same-origin'})
+  .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
+  .then(function(j){ D=j.message; render(); })
+  .catch(function(e){ $('kpis').outerHTML='<div class="err">Could not load local sales — '
+    +esc((e&&e.message)||e)+'. You may need to sign in with a Dolphin account.</div>'; });
+
+function keyFor(inv){ return mode==='buyer' ? inv.buyer : inv.kind; }
+function seriesNames(){
+  var m={}; (D.invoices||[]).forEach(function(i){ m[keyFor(i)]=(m[keyFor(i)]||0)+i.tonnage; });
+  return Object.keys(m).sort(function(a,b){return m[b]-m[a];});
+}
+function colour(name, names){ var i=names.indexOf(name); return PALETTE[i%PALETTE.length]; }
+
+function render(){
+  var t=D.totals||{};
+  $('asof').textContent = (D.months&&D.months.length)
+    ? ('to '+monLabel(D.months[D.months.length-1].key)) : '';
+  $('kpis').innerHTML =
+     kpi('Tonnes sold', n(t.tonnage,1), 'across '+t.invoices+' invoices')
+   + kpi('Buyers', t.buyers, 'local, domestic')
+   + kpi('Blocks', t.blocks, 'dimensional only — crude is sold by weight')
+   + kpi('Value', money(t.value), 'invoice grand totals');
+
+  drawChart();
+  drawBuyers();
+  drawKinds();
+  drawInvoices();
+  $('foot').textContent = 'Tonnage is the quantity on the invoice. Blocks and volume are '
+    + 'counted only where the invoice carries block rows — crude invoices do not. '
+    + 'Submitted invoices only; drafts are not a sale.';
+}
+function kpi(k,v,s){ return '<div class="kpi"><div class="k">'+esc(k)+'</div><div class="v">'
+  +esc(v)+'</div><div class="s">'+esc(s)+'</div></div>'; }
+
+function drawChart(){
+  var names=seriesNames();
+  var months=D.months||[];
+  var per={};
+  months.forEach(function(m){ per[m.key]={}; });
+  (D.invoices||[]).forEach(function(i){
+    var mo=i.date.slice(0,7); if(!per[mo]) per[mo]={};
+    per[mo][keyFor(i)]=(per[mo][keyFor(i)]||0)+i.tonnage;
+  });
+  var max=0; months.forEach(function(m){ max=Math.max(max,m.tonnage); });
+  $('chartsub').textContent='tonnes, split by '+(mode==='buyer'?'buyer':'kind of stone');
+  $('chart').innerHTML = months.map(function(m){
+    var h=max? Math.round(m.tonnage/max*160):0;
+    var segs=names.map(function(nm){
+      var v=(per[m.key]||{})[nm]||0; if(!v) return '';
+      var sh=Math.max(2, Math.round(v/(m.tonnage||1)*h));
+      return '<i style="height:'+sh+'px;background:'+colour(nm,names)+'" title="'+esc(nm)+' — '+n(v,1)+' t"></i>';
+    }).join('');
+    return '<div class="mon"><div class="tot">'+n(m.tonnage,0)+'t</div>'
+      +'<div class="stack" style="height:'+h+'px">'+segs+'</div>'
+      +'<div class="mlab">'+esc(monLabel(m.key))+'</div></div>';
+  }).join('') || '<div class="muted" style="padding:20px">No local sales recorded yet.</div>';
+  $('legend').innerHTML = names.map(function(nm){
+    return '<span><i class="sw" style="background:'+colour(nm,names)+'"></i> '+esc(nm)+'</span>';
+  }).join('');
+}
+
+function drawBuyers(){
+  var rows=D.buyers||[]; var max=rows.length? rows[0].tonnage:0;
+  $('buyers').innerHTML='<thead><tr><th>Buyer</th><th class="r">Tonnes</th><th>Share</th>'
+    +'<th class="r">Invoices</th><th class="r">Blocks</th><th class="r">Value</th>'
+    +'<th>Bought</th><th>Last sale</th></tr></thead><tbody>'
+    + rows.map(function(b){
+      var kinds=Object.keys(b.kinds||{}).map(function(k){
+        return '<span class="chip '+((D.crude_kinds||[]).indexOf(k)>=0?'crude':'dim')+'">'+esc(k)+'</span>';
+      }).join(' ');
+      return '<tr><td><b>'+esc(b.key)+'</b></td>'
+        +'<td class="r">'+n(b.tonnage,1)+'</td>'
+        +'<td><div class="bar"><i style="width:'+(max?Math.round(b.tonnage/max*100):0)+'%"></i></div></td>'
+        +'<td class="r">'+b.invoices+'</td>'
+        +'<td class="r">'+(b.blocks||'—')+'</td>'
+        +'<td class="r">'+money(b.value)+'</td>'
+        +'<td>'+kinds+'</td>'
+        +'<td class="muted">'+esc(b.last||'')+'</td></tr>';
+    }).join('') + '</tbody>';
+}
+
+function drawKinds(){
+  var rows=D.kinds||[];
+  $('kinds').innerHTML='<thead><tr><th>Kind of stone</th><th></th><th class="r">Tonnes</th>'
+    +'<th class="r">Invoices</th><th class="r">Blocks</th><th class="r">Volume</th>'
+    +'<th class="r">Value</th><th>Bought by</th></tr></thead><tbody>'
+    + rows.map(function(k){
+      var crude=(D.crude_kinds||[]).indexOf(k.key)>=0;
+      var who=Object.keys(k.buyers||{}).sort(function(a,b){return k.buyers[b]-k.buyers[a];})
+              .map(function(b){return esc(b)+' ('+n(k.buyers[b],1)+'t)';}).join(' · ');
+      return '<tr><td><b>'+esc(k.key)+'</b></td>'
+        +'<td><span class="chip '+(crude?'crude':'dim')+'">'+(crude?'crude':'dimensional')+'</span></td>'
+        +'<td class="r">'+n(k.tonnage,1)+'</td>'
+        +'<td class="r">'+k.invoices+'</td>'
+        +'<td class="r">'+(k.blocks||'—')+'</td>'
+        +'<td class="r">'+(k.volume?n(k.volume,2):'—')+'</td>'
+        +'<td class="r">'+money(k.value)+'</td>'
+        +'<td class="muted">'+who+'</td></tr>';
+    }).join('') + '</tbody>';
+}
+
+function drawInvoices(){
+  var rows=(D.invoices||[]);
+  $('invcount').textContent = rows.length+' submitted';
+  $('invoices').innerHTML='<thead><tr><th>Invoice</th><th>Date</th><th>Buyer</th><th>Kind</th>'
+    +'<th class="r">Tonnes</th><th class="r">Blocks</th><th class="r">Value</th><th>Block nos</th></tr></thead><tbody>'
+    + rows.map(function(i){
+      return '<tr><td><a href="/app/local-tax-invoice/'+encodeURIComponent(i.id)+'" target="_blank" style="color:#185fa5;text-decoration:none">'+esc(i.invoice)+'</a></td>'
+        +'<td class="muted">'+esc(i.date)+'</td>'
+        +'<td>'+esc(i.buyer)+'</td>'
+        +'<td><span class="chip '+(i.crude?'crude':'dim')+'">'+esc(i.kind)+'</span></td>'
+        +'<td class="r">'+n(i.tonnage,2)+'</td>'
+        +'<td class="r">'+(i.blocks||'—')+'</td>'
+        +'<td class="r">'+money(i.value)+'</td>'
+        +'<td class="muted">'+esc((i.numbers||[]).join(', '))+'</td></tr>';
+    }).join('') + '</tbody>';
+}
+
+$('byBuyer').onclick=function(){ mode='buyer'; this.classList.add('on'); $('byKind').classList.remove('on'); drawChart(); };
+$('byKind').onclick=function(){ mode='kind'; this.classList.add('on'); $('byBuyer').classList.remove('on'); drawChart(); };
+</script>
+</body>
+</html>
+{% endraw %}
