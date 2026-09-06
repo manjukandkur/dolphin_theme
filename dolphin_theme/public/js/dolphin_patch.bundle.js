@@ -260,11 +260,86 @@ frappe.provide("dolphin");
     $r.on('click', function(){ onPick(b); });
     return $r;
   }
+  /* ---- THE PAPERS THIS BLOCK IS ON.  6 Sep 2026 -------------------------
+     block_where.py is 780 lines that answer one question properly - which
+     documents does this stone actually appear on, and was it found by a real
+     link or only by a matching number. It was written, tested, and then never
+     called by anything, which made it worth nothing. This is its caller.
+
+     It is deliberately a SECOND, later call: the journey draws first and this
+     fills in underneath when the answer arrives, so a slow or failed lookup
+     costs the dialog nothing.
+
+     The guard matters. where_is() is asked by NUMBER, and a number can mean two
+     blocks. If the answer is not about THIS record, nothing is drawn - papers
+     belonging to the other stone with the same number would be a lie of the
+     exact kind this app exists to stop. */
+  var PKIND = { quarry_inspection:'Quarry inspection', buyer_inspection:'Buyer inspection',
+                delivery_challan:'Delivery challan', port_arrival:'Port arrival',
+                export_shipment_lot:'Shipment lot', shipping_document:'Shipping document' };
+  function papersHTML(res){
+    var places = (res && res.places) || [];
+    if(!places.length){
+      return '<div style="font-size:12px;color:#6b7280">No document carries this block yet.</div>';
+    }
+    var rows = places.map(function(p){
+      var state = p.cancelled ? 'cancelled' : (p.draft ? 'draft' : 'submitted');
+      var col   = p.cancelled ? '#a3352b' : (p.draft ? '#8a6d1f' : '#0f6e56');
+      var byLink = (p.found_by||'').indexOf('link') > -1;
+      var num   = p.challan_no || p.doc;
+      return '<div style="display:flex;gap:10px;align-items:baseline;padding:5px 0;'
+           + 'border-bottom:1px solid #f2f5f8">'
+           + '<div style="min-width:132px;font-size:12px;font-weight:600">'
+           + esc(PKIND[p.kind]||p.doctype||p.kind) + '</div>'
+           + '<div style="flex:1;font-size:12px">'
+           + '<a href="#" class="dip-paper" data-dn="' + esc(p.doc) + '">'
+           + esc(num) + '</a>'
+           + (p.date ? ' <span style="color:#6b7280">' + esc(p.date) + '</span>' : '')
+           + '</div>'
+           + '<div style="font-size:11px;color:' + col + '">' + state + '</div>'
+           + '<div style="font-size:11px;color:#6b7280;min-width:104px;text-align:right" '
+           + 'title="' + esc(p.found_by||'') + '">'
+           + (byLink ? 'linked' : 'by number only') + '</div>'
+           + '</div>';
+    }).join('');
+    var loose = places.filter(function(p){ return (p.found_by||'').indexOf('link') === -1; }).length;
+    return rows
+      + (loose ? '<div style="font-size:11px;color:#8a6d1f;margin-top:7px">'
+               + loose + ' of these was found by its NUMBER, not by a link to this '
+               + 'block. That is still the right stone today, but it is the weaker '
+               + 'kind of evidence.</div>' : '');
+  }
+  function addPapers($w, b){
+    var num = b.block_number || b.export_block_no || b.local_buyer_block_no;
+    if(!num) return;
+    $w.append('<div class="dip-papers" style="margin-top:14px;border-top:1px solid #e3e8ee;'
+            + 'padding-top:10px"><div style="font-size:11px;text-transform:uppercase;'
+            + 'letter-spacing:.05em;color:#6b7280;font-weight:700;margin-bottom:6px">'
+            + 'Papers this block is on</div>'
+            + '<div class="dip-papers-body" style="font-size:12px;color:#6b7280">'
+            + 'looking\u2026</div></div>');
+    frappe.call({ method:'dolphin_theme.block_where.where_is', args:{ key:String(num) } })
+      .then(function(r){
+        var res = r && r.message, $b = $w.find('.dip-papers-body');
+        if(!$b.length) return;
+        if(!res || !res.ok || !res.numbers || res.numbers.record_id !== b.name){
+          $w.find('.dip-papers').remove();      /* not this stone - say nothing */
+          return;
+        }
+        $b.html(papersHTML(res));
+        $b.find('.dip-paper').on('click', function(e){
+          e.preventDefault(); openDocument(this.getAttribute('data-dn'));
+        });
+      })
+      .catch(function(){ $w.find('.dip-papers').remove(); });
+  }
+
   function showJourneyFor(b){
     eslFor(b).then(function(esl){
       shipDocFor(esl).then(function(shipDoc){
         var d=new frappe.ui.Dialog({title:'Block '+esc(b.block_number||b.name)+' — journey',fields:[{fieldtype:'HTML',fieldname:'j'}]});
         d.fields_dict.j.$wrapper.html(journeyHTML(b, esl, shipDoc)); d.show();
+        addPapers(d.fields_dict.j.$wrapper, b);
       });
     });
   }
