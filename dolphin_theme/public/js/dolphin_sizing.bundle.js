@@ -220,13 +220,23 @@
           'The thresholds did not put ' + (up.length === 1 ? 'that block' : 'those blocks') +
           ' there, so this records that the buyer agreed &mdash; and needs the name of who did.</div>'
         : '<div class="sm" style="margin-top:8px">Nothing moves up a band, so no buyer consent ' +
-          'is involved. A reason is enough.</div>') +
+          'is involved. Just press Apply.</div>') +
       '</div>' }];
     if (up.length) {
       f.push({ fieldname: 'agreed_by', fieldtype: 'Data',
                label: 'Who at the buyer agreed', reqd: 1 });
     }
-    f.push({ fieldname: 'reason', fieldtype: 'Small Text', label: 'Note', reqd: 1 });
+    /* 6 Sep 2026, his instruction: "reason is not required for grade change on
+       shipping documents since accountablitiy is only with bangalore staff 2-3
+       people, every time entering reason is it advisable? it is understood that
+       the deal agreed is it".
+       The note is OPTIONAL now. Who did it and when are stamped automatically,
+       so the note was adding a keystroke and no information. The one thing still
+       demanded is the buyer's name on a move UP a band - that is the only change
+       that moves a block into a higher price band, and it is his own rule of
+       31 Aug. */
+    f.push({ fieldname: 'reason', fieldtype: 'Small Text',
+             label: 'Note (optional)' });
     return f;
   }
 
@@ -1042,14 +1052,18 @@
           ? '<div class="note" style="margin-top:8px"><b>' + up + ' move UP a band.</b> ' +
             'The thresholds did not put them there, so this records that the buyer agreed.</div>'
           : '<div class="sm" style="margin-top:8px">Nothing moves up a band, so no buyer consent ' +
-            'is involved.</div>') + '</div>';
+            'is involved. Just press Apply.</div>') + '</div>';
 
         var fields = [{ fieldtype: 'HTML', options: body }];
         if (up) {
           fields.push({ fieldname: 'agreed_by', fieldtype: 'Data',
                         label: 'Who at the buyer agreed', reqd: 1 });
         }
-        fields.push({ fieldname: 'reason', fieldtype: 'Small Text', label: 'Note', reqd: 1 });
+        /* 6 Sep 2026: optional. See sizeFields - a grade change asks for nothing
+           at all, and a size change asks only for the buyer's name when a block
+           moves UP a band. */
+        fields.push({ fieldname: 'reason', fieldtype: 'Small Text',
+                      label: 'Note (optional)' });
 
         var dlg = new frappe.ui.Dialog({
           title: rows.length + ' block(s)',
