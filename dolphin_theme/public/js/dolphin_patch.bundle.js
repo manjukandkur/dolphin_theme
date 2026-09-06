@@ -96,7 +96,19 @@ frappe.provide("dolphin");
     var rank = (eff in RANK) ? RANK[eff] : 0;
     var NA = '&mdash;';
 
-    var steps=[{l:'Quarried',v:b.block_number||b.name,done:true},
+    /* 6 Sep 2026: a gone block - sold or retired, local or export, one look -
+       carries a struck number, because the NUMBER is what has been released.
+       Only the number is struck. The journey itself stays at full strength:
+       this is the screen you open to READ the history, so nothing in it is
+       faded except the stages that never applied. */
+    var qno = b.block_number||b.name;
+    var goneNo = !!(b.retired_on || b.status==='Sold' || b.status==='Shipped');
+    var qshow = goneNo
+      ? '<span title="'+(b.retired_on ? 'Number retired on '+esc(b.retired_on)+' - free to use again'
+                                      : 'This block has gone - its number is free to use again')
+        +'" style="text-decoration:line-through;opacity:.6">'+esc(qno)+'</span>'
+      : esc(qno);
+    var steps=[{l:'Quarried',v:qshow,done:true,raw:true},
       {l:'Quarry Inspection',v:b.source_quarry_inspection||'not yet',done:!!b.source_quarry_inspection,e:eyeLink('Quarry Inspection',b.source_quarry_inspection,'Quarry Inspection - Report')},
       {l:'Buyer Inspection',v:b.buyer_inspection||'not yet',done:!!b.buyer_inspection,e:eyeLink('Buyer Inspection',b.buyer_inspection,'Buyer Inspection - Report')}];
 
