@@ -145,7 +145,7 @@ function stageFromStatus(st,ch){ if(st==='Sold') return (ch==='Local')?'local':'
 function loadData(){
   /* 6 Sep 2026: sale_channel and the local buyer's number come along, so a
      local sale is counted as a local sale and never as export stock. */
-  var flds=JSON.stringify(['name','block_number','granite_quality_grade','granite_size_category','pit','length_gross','width_gross','height_gross','gross_volume','date_produced','status','export_block_no','buyer_marker','consignee','sale_channel','local_buyer_block_no','sold_to','sold_on']);
+  var flds=JSON.stringify(['name','block_number','granite_quality_grade','granite_size_category','pit','length_gross','width_gross','height_gross','gross_volume','date_produced','status','export_block_no','buyer_marker','consignee','sale_channel','local_buyer_block_no','sold_to','sold_on','retired_on']);
   apiGet('frappe.client.get_list',{doctype:'Quarry Block',fields:flds,limit_page_length:0}).then(function(rows){
     rows=rows||[];
     // grade is stored on the Quarry Inspection child rows, not on Quarry Block -> build a block-no -> grade map
@@ -154,7 +154,7 @@ function loadData(){
     return apiGet('frappe.client.get_list',{doctype:'Shipment Lot Block',parent:'Export Shipment Lot',fields:JSON.stringify(['parent','block']),limit_page_length:0}).catch(function(){return [];}).then(function(lr){
       var lotmap={}; (lr||[]).forEach(function(x){lotmap[x.block]=x.parent;});
       DATA=rows.map(function(b){ var L=b.length_gross||0,W=b.width_gross||0,H=b.height_gross||0; var vol=b.gross_volume||Math.round(L*W*H/1e6*100)/100; var no=b.block_number||b.name; var gr=gradeMap[String(no)]||gradeMap[String(b.name)]||b.granite_quality_grade||'-';
-        return {_name:b.name,no:no,L:L,W:W,H:H,nL:L,nW:W,nH:H,vol:vol,netvol:vol,grade:gr,size:b.granite_size_category||'-',pit:(b.pit!=null&&b.pit!==''?String(b.pit):'-'),date:b.date_produced||'',exp:b.export_block_no||'',buyer:b.buyer_marker||'',port:b.consignee||'',lot:lotmap[b.name]||'',consignee:b.consignee||'',stage:stageFromStatus(b.status,b.sale_channel),channel:(b.sale_channel||''),localno:(b.local_buyer_block_no||''),soldto:(b.sold_to||''),soldon:(b.sold_on||'')}; });
+        return {_name:b.name,no:no,L:L,W:W,H:H,nL:L,nW:W,nH:H,vol:vol,netvol:vol,grade:gr,size:b.granite_size_category||'-',pit:(b.pit!=null&&b.pit!==''?String(b.pit):'-'),date:b.date_produced||'',exp:b.export_block_no||'',buyer:b.buyer_marker||'',port:b.consignee||'',lot:lotmap[b.name]||'',consignee:b.consignee||'',stage:stageFromStatus(b.status,b.sale_channel),channel:(b.sale_channel||''),localno:(b.local_buyer_block_no||''),soldto:(b.sold_to||''),soldon:(b.sold_on||''),retired:(b.retired_on||''),gone:!!(b.retired_on||b.status==='Sold'||b.status==='Shipped')}; });
       var pset={}; DATA.forEach(function(b){pset[b.pit]=1;}); PITS=Object.keys(pset).sort(function(a,b){var na=+a,nb=+b; if(isNaN(na)||isNaN(nb))return String(a).localeCompare(String(b)); return na-nb;});
       render();
     });
@@ -246,12 +246,26 @@ function renderSummary(rows,s,vf){
   $('tblwrap').innerHTML='<table><thead><tr>'+head+'</tr></thead><tbody>'+body+totrow+'</tbody></table>';
   Array.prototype.forEach.call($('tblwrap').querySelectorAll('[data-k]'),function(el){el.onclick=function(){blockModal(el.getAttribute('data-k'));};});
 }
+/* 6 Sep 2026, his words: "the retired block should show strike off" /
+   "dimmed and strike off" / "the retired or sold either local or export
+   have same style whatever it is". He picked option 3 of the mockup.
+
+   So GONE is one state with one look, and the channel it went out
+   through changes nothing about it: the row fades and the NUMBER is
+   struck, because the number is the part that has been released and is
+   free to be painted on a new stone. Cosmetic only - the row stays
+   clickable and the journey opens in full, undimmed. */
+function goneRow(b){ return b.gone ? ' style="opacity:.5"' : ''; }
+function bno(b){ if(!b.gone) return b.no;
+  var why = b.retired ? 'Number retired on '+b.retired+' - free to use again'
+                      : 'This block has gone - its number is free to use again';
+  return '<span title="'+why+'" style="text-decoration:line-through">'+b.no+'</span>'; }
 function detailRows(rows,s,stg){ stg=stg||state.stage; var head,cells;
-  if(stg==='bi'){ head=['Block','Export','Net L×W×H','Net vol','Net ton','Size','Grade','Buyer','BI']; cells=function(b){return [b.no,b.exp,b.nL+'×'+b.nW+'×'+b.nH,b.netvol.toFixed(2),(b.netvol*s).toFixed(1),b.size,b.grade,b.buyer,'BI-GCCG-10'+(b.no%3)];}; }
-  else if(stg==='port'){ head=['Block','Export','Arr.mark','Port','Size','Grade','Vol','Ton','PA']; cells=function(b){return [b.no,b.exp,'AM-'+(b.no%50),b.port,b.size,b.grade,b.vol.toFixed(2),(b.vol*s).toFixed(1),'PA-'+(2600+b.no%40)];}; }
-  else if(stg==='lot'){ head=['Block','Export','Lot','Size','Grade','Vol','Ton','ESL']; cells=function(b){return [b.no,b.exp,b.lot,b.size,b.grade,b.vol.toFixed(2),(b.vol*s).toFixed(1),b.lot];}; }
-  else { head=['Block','L×W×H','Vol','Ton','Size','Grade','Pit','Date','QI']; cells=function(b){return [b.no,b.L+'×'+b.W+'×'+b.H,b.vol.toFixed(2),(b.vol*s).toFixed(1),b.size,b.grade,b.pit,b.date,'QI-DABG-00'+((b.no%4)+1)];}; }
-  return '<table><thead><tr>'+head.map(function(h){return '<th>'+h+'</th>';}).join('')+'</tr></thead><tbody>'+rows.map(function(b){return '<tr>'+cells(b).map(function(v){return '<td>'+v+'</td>';}).join('')+'</tr>';}).join('')+'</tbody></table>';
+  if(stg==='bi'){ head=['Block','Export','Net L×W×H','Net vol','Net ton','Size','Grade','Buyer','BI']; cells=function(b){return [bno(b),b.exp,b.nL+'×'+b.nW+'×'+b.nH,b.netvol.toFixed(2),(b.netvol*s).toFixed(1),b.size,b.grade,b.buyer,'BI-GCCG-10'+(b.no%3)];}; }
+  else if(stg==='port'){ head=['Block','Export','Arr.mark','Port','Size','Grade','Vol','Ton','PA']; cells=function(b){return [bno(b),b.exp,'AM-'+(b.no%50),b.port,b.size,b.grade,b.vol.toFixed(2),(b.vol*s).toFixed(1),'PA-'+(2600+b.no%40)];}; }
+  else if(stg==='lot'){ head=['Block','Export','Lot','Size','Grade','Vol','Ton','ESL']; cells=function(b){return [bno(b),b.exp,b.lot,b.size,b.grade,b.vol.toFixed(2),(b.vol*s).toFixed(1),b.lot];}; }
+  else { head=['Block','L×W×H','Vol','Ton','Size','Grade','Pit','Date','QI']; cells=function(b){return [bno(b),b.L+'×'+b.W+'×'+b.H,b.vol.toFixed(2),(b.vol*s).toFixed(1),b.size,b.grade,b.pit,b.date,'QI-DABG-00'+((b.no%4)+1)];}; }
+  return '<table><thead><tr>'+head.map(function(h){return '<th>'+h+'</th>';}).join('')+'</tr></thead><tbody>'+rows.map(function(b){return '<tr'+goneRow(b)+'>'+cells(b).map(function(v){return '<td>'+v+'</td>';}).join('')+'</tr>';}).join('')+'</tbody></table>';
 }
 function renderDetails(rows,s){ $('tblwrap').innerHTML='<div style="overflow:auto">'+detailRows(rows,s)+'</div>'; }
 function buildChartHTML(MAXH){
@@ -278,7 +292,7 @@ function showModal(title,rows,tableFn){ modalRows=rows; modalTableFn=tableFn||fu
 function renderModalTable(q){ var r=modalRows; if(q){ r=modalRows.filter(function(b){return String(b.no).indexOf(q)>-1 || (''+(b.exp||'')).toLowerCase().indexOf(q.toLowerCase())>-1;}); } window.__mlast=r; $('mtable').innerHTML=modalTableFn(r)+'<div class="muted" style="padding:8px 14px">'+r.length+' block(s)</div>'; }
 function blockModal(k){ var rows=filtered().filter(function(b){return b[state.group]==k;}); var stg=(state.group==='stage')?k:state.stage; var lbl=(state.group==='stage')?stageName(k):(groupOpts().filter(function(g){return g[0]===state.group;})[0][1]+' '+k); showModal(lbl+' — '+rows.length+' blocks', rows, function(r){return detailRows(r,sg(),stg);}); }
 function openFull(){ var rows=filtered(); var tf=(state.group==='stage')?traceTable:function(r){return detailRows(r,sg());}; showModal('Total stock list — '+rows.length+' blocks · '+rows.reduce(function(a,b){return a+b[volField()];},0).toFixed(1)+' CBM', rows, tf); }
-function traceTable(rows){ var s=sg(); var head=['Block','Stage','Export','L×W×H','Vol','Ton','Size','Grade','Pit','Date']; return '<table><thead><tr>'+head.map(function(h){return '<th>'+h+'</th>';}).join('')+'</tr></thead><tbody>'+rows.map(function(b){var c=[b.no,stageName(b.stage),b.exp,b.L+'×'+b.W+'×'+b.H,b.vol.toFixed(2),(b.vol*s).toFixed(1),classOf(b),b.grade,b.pit,b.date]; return '<tr>'+c.map(function(v){return '<td>'+v+'</td>';}).join('')+'</tr>';}).join('')+'</tbody></table>'; }
+function traceTable(rows){ var s=sg(); var head=['Block','Stage','Export','L×W×H','Vol','Ton','Size','Grade','Pit','Date']; return '<table><thead><tr>'+head.map(function(h){return '<th>'+h+'</th>';}).join('')+'</tr></thead><tbody>'+rows.map(function(b){var c=[bno(b),stageName(b.stage),b.exp,b.L+'×'+b.W+'×'+b.H,b.vol.toFixed(2),(b.vol*s).toFixed(1),classOf(b),b.grade,b.pit,b.date]; return '<tr'+goneRow(b)+'>'+c.map(function(v){return '<td>'+v+'</td>';}).join('')+'</tr>';}).join('')+'</tbody></table>'; }
 function traceBlock(){ var q=($('traceq').value||'').trim(); if(!q) return; var m=DATA.filter(function(b){return String(b.no).indexOf(q)>-1 || (''+(b.exp||'')).toLowerCase().indexOf(q.toLowerCase())>-1;}); showModal('Trace &ldquo;'+q+'&rdquo; — '+m.length+' block(s) found', m, traceTable); }
 function openNewPage(){ var rows=window.__mlast||modalRows; var w=window.open('','_blank'); if(!w) return; w.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>Total stock list</title><style>body{font-family:-apple-system,Segoe UI,Roboto,sans-serif;margin:24px;color:#12233b}h2{color:#0F2540}table{width:100%;border-collapse:collapse;font-size:13px}th{background:#0F2540;color:#fff;text-align:left;padding:8px 11px}td{padding:7px 11px;border-top:1px solid #e6eaf0}button{padding:8px 14px;border:1px solid #0F2540;background:#0F2540;color:#fff;border-radius:8px;cursor:pointer}</style></head><body><h2>Dolphin — '+($('mtitle').textContent||'Stock list')+'</h2>'+modalTableFn(rows)+'<p style="margin-top:16px"><button onclick="window.print()">Print / Save as PDF</button></p></body></html>'); w.document.close(); }
 function renderChart(targetId,MAXH){ $(targetId).innerHTML=buildChartHTML(MAXH); }
