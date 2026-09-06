@@ -926,13 +926,55 @@ frappe.provide("dolphin");
      and the block's number field is a PARENT field, not a child row - so it needs
      its own handler or the doctype is left with no rule at all. Blocks are made
      by Push to Stock rather than typed, but "rarely typed" is not "never". */
+  /* 6 Sep 2026: the shape rule was only ever half the question. The other half -
+     is this number FREE? - was built weeks ago as retirement.number_check and
+     never called by anything. It matters most right now, with a thousand blocks
+     about to be entered: a number a standing block still wears must not be
+     typed onto a second stone, while a number whose block has been retired is
+     free again, which is the whole reason retirement exists.
+
+     It WARNS, it does not refuse. He is about to travel and a hard stop on a
+     save is not something to leave behind unattended; the person is told
+     plainly and decides. */
+  function availability(num, cb) {
+    if (!num) { return; }
+    frappe.call({ method: 'dolphin_theme.retirement.number_check',
+                  args: { numbers: JSON.stringify([String(num)]) } })
+      .then(function (r) { cb(r && r.message); })
+      .catch(function () {});
+  }
+  function sayAvailability(num) {
+    availability(num, function (res) {
+      if (!res) { return; }
+      var bad = (res.refuse || [])[0], askk = (res.ask || [])[0];
+      if (bad) {
+        frappe.msgprint({
+          title: 'That number is in use', indicator: 'red',
+          message: '<b>' + frappe.utils.escape_html(String(num)) + '</b> is worn by a '
+                 + 'block that is still here'
+                 + (bad.status ? ' (' + frappe.utils.escape_html(String(bad.status)) + ')' : '')
+                 + '.<div style="margin-top:6px">Two stones on one number is the thing '
+                 + 'this app spends most of its effort undoing. Use another number, or '
+                 + 'retire that block first if it has actually gone.</div>' });
+      } else if (askk) {
+        frappe.msgprint({
+          title: 'That number is committed', indicator: 'orange',
+          message: '<b>' + frappe.utils.escape_html(String(num)) + '</b> belongs to a block '
+                 + 'that is on its way out but has not gone yet'
+                 + (askk.status ? ' (' + frappe.utils.escape_html(String(askk.status)) + ')' : '')
+                 + '. You may still use it, but check that is what you mean.' });
+      }
+    });
+  }
+
   frappe.ui.form.on('Quarry Block', {
     block_number: function (frm) {
       var v = frm.doc.block_number;
       if (v === undefined || v === null || v === '') { return; }
       var t = String(v).trim();
       if (t !== String(v)) { frm.set_value('block_number', t); return; }
-      if (!OK.test(t)) { complain(t); }
+      if (!OK.test(t)) { complain(t); return; }
+      if (frm.is_new()) { sayAvailability(t); }
     },
     validate: function (frm) {
       var v = frm.doc.block_number;
@@ -1187,4 +1229,81 @@ frappe.provide("dolphin");
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', watch);
   } else { watch(); }
+})();
+
+/* ===========================================================================
+   "OK STOP THE NOISE".  6 Sep 2026
+
+   Every Shipping Document opened saying NOT SAVED when nobody had touched it.
+   Cause: the totals are recomputed on every form load without rounding, so the
+   form holds 202855.80000000002 where the server stored 202855.8 - two
+   hundred-billionths of a rupee - and Frappe calls the document modified.
+   Measured on SHP-EXP-00005: invoice_value, invoice_total, invoice_value_inr,
+   tax_amount and six cells of size_rates, every one of them differing only in
+   the eleventh decimal place.
+
+   Why this lives here and not in the site script that causes it: the site
+   caches its client-script bundle, an edit there did not reach the browser,
+   and tax_amount turned out to be written by something else again. Chasing the
+   writers is whack-a-mole; snapping the result is one place and survives.
+
+   THE RULE, and it is deliberately narrow. A field is corrected ONLY when it
+   differs from the stored value by less than half a paisa - i.e. it cannot be
+   a real edit, only float noise. Anything larger is left completely alone and
+   the document stays dirty, because that IS a real change and hiding it would
+   be far worse than the nuisance this fixes.
+   =========================================================================== */
+(function () {
+  if (!(window.frappe && frappe.ui && frappe.ui.form)) return;
+  var EPS = 0.005;                     /* half a paisa */
+  var HEAD = ['invoice_value','invoice_total','invoice_value_inr','tax_amount',
+              'total_net_tonnage','total_cbm','total_net_kgs'];
+  var ROWNUM = ['rate_per_mt','amount','mt','cbm','quantity_mt','block_value'];
+
+  function noise(a, b){
+    var x = parseFloat(a), y = parseFloat(b);
+    if (isNaN(x) || isNaN(y)) return false;
+    if (x === y) return false;
+    return Math.abs(x - y) < EPS;
+  }
+
+  function snap(frm){
+    if (!frm || !frm.doc || !frm.doc.__unsaved) return;
+    if (frm.__dolphinSnapping) return;
+    frm.__dolphinSnapping = true;
+    frappe.call({ method:'frappe.client.get',
+                  args:{ doctype: frm.doc.doctype, name: frm.doc.name } })
+      .then(function (r) {
+        var srv = r && r.message; if (!srv) return;
+        var fixed = 0, real = 0;
+        HEAD.forEach(function (f) {
+          if (!(f in srv)) return;
+          if (noise(frm.doc[f], srv[f])) { frm.doc[f] = srv[f]; fixed++; }
+          else if (String(srv[f] == null ? '' : srv[f]) !== String(frm.doc[f] == null ? '' : frm.doc[f])) { real++; }
+        });
+        (srv.size_rates || []).forEach(function (row, i) {
+          var mine = (frm.doc.size_rates || [])[i]; if (!mine) return;
+          ROWNUM.forEach(function (f) {
+            if (!(f in row)) return;
+            if (noise(mine[f], row[f])) { mine[f] = row[f]; fixed++; }
+            else if (String(row[f] == null ? '' : row[f]) !== String(mine[f] == null ? '' : mine[f])) { real++; }
+          });
+        });
+        if (fixed && !real) {
+          /* nothing but noise was different - the document really is unchanged */
+          frm.doc.__unsaved = 0;
+          try { frm.toolbar && frm.toolbar.refresh(); } catch (e) {}
+          try { frm.refresh_fields(); } catch (e) {}
+        }
+        frm.__dolphinSnapping = false;
+      })
+      .catch(function(){ frm.__dolphinSnapping = false; });
+  }
+
+  ['Shipping Document','Export Shipment Lot','Local Tax Invoice'].forEach(function (dt) {
+    frappe.ui.form.on(dt, {
+      onload_post_render: function (frm) { setTimeout(function(){ snap(frm); }, 700); },
+      refresh:            function (frm) { setTimeout(function(){ snap(frm); }, 700); }
+    });
+  });
 })();
