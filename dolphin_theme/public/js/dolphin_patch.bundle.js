@@ -61,7 +61,9 @@ frappe.provide("dolphin");
             /* 6 Sep 2026: the journey needs to know the channel, the local
                buyer's own number, how far the stone actually got before it was
                sold, and whether its number has been retired. */
-            'sale_channel','local_buyer_block_no','status_before_sold','sold_to','sold_on','sold_invoice','retired_on'];
+            'sale_channel','local_buyer_block_no','status_before_sold','sold_to','sold_on','sold_invoice','retired_on',
+            /* 6 Sep 2026: what the picker needs to tell two blocks apart. */
+            'date_produced','pit','consignee','buyer_marker'];
   function esc(s){ return frappe.utils.escape_html(s==null?'':(''+s)); }
   function pdf(dt,nm,fmt){ return '/api/method/frappe.utils.print_format.download_pdf?doctype='+encodeURIComponent(dt)+'&name='+encodeURIComponent(nm)+'&format='+encodeURIComponent(fmt)+'&no_letterhead=0'; }
   function eyeLink(dt,nm,fmt){ return nm?' <a href="'+pdf(dt,nm,fmt)+'" target="_blank" style="font-size:11px;border:1px solid #185fa5;color:#185fa5;border-radius:10px;padding:1px 8px;text-decoration:none;margin-left:6px">&#128065; PDF</a>':''; }
@@ -175,18 +177,119 @@ frappe.provide("dolphin");
     if(!esl) return Promise.resolve(null);
     return frappe.call({method:'frappe.client.get_value',args:{doctype:'Export Shipment Lot',filters:{name:esl},fieldname:'shipping_document'}}).then(function(r){return (r.message&&r.message.shipping_document)||null;}).catch(function(){return null;});
   }
-  function openJourney(bno){
-    if(!bno) return;
-    function q(f){ return frappe.call({method:'frappe.client.get_list',args:{doctype:'Quarry Block',filters:f,fields:FL,limit_page_length:5}}).then(function(r){return r.message||[];}); }
-    q([['block_number','=',bno]]).then(function(bl){return bl.length?bl:q([['export_block_no','=',bno]]);}).then(function(bl){return bl.length?bl:q([['name','=',bno]]);}).then(function(bl){
-      if(!bl.length){ frappe.msgprint('Block '+esc(bno)+' not found in stock records.'); return; }
-      var b=bl[0];
-      eslFor(b).then(function(esl){
-        shipDocFor(esl).then(function(shipDoc){
+  /* ============================ WHEN ONE NUMBER MEANS TWO BLOCKS.  6 Sep 2026
+
+     [stated] "when there are 2 blocks with same number one at port and one in BI
+      how will I distinguish?"
+
+     This function used to answer that question by not asking it. It looked up
+     the number, took bl[0], and drew that journey - so with export no 501 on
+     block 1326 AND block 2208 you got one of them, with nothing on screen to
+     say the other existed. Silently picking is the worst of the three options;
+     even refusing would have been safer.
+
+     Two changes. It now searches the quarry number and the export number
+     TOGETHER rather than falling back from one to the other - a number can be
+     one block's quarry number and another block's export number, which is
+     exactly how these collisions arise. And when more than one block answers to
+     what was typed, it shows them and lets a person choose.
+
+     What separates them, in the order a person actually uses:
+       stage, then the measurement, then the production date and pit,
+       then the sheet it came in on.
+     [stated] "also show the export block number in both the places" - so each
+     entry carries both numbers, making it plain what the two SHARE and what
+     tells them apart. [stated] "even here hovering over should show where is the
+     other duplicate" - so each entry also names its twin, in the row and on the
+     tooltip. The internal id is never shown.
+     ======================================================================== */
+  function stageLabel(b){
+    if(b.sale_channel==='Local' && b.status==='Sold') return 'Sold - local sale';
+    return b.status||'unknown';
+  }
+  function shortWho(b){
+    var bits=[];
+    if(b.sold_to) bits.push(b.sold_to);
+    else if(b.consignee) bits.push(b.consignee);
+    else if(b.buyer_marker) bits.push(b.buyer_marker);
+    return bits.join(' ');
+  }
+  function dims(b){
+    var L=b.length_gross||0,W=b.width_gross||0,H=b.height_gross||0;
+    if(!(L||W||H)) return 'no measurement';
+    var v=b.gross_volume||Math.round(L*W*H/1e6*1000)/1000;
+    return L+' × '+W+' × '+H+(v?(' · '+(+v).toFixed(3)+' cbm'):'');
+  }
+  function twinLine(b, all){
+    var others=all.filter(function(x){return x.name!==b.name;});
+    if(!others.length) return '';
+    return others.map(function(o){
+      return 'the other ' + esc(o.block_number||o.name) + ' is ' + esc(stageLabel(o)).toLowerCase();
+    }).join(' · ');
+  }
+  function pickerRow(b, all, typed, onPick){
+    var sc=SC[b.status]||['#f1efe8','#444441'];
+    var gone=!!(b.retired_on||b.status==='Sold'||b.status==='Shipped');
+    var twin=twinLine(b, all);
+    var tip='The other '+esc(typed)+' is block '
+           + all.filter(function(x){return x.name!==b.name;})
+                .map(function(o){return esc(o.block_number||o.name)+' — '+esc(stageLabel(o))+', '+esc(dims(o));})
+                .join(' | ');
+    var $r=$('<div class="dsz-pick" title="'+tip+'"></div>').css({
+      display:'flex',gap:'14px',padding:'13px 15px',borderBottom:'1px solid #eef1f5',cursor:'pointer'});
+    $r.hover(function(){$r.css('background','#f7f9fb');},function(){$r.css('background','');});
+    var num='<div style="min-width:88px">'
+      +'<div style="font-size:17px;font-weight:700;color:#0F2540'+(gone?';text-decoration:line-through;opacity:.6':'')+'">'
+        +esc(b.block_number||b.name)+'</div>'
+      +(b.export_block_no?'<div style="font-size:11px;color:#8a929c;margin-top:2px">exp <b style="color:#a3352b">'+esc(b.export_block_no)+'</b></div>':'')
+      +(b.local_buyer_block_no?'<div style="font-size:11px;color:#8a929c;margin-top:2px">buyer <b style="color:#5b3d8a">'+esc(b.local_buyer_block_no)+'</b></div>':'')
+      +'</div>';
+    var who=shortWho(b);
+    var det='<div style="flex:1;font-size:12.5px;line-height:1.7">'
+      +'<span style="font-size:10px;font-weight:700;padding:1px 8px;border-radius:12px;background:'+sc[0]+';color:'+sc[1]+'">'+esc(stageLabel(b))+'</span>'
+      +(who?' <span style="color:#8a929c">'+esc(who)+'</span>':'')
+      +'<br><span style="color:#8a929c;display:inline-block;min-width:92px">Measured</span> '+esc(dims(b))
+      +'<br><span style="color:#8a929c;display:inline-block;min-width:92px">Produced</span> '+esc(b.date_produced||'not recorded')
+        +(b.pit!==undefined&&b.pit!==null&&b.pit!==''?' · pit '+esc(b.pit):'')
+      +'<br><span style="color:#8a929c;display:inline-block;min-width:92px">Came in on</span> '
+        +esc(b.source_quarry_inspection||'—')+(b.buyer_inspection?(' → '+esc(b.buyer_inspection)):'')
+      +(twin?'<br><span style="display:inline-block;margin-top:4px;font-size:11.5px;color:#a3352b;background:#fbeeec;border:1px solid #f0d8d4;border-radius:6px;padding:1px 8px">↔ '+twin+'</span>':'')
+      +'</div>';
+    var btn=$('<div style="align-self:center;border:1px solid #0f6e56;color:#0f6e56;border-radius:8px;padding:4px 13px;font-size:12px;font-weight:700;white-space:nowrap">This one</div>');
+    $r.append(num+det).append(btn);
+    $r.on('click', function(){ onPick(b); });
+    return $r;
+  }
+  function showJourneyFor(b){
+    eslFor(b).then(function(esl){
+      shipDocFor(esl).then(function(shipDoc){
         var d=new frappe.ui.Dialog({title:'Block '+esc(b.block_number||b.name)+' — journey',fields:[{fieldtype:'HTML',fieldname:'j'}]});
         d.fields_dict.j.$wrapper.html(journeyHTML(b, esl, shipDoc)); d.show();
-        });
       });
+    });
+  }
+  function openJourney(bno){
+    if(!bno) return;
+    function q(f){ return frappe.call({method:'frappe.client.get_list',args:{doctype:'Quarry Block',filters:f,fields:FL,limit_page_length:20}}).then(function(r){return r.message||[];}); }
+    /* quarry number AND export number together - a number can be one block's
+       quarry number and another block's export number. */
+    Promise.all([q([['block_number','=',bno]]), q([['export_block_no','=',bno]]),
+                 q([['local_buyer_block_no','=',bno]])]).then(function(sets){
+      var seen={}, all=[];
+      sets.forEach(function(s){ s.forEach(function(b){ if(!seen[b.name]){ seen[b.name]=1; all.push(b); } }); });
+      if(!all.length){ return q([['name','=',bno]]).then(function(x){
+        if(!x.length){ frappe.msgprint('Block '+esc(bno)+' not found in stock records.'); return; }
+        showJourneyFor(x[0]); }); }
+      if(all.length===1){ showJourneyFor(all[0]); return; }
+      var d=new frappe.ui.Dialog({title:esc(bno)+' — '+all.length+' blocks carry this number',
+                                  fields:[{fieldtype:'HTML',fieldname:'p'}]});
+      var $w=d.fields_dict.p.$wrapper;
+      $w.html('<div style="background:#fbeeec;border:1px solid #f0d8d4;border-radius:8px;padding:11px 14px;margin-bottom:10px;font-size:13px">'
+        +'<b style="color:#a3352b">'+all.length+' blocks carry '+esc(bno)+'.</b> They are different stones — pick the one you mean.</div>');
+      all.forEach(function(b){
+        $w.append(pickerRow(b, all, bno, function(chosen){ d.hide(); showJourneyFor(chosen); }));
+      });
+      d.show();
     });
   }
   window.dolphin_open_journey = openJourney;
