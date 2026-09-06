@@ -227,73 +227,107 @@ def backfill(dry_run=1, retire=1):
 # ---------------------------------------------------------------------------
 
 @frappe.whitelist()
-def monthly(months=12):
-    """Local sales by month and by buyer - blocks, volume, tonnage and value.
+def monthly(months=24):
+    """Local sales by month, by buyer and BY KIND OF STONE.
 
-    Reads the invoices, because the invoice is the thing that actually happened:
-    a block without one is not a sale. Value comes from the block row so a
-    part-invoiced lot still totals correctly."""
+    6 Sep 2026, his ask: "who has bought how much ? what kind of blocks either
+    dimensional, unshaped etc how many tons should be visible too".
+
+    The catch that would have made this report lie: 31 of the 36 submitted local
+    invoices are CRUDE, and a crude invoice carries NO block rows at all - it is
+    sold by the tonne, not block by block. An earlier draft of this counted the
+    block rows and would have reported five invoices out of thirty-six. So
+    tonnage comes from the invoice's own quantity, and blocks and volume are
+    counted only where blocks exist.
+
+    Kind comes from the invoice description, which is a Goods Description master
+    row carrying is_crude - so "Granite Crude Blocks" and "Dimensional Rough
+    Granite Blocks" separate themselves without anybody typing a category."""
+    crude_kinds = set()
+    try:
+        for g in frappe.get_all("Goods Description", fields=["name", "is_crude"],
+                                limit_page_length=0):
+            if cint(g.get("is_crude")):
+                crude_kinds.add(_s(g.get("name")))
+    except Exception:
+        pass
+
     inv = frappe.get_all(
-        "Local Tax Invoice",
-        filters={"docstatus": 1},
-        fields=["name", "invoice_no", "invoice_date", "buyer", "grand_total"],
+        "Local Tax Invoice", filters={"docstatus": 1},
+        fields=["name", "invoice_no", "invoice_date", "buyer", "description",
+                "total_quantity_mt", "crude_qty_mt", "grand_total", "taxable_value"],
         order_by="invoice_date desc", limit_page_length=0)
-    by_month, by_buyer, rows = {}, {}, []
+
+    by_month, by_buyer, by_kind, rows = {}, {}, {}, []
     for i in inv:
         blocks = frappe.get_all(
             "Tax Invoice Block", filters={"parent": i["name"]},
-            fields=["block", "block_no", "block_number_input", "gross_volume",
-                    "quantity_mt", "block_value"], limit_page_length=0)
+            fields=["block_no", "block_number_input", "gross_volume"],
+            limit_page_length=0)
         d = _s(i.get("invoice_date"))
         mon = d[:7] if len(d) >= 7 else "unknown"
         buyer = _s(i.get("buyer")) or "(no buyer)"
+        kind = _s(i.get("description")) or "(not stated)"
+        crude = kind in crude_kinds
+        ton = flt(i.get("total_quantity_mt")) or flt(i.get("crude_qty_mt"))
         vol = sum(flt(b.get("gross_volume")) for b in blocks)
-        ton = sum(flt(b.get("quantity_mt")) for b in blocks)
-        val = sum(flt(b.get("block_value")) for b in blocks) or flt(i.get("grand_total"))
-        m = by_month.setdefault(mon, {"month": mon, "blocks": 0, "volume": 0.0,
-                                      "tonnage": 0.0, "value": 0.0, "buyers": {}})
-        m["blocks"] += len(blocks)
-        m["volume"] += vol
-        m["tonnage"] += ton
-        m["value"] += val
-        m["buyers"][buyer] = m["buyers"].get(buyer, 0) + len(blocks)
-        b = by_buyer.setdefault(buyer, {"buyer": buyer, "blocks": 0, "volume": 0.0,
-                                        "tonnage": 0.0, "value": 0.0, "invoices": 0,
-                                        "last": ""})
-        b["blocks"] += len(blocks)
-        b["volume"] += vol
-        b["tonnage"] += ton
-        b["value"] += val
-        b["invoices"] += 1
-        if d > _s(b["last"]):
-            b["last"] = d
+        val = flt(i.get("grand_total"))
+        nblk = len(blocks)
+
+        def bump(d_, key, extra=None):
+            e = d_.setdefault(key, {"key": key, "invoices": 0, "blocks": 0,
+                                    "tonnage": 0.0, "volume": 0.0, "value": 0.0,
+                                    "kinds": {}, "buyers": {}, "last": ""})
+            e["invoices"] += 1
+            e["blocks"] += nblk
+            e["tonnage"] += ton
+            e["volume"] += vol
+            e["value"] += val
+            e["kinds"][kind] = e["kinds"].get(kind, 0) + 1
+            e["buyers"][buyer] = round(e["buyers"].get(buyer, 0) + ton, 3)
+            if d > _s(e["last"]):
+                e["last"] = d
+            return e
+
+        bump(by_month, mon)
+        bump(by_buyer, buyer)
+        bump(by_kind, kind)
         rows.append({"invoice": _s(i.get("invoice_no")) or _s(i.get("name")),
                      "id": _s(i.get("name")), "date": d, "buyer": buyer,
-                     "blocks": len(blocks), "volume": round(vol, 3),
-                     "tonnage": round(ton, 3), "value": round(val, 2),
+                     "kind": kind, "crude": crude, "blocks": nblk,
+                     "tonnage": round(ton, 3), "volume": round(vol, 3),
+                     "value": round(val, 2),
                      "numbers": [_s(x.get("block_number_input")) or _s(x.get("block_no"))
                                  for x in blocks]})
 
-    def tidy(d, key):
-        out = list(d.values())
-        for x in out:
-            x["volume"] = round(x["volume"], 3)
+    def tidy(d_, sort_key, reverse=True):
+        out = []
+        for x in d_.values():
+            x = dict(x)
             x["tonnage"] = round(x["tonnage"], 3)
+            x["volume"] = round(x["volume"], 3)
             x["value"] = round(x["value"], 2)
-        out.sort(key=lambda x: x[key], reverse=(key != "month"))
+            out.append(x)
+        out.sort(key=lambda x: x[sort_key], reverse=reverse)
         return out
 
-    months_out = tidy(by_month, "month")
-    months_out.reverse()                      # oldest first, the way a chart reads
+    months_out = tidy(by_month, "key", reverse=False)
     if cint(months):
         months_out = months_out[-cint(months):]
-    return {"months": months_out, "buyers": tidy(by_buyer, "blocks"),
-            "invoices": rows,
-            "totals": {"invoices": len(inv),
-                       "blocks": sum(m["blocks"] for m in by_month.values()),
-                       "volume": round(sum(m["volume"] for m in by_month.values()), 3),
-                       "tonnage": round(sum(m["tonnage"] for m in by_month.values()), 3),
-                       "value": round(sum(m["value"] for m in by_month.values()), 2)}}
+
+    tot_ton = sum(m["tonnage"] for m in by_month.values())
+    return {
+        "months": months_out,
+        "buyers": tidy(by_buyer, "tonnage"),
+        "kinds": tidy(by_kind, "tonnage"),
+        "invoices": rows,
+        "crude_kinds": sorted(crude_kinds),
+        "totals": {"invoices": len(inv),
+                   "blocks": sum(m["blocks"] for m in by_month.values()),
+                   "tonnage": round(tot_ton, 3),
+                   "volume": round(sum(m["volume"] for m in by_month.values()), 3),
+                   "value": round(sum(m["value"] for m in by_month.values()), 2),
+                   "buyers": len(by_buyer)}}
 
 
 @frappe.whitelist()
