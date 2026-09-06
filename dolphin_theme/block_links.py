@@ -259,3 +259,69 @@ def link_health():
 def setup_links():
     """One call to install the link column. Safe to run again."""
     return ensure_fields()
+
+
+# ---------------------------------------------------------------------------
+# NEW ROWS ANCHOR THEMSELVES.  6 Sep 2026
+#
+# His words: "already the current stock is entered and the process has started".
+# That is exactly the problem. link_scan repaired 781 rows that already existed,
+# but nothing anchored the ones typed AFTERWARDS - so every sheet his team fills
+# in from today would arrive unlinked and the scan would have to be run again,
+# by hand, forever, and re-run after the thousand-block load.
+#
+# This closes it: a row gets its block the moment its parent is saved, using the
+# SAME _pick as the scan, so a row anchored on the way in and a row anchored by
+# the scan are anchored by identical reasoning. It writes only into an EMPTY
+# link column, and only when the number means exactly one block; an ambiguous
+# or unknown number is left for a person, never guessed.
+#
+# It is deliberately quiet. A save must not fail because a number could not be
+# resolved - the row simply stays unlinked and link_health keeps reporting it.
+# ---------------------------------------------------------------------------
+
+def anchor_rows(doc, method=None):
+    """validate hook on the parents in TABLES. Fills the link on new rows."""
+    try:
+        specs = [(dt, s) for dt, s in TABLES.items() if s.get("parent") == doc.doctype]
+        if not specs:
+            return
+        by_q, by_e = _number_index()
+        for child_dt, spec in specs:
+            field, link = spec["field"], spec["link"]
+            for row in (doc.get_all_children(child_dt) or []):
+                try:
+                    if _s(row.get(link)):
+                        continue                      # never overwrite
+                    if not row.meta.has_field(link):
+                        continue
+                    name, _why = _pick(row.get(field), doc.name, spec["prefer"],
+                                       by_q, by_e)
+                    if name:
+                        row.set(link, name)
+                except Exception:
+                    continue
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), "Dolphin block_links.anchor_rows")
+
+
+@frappe.whitelist()
+def anchor_health():
+    """How many rows are still unlinked, and why - so the hook can be trusted
+    rather than assumed. Reads only."""
+    out = {}
+    by_q, by_e = _number_index()
+    for dt, spec in TABLES.items():
+        rows = frappe.get_all(dt, fields=["name", "parent", spec["field"], spec["link"]],
+                              limit_page_length=0)
+        linked = sum(1 for r in rows if _s(r.get(spec["link"])))
+        why = {}
+        for r in rows:
+            if _s(r.get(spec["link"])):
+                continue
+            _n, reason = _pick(r.get(spec["field"]), r.get("parent"), spec["prefer"],
+                               by_q, by_e)
+            why[reason] = why.get(reason, 0) + 1
+        out[dt] = {"rows": len(rows), "linked": linked,
+                   "unlinked": len(rows) - linked, "why": why}
+    return out
