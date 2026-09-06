@@ -57,23 +57,102 @@ frappe.provide("dolphin");
 (function () {
   var SC = {'In Stock':['#eaf3de','#3b6d11'],'Buyer Marked':['#faeeda','#854f0b'],'In Delivery Challan':['#e6f1fb','#0c447c'],'Dispatched/Transported':['#e6f1fb','#0c447c'],'At Port':['#eeedfe','#3c3489'],'At Bannikoppa Station yard':['#eeedfe','#3c3489'],'Shipped':['#e1f5ee','#0f6e56'],'Sold':['#f1efe8','#444441']};
   var RANK = {'In Stock':0,'Buyer Marked':1,'In Delivery Challan':2,'Dispatched/Transported':3,'At Port':4,'At Bannikoppa Station yard':4,'Shipped':5,'Sold':6};
-  var FL = ['name','block_number','export_block_no','status','delivery_challan','buyer_inspection','source_quarry_inspection','granite_quality_grade','length_gross','width_gross','height_gross','gross_volume'];
+  var FL = ['name','block_number','export_block_no','status','delivery_challan','buyer_inspection','source_quarry_inspection','granite_quality_grade','length_gross','width_gross','height_gross','gross_volume',
+            /* 6 Sep 2026: the journey needs to know the channel, the local
+               buyer's own number, how far the stone actually got before it was
+               sold, and whether its number has been retired. */
+            'sale_channel','local_buyer_block_no','status_before_sold','sold_to','sold_on','sold_invoice','retired_on'];
   function esc(s){ return frappe.utils.escape_html(s==null?'':(''+s)); }
   function pdf(dt,nm,fmt){ return '/api/method/frappe.utils.print_format.download_pdf?doctype='+encodeURIComponent(dt)+'&name='+encodeURIComponent(nm)+'&format='+encodeURIComponent(fmt)+'&no_letterhead=0'; }
   function eyeLink(dt,nm,fmt){ return nm?' <a href="'+pdf(dt,nm,fmt)+'" target="_blank" style="font-size:11px;border:1px solid #185fa5;color:#185fa5;border-radius:10px;padding:1px 8px;text-decoration:none;margin-left:6px">&#128065; PDF</a>':''; }
   function openLink(dt,nm){ return nm?' <a href="/app/'+dt+'/'+encodeURIComponent(nm)+'" target="_blank" style="font-size:11px;border:1px solid #185fa5;color:#185fa5;border-radius:10px;padding:1px 8px;text-decoration:none;margin-left:6px">open</a>':''; }
+  /* ================================ THE JOURNEY.  rewritten 6 Sep 2026
+
+     His words, looking at block 80375 - sold locally, never transported:
+       "Dc, at port is irrelevant for local tax invoice ... rather than showing
+        at port green which is totally wrong DC and at port should be NA not
+        applicable or something like just a hypen or dash"
+
+     Two faults, one line each.
+
+     1. RANK put Sold at 6, above Shipped. So the moment a block was sold, every
+        test of the form rank>=3 came out true and the journey lit up
+        TRANSPORTED, AT PORT and SHIPPED in green for a stone that never left the
+        yard. A sale is an ENDING, not a stage further down the road: how far the
+        block actually travelled is 'status_before_sold', which the app already
+        records, so that is what the ladder reads now.
+
+     2. The value shown in those three rows was 'export_block_no' - which, for a
+        local sale, was where the LOCAL buyer's number had been written. That is
+        fixed at the source in local_sales.py; here, a local block simply does
+        not have export stages. They read as a dash, not as done, not as pending.
+     ============================================================================ */
   function journeyHTML(b, esl, shipDoc){
-    var sc = SC[b.status]||['#f1efe8','#444441']; var rank=(b.status in RANK)?RANK[b.status]:0;
+    var sc = SC[b.status]||['#f1efe8','#444441'];
+    var local = (b.sale_channel === 'Local');
+    var sold  = (b.status === 'Sold');
+    /* how far it really got - a sale does not move a stone */
+    var eff = (sold && b.status_before_sold) ? b.status_before_sold : b.status;
+    var rank = (eff in RANK) ? RANK[eff] : 0;
+    var NA = '&mdash;';
+
     var steps=[{l:'Quarried',v:b.block_number||b.name,done:true},
       {l:'Quarry Inspection',v:b.source_quarry_inspection||'not yet',done:!!b.source_quarry_inspection,e:eyeLink('Quarry Inspection',b.source_quarry_inspection,'Quarry Inspection - Report')},
-      {l:'Buyer Inspection',v:b.buyer_inspection||'not yet',done:!!b.buyer_inspection,e:eyeLink('Buyer Inspection',b.buyer_inspection,'Buyer Inspection - Report')},
-      {l:'Delivery Challan',v:b.delivery_challan||'not yet',done:!!b.delivery_challan,e:eyeLink('Delivery Challan',b.delivery_challan,'Dolphin Delivery Challan')},
-      {l:'Transported',v:(rank>=3?(b.export_block_no||'yes'):'not yet'),done:rank>=3},
-      {l:'At Port',v:(rank>=4?(b.export_block_no||'yes'):'not yet'),done:rank>=4},
-      {l:'Export Shipment Lot',v:(esl||'not yet'),done:!!esl,e:openLink('export-shipment-lot',esl)},
-      {l:'Shipped',v:(rank>=5?(b.export_block_no||'yes'):'not yet'),done:rank>=5,e:((rank>=5&&shipDoc)?' <a href="'+pdf('Shipping Document',shipDoc,'DI Packing List')+'" target="_blank" style="font-size:11px;border:1px solid #0f6e56;color:#0f6e56;border-radius:10px;padding:1px 8px;text-decoration:none;margin-left:6px">&#128203; DI Packing List</a>':'')}];
-    var head='<div style="margin-bottom:10px">Current status: <b style="background:'+sc[0]+';color:'+sc[1]+';padding:2px 12px;border-radius:12px">'+esc(b.status||'')+'</b></div>';
-    var body=steps.map(function(s,i){var cur=(!s.done&&i>0&&steps[i-1].done);var col=s.done?'#0f6e56':(cur?'#b8860b':'#c2c8d0');var dot=s.done?'&#9679;':(cur?'&#9673;':'&#9675;');return '<div style="display:flex;gap:12px;align-items:flex-start;padding:7px 0;border-bottom:1px solid #f2f4f7"><span style="color:'+col+';font-size:17px">'+dot+'</span><div><div style="font-size:10.5px;text-transform:uppercase;color:#8a929c">'+s.l+'</div><div style="font-weight:600;color:'+(s.done?'#1f2a3a':(cur?'#7a5a00':'#aab1ba'))+'">'+esc(''+s.v)+(s.e||'')+'</div></div></div>';}).join('');
+      {l:'Buyer Inspection',v:b.buyer_inspection||'not yet',done:!!b.buyer_inspection,e:eyeLink('Buyer Inspection',b.buyer_inspection,'Buyer Inspection - Report')}];
+
+    if (local) {
+      /* A local sale goes quarry -> inspection -> buyer -> invoice. The port
+         stages are not "not yet", they are not part of this stone's life. A
+         challan may still be raised later, so that one stays open. */
+      steps.push({l:'Delivery Challan',v:(b.delivery_challan||NA),done:!!b.delivery_challan,
+                  na:!b.delivery_challan,raw:!b.delivery_challan,
+                  e:eyeLink('Delivery Challan',b.delivery_challan,'Dolphin Delivery Challan')});
+      steps.push({l:'At Port',v:NA,done:false,na:true,raw:true});
+      steps.push({l:'Export Shipment Lot',v:NA,done:false,na:true,raw:true});
+      steps.push({l:'Shipped',v:NA,done:false,na:true,raw:true});
+      var line = [];
+      if (b.local_buyer_block_no) line.push('buyer no ' + esc(b.local_buyer_block_no));
+      if (b.sold_to) line.push(esc(b.sold_to));
+      if (b.sold_on) line.push(esc(b.sold_on));
+      steps.push({l:'Sold &mdash; local sale',
+                  v:(b.sold_invoice||'not yet'),done:sold,raw:false,
+                  sub:(line.length?line.join(' &middot; '):''),
+                  e:openLink('local-tax-invoice',b.sold_invoice)});
+    } else {
+      steps.push({l:'Delivery Challan',v:b.delivery_challan||'not yet',done:!!b.delivery_challan,e:eyeLink('Delivery Challan',b.delivery_challan,'Dolphin Delivery Challan')});
+      steps.push({l:'Transported',v:(rank>=3?(b.export_block_no||'yes'):'not yet'),done:rank>=3});
+      steps.push({l:'At Port',v:(rank>=4?(b.export_block_no||'yes'):'not yet'),done:rank>=4});
+      steps.push({l:'Export Shipment Lot',v:(esl||'not yet'),done:!!esl,e:openLink('export-shipment-lot',esl)});
+      steps.push({l:'Shipped',v:(rank>=5?(b.export_block_no||'yes'):'not yet'),done:rank>=5,e:((rank>=5&&shipDoc)?' <a href="'+pdf('Shipping Document',shipDoc,'DI Packing List')+'" target="_blank" style="font-size:11px;border:1px solid #0f6e56;color:#0f6e56;border-radius:10px;padding:1px 8px;text-decoration:none;margin-left:6px">&#128203; DI Packing List</a>':'')});
+      if (sold) {
+        steps.push({l:'Sold',v:(b.sold_invoice||'yes'),done:true,
+                    sub:[b.sold_to?esc(b.sold_to):'',b.sold_on?esc(b.sold_on):''].filter(Boolean).join(' &middot; ')});
+      }
+    }
+
+    var chan = local
+      ? ' <b style="background:#efe7f7;color:#5b3d8a;padding:2px 10px;border-radius:12px;font-size:11px;margin-left:6px">LOCAL SALE</b>'
+      : '';
+    var head='<div style="margin-bottom:10px">Current status: <b style="background:'+sc[0]+';color:'+sc[1]+';padding:2px 12px;border-radius:12px">'+esc(b.status||'')+'</b>'+chan+'</div>';
+    if (b.retired_on) {
+      head += '<div style="margin:-4px 0 10px;font-size:11.5px;color:#8a929c">Number '
+            + esc(b.block_number||'') + ' retired on ' + esc(b.retired_on)
+            + ' &mdash; free to use again.</div>';
+    }
+    var body=steps.map(function(s,i){
+      var cur=(!s.done && !s.na && i>0 && steps[i-1].done);
+      var col=s.na?'#c2c8d0':(s.done?'#0f6e56':(cur?'#b8860b':'#c2c8d0'));
+      var dot=s.na?'&#9675;':(s.done?'&#9679;':(cur?'&#9673;':'&#9675;'));
+      var txt=s.na?'#b6bcc5':(s.done?'#1f2a3a':(cur?'#7a5a00':'#aab1ba'));
+      var val=s.raw? s.v : esc(''+s.v);
+      return '<div style="display:flex;gap:12px;align-items:flex-start;padding:7px 0;border-bottom:1px solid #f2f4f7'+(s.na?';opacity:.55':'')+'">'
+        +'<span style="color:'+col+';font-size:17px">'+dot+'</span><div>'
+        +'<div style="font-size:10.5px;text-transform:uppercase;color:#8a929c">'+s.l
+        +(s.na?' <span style="text-transform:none;font-size:10px">&middot; not applicable</span>':'')+'</div>'
+        +'<div style="font-weight:600;color:'+txt+'">'+val+(s.e||'')+'</div>'
+        +(s.sub?'<div style="font-size:11px;color:#8a929c;margin-top:1px">'+s.sub+'</div>':'')
+        +'</div></div>';
+    }).join('');
     return '<div>'+head+body+'</div>';
   }
   function eslFor(b){
