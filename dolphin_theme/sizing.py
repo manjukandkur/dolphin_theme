@@ -1352,13 +1352,27 @@ def compute_size_rates(doc, method=None):
         if doc.meta.has_field("block_count"):
             doc.block_count = len(blocks)
 
-        tax = round(total * flt(doc.get("tax_rate")) / 100.0, 2) if doc.meta.has_field("tax_rate") else 0.0
+        # 7 Sep 2026. IGST IS AN INDIAN TAX ON THE RUPEE VALUE, NOT ON THE DOLLARS.
+        # This block used to read tax = total x rate, with `total` in USD, and then
+        # add that figure to the dollar total. Both are wrong, and the live data
+        # says so on every document: SHP-EXP-00005 carries invoice_value $141,680.29,
+        # invoice_value_inr Rs 1,30,48,754.71 and tax_amount Rs 6,52,437.74 - which
+        # is 5% of the RUPEES. The old line would have produced $7,084.01, ninety-two
+        # times too small and in the wrong currency, and an invoice_total of
+        # $148,764.30 that adds dollars to rupees. It had not bitten yet only because
+        # something else was writing these three fields; the moment this hook won,
+        # the invoice would have printed the wrong IGST.
+        # The print format labels say it plainly: "Invoice Value In INR" and
+        # "IGST Value in INR". invoice_total stays the USD grand total.
+        rate_inr = flt(doc.get("exchange_rate"))
+        inr = round(total * rate_inr, 2) if rate_inr else 0.0
+        if doc.meta.has_field("invoice_value_inr") and rate_inr:
+            doc.invoice_value_inr = inr
+        tax = round(inr * flt(doc.get("tax_rate")) / 100.0, 2) if doc.meta.has_field("tax_rate") else 0.0
         if doc.meta.has_field("tax_amount"):
             doc.tax_amount = tax
         if doc.meta.has_field("invoice_total"):
-            doc.invoice_total = round(total + tax, 2)
-        if doc.meta.has_field("invoice_value_inr") and flt(doc.get("exchange_rate")):
-            doc.invoice_value_inr = round(total * flt(doc.get("exchange_rate")), 2)
+            doc.invoice_total = total
 
         if "(no size)" in groups:
             frappe.msgprint(
