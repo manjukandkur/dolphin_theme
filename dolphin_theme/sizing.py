@@ -1303,6 +1303,44 @@ def compute_size_rates(doc, method=None):
         existing = [r.as_dict() for r in (doc.get("size_rates") or [])]
         header_rate = flt(doc.get("unit_rate"))
 
+        # ------------------------------------------------------------------
+        # ONE RATE, TWO PLACES.  7 Sep 2026
+        # [stated] "If edited either places it should reflect in both the places"
+        #
+        # The rate lives on the header as Rate (USD/MT) and again on each
+        # size-wise row. They were free to disagree, and did: the header read
+        # 146.67 while the only size row read 160, so Taxable Value said
+        # $141,680.29 and the size row said $154,556.80 on the same screen.
+        #
+        # So whichever one a person just touched is the one that wins, and the
+        # other is made to follow:
+        #   - typed the HEADER rate  -> it is pushed onto every size row
+        #   - typed a SIZE ROW rate  -> the header becomes what the document
+        #                               actually averages, total / total MT,
+        #                               which on a single-size document is
+        #                               exactly the rate just typed
+        # A header edit is only pushed down when the rows were NOT also edited
+        # in the same save; if both moved, the rows are the finer statement and
+        # they are kept. Nothing here invents a rate - it only stops the two
+        # copies drifting apart.
+        # ------------------------------------------------------------------
+        before = None
+        try:
+            before = doc.get_doc_before_save()
+        except Exception:
+            before = None
+
+        header_typed = False
+        if before is not None:
+            header_typed = flt(before.get("unit_rate")) != header_rate
+            was = {}
+            for r in (before.get("size_rates") or []):
+                was[_s(r.get("size_category"))] = flt(r.get("rate_per_mt"))
+            for r in existing:
+                if flt(r.get("rate_per_mt")) != was.get(_s(r.get("size_category"))):
+                    header_typed = False        # a row moved too - rows win
+                    break
+
         groups = {}
         for b in blocks:
             size = _s(b.get(SIZE_FIELD)) or size_category_for(
@@ -1325,7 +1363,10 @@ def compute_size_rates(doc, method=None):
         doc.set("size_rates", [])
         total = 0.0
         for size, g in sorted(groups.items()):
-            rate, how = resolve_rate(existing, size, None, header_rate)
+            if header_typed and header_rate:
+                rate, how = header_rate, "header rate typed just now"
+            else:
+                rate, how = resolve_rate(existing, size, None, header_rate)
             mt = round(g["mt"], 3)
             amount = round(mt * flt(rate), 2)
             total += amount
@@ -1343,6 +1384,15 @@ def compute_size_rates(doc, method=None):
         total = round(total, 2)
         if doc.meta.has_field("invoice_value"):
             doc.invoice_value = total
+
+        # The header rate now says what the document actually charges per tonne.
+        # It is summed from the SAME tonnage the amounts were built on, not from
+        # net_tonnage directly - a block with no weight yet is priced off its
+        # volume above, and the two must not be added from different pools or
+        # the header rate would not reproduce the total.
+        mt_all = round(sum(round(g["mt"], 3) for g in groups.values()), 3)
+        if doc.meta.has_field("unit_rate") and mt_all:
+            doc.unit_rate = round(total / mt_all, 2)
         if doc.meta.has_field("total_net_tonnage"):
             doc.total_net_tonnage = round(sum(flt(b.get("net_tonnage")) for b in blocks), 3)
         if doc.meta.has_field("total_cbm"):
