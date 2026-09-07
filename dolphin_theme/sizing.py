@@ -1099,6 +1099,22 @@ def _sync_from_lot(doc):
             if src is None:
                 continue
             no = _s(b.get("export_block_no")) or _s(b.get("block_no"))
+            # 7 Sep 2026. A LETTER SET BY HAND ON THIS DOCUMENT IS FINAL.
+            # [stated] "whatever may be the size segregation till shipping
+            #  documents once in shipping documents it can be whatever agreed
+            #  upon finally for that consignment"
+            # This sync was added on 5 Sep so a letter changed on the lot could
+            # still reach a row that already had one - block 822 stood A on the
+            # lot and C on the document. That is right for a row nobody has
+            # touched. It was WRONG for a row someone deliberately corrected
+            # here: it re-took the lot's letter on every save, so a size typed
+            # on the shipping document reverted the moment it was saved, with
+            # no message. Measured on SHP-EXP-00005: block 1038 set to C, saved,
+            # and came back A every time, even with size_overridden ticked.
+            # So the lot still seeds an untouched row, and a row marked
+            # overridden keeps what the person agreed with the buyer.
+            if cint(b.get("size_overridden")):
+                continue
             want = _s(src.get(SIZE_FIELD))
             if want and want != _s(b.get(SIZE_FIELD)):
                 moved.append({"block": no, "axis": "size",
