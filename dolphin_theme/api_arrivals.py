@@ -5099,6 +5099,13 @@ def reopen_lot(lot=None, reason=None):
 
     d = frappe.get_doc("Export Shipment Lot", lot)
 
+    # 23 Sep 2026: an EXPORTED shipment is never unlinked from its lot any more.
+    # The only way back is a Short Shipment, which reopens the same document.
+    _sd_now = _s(d.get("shipping_document"))
+    if _sd_now and _s(frappe.db.get_value("Shipping Document", _sd_now, "export_status")) == "Exported":
+        frappe.throw(_sd_now + " is marked Exported. Open it and press Short Shipment - "
+                     "the same Shipping Document reopens for editing.")
+
     was_sd = d.get("shipping_document")
     was_status = d.get("status")
     was_bl = d.get("bl_no")
@@ -5337,6 +5344,14 @@ def arrival_xls_sheets(file=None, communication=None, arrival=None, max_rows=600
 
 EXPORT_BLOCK_STATUS = "Shipped"
 
+# The four fields Mark as Exported needs - no more, no fewer (23 Sep 2026).
+EXPORT_REQUIRED_FIELDS = (
+    ("shipping_bill_no", "Shipping Bill No"),
+    ("sb_date", "Shipping Bill Date"),
+    ("bl_no", "BL No"),
+    ("bl_date", "BL Date"),
+)
+
 
 def _lot_block_names(lot_name):
     """Every quarry block on a lot, in order, de-duplicated."""
@@ -5385,15 +5400,17 @@ def export_shipment(shipping_document=None, person=None, note=None, dry_run=0):
     if _s(row.get("export_status")) == "Exported":
         frappe.throw(sd + " is already marked EXPORTED.")
 
-    # the customs fields stay compulsory - this is the rule that has been doing its job
+    # 23 Sep 2026, his words: "to be marked as exported there is no custom document.
+    # You need four fields Shipping bill number, Shipping Bill date, BL number and BL
+    # date". Exactly these four, nothing else, all compulsory.
     missing = []
-    for fname, label in (("shipping_bill_no", "Shipping Bill No"), ("sb_date", "SB Date")):
+    for fname, label in EXPORT_REQUIRED_FIELDS:
         if not _s(row.get(fname)):
             missing.append(label)
     if missing:
         frappe.throw(
-            "Cannot mark " + sd + " as exported. These are compulsory on the invoice and "
-            "are still empty: " + ", ".join(missing) + ".")
+            "Cannot mark " + sd + " as exported yet. Fill these on this Shipping Document "
+            "first: " + ", ".join(missing) + ".")
 
     lot = _sd_lot(sd)
     blocks = _lot_block_names(lot) if lot else []
@@ -5506,6 +5523,11 @@ def unexport_shipment(shipping_document=None, person=None, reason=None, dry_run=
     frappe.db.commit()
     return {"ok": 1, "status": "Draft", "shipping_document": sd, "lot": lot,
             "blocks_put_back": len(restore), "left_untouched": stuck}
+
+
+# SHORT SHIPMENT (23 Sep 2026) lives in ONE place: the site API Server Script
+# "Shipping Document - Short Shipment" (api method dolphin_short_shipment). It calls
+# unexport_shipment above for the moves, then writes the Short Shipment History.
 
 
 # ============================================================================
