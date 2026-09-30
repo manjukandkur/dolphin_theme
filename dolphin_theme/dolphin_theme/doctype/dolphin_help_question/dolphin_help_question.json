@@ -1,0 +1,222 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-09-30 13:10:00.000000",
+ "modified": "2026-09-30 13:10:00.000000",
+ "modified_by": "Administrator",
+ "owner": "Administrator",
+ "doctype": "DocType",
+ "name": "Dolphin Help Question",
+ "module": "Dolphin Theme",
+ "custom": 0,
+ "engine": "InnoDB",
+ "editable_grid": 1,
+ "field_order": [
+  "asked_by",
+  "person_name",
+  "status",
+  "column_break_a",
+  "screen",
+  "ref_doctype",
+  "ref_name",
+  "follow_up_of",
+  "section_q",
+  "question",
+  "attachment",
+  "attachment_2",
+  "section_a",
+  "answer",
+  "escalation_reason",
+  "section_c",
+  "change_applied",
+  "change_json",
+  "change_previous",
+  "section_r",
+  "admin_reply",
+  "tokens"
+ ],
+ "fields": [
+  {
+   "fieldname": "asked_by",
+   "fieldtype": "Link",
+   "label": "Asked by (login)",
+   "options": "User",
+   "read_only": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "person_name",
+   "fieldtype": "Data",
+   "label": "Name (who is asking)",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Thinking\nAnswered\nChanged\nChange Requested\nNeeds Admin\nResolved\nReverted",
+   "default": "Thinking",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "bold": 1
+  },
+  {
+   "fieldname": "column_break_a",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "screen",
+   "fieldtype": "Data",
+   "label": "Screen",
+   "read_only": 1
+  },
+  {
+   "fieldname": "ref_doctype",
+   "fieldtype": "Link",
+   "label": "Document type",
+   "options": "DocType",
+   "read_only": 1
+  },
+  {
+   "fieldname": "ref_name",
+   "fieldtype": "Dynamic Link",
+   "label": "Document",
+   "options": "ref_doctype",
+   "read_only": 1
+  },
+  {
+   "fieldname": "follow_up_of",
+   "fieldtype": "Link",
+   "label": "Follow-up of",
+   "options": "Dolphin Help Question",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_q",
+   "fieldtype": "Section Break",
+   "label": "Question"
+  },
+  {
+   "fieldname": "question",
+   "fieldtype": "Small Text",
+   "label": "Question",
+   "reqd": 1
+  },
+  {
+   "fieldname": "attachment",
+   "fieldtype": "Attach Image",
+   "label": "Photo / screenshot"
+  },
+  {
+   "fieldname": "attachment_2",
+   "fieldtype": "Attach Image",
+   "label": "Photo 2"
+  },
+  {
+   "fieldname": "section_a",
+   "fieldtype": "Section Break",
+   "label": "Answer"
+  },
+  {
+   "fieldname": "answer",
+   "fieldtype": "Markdown Editor",
+   "label": "Answer",
+   "read_only": 1
+  },
+  {
+   "fieldname": "escalation_reason",
+   "fieldtype": "Small Text",
+   "label": "Why it was sent to the admin",
+   "read_only": 1,
+   "depends_on": "eval:doc.escalation_reason"
+  },
+  {
+   "fieldname": "section_c",
+   "fieldtype": "Section Break",
+   "label": "Screen change",
+   "collapsible": 1,
+   "depends_on": "eval:doc.change_json"
+  },
+  {
+   "fieldname": "change_applied",
+   "fieldtype": "Check",
+   "label": "Change applied",
+   "read_only": 1
+  },
+  {
+   "fieldname": "change_json",
+   "fieldtype": "Code",
+   "label": "Change",
+   "options": "JSON",
+   "read_only": 1
+  },
+  {
+   "fieldname": "change_previous",
+   "fieldtype": "Code",
+   "label": "Value before the change (for revert)",
+   "options": "JSON",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_r",
+   "fieldtype": "Section Break",
+   "label": "Admin"
+  },
+  {
+   "fieldname": "admin_reply",
+   "fieldtype": "Small Text",
+   "label": "Reply from Mr Manjunath / admin"
+  },
+  {
+   "fieldname": "tokens",
+   "fieldtype": "Int",
+   "label": "Tokens used",
+   "read_only": 1
+  }
+ ],
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1
+  },
+  {
+   "role": "Dolphin Owner",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1
+  },
+  {
+   "role": "All",
+   "read": 1,
+   "if_owner": 1,
+   "report": 1,
+   "print": 1
+  }
+ ],
+ "links": [],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1,
+ "index_web_pages_for_search": 0,
+ "docstatus": 0,
+ "idx": 0,
+ "autoname": "format:HELP-{#####}",
+ "naming_rule": "Expression",
+ "title_field": "question",
+ "show_title_field_in_link": 0,
+ "search_fields": "question,person_name,status",
+ "description": "Ask Dolphin \u2014 every question and answer (30 Sep 2026)"
+}
