@@ -1,0 +1,120 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-09-30 13:10:00.000000",
+ "modified": "2026-09-30 13:10:00.000000",
+ "modified_by": "Administrator",
+ "owner": "Administrator",
+ "doctype": "DocType",
+ "name": "Dolphin Help Settings",
+ "module": "Dolphin Theme",
+ "custom": 0,
+ "engine": "InnoDB",
+ "editable_grid": 1,
+ "field_order": [
+  "enabled",
+  "anthropic_api_key",
+  "model",
+  "daily_limit",
+  "column_break_s",
+  "admin_name",
+  "admin_phone",
+  "admin_email",
+  "section_t",
+  "trusted_users",
+  "section_k",
+  "extra_knowledge"
+ ],
+ "fields": [
+  {
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "label": "Enabled",
+   "default": "1"
+  },
+  {
+   "fieldname": "anthropic_api_key",
+   "fieldtype": "Password",
+   "label": "Anthropic API key",
+   "description": "Create at console.anthropic.com \u2192 API Keys. Paste here and Save. Stored encrypted."
+  },
+  {
+   "fieldname": "model",
+   "fieldtype": "Data",
+   "label": "Model",
+   "default": "claude-sonnet-5-5"
+  },
+  {
+   "fieldname": "daily_limit",
+   "fieldtype": "Int",
+   "label": "Questions per user per day",
+   "default": "30"
+  },
+  {
+   "fieldname": "column_break_s",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "admin_name",
+   "fieldtype": "Data",
+   "label": "Admin name",
+   "default": "Mr Manjunath Kandkur"
+  },
+  {
+   "fieldname": "admin_phone",
+   "fieldtype": "Data",
+   "label": "Admin phone (shown on the Call button)",
+   "options": "Phone"
+  },
+  {
+   "fieldname": "admin_email",
+   "fieldtype": "Data",
+   "label": "Admin email (gets the Needs Admin mails)",
+   "default": "manjukandkur@gmail.com",
+   "options": "Email"
+  },
+  {
+   "fieldname": "section_t",
+   "fieldtype": "Section Break",
+   "label": "Who may have minor screen changes done"
+  },
+  {
+   "fieldname": "trusted_users",
+   "fieldtype": "Small Text",
+   "label": "Trusted logins (one per line)",
+   "default": "ilkal@dolphingranite.com\ndi@dolphingranite.com\nmanjukandkur@gmail.com",
+   "description": "Mahantesh = ilkal@, Naveen/Bangalore = di@. Other logins' change requests wait for approval."
+  },
+  {
+   "fieldname": "section_k",
+   "fieldtype": "Section Break",
+   "label": "Extra knowledge"
+  },
+  {
+   "fieldname": "extra_knowledge",
+   "fieldtype": "Long Text",
+   "label": "Extra knowledge for the assistant",
+   "description": "Anything the assistant should know. Overrides the built-in guide."
+  }
+ ],
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1
+  }
+ ],
+ "links": [],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1,
+ "index_web_pages_for_search": 0,
+ "docstatus": 0,
+ "idx": 0,
+ "issingle": 1
+}
