@@ -2,7 +2,7 @@
  "actions": [],
  "allow_rename": 0,
  "creation": "2026-09-30 13:10:00.000000",
- "modified": "2026-09-30 13:10:00.000000",
+ "modified": "2026-09-30 16:10:00.000000",
  "modified_by": "Administrator",
  "owner": "Administrator",
  "doctype": "DocType",
@@ -20,6 +20,7 @@
   "admin_name",
   "admin_phone",
   "admin_email",
+  "email_mode",
   "section_t",
   "trusted_users",
   "section_k",
@@ -72,6 +73,14 @@
    "label": "Admin email (gets the Needs Admin mails)",
    "default": "manjukandkur@gmail.com",
    "options": "Email"
+  },
+  {
+   "fieldname": "email_mode",
+   "fieldtype": "Select",
+   "label": "Emails to the admin",
+   "options": "One summary a day\nEvery item\nNo email",
+   "default": "One summary a day",
+   "description": "One summary a day = a single email at 7 pm, only on days something needs you. The bell inside Dolphin always shows each item."
   },
   {
    "fieldname": "section_t",
