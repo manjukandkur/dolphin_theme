@@ -70,6 +70,7 @@ def _settings():
         daily_limit=cint(s.get("daily_limit")) or 30,
         trusted=trusted or list(DEFAULT_TRUSTED),
         extra=s.get("extra_knowledge") or "",
+        email_mode=s.get("email_mode") or "One summary a day",
     )
 
 
@@ -572,6 +573,11 @@ def _image_block(url):
 
 
 def _notify_admin(name):
+    """Bell notification always. Email only when Settings say "Every item".
+
+    30 Sep 2026, his words: "dont flood with emails". Default is ONE summary email a day
+    (send_daily_summary, 7 pm), and only on a day something needs him.
+    """
     try:
         st = _settings()
         doc = frappe.get_doc("Dolphin Help Question", name)
@@ -584,13 +590,47 @@ def _notify_admin(name):
                 f"<p><b>Why sent to you:</b> {frappe.utils.escape_html(doc.escalation_reason or '')}</p>"
                 f"<p><b>Status:</b> {doc.status}</p>"
                 f"<p><a href='{link}'>Open {name}</a></p>")
-        # QUEUED, not sent inline (30 Sep 2026 fix). Sent inline, a hiccup at Frappe Cloud's
-        # mail service (SSL EOF, seen 15:14 and 15:16 on the first live test) failed the
-        # user's whole request although the question was saved. The queue retries by itself.
-        frappe.sendmail(recipients=[st.admin_email], subject=subject, message=body, delayed=True)
         if frappe.db.exists("User", st.admin_email):
+            # type Alert never emails by itself (Frappe skips email for Alert logs)
             frappe.get_doc({"doctype": "Notification Log", "for_user": st.admin_email, "type": "Alert",
                             "document_type": "Dolphin Help Question", "document_name": name,
                             "subject": subject, "email_content": body}).insert(ignore_permissions=True)
+        if st.email_mode == "Every item":
+            # QUEUED, not sent inline: a mail-service hiccup must never fail the user's question.
+            frappe.sendmail(recipients=[st.admin_email], subject=subject, message=body, delayed=True)
     except Exception:
         frappe.log_error(frappe.get_traceback(), "Ask Dolphin: notify failed")
+
+
+def send_daily_summary():
+    """ONE email a day (7 pm) listing what needs him - and nothing at all on a quiet day."""
+    try:
+        st = _settings()
+        if st.email_mode != "One summary a day":
+            return
+        since = frappe.utils.add_to_date(frappe.utils.now_datetime(), hours=-24)
+        need = frappe.get_all("Dolphin Help Question",
+                              filters={"status": ["in", ["Needs Admin", "Change Requested"]], "modified": [">=", since]},
+                              fields=["name", "person_name", "asked_by", "question", "status", "escalation_reason"],
+                              order_by="creation asc", limit_page_length=200)
+        if not need:
+            return
+        total = frappe.db.count("Dolphin Help Question", {"creation": [">=", since]})
+        changed = frappe.db.count("Dolphin Help Question", {"creation": [">=", since], "status": "Changed"})
+        esc = frappe.utils.escape_html
+        rows = "".join(
+            f"<tr><td style='padding:4px 8px'><a href='{get_url('/app/dolphin-help-question/' + r.name)}'>{r.name}</a></td>"
+            f"<td style='padding:4px 8px'>{esc(r.person_name or r.asked_by or '')}</td>"
+            f"<td style='padding:4px 8px'>{esc((r.question or '')[:140])}</td>"
+            f"<td style='padding:4px 8px'>{esc(r.status)}</td>"
+            f"<td style='padding:4px 8px'>{esc((r.escalation_reason or '')[:140])}</td></tr>" for r in need)
+        body = (f"<p>Last 24 hours: <b>{total}</b> questions asked, <b>{changed}</b> screen changes made, "
+                f"<b>{len(need)}</b> need you.</p>"
+                "<table border='1' style='border-collapse:collapse;font-size:13px'>"
+                "<tr><th>ID</th><th>Who</th><th>Question</th><th>Status</th><th>Why</th></tr>"
+                f"{rows}</table>"
+                f"<p><a href='{get_url('/app/dolphin-help-question?status=Needs%20Admin')}'>Open all that need you</a></p>")
+        frappe.sendmail(recipients=[st.admin_email], subject=f"Ask Dolphin — {len(need)} need you today",
+                        message=body, delayed=True)
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), "Ask Dolphin: daily summary failed")

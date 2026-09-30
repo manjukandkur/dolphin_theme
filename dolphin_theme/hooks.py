@@ -144,5 +144,9 @@ scheduler_events = {
         "*/15 * * * *": [
             "dolphin_theme.api_arrivals.parse_email_arrivals",
         ],
+        # Ask Dolphin: ONE summary email a day at 7 pm - "dont flood with emails" (30 Sep 2026)
+        "0 19 * * *": [
+            "dolphin_theme.help_desk.send_daily_summary",
+        ],
     },
 }
