@@ -1,0 +1,158 @@
+{% extends "templates/web.html" %}
+{% block title %}Ask Dolphin{% endblock %}
+{% block head_include %}
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<meta name="theme-color" content="#0F2540">
+<style>
+  header, .navbar, .web-footer, footer, .footer, .page-head, .breadcrumb-container, #navbar,
+  .navbar-light, .website-footer { display:none !important; }
+  html, body { margin:0 !important; padding:0 !important; background:#F4F6F9 !important; }
+  main, .main-section, #body, .container, .page_content { max-width:none !important; margin:0 !important; padding:0 !important; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  #ask { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; color:#12233b; max-width:620px; margin:0 auto; min-height:100vh; }
+  .top { background:#0F2540; color:#fff; padding:calc(14px + env(safe-area-inset-top)) 16px 16px; border-bottom-left-radius:18px; border-bottom-right-radius:18px; }
+  .top .t { font:600 18px Georgia,serif; } .top .s { font-size:12.5px; color:#c9d4e3; margin-top:3px; }
+  .top a { color:#D4A24A; font-size:12.5px; text-decoration:none; float:right; }
+  .body { padding:14px 16px 40px; }
+  label { display:block; font-size:12px; color:#6b7a90; margin:12px 0 4px; }
+  input[type=text], textarea { width:100%; border:1px solid #d9e1ea; border-radius:10px; padding:10px 11px; font-size:15px; background:#fff; font-family:inherit; }
+  textarea { min-height:96px; }
+  .ph { display:flex; gap:8px; flex-wrap:wrap; }
+  .ph label.pick { margin:0; width:84px; height:64px; border:1.5px dashed #b9c5d4; border-radius:9px; display:flex; align-items:center; justify-content:center; font-size:22px; color:#6b7a90; cursor:pointer; background:#fff; }
+  .ph img { width:84px; height:64px; object-fit:cover; border-radius:9px; border:1px solid #d9e1ea; }
+  .btn { display:block; width:100%; border:0; border-radius:11px; padding:13px; font-size:15px; font-weight:600; background:#2490ef; color:#fff; margin-top:16px; }
+  .btn:disabled { opacity:.6; }
+  .btn2 { display:inline-block; border:1px solid #d9e1ea; background:#fff; color:#12233b; border-radius:9px; padding:8px 12px; font-size:13px; margin:8px 6px 0 0; text-decoration:none; }
+  .q { background:#eef3f9; border-radius:10px 10px 10px 2px; padding:9px 11px; font-size:14px; margin:14px 0 10px; white-space:pre-wrap; }
+  .a { border-left:4px solid #1f9d55; background:#f3fbf6; border-radius:4px 10px 10px 4px; padding:10px 12px; font-size:14px; line-height:1.55; }
+  .e { border-left:4px solid #c0392b; background:#fdf3f2; border-radius:4px 10px 10px 4px; padding:10px 12px; font-size:14px; line-height:1.55; }
+  .c { border-left:4px solid #2490ef; background:#eef6fe; border-radius:4px 10px 10px 4px; padding:9px 12px; font-size:13px; margin-top:10px; }
+  .tag { display:inline-block; font-size:11px; font-weight:700; border-radius:10px; padding:2px 9px; margin-bottom:8px; }
+  .call { display:inline-block; margin-top:8px; background:#0F2540; color:#fff; border-radius:8px; padding:8px 12px; font-size:13.5px; text-decoration:none; }
+  .hist .it { background:#fff; border:1px solid #e3e8ef; border-radius:9px; padding:9px 11px; margin-top:7px; display:flex; justify-content:space-between; gap:8px; font-size:13px; }
+  .st { font-size:11px; font-weight:700; border-radius:10px; padding:2px 8px; white-space:nowrap; height:fit-content; }
+  .think { text-align:center; color:#6b7a90; padding:16px; font-size:14px; }
+  .a p, .e p { margin:0 0 6px; } .a ol, .a ul { padding-left:20px; margin:4px 0; }
+</style>
+{% endblock %}
+{% block page_content %}
+<div id="ask">
+  <div class="top"><a href="/m">Home</a><div class="t">Ask Dolphin</div><div class="s">Hi {{ full_name or user }} — ask anything about Dolphin ERP</div></div>
+  <div class="body">
+    <div id="form">
+      <label>Your name</label><input type="text" id="nm" autocomplete="name">
+      <label>Your question or problem</label><textarea id="qq" placeholder="e.g. Block 812 shows 2 times in reconciliation — which one to keep?"></textarea>
+      <label>Photo / screenshot (up to 2)</label>
+      <div class="ph" id="ph"><label class="pick">📷<input type="file" id="fi" accept="image/*" style="display:none"></label></div>
+      <button class="btn" id="go">Ask</button>
+    </div>
+    <div id="out"></div>
+    <div class="hist" id="hist"></div>
+  </div>
+</div>
+{% endblock %}
+{% block script %}
+<script>
+(function () {
+  var CSRF = "{{ csrf }}", M = "/api/method/dolphin_theme.help_desk.", files = [];
+  function $(i) { return document.getElementById(i); }
+  function esc(s) { return (s == null ? "" : String(s)).replace(/[&<>"]/g, function (c) { return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]; }); }
+  function md(s) { // small safe markdown: paragraphs, **bold**, numbered and bullet lists
+    var lines = esc(s || "").split(/\n/), out = [], list = null;
+    lines.forEach(function (l) {
+      var m = l.match(/^\s*(\d+)[.)]\s+(.*)/), b = l.match(/^\s*[-*]\s+(.*)/);
+      var t = function (x) { return x.replace(/\*\*(.+?)\*\*/g, "<b>$1</b>"); };
+      if (m) { if (list !== "ol") { if (list) out.push("</" + list + ">"); out.push("<ol>"); list = "ol"; } out.push("<li>" + t(m[2]) + "</li>"); }
+      else if (b) { if (list !== "ul") { if (list) out.push("</" + list + ">"); out.push("<ul>"); list = "ul"; } out.push("<li>" + t(b[1]) + "</li>"); }
+      else { if (list) { out.push("</" + list + ">"); list = null; } if (l.trim()) out.push("<p>" + t(l) + "</p>"); }
+    });
+    if (list) out.push("</" + list + ">");
+    return out.join("");
+  }
+  function store(k, v) { try { if (v === undefined) return localStorage.getItem(k) || ""; localStorage.setItem(k, v); } catch (e) { return ""; } }
+  function post(method, data) {
+    return fetch(M + method, { method: "POST", credentials: "same-origin",
+      headers: { "Content-Type": "application/json", "X-Frappe-CSRF-Token": CSRF, "Accept": "application/json" },
+      body: JSON.stringify(data || {}) }).then(function (r) { return r.json().then(function (j) {
+        if (!r.ok) { var msg = "Something went wrong."; try { msg = JSON.parse(JSON.parse(j._server_messages)[0]).message; } catch (e) {} throw new Error(msg); }
+        return j.message; }); });
+  }
+  function upload(file) {
+    var fd = new FormData(); fd.append("file", file, file.name || "photo.jpg"); fd.append("is_private", "1");
+    return fetch("/api/method/upload_file", { method: "POST", credentials: "same-origin",
+      headers: { "X-Frappe-CSRF-Token": CSRF, "Accept": "application/json" }, body: fd })
+      .then(function (r) { return r.json(); }).then(function (j) { return j.message.file_url; });
+  }
+  $("nm").value = store("askDolphinName");
+  $("fi").addEventListener("change", function () {
+    var f = this.files[0]; if (!f || files.length >= 2) return;
+    files.push(f);
+    var img = document.createElement("img"); img.src = URL.createObjectURL(f);
+    $("ph").insertBefore(img, $("ph").lastElementChild);
+    if (files.length >= 2) $("ph").lastElementChild.style.display = "none";
+    this.value = "";
+  });
+  var followUp = null;
+  $("go").addEventListener("click", function () {
+    var q = $("qq").value.trim(), nm = $("nm").value.trim();
+    if (!nm) { alertBox("Please type your name."); return; }
+    if (q.length < 3 && !files.length) { alertBox("Please type your question."); return; }
+    store("askDolphinName", nm);
+    $("go").disabled = true;
+    $("out").innerHTML = "<div class='q'>" + esc(q) + "</div><div class='think'>Thinking… this can take up to a minute when photos or records are checked.</div>";
+    Promise.all(files.map(upload)).then(function (urls) {
+      return post("ask", { question: q, person_name: nm, attachment: urls[0] || null, attachment_2: urls[1] || null,
+        route: "Phone page /ask", follow_up_of: followUp });
+    }).then(function (r) { poll(r.name, q, 0); })
+      .catch(function (e) { $("go").disabled = false; $("out").innerHTML = "<div class='e'>" + esc(e.message) + "</div>"; });
+  });
+  function alertBox(m) { $("out").innerHTML = "<div class='e'>" + esc(m) + "</div>"; }
+  function poll(name, q, n) {
+    post("status", { name: name }).then(function (s) {
+      if (s.status === "Thinking" && n < 90) { setTimeout(function () { poll(name, q, n + 1); }, 2000); return; }
+      show(s, q);
+    });
+  }
+  function show(s, q) {
+    var h = "<div class='q'>" + esc(q) + "</div>";
+    if (s.status === "Needs Admin") {
+      h += "<span class='tag' style='background:#fbe3e0;color:#c0392b'>! NEEDS ADMIN</span><div class='e'>" + md(s.answer) +
+        (s.reason ? "<p><b>Why:</b> " + esc(s.reason) + "</p>" : "") +
+        "<p>Please contact <b>" + esc(s.admin_name) + "</b> or your admin. Your question and photo have already been sent to him.</p>" +
+        (s.admin_phone ? "<a class='call' href='tel:" + esc(s.admin_phone) + "'>📞 Call " + esc(s.admin_name) + "</a>" : "") + "</div>";
+    } else if (s.status === "Thinking") {
+      h += "<div class='e'>Still working on it — your question is saved as <b>" + esc(s.name) + "</b>. Check below in a minute.</div>";
+    } else {
+      h += "<span class='tag' style='background:#dcf3e5;color:#1f9d55'>✓ " + (s.status === "Changed" ? "CHANGED" : s.status === "Change Requested" ? "CHANGE RECORDED" : "SOLVED") +
+        "</span><div class='a'>" + md(s.answer) + "</div>";
+      if (s.change) h += "<div class='c'><b>" + (s.change_applied ? "Screen change made" : "Change waiting for approval") + ":</b> " +
+        esc(s.change.doctype) + " → " + esc(s.change.fieldname) + " · " + esc(s.change.property) + " = “" + esc(s.change.value) + "”</div>";
+    }
+    h += "<div>" + (s.status !== "Needs Admin" ? "<a class='btn2' href='#' id='stuck'>Still stuck</a>" : "") +
+      "<a class='btn2' href='#' id='fu'>Ask a follow-up</a><a class='btn2' href='/app/dolphin-help-question/" + esc(s.name) + "'>Open " + esc(s.name) + "</a></div>";
+    $("out").innerHTML = h;
+    $("go").disabled = false; $("qq").value = ""; files = [];
+    Array.prototype.slice.call($("ph").querySelectorAll("img")).forEach(function (i) { i.remove(); });
+    $("ph").lastElementChild.style.display = "";
+    var st = $("stuck"); if (st) st.onclick = function (e) { e.preventDefault(); post("still_stuck", { name: s.name }).then(function (x) { show(x, q); }); };
+    $("fu").onclick = function (e) { e.preventDefault(); followUp = s.name; $("qq").focus(); $("qq").placeholder = "Your follow-up question…"; };
+    history_();
+  }
+  function history_() {
+    fetch("/api/method/frappe.client.get_list?doctype=Dolphin%20Help%20Question&fields=" + encodeURIComponent('["name","question","status"]') +
+      "&filters=" + encodeURIComponent(JSON.stringify({ owner: "{{ user }}" })) + "&order_by=creation%20desc&limit_page_length=8",
+      { credentials: "same-origin", headers: { "Accept": "application/json" } })
+      .then(function (r) { return r.json(); }).then(function (j) {
+        var rows = j.message || []; if (!rows.length) { $("hist").innerHTML = ""; return; }
+        var col = { "Answered": ["#dcf3e5", "#1f9d55"], "Changed": ["#e3effd", "#2490ef"], "Needs Admin": ["#fbe3e0", "#c0392b"], "Resolved": ["#e3effd", "#2490ef"] };
+        $("hist").innerHTML = "<div style='margin-top:20px;font-size:12px;color:#6b7a90'>Your recent questions</div>" + rows.map(function (r) {
+          var c = col[r.status] || ["#eef1f5", "#3b4f69"];
+          return "<a class='it' style='text-decoration:none;color:inherit' href='/app/dolphin-help-question/" + esc(r.name) + "'><span>" + esc((r.question || "").slice(0, 70)) +
+            "</span><span class='st' style='background:" + c[0] + ";color:" + c[1] + "'>" + esc(r.status) + "</span></a>";
+        }).join("");
+      }).catch(function () {});
+  }
+  history_();
+})();
+</script>
+{% endblock %}
