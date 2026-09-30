@@ -584,7 +584,10 @@ def _notify_admin(name):
                 f"<p><b>Why sent to you:</b> {frappe.utils.escape_html(doc.escalation_reason or '')}</p>"
                 f"<p><b>Status:</b> {doc.status}</p>"
                 f"<p><a href='{link}'>Open {name}</a></p>")
-        frappe.sendmail(recipients=[st.admin_email], subject=subject, message=body, delayed=False)
+        # QUEUED, not sent inline (30 Sep 2026 fix). Sent inline, a hiccup at Frappe Cloud's
+        # mail service (SSL EOF, seen 15:14 and 15:16 on the first live test) failed the
+        # user's whole request although the question was saved. The queue retries by itself.
+        frappe.sendmail(recipients=[st.admin_email], subject=subject, message=body, delayed=True)
         if frappe.db.exists("User", st.admin_email):
             frappe.get_doc({"doctype": "Notification Log", "for_user": st.admin_email, "type": "Alert",
                             "document_type": "Dolphin Help Question", "document_name": name,
