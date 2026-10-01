@@ -50,6 +50,19 @@ BLOCKED_MODULES = {"Core", "Custom", "Desk", "Email", "Integrations", "Automatio
                    "Workflow", "Website", "Printing", "Social", "Geo"}
 BLOCKED_WORDS = ("Permission", "Role", "User", "Script", "Property Setter", "Settings")
 
+# 1 Oct 2026, his words: "I dont want everything to be depending or all your answers restricting and
+# needing my approval. Except the prices and invoice details everything else should be replied to
+# quarry and ilkal". So: everyone gets a full answer from live data. ONLY prices and invoice details are
+# held back - and only from logins that are not the Bangalore office / owner.
+PRICE_ROLES = {"System Manager", "Administrator", "Dolphin Owner", "Dolphin Bangalore", "Dolphin Super Admin",
+               "Dolphin Sales"}
+INVOICE_DOCTYPES = {"Shipping Document", "Local Tax Invoice", "Sales Invoice", "Purchase Invoice", "Quotation",
+                    "Sales Order", "Payment Entry", "Journal Entry", "Size Rate"}
+import re as _re
+PRICE_KEY = _re.compile(r"(^|_)(rate|rates|price|prices|amount|amounts|value|invoice|exchange|tax|gst|igst|cgst|sgst|"
+                        r"usd|inr|cost|payment|freight|discount|currency)(_|$)|grand_total|net_total|base_total|"
+                        r"rounded_total|outstanding", _re.I)
+
 
 # --------------------------------------------------------------------------- settings
 def _settings():
@@ -79,6 +92,12 @@ def _is_trusted(user, st=None):
     if user == "Administrator" or "System Manager" in frappe.get_roles(user):
         return True
     return (user or "").lower() in st.trusted
+
+
+def _sees_prices(user):
+    if user == "Administrator":
+        return True
+    return bool(set(frappe.get_roles(user)) & PRICE_ROLES)
 
 
 def _knowledge(st):
@@ -222,9 +241,11 @@ def run_question(name):
     doc = frappe.get_doc("Dolphin Help Question", name)
     asker = doc.asked_by or doc.owner
     st = _settings()
-    frappe.set_user(asker)  # every look-up runs with the asker's own permissions
+    # Look-ups run with the ASKER's own Dolphin permissions (never more). On top of that,
+    # prices and invoice details are stripped for logins outside PRICE_ROLES - see _redact.
+    frappe.set_user(asker)
     ctx = frappe._dict(doc=doc, st=st, trusted=_is_trusted(asker, st), change=None, prev=None,
-                       applied=False)
+                       applied=False, prices=_sees_prices(asker))
     try:
         result = _conversation(doc, st, ctx)
     except Exception as e:
@@ -261,36 +282,42 @@ def run_question(name):
     frappe.db.commit()
 
 
-def _system_prompt(st, trusted):
-    who = ("This user's login IS trusted to have minor screen changes carried out."
+def _system_prompt(st, trusted, prices=True):
+    who = ("Minor screen changes are carried out straight away for this login."
            if trusted else
-           "This user's login is NOT trusted to change screens: a minor change they ask for is RECORDED for "
-           "Mahantesh / Bangalore office / Mr Manjunath to approve (call apply_minor_change anyway - it will be queued).")
+           "For this login a minor change is RECORDED for approval (call apply_minor_change anyway).")
+    money = ("This login MAY see prices, rates and invoice details." if prices else
+             "This login must NOT be given prices, rates, invoice values, exchange rates, tax or invoice details. "
+             "The tools already hide them. If asked, say politely that prices and invoice details come from the "
+             "Bangalore office, and answer every other part of the question fully.")
     return f"""You are **Ask Dolphin**, the help assistant inside Dolphin International's ERP (ERPNext).
 Staff at the Ilkal quarry, the port and the Bangalore office ask you questions, often with a phone photo or screenshot.
-Your job: understand the problem and SORT IT OUT, so they do not have to call {st.admin_name}.
+Your job: ANSWER and SORT IT OUT yourself, fully, so nobody has to wait for {st.admin_name}.
+Mr Manjunath's instruction: answers must not depend on his approval. Do not send people to him unless it is truly
+impossible to answer.
 
 How to answer
 - Simple English, short numbered steps, name the exact screen and button. Staff often read on a phone.
-- Look things up before answering when a block, document or figure is mentioned: use the tools. Never guess a
-  block's status, a document's state or a number. If a number matches several blocks, list them - never pick one.
+- Questions about stock, blocks, inspections, buyers, challans, arrivals, lots, tonnage, measurements, counts and dates:
+  LOOK THEM UP with the tools and give the actual answer with the numbers and document names. Never guess.
+  If a number matches several blocks, list them - never pick one.
+- If a name does not match exactly (e.g. "Mr Wu"), search the buyer / consignee lists, offer the closest matches and say so.
 - Read the photo carefully: error messages, the screen name, "Not Saved", which button is visible.
 - Give your own view as well: if what they ask for is risky or there is a better way, say so kindly and briefly.
 - You cannot press buttons or change data for them. Tell them exactly what to press.
+- {money}
 
 Minor changes
 - You MAY make a minor, reversible screen change with apply_minor_change (label, help text, list column, list filter,
   bold, hide a non-mandatory field, grid column width, placeholder). {who}
-- Before calling it, use doctype_fields to get the exact fieldname. One change per call; at most 3 per question.
+- Before calling it, use doctype_fields to get the exact fieldname. One change per question.
 - Never change data, numbers, rates, permissions or print formats.
 
-Sensitive - send to {st.admin_name} (outcome needs_admin)
-- Anything listed as SENSITIVE in the guide: stock/tonnage/weights/measurements/block numbers/rates/prices/invoice
-  values/tax; cancelling, deleting or un-submitting submitted documents; permissions and logins; a change to the
-  process; a design change (new field, new screen, report, print layout); figures that look wrong; errors you cannot
-  explain. In that case explain in one or two lines WHY (e.g. "This is a design change" / "This will change the
-  process" / "This affects invoice values") and tell them to contact {st.admin_name} or their admin. Still give any
-  safe steps they can do meanwhile.
+When to use outcome needs_admin (rare)
+- Only when the user asks for something you cannot do or explain at all: a new field / screen / report / print layout,
+  a change to how the process works, cancelling or deleting a submitted document, logins and permissions, or an error
+  you cannot explain after looking things up. Still give your answer and any safe steps; say in one line why it needs
+  Mr Manjunath. Everything else is outcome solved.
 
 Finish EVERY question by calling the `reply` tool exactly once.
 
@@ -362,7 +389,7 @@ def _conversation(doc, st, ctx):
             messages.append({"role": "assistant", "content": prev.answer or "(no answer)"})
     messages.append({"role": "user", "content": content})
 
-    system = [{"type": "text", "text": _system_prompt(st, ctx.trusted), "cache_control": {"type": "ephemeral"}}]
+    system = [{"type": "text", "text": _system_prompt(st, ctx.trusted, ctx.prices), "cache_control": {"type": "ephemeral"}}]
     tokens = 0
     changes = 0
     for turn in range(MAX_TURNS):
@@ -391,7 +418,7 @@ def _conversation(doc, st, ctx):
                 changes += 1
                 out = _tool_change(b.get("input") or {}, ctx) if changes <= 3 else "Limit of 3 changes reached."
             else:
-                out = _run_tool(b["name"], b.get("input") or {})
+                out = _run_tool(b["name"], b.get("input") or {}, ctx)
             results.append({"type": "tool_result", "tool_use_id": b["id"],
                             "content": json.dumps(out, default=str)[:15000]})
         messages.append({"role": "user", "content": results})
@@ -400,21 +427,27 @@ def _conversation(doc, st, ctx):
 
 
 # --------------------------------------------------------------------------- tools (read-only)
-def _run_tool(name, inp):
+def _run_tool(name, inp, ctx=None):
+    prices = bool(ctx and ctx.prices)
     try:
+        dt = inp.get("doctype")
+        if dt and not prices and dt in INVOICE_DOCTYPES:
+            return {"hidden": f"{dt} holds prices and invoice details, which come from the Bangalore office."}
         if name == "lookup_block":
-            return _lookup_block(str(inp.get("number") or "").strip())
+            return _redact(_lookup_block(str(inp.get("number") or "").strip()), prices)
         if name == "get_document":
             d = frappe.get_doc(inp["doctype"], inp["name"])
             d.check_permission("read")
-            return _trim(d.as_dict())
+            return _redact(_trim(d.as_dict()), prices)
         if name == "search_documents":
             dt = inp["doctype"]
             meta = frappe.get_meta(dt)
             fields = inp.get("fields") or ["name"] + [f.fieldname for f in meta.fields if f.in_list_view][:8]
             fields = [f for f in fields if f == "name" or meta.has_field(f) or f in ("docstatus", "modified", "creation")]
-            return frappe.get_list(dt, filters=inp.get("filters") or {}, fields=fields,
-                                   order_by=inp.get("order_by") or "modified desc", limit_page_length=30)
+            if not prices:
+                fields = [f for f in fields if not PRICE_KEY.search(f)]
+            return _redact(frappe.get_list(dt, filters=inp.get("filters") or {}, fields=fields,
+                                          order_by=inp.get("order_by") or "modified desc", limit_page_length=30), prices)
         if name == "doctype_fields":
             meta = frappe.get_meta(inp["doctype"])
             return [{"fieldname": f.fieldname, "label": f.label, "type": f.fieldtype, "mandatory": f.reqd,
@@ -447,6 +480,17 @@ def _lookup_block(number):
         return {"result": f"No block answers to {number}."}
     return {"matches": found, "note": ("MORE THAN ONE block answers to this number - list them, do not pick."
                                        if len({r['name'] for r in found}) > 1 else "")}
+
+
+def _redact(obj, prices):
+    """Strip prices / invoice details for logins outside PRICE_ROLES."""
+    if prices:
+        return obj
+    if isinstance(obj, list):
+        return [_redact(x, prices) for x in obj]
+    if isinstance(obj, dict):
+        return {k: _redact(v, prices) for k, v in obj.items() if not PRICE_KEY.search(str(k))}
+    return obj
 
 
 def _trim(d):
