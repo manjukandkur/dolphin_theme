@@ -40,7 +40,8 @@
   <div class="top"><a href="/m">Home</a><div class="t">Ask Dolphin</div><div class="s">Hi {{ full_name or user }} — ask anything about Dolphin ERP</div></div>
   <div class="body">
     <div id="form">
-      <label>Your name</label><input type="text" id="nm" autocomplete="name">
+      <div id="who" style="display:none;font-size:13px;margin-top:12px">Asking as <b id="whonm"></b> · <a href="#" id="chgnm">change</a></div>
+      <div id="nmbox"><label>Your name</label><input type="text" id="nm" autocomplete="name"></div>
       <label>Your question or problem</label><textarea id="qq" placeholder="e.g. Block 812 shows 2 times in reconciliation — which one to keep?"></textarea>
       <label>Photo / screenshot (up to 2)</label>
       <div class="ph" id="ph"><label class="pick">📷<input type="file" id="fi" accept="image/*" style="display:none"></label></div>
@@ -84,6 +85,8 @@
       .then(function (r) { return r.json(); }).then(function (j) { return j.message.file_url; });
   }
   $("nm").value = store("askDolphinName");
+  if ($("nm").value) { $("whonm").textContent = $("nm").value; $("who").style.display = ""; $("nmbox").style.display = "none"; }
+  $("chgnm").onclick = function (e) { e.preventDefault(); $("who").style.display = "none"; $("nmbox").style.display = ""; $("nm").focus(); };
   $("fi").addEventListener("change", function () {
     var f = this.files[0]; if (!f || files.length >= 2) return;
     files.push(f);
