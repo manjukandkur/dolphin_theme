@@ -77,7 +77,11 @@
         { fieldtype: "HTML", fieldname: "intro", options:
           "<div style='font-size:12.5px;color:#6b7a90;margin-bottom:4px'>Ask anything about Dolphin ERP. Add a photo or screenshot if it helps. " +
           "Screen: <span style='background:#eef3f9;border-radius:10px;padding:2px 8px'>" + esc(c.route) + "</span></div>" },
-        { fieldtype: "Data", fieldname: "person_name", label: __("Your name"), reqd: 1, default: store("askDolphinName") },
+        { fieldtype: "HTML", fieldname: "who" },
+        // 1 Oct 2026: once a name is saved the box is hidden, so the question is never typed into it
+        // (seen on his own screenshot). "change" shows it again.
+        { fieldtype: "Data", fieldname: "person_name", label: __("Your name"), reqd: 1, default: store("askDolphinName"),
+          hidden: store("askDolphinName") ? 1 : 0 },
         { fieldtype: "Small Text", fieldname: "question", label: __("Your question or problem"), reqd: 1 },
         { fieldtype: "Section Break" },
         { fieldtype: "Attach Image", fieldname: "attachment", label: __("Photo / screenshot") },
@@ -100,7 +104,17 @@
         }, function () { d.get_primary_btn().prop("disabled", false); box.html(""); });
       },
     });
+    var nm = store("askDolphinName");
+    if (nm) {
+      d.fields_dict.who.$wrapper.html("<div style='font-size:12.5px;margin-bottom:4px'>Asking as <b>" + esc(nm) +
+        "</b> · <a href='#' class='ask-chg-name'>change</a></div>");
+      d.fields_dict.who.$wrapper.find(".ask-chg-name").on("click", function (e) {
+        e.preventDefault(); d.set_df_property("person_name", "hidden", 0); d.fields_dict.who.$wrapper.empty();
+        d.fields_dict.person_name.$input.focus();
+      });
+    }
     d.show();
+    setTimeout(function () { try { d.fields_dict.question.$input.focus(); } catch (e) {} }, 300);
     return d;
   }
 
