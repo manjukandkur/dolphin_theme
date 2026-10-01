@@ -2,7 +2,7 @@
  "actions": [],
  "allow_rename": 0,
  "creation": "2026-09-30 13:10:00.000000",
- "modified": "2026-09-30 16:10:00.000000",
+ "modified": "2026-10-01 16:00:00.000000",
  "modified_by": "Administrator",
  "owner": "Administrator",
  "doctype": "DocType",
@@ -92,7 +92,7 @@
    "fieldtype": "Small Text",
    "label": "Trusted logins (one per line)",
    "default": "ilkal@dolphingranite.com\ndi@dolphingranite.com\nmanjukandkur@gmail.com",
-   "description": "Mahantesh = ilkal@, Naveen/Bangalore = di@. Other logins' change requests wait for approval."
+   "description": "Mahantesh = ilkal@, Naveen/Bangalore = di@. Changes asked by other logins wait for one of these to approve (not Mr Manjunath)."
   },
   {
    "fieldname": "section_k",
